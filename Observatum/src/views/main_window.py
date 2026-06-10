@@ -1036,6 +1036,18 @@ class MainWindow(QMainWindow):
                 if reply == QMessageBox.StandardButton.Yes:
                     self._export_csv_backups(backup_path)
 
+        # Fold WAL side-files into the main databases before close
+        # (protects against cloud sync copying an incomplete state)
+        try:
+            import sqlite3 as _sqlite3
+            import paths as _paths
+            for _db in (_paths.OBSERVATUM_DB, _paths.UKSI_DB):
+                _conn = _sqlite3.connect(str(_db))
+                _conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                _conn.close()
+        except Exception:
+            pass
+
         event.accept()
 
     def _export_csv_backups(self, backup_path: str):
@@ -1046,6 +1058,22 @@ class MainWindow(QMainWindow):
 
         os.makedirs(backup_path, exist_ok=True)
         db_path = self._main_db_path
+
+        # File-level backups of small user databases (frozen assessments, Munia)
+        try:
+            import paths as _paths
+            _aux = [("examen.db", _paths.EXAMEN_DB)]
+            if hasattr(_paths, "MUNIA_DB"):
+                _aux.append(("munia.db", _paths.MUNIA_DB))
+            for _name, _srcdb in _aux:
+                if os.path.exists(str(_srcdb)):
+                    _src_conn = sqlite3.connect(str(_srcdb))
+                    _dst_conn = sqlite3.connect(os.path.join(backup_path, _name))
+                    _src_conn.backup(_dst_conn)
+                    _src_conn.close()
+                    _dst_conn.close()
+        except Exception:
+            pass
 
         tables = {
             "observations": "observations.csv",
