@@ -1,60 +1,45 @@
-# Parallel Development — Status & Future Assignments
+# Parallel Development — Status & Assignments
 
-## Date: 26 March 2026 (Updated post-Session 24)
-
----
-
-## Completed by Parallel Bot (Session 24)
-
-### ✅ Examen View Wiring
-All 3 views rewired to CodexRepository, PantheonRepository, PantheonAnalysisService.
-
-### ✅ Examen Polish (5 features)
-Manual entry editor, import species list, appendix export, site comparison, historical export. Project-level grouping.
-
-### ✅ Curator Fixes
-Hemiptera sort override, Coleoptera suborder grouping, suborder labels in preview/export.
-
-### ✅ Atrium Suite Launcher (redesigned Session 24)
-### ✅ Munia v2 + Tabella v2
-### ✅ Codex Phase 1-3 + Manager GUI + 3 Imports
-System tray app with themed popup panel, 5 app buttons, status dots.
+## Date: 10 June 2026 (supersedes 26 March 2026)
 
 ---
 
-## Safe to Parallelise Next
+## Current Mode
 
-### Task A: Examen Refinements (Other Bot)
-**Risk: None.** Only `Examen/` files.
-- Paste/import UX polish (better error handling, format detection)
-- Export format options (PDF as well as Excel)
-- Mode comparison side-by-side display
-
-### Task B: Curator PDF Export (Other Bot)
-**Risk: None.** Only `Curator/` files.
-- Verify PDF export includes suborder labels
-- Other orders: add sort overrides as alphabetical UKSI sorting discovered
-
-### Task C: Munia CalDAV (Other Bot)
-**Risk: None.** Only `Munia/` files.
-- Titan CalDAV sync implementation
-- Project status workflow
+Field season — single-bot maintenance and hygiene work only. No parallel development active. The desktop Examen workstream is closed (retired 16 April 2026, archived at `_archive/Examen_desktop_20260416/`); all Examen entries in the previous version of this plan are void.
 
 ---
 
-## This Bot Handles
+## Completed Since Last Version
 
-### Task D: Codex Display Integration
-**Risk: Touches Observatum/src/views/.** This bot only.
-- Species Profile dialog
-- Stats dashboards — key species counts
-- Export — conservation status column
+| Item | Session | Notes |
+|------|---------|-------|
+| Codex 11-track rebuild | Apr 2026 | 9 files rewritten; clean baseline; SQS invertebrate-only; data quality issues (zero-SQS, TVK collisions) cleaned |
+| Desktop Examen retirement | Apr 2026 | Archived; Atrium entry removed |
+| Session 25 field fixes | Apr–May 2026 | Species search rewrite, specimen/observation editing, date standardisation, Tabella pending records |
+| Phase 0 hygiene | Jun 2026 | Git repo (main + stable), WAL checkpoint on close, examen/munia backups, MUNIA_DB in paths.py, docs refresh |
 
-### Task E: Mapping Tab Polish
-**Risk: Low.** Only `views/mapping/` files.
-- Filter panel wiring
-- Export image
-- Could be parallelised if other bot stays out of main_window.py
+---
+
+## Future Parallelisable Work (Winter 2026)
+
+### Safe for a second bot (fully isolated directories)
+
+| Task | Directory | Notes |
+|------|-----------|-------|
+| Curator PDF export polish, sort overrides | `Curator/` | No shared files |
+| Munia CalDAV sync | `Munia/` | Needs Titan server details |
+| Codex review imports (macro-moth, micro-moth, NECR390) | `scripts/` + CSV prep | Coordinate on scripts/; macro-moth blocked on PDF extraction |
+
+### This bot only (touches Observatum core or shared infrastructure)
+
+| Task | Risk area |
+|------|-----------|
+| Phase 1: taxonomy refresh script, import-time Codex enrichment | `scripts/`, import wizards |
+| Codex display integration in Observatum | `Observatum/src/views/` |
+| Mapping tab polish | `Observatum/src/views/mapping/` |
+| Modularisation (tab registry, first-run setup) | `Observatum/src/` core |
+| Web Examen build | New project directory |
 
 ---
 
@@ -62,13 +47,14 @@ System tray app with themed popup panel, 5 app buttons, status dots.
 
 | Directory | Owner | Rule |
 |-----------|-------|------|
-| `Observatum/src/views/` | This bot | No parallel modifications |
-| `Observatum/src/services/` | Read-only | Both bots can read, neither modifies |
-| `Observatum/src/repositories/` | Read-only | Both bots can read, neither modifies |
-| `Examen/` | Other bot | This bot doesn't touch |
-| `Curator/` | Other bot | This bot doesn't touch |
-| `Munia/` | Other bot | This bot doesn't touch |
-| `Atrium/` | Other bot | This bot doesn't touch |
-| `Tabella/` | Other bot | This bot doesn't touch |
-| `paths.py` | Coordinate | Notify before editing |
-| `scripts/` | Coordinate | Notify before editing |
+| `Observatum/src/` | This bot | No parallel modifications |
+| `shared/` | This bot | Read-only for any second bot |
+| `Curator/`, `Munia/` | Second bot eligible | Isolated |
+| `Tabella/` | Coordinate | VBA + generator changes affect live field workbooks |
+| `Codex/` | Coordinate | Manager GUI |
+| `paths.py`, `scripts/` | Coordinate | Notify before editing |
+| `.gitignore`, git workflow | This bot | Single source of repo discipline |
+
+## Git Discipline for Parallel Work
+
+When parallel development resumes: second-bot deliveries are applied on `main`, tested, then merged to `stable` only after a field-tested session. Never apply unreviewed parallel deliveries directly to `stable`.
