@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+  <!-- Simple moth silhouette - top view with wings at rest (roof-like) -->
+  <!-- body - fatter than butterfly -->
+  <ellipse cx="40" cy="45" rx="6" ry="18"/>
+  <!-- head -->
+  <circle cx="40" cy="24" r="6"/>
+  <!-- feathery antennae -->
+  <path d="M36 20 Q28 12 22 8 Q26 14 24 10 Q30 16 28 12" fill="none" stroke="black" stroke-width="2"/>
+  <path d="M44 20 Q52 12 58 8 Q54 14 56 10 Q50 16 52 12" fill="none" stroke="black" stroke-width="2"/>
+  <!-- wings - more triangular, held roof-like -->
+  <path d="M34 30 L8 20 L10 55 L34 60 Z"/>
+  <path d="M46 30 L72 20 L70 55 L46 60 Z"/>
+</svg>

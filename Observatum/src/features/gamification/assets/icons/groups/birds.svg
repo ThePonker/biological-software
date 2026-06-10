@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+  <!-- Simple bird silhouette - side view songbird -->
+  <ellipse cx="42" cy="40" rx="20" ry="14"/><!-- body -->
+  <circle cx="22" cy="34" r="10"/><!-- head -->
+  <polygon points="12,34 2,32 12,36"/><!-- beak -->
+  <path d="M55 38 Q70 30 75 35 Q68 40 58 42" fill="black"/><!-- tail -->
+  <!-- wing detail -->
+  <ellipse cx="45" cy="38" rx="12" ry="8"/>
+  <!-- eye (negative space) -->
+  <circle cx="18" cy="32" r="2" fill="white"/>
+  <!-- legs -->
+  <path d="M38 52 L38 65 M35 65 L41 65" fill="none" stroke="black" stroke-width="2"/>
+  <path d="M46 52 L46 65 M43 65 L49 65" fill="none" stroke="black" stroke-width="2"/>
+</svg>

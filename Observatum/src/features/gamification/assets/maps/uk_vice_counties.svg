@@ -1,0 +1,357 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 600" width="400" height="600">
+  <defs>
+    <style>
+      .vc { fill: #3d3d3d; stroke: #555555; stroke-width: 0.5; }
+      .vc:hover { fill: #4a4a4a; }
+      .vc.earned { fill: #4a7c59; }
+      .vc.earned:hover { fill: #5a8c69; }
+      .water { fill: #1a2530; }
+      .label { font-size: 6px; fill: #888888; font-family: sans-serif; }
+    </style>
+  </defs>
+  
+  <!-- Background water -->
+  <rect class="water" x="0" y="0" width="400" height="600"/>
+  
+  <!-- ENGLAND Vice Counties (1-52, 53-62 for northern) -->
+  
+  <!-- Cornwall West (VC1) -->
+  <path id="vc1" class="vc" d="M95,520 L80,535 L70,530 L75,515 L90,510 Z"/>
+  
+  <!-- Cornwall East (VC2) -->
+  <path id="vc2" class="vc" d="M95,520 L110,525 L115,515 L105,505 L90,510 Z"/>
+  
+  <!-- Devon South (VC3) -->
+  <path id="vc3" class="vc" d="M110,525 L130,530 L140,520 L130,505 L115,515 Z"/>
+  
+  <!-- Devon North (VC4) -->
+  <path id="vc4" class="vc" d="M105,505 L130,505 L140,490 L120,480 L100,490 Z"/>
+  
+  <!-- Somerset South (VC5) -->
+  <path id="vc5" class="vc" d="M130,530 L155,525 L160,510 L140,520 Z"/>
+  
+  <!-- Somerset North (VC6) -->
+  <path id="vc6" class="vc" d="M140,520 L160,510 L165,495 L145,490 L140,490 Z"/>
+  
+  <!-- Wiltshire North (VC7) -->
+  <path id="vc7" class="vc" d="M165,495 L185,490 L190,475 L170,480 Z"/>
+  
+  <!-- Wiltshire South (VC8) -->
+  <path id="vc8" class="vc" d="M160,510 L180,505 L185,490 L165,495 Z"/>
+  
+  <!-- Dorset (VC9) -->
+  <path id="vc9" class="vc" d="M130,530 L155,525 L165,535 L140,540 Z"/>
+  
+  <!-- Isle of Wight (VC10) -->
+  <path id="vc10" class="vc" d="M175,545 L190,545 L192,538 L178,538 Z"/>
+  
+  <!-- Hampshire South (VC11) -->
+  <path id="vc11" class="vc" d="M165,535 L195,530 L200,515 L180,505 L160,510 Z"/>
+  
+  <!-- Hampshire North (VC12) -->
+  <path id="vc12" class="vc" d="M180,505 L200,515 L210,500 L190,475 L185,490 Z"/>
+  
+  <!-- West Sussex (VC13) -->
+  <path id="vc13" class="vc" d="M195,530 L220,535 L230,520 L210,520 L200,515 Z"/>
+  
+  <!-- East Sussex (VC14) -->
+  <path id="vc14" class="vc" d="M220,535 L250,530 L255,515 L230,520 Z"/>
+  
+  <!-- East Kent (VC15) -->
+  <path id="vc15" class="vc" d="M270,510 L295,505 L300,490 L275,495 Z"/>
+  
+  <!-- West Kent (VC16) -->
+  <path id="vc16" class="vc" d="M250,510 L270,510 L275,495 L255,490 L245,500 Z"/>
+  
+  <!-- Surrey (VC17) -->
+  <path id="vc17" class="vc" d="M230,520 L255,515 L255,490 L235,495 L220,505 Z"/>
+  
+  <!-- Essex South (VC18) -->
+  <path id="vc18" class="vc" d="M275,480 L300,475 L305,460 L280,465 Z"/>
+  
+  <!-- Essex North (VC19) -->
+  <path id="vc19" class="vc" d="M280,465 L305,460 L310,445 L285,450 Z"/>
+  
+  <!-- Hertfordshire (VC20) -->
+  <path id="vc20" class="vc" d="M250,465 L275,460 L280,445 L255,450 Z"/>
+  
+  <!-- Middlesex (VC21) -->
+  <path id="vc21" class="vc" d="M245,485 L265,480 L270,465 L250,470 Z"/>
+  
+  <!-- Berkshire (VC22) -->
+  <path id="vc22" class="vc" d="M210,500 L235,495 L240,480 L215,485 L200,495 Z"/>
+  
+  <!-- Oxfordshire (VC23) -->
+  <path id="vc23" class="vc" d="M190,475 L215,485 L225,465 L200,460 Z"/>
+  
+  <!-- Buckinghamshire (VC24) -->
+  <path id="vc24" class="vc" d="M225,465 L250,465 L255,445 L230,450 Z"/>
+  
+  <!-- Suffolk East (VC25) -->
+  <path id="vc25" class="vc" d="M310,445 L330,440 L335,425 L310,430 Z"/>
+  
+  <!-- Suffolk West (VC26) -->
+  <path id="vc26" class="vc" d="M285,450 L310,445 L310,430 L285,435 Z"/>
+  
+  <!-- Norfolk East (VC27) -->
+  <path id="vc27" class="vc" d="M310,430 L340,420 L345,400 L315,410 Z"/>
+  
+  <!-- Norfolk West (VC28) -->
+  <path id="vc28" class="vc" d="M285,435 L310,430 L315,410 L290,420 Z"/>
+  
+  <!-- Cambridgeshire (VC29) -->
+  <path id="vc29" class="vc" d="M265,440 L285,435 L290,420 L270,425 Z"/>
+  
+  <!-- Bedfordshire (VC30) -->
+  <path id="vc30" class="vc" d="M245,445 L265,440 L268,425 L248,430 Z"/>
+  
+  <!-- Huntingdonshire (VC31) -->
+  <path id="vc31" class="vc" d="M260,425 L280,420 L282,405 L262,410 Z"/>
+  
+  <!-- Northamptonshire (VC32) -->
+  <path id="vc32" class="vc" d="M225,435 L250,430 L255,415 L230,420 Z"/>
+  
+  <!-- Gloucestershire East (VC33) -->
+  <path id="vc33" class="vc" d="M165,480 L190,475 L195,460 L170,465 Z"/>
+  
+  <!-- Gloucestershire West (VC34) -->
+  <path id="vc34" class="vc" d="M145,490 L165,480 L165,465 L150,475 Z"/>
+  
+  <!-- Monmouthshire (VC35) -->
+  <path id="vc35" class="vc" d="M125,480 L145,490 L150,475 L130,465 Z"/>
+  
+  <!-- Herefordshire (VC36) -->
+  <path id="vc36" class="vc" d="M130,465 L155,460 L160,445 L135,450 Z"/>
+  
+  <!-- Worcestershire (VC37) -->
+  <path id="vc37" class="vc" d="M155,460 L175,455 L180,440 L160,445 Z"/>
+  
+  <!-- Warwickshire (VC38) -->
+  <path id="vc38" class="vc" d="M180,445 L205,440 L210,425 L185,430 Z"/>
+  
+  <!-- Staffordshire (VC39) -->
+  <path id="vc39" class="vc" d="M170,430 L195,425 L200,410 L175,415 Z"/>
+  
+  <!-- Shropshire (VC40) -->
+  <path id="vc40" class="vc" d="M140,445 L165,440 L170,425 L145,430 Z"/>
+  
+  <!-- Glamorgan (VC41) -->
+  <path id="vc41" class="vc" d="M100,485 L125,480 L130,465 L105,470 Z"/>
+  
+  <!-- Breconshire (VC42) -->
+  <path id="vc42" class="vc" d="M105,465 L130,460 L135,445 L110,450 Z"/>
+  
+  <!-- Radnorshire (VC43) -->
+  <path id="vc43" class="vc" d="M115,445 L140,440 L145,425 L120,430 Z"/>
+  
+  <!-- Carmarthenshire (VC44) -->
+  <path id="vc44" class="vc" d="M75,470 L100,475 L105,460 L80,455 Z"/>
+  
+  <!-- Pembrokeshire (VC45) -->
+  <path id="vc45" class="vc" d="M50,460 L75,465 L80,450 L55,445 Z"/>
+  
+  <!-- Cardiganshire (VC46) -->
+  <path id="vc46" class="vc" d="M75,445 L100,440 L105,425 L80,430 Z"/>
+  
+  <!-- Montgomeryshire (VC47) -->
+  <path id="vc47" class="vc" d="M105,425 L130,420 L135,405 L110,410 Z"/>
+  
+  <!-- Merionethshire (VC48) -->
+  <path id="vc48" class="vc" d="M90,410 L115,405 L120,390 L95,395 Z"/>
+  
+  <!-- Caernarvonshire (VC49) -->
+  <path id="vc49" class="vc" d="M75,395 L100,390 L105,375 L80,380 Z"/>
+  
+  <!-- Denbighshire (VC50) -->
+  <path id="vc50" class="vc" d="M115,395 L140,390 L145,375 L120,380 Z"/>
+  
+  <!-- Flintshire (VC51) -->
+  <path id="vc51" class="vc" d="M135,380 L150,375 L155,365 L140,370 Z"/>
+  
+  <!-- Anglesey (VC52) -->
+  <path id="vc52" class="vc" d="M60,380 L80,375 L85,360 L65,365 Z"/>
+  
+  <!-- Lincolnshire South (VC53) -->
+  <path id="vc53" class="vc" d="M275,410 L300,405 L305,390 L280,395 Z"/>
+  
+  <!-- Lincolnshire North (VC54) -->
+  <path id="vc54" class="vc" d="M270,390 L295,385 L300,370 L275,375 Z"/>
+  
+  <!-- Leicestershire (VC55) -->
+  <path id="vc55" class="vc" d="M230,420 L255,415 L260,400 L235,405 Z"/>
+  
+  <!-- Nottinghamshire (VC56) -->
+  <path id="vc56" class="vc" d="M235,400 L260,395 L265,380 L240,385 Z"/>
+  
+  <!-- Derbyshire (VC57) -->
+  <path id="vc57" class="vc" d="M200,405 L225,400 L230,385 L205,390 Z"/>
+  
+  <!-- Cheshire (VC58) -->
+  <path id="vc58" class="vc" d="M155,395 L180,390 L185,375 L160,380 Z"/>
+  
+  <!-- Lancashire South (VC59) -->
+  <path id="vc59" class="vc" d="M165,370 L190,365 L195,350 L170,355 Z"/>
+  
+  <!-- Lancashire West (VC60) -->
+  <path id="vc60" class="vc" d="M150,355 L170,355 L175,340 L155,340 Z"/>
+  
+  <!-- Yorkshire SE (VC61) -->
+  <path id="vc61" class="vc" d="M250,365 L280,360 L285,345 L255,350 Z"/>
+  
+  <!-- Yorkshire NE (VC62) -->
+  <path id="vc62" class="vc" d="M265,345 L295,340 L300,320 L270,325 Z"/>
+  
+  <!-- Yorkshire SW (VC63) -->
+  <path id="vc63" class="vc" d="M210,375 L240,370 L245,355 L215,360 Z"/>
+  
+  <!-- Yorkshire Mid-west (VC64) -->
+  <path id="vc64" class="vc" d="M215,355 L245,350 L250,335 L220,340 Z"/>
+  
+  <!-- Yorkshire NW (VC65) -->
+  <path id="vc65" class="vc" d="M200,340 L230,335 L235,320 L205,325 Z"/>
+  
+  <!-- Durham (VC66) -->
+  <path id="vc66" class="vc" d="M235,315 L265,310 L270,295 L240,300 Z"/>
+  
+  <!-- Northumberland South (VC67) -->
+  <path id="vc67" class="vc" d="M245,290 L275,285 L280,270 L250,275 Z"/>
+  
+  <!-- Northumberland North (VC68) -->
+  <path id="vc68" class="vc" d="M255,265 L285,260 L290,240 L260,245 Z"/>
+  
+  <!-- Westmorland (VC69) -->
+  <path id="vc69" class="vc" d="M185,335 L210,330 L215,315 L190,320 Z"/>
+  
+  <!-- Cumberland (VC70) -->
+  <path id="vc70" class="vc" d="M175,310 L205,305 L210,290 L180,295 Z"/>
+  
+  <!-- Isle of Man (VC71) -->
+  <path id="vc71" class="vc" d="M135,325 L155,320 L160,305 L140,310 Z"/>
+  
+  <!-- SCOTLAND Vice Counties (72-112) -->
+  
+  <!-- Dumfriesshire (VC72) -->
+  <path id="vc72" class="vc" d="M190,285 L220,280 L225,265 L195,270 Z"/>
+  
+  <!-- Kirkcudbrightshire (VC73) -->
+  <path id="vc73" class="vc" d="M165,285 L190,280 L195,270 L170,275 Z"/>
+  
+  <!-- Wigtownshire (VC74) -->
+  <path id="vc74" class="vc" d="M145,290 L165,285 L170,275 L150,280 Z"/>
+  
+  <!-- Ayrshire (VC75) -->
+  <path id="vc75" class="vc" d="M155,265 L180,260 L185,245 L160,250 Z"/>
+  
+  <!-- Renfrewshire (VC76) -->
+  <path id="vc76" class="vc" d="M165,245 L185,240 L190,230 L170,235 Z"/>
+  
+  <!-- Lanarkshire (VC77) -->
+  <path id="vc77" class="vc" d="M185,255 L210,250 L215,235 L190,240 Z"/>
+  
+  <!-- Peeblesshire (VC78) -->
+  <path id="vc78" class="vc" d="M205,260 L225,255 L230,245 L210,250 Z"/>
+  
+  <!-- Selkirkshire (VC79) -->
+  <path id="vc79" class="vc" d="M220,260 L240,255 L245,245 L225,250 Z"/>
+  
+  <!-- Roxburghshire (VC80) -->
+  <path id="vc80" class="vc" d="M235,265 L260,260 L265,245 L240,250 Z"/>
+  
+  <!-- Berwickshire (VC81) -->
+  <path id="vc81" class="vc" d="M255,255 L280,250 L285,235 L260,240 Z"/>
+  
+  <!-- East Lothian (VC82) -->
+  <path id="vc82" class="vc" d="M245,235 L270,230 L275,220 L250,225 Z"/>
+  
+  <!-- Midlothian (VC83) -->
+  <path id="vc83" class="vc" d="M225,240 L250,235 L255,225 L230,230 Z"/>
+  
+  <!-- West Lothian (VC84) -->
+  <path id="vc84" class="vc" d="M205,235 L230,230 L235,220 L210,225 Z"/>
+  
+  <!-- Fife (VC85) -->
+  <path id="vc85" class="vc" d="M235,210 L265,205 L270,195 L240,200 Z"/>
+  
+  <!-- Stirlingshire (VC86) -->
+  <path id="vc86" class="vc" d="M195,225 L220,220 L225,205 L200,210 Z"/>
+  
+  <!-- Perthshire West (VC87) -->
+  <path id="vc87" class="vc" d="M175,210 L200,205 L210,185 L185,190 Z"/>
+  
+  <!-- Perthshire Mid (VC88) -->
+  <path id="vc88" class="vc" d="M200,195 L230,190 L235,175 L205,180 Z"/>
+  
+  <!-- Perthshire East (VC89) -->
+  <path id="vc89" class="vc" d="M225,200 L250,195 L255,180 L230,185 Z"/>
+  
+  <!-- Angus (VC90) -->
+  <path id="vc90" class="vc" d="M245,185 L275,180 L280,165 L250,170 Z"/>
+  
+  <!-- Kincardineshire (VC91) -->
+  <path id="vc91" class="vc" d="M270,175 L295,170 L300,155 L275,160 Z"/>
+  
+  <!-- Aberdeenshire South (VC92) -->
+  <path id="vc92" class="vc" d="M280,160 L310,155 L315,140 L285,145 Z"/>
+  
+  <!-- Aberdeenshire North (VC93) -->
+  <path id="vc93" class="vc" d="M295,145 L325,140 L330,120 L300,125 Z"/>
+  
+  <!-- Banffshire (VC94) -->
+  <path id="vc94" class="vc" d="M280,130 L310,125 L315,110 L285,115 Z"/>
+  
+  <!-- Moray (VC95) -->
+  <path id="vc95" class="vc" d="M255,125 L285,120 L290,105 L260,110 Z"/>
+  
+  <!-- Nairnshire (VC96) -->
+  <path id="vc96" class="vc" d="M235,120 L260,115 L265,105 L240,110 Z"/>
+  
+  <!-- Inverness West (VC97) -->
+  <path id="vc97" class="vc" d="M165,150 L200,145 L210,120 L175,125 Z"/>
+  
+  <!-- Argyllshire Main (VC98) -->
+  <path id="vc98" class="vc" d="M135,200 L170,195 L180,170 L145,175 Z"/>
+  
+  <!-- Dunbartonshire (VC99) -->
+  <path id="vc99" class="vc" d="M165,230 L185,225 L190,215 L170,220 Z"/>
+  
+  <!-- Clyde Isles (VC100) -->
+  <path id="vc100" class="vc" d="M130,235 L150,230 L155,215 L135,220 Z"/>
+  
+  <!-- Kintyre (VC101) -->
+  <path id="vc101" class="vc" d="M125,260 L145,255 L150,235 L130,240 Z"/>
+  
+  <!-- South Ebudes (VC102) -->
+  <path id="vc102" class="vc" d="M100,225 L125,220 L130,200 L105,205 Z"/>
+  
+  <!-- Mid Ebudes (VC103) -->
+  <path id="vc103" class="vc" d="M95,195 L120,190 L125,170 L100,175 Z"/>
+  
+  <!-- North Ebudes (VC104) -->
+  <path id="vc104" class="vc" d="M85,165 L115,160 L120,140 L90,145 Z"/>
+  
+  <!-- Ross West (VC105) -->
+  <path id="vc105" class="vc" d="M145,125 L180,120 L190,95 L155,100 Z"/>
+  
+  <!-- Ross East (VC106) -->
+  <path id="vc106" class="vc" d="M195,115 L230,110 L240,90 L205,95 Z"/>
+  
+  <!-- Sutherland East (VC107) -->
+  <path id="vc107" class="vc" d="M210,85 L250,80 L260,55 L220,60 Z"/>
+  
+  <!-- Sutherland West (VC108) -->
+  <path id="vc108" class="vc" d="M160,95 L200,90 L210,65 L170,70 Z"/>
+  
+  <!-- Caithness (VC109) -->
+  <path id="vc109" class="vc" d="M250,55 L290,50 L295,30 L255,35 Z"/>
+  
+  <!-- Outer Hebrides (VC110) -->
+  <path id="vc110" class="vc" d="M70,115 L100,110 L110,70 L80,75 Z"/>
+  
+  <!-- Orkney (VC111) -->
+  <path id="vc111" class="vc" d="M275,35 L310,30 L315,10 L280,15 Z"/>
+  
+  <!-- Shetland (VC112) -->
+  <path id="vc112" class="vc" d="M340,25 L365,20 L370,5 L345,10 Z"/>
+  
+</svg>

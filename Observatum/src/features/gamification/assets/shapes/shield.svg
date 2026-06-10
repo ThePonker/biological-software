@@ -1,0 +1,22 @@
+<svg viewBox="0 0 80 100" xmlns="http://www.w3.org/2000/svg">
+  <!-- Shield shape for Progression Tiers -->
+  <defs>
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#90b080"/>
+      <stop offset="100%" style="stop-color:#4a7040"/>
+    </linearGradient>
+    <radialGradient id="shieldVig" cx="50%" cy="35%" r="60%">
+      <stop offset="0%" style="stop-color:#353550"/>
+      <stop offset="100%" style="stop-color:#1a1a28"/>
+    </radialGradient>
+  </defs>
+  <path fill="url(#shieldVig)" stroke="url(#shieldGrad)" stroke-width="3"
+        d="M40 5 Q55 5 68 15 Q75 25 75 45 Q75 70 58 85 Q45 98 40 98 Q35 98 22 85 Q5 70 5 45 Q5 25 12 15 Q25 5 40 5 Z"/>
+  <path fill="none" stroke="#6a9058" stroke-width="1.5" d="M15 25 Q8 35 10 50"/>
+  <path fill="none" stroke="#6a9058" stroke-width="1.5" d="M65 25 Q72 35 70 50"/>
+  <circle fill="#6a9058" cx="40" cy="8" r="3"/>
+  <ellipse fill="#6a9058" cx="12" cy="22" rx="3" ry="5" transform="rotate(-30 12 22)"/>
+  <ellipse fill="#6a9058" cx="68" cy="22" rx="3" ry="5" transform="rotate(30 68 22)"/>
+  <text x="40" y="58" text-anchor="middle" fill="#90b080" 
+        font-size="26" font-weight="bold" font-family="Georgia, serif">1</text>
+</svg>

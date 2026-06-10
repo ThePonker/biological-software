@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+  <!-- Simple dragonfly silhouette - top view -->
+  <!-- head with large eyes -->
+  <circle cx="40" cy="12" r="8"/>
+  <!-- thorax -->
+  <ellipse cx="40" cy="24" rx="6" ry="6"/>
+  <!-- abdomen - long and thin -->
+  <ellipse cx="40" cy="52" rx="4" ry="22"/>
+  <!-- forewings -->
+  <ellipse cx="22" cy="22" rx="18" ry="5" transform="rotate(-10 22 22)"/>
+  <ellipse cx="58" cy="22" rx="18" ry="5" transform="rotate(10 58 22)"/>
+  <!-- hindwings -->
+  <ellipse cx="20" cy="32" rx="16" ry="5" transform="rotate(-15 20 32)"/>
+  <ellipse cx="60" cy="32" rx="16" ry="5" transform="rotate(15 60 32)"/>
+</svg>

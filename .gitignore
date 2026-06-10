@@ -1,0 +1,25 @@
+﻿# Data and user databases — never in version control
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# Archives, backups, generated output
+_archive/
+_backups/
+*.bak
+Tabella/output/
+
+# Python cruft
+__pycache__/
+*.pyc
+
+# Windows/OneDrive noise
+desktop.ini
+Thumbs.db
+
+# User data backups and test datasets
+Observatum/BackUps/
+Observatum/test data/
+*.bak*
+*bak_*

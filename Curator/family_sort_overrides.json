@@ -1,0 +1,93 @@
+{
+    "_comment": "Manual family sort overrides and suborder assignments. Sort overrides fix orders where UKSI sort_code is alphabetical. Suborder assignments group families under suborder nodes in the tree.",
+    "_updated": "2026-03-25",
+
+    "_suborders": {
+        "_comment": "Maps order -> suborder -> family list. '__default__' catches unassigned families.",
+        "Coleoptera": {
+            "Adephaga": ["Gyrinidae", "Haliplidae", "Noteridae", "Hygrobiidae", "Dytiscidae", "Carabidae"],
+            "Myxophaga": ["Sphaeriusidae"],
+            "__default__": "Polyphaga"
+        },
+        "Hemiptera": {
+            "__from_sort_markers__": true
+        }
+    },
+
+    "_suborder_common_names": {
+        "Adephaga": "Predaceous beetles",
+        "Polyphaga": "Diverse beetles",
+        "Myxophaga": "Minute beetles",
+        "Heteroptera": "True bugs",
+        "Auchenorrhyncha": "Hoppers",
+        "Sternorrhyncha": "Aphids, scale insects & whiteflies",
+        "Homoptera": "Plant-sucking bugs"
+    },
+
+    "Hemiptera": [
+        "__suborder__Heteroptera",
+        "Nepidae",
+        "Naucoridae",
+        "Aphelocheiridae",
+        "Notonectidae",
+        "Pleidae",
+        "Corixidae",
+        "Saldidae",
+        "Aepophilidae",
+        "Dipsocoridae",
+        "Nabidae",
+        "Anthocoridae",
+        "Cimicidae",
+        "Microphysidae",
+        "Miridae",
+        "Tingidae",
+        "Reduviidae",
+        "Aradidae",
+        "Aneociidae",
+        "Piesmatidae",
+        "Berytidae",
+        "Lygaeidae",
+        "Pyrrhocoridae",
+        "Stenocephalidae",
+        "Coreidae",
+        "Alydidae",
+        "Rhopalidae",
+        "Plataspidae",
+        "Thyreocoridae",
+        "Cydnidae",
+        "Scutelleridae",
+        "Pentatomidae",
+        "Acanthosomatidae",
+
+        "__suborder__Auchenorrhyncha",
+        "Cicadidae",
+        "Membracidae",
+        "Cercopidae",
+        "Aphrophoridae",
+        "Cicadellidae",
+        "Delphacidae",
+        "Cixiidae",
+        "Issidae",
+        "Flatidae",
+        "Tettigometridae",
+
+        "__suborder__Sternorrhyncha",
+        "Triozidae",
+        "Psyllidae",
+        "Aphalaridae",
+        "Homotomidae",
+        "Calophyidae",
+        "Liviidae",
+        "Aleyrodidae",
+        "Adelgidae",
+        "Phylloxeridae",
+        "Aphididae",
+        "Pemphigidae",
+        "Eriosomatidae",
+        "Diaspididae",
+        "Coccidae",
+        "Pseudococcidae",
+        "Eriococcidae",
+        "Ortheziidae"
+    ]
+}

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+  <!-- Simple spider silhouette - top view -->
+  <!-- cephalothorax -->
+  <ellipse cx="40" cy="28" rx="12" ry="10"/>
+  <!-- abdomen -->
+  <ellipse cx="40" cy="52" rx="16" ry="18"/>
+  <!-- legs - 4 pairs -->
+  <!-- front pair -->
+  <path d="M30 24 Q18 16 8 12" fill="none" stroke="black" stroke-width="3"/>
+  <path d="M50 24 Q62 16 72 12" fill="none" stroke="black" stroke-width="3"/>
+  <!-- second pair -->
+  <path d="M28 30 Q14 28 4 24" fill="none" stroke="black" stroke-width="3"/>
+  <path d="M52 30 Q66 28 76 24" fill="none" stroke="black" stroke-width="3"/>
+  <!-- third pair -->
+  <path d="M28 34 Q14 40 4 48" fill="none" stroke="black" stroke-width="3"/>
+  <path d="M52 34 Q66 40 76 48" fill="none" stroke="black" stroke-width="3"/>
+  <!-- back pair -->
+  <path d="M30 38 Q18 52 10 66" fill="none" stroke="black" stroke-width="3"/>
+  <path d="M50 38 Q62 52 70 66" fill="none" stroke="black" stroke-width="3"/>
+  <!-- pedipalps -->
+  <path d="M34 20 L28 12" fill="none" stroke="black" stroke-width="2"/>
+  <path d="M46 20 L52 12" fill="none" stroke="black" stroke-width="2"/>
+</svg>

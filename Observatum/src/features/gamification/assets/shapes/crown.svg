@@ -1,0 +1,16 @@
+<svg viewBox="0 0 80 90" xmlns="http://www.w3.org/2000/svg">
+  <!-- Crown shape for Regional Completion -->
+  <defs>
+    <linearGradient id="crownGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ff4050"/>
+      <stop offset="100%" style="stop-color:#900a18"/>
+    </linearGradient>
+  </defs>
+  <path fill="#401520" stroke="url(#crownGrad)" stroke-width="3"
+        d="M10 50 L10 75 L70 75 L70 50 L55 60 L40 45 L25 60 Z"/>
+  <circle fill="#CE1124" cx="10" cy="50" r="5"/>
+  <circle fill="#CE1124" cx="40" cy="40" r="6"/>
+  <circle fill="#CE1124" cx="70" cy="50" r="5"/>
+  <text x="40" y="68" text-anchor="middle" fill="#ff4050" 
+        font-size="14" font-weight="bold" font-family="Georgia, serif">E</text>
+</svg>

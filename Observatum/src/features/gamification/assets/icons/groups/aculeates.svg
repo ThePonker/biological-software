@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+  <!-- Simple bee silhouette - side view -->
+  <!-- head -->
+  <circle cx="18" cy="38" r="10"/>
+  <!-- thorax - fuzzy/round -->
+  <ellipse cx="36" cy="38" rx="12" ry="10"/>
+  <!-- abdomen - striped -->
+  <ellipse cx="58" cy="40" rx="16" ry="12"/>
+  <!-- stripes on abdomen -->
+  <rect x="48" y="30" width="4" height="20" fill="white"/>
+  <rect x="56" y="32" width="4" height="16" fill="white"/>
+  <rect x="64" y="34" width="4" height="12" fill="white"/>
+  <!-- wings -->
+  <ellipse cx="36" cy="24" rx="14" ry="8" transform="rotate(-10 36 24)"/>
+  <!-- antennae -->
+  <path d="M14 30 Q10 22 6 18" fill="none" stroke="black" stroke-width="2"/>
+  <path d="M20 30 Q22 22 26 18" fill="none" stroke="black" stroke-width="2"/>
+  <!-- legs -->
+  <path d="M28 46 L24 58 L28 60" fill="none" stroke="black" stroke-width="2"/>
+  <path d="M36 46 L36 60" fill="none" stroke="black" stroke-width="2"/>
+  <path d="M44 46 L48 58" fill="none" stroke="black" stroke-width="2"/>
+  <!-- eye -->
+  <circle cx="14" cy="36" r="3" fill="white"/>
+</svg>

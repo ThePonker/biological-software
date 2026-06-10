@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Observatum Map</title>
+    <link rel="stylesheet" href="leaflet.css" />
+    <script src="leaflet.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; overflow: hidden; }
+        #map { width: 100%; height: 100%; }
+
+        /* Custom popup styling — Victorian/naturalist theme */
+        .leaflet-popup-content-wrapper {
+            border-radius: 6px;
+            font-family: 'Georgia', serif;
+            font-size: 13px;
+        }
+        .leaflet-popup-content {
+            margin: 10px 14px;
+            line-height: 1.5;
+        }
+        .popup-title {
+            font-weight: bold;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+        .popup-detail {
+            color: #555;
+            font-size: 12px;
+        }
+
+        /* Legend */
+        .map-legend {
+            background: white;
+            padding: 10px 14px;
+            border-radius: 6px;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.3);
+            font-family: 'Georgia', serif;
+            font-size: 12px;
+            line-height: 1.8;
+        }
+        .map-legend .legend-title {
+            font-weight: bold;
+            font-size: 13px;
+            margin-bottom: 4px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .legend-swatch {
+            width: 14px;
+            height: 14px;
+            border-radius: 2px;
+            border: 1px solid #999;
+            display: inline-block;
+        }
+
+        /* No-species overlay */
+        .no-species-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(255, 255, 255, 0.85);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            font-family: 'Georgia', serif;
+            pointer-events: none;
+        }
+        .no-species-overlay h2 {
+            color: #9a7555;
+            font-size: 18px;
+            margin-bottom: 8px;
+        }
+        .no-species-overlay p {
+            color: #888;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div id="noSpeciesOverlay" class="no-species-overlay">
+        <h2>Select a species to map</h2>
+        <p>Use the search in the filter panel</p>
+    </div>
+
+    <script>
+    // =========================================================================
+    // MAP SETUP
+    // =========================================================================
+
+    const map = L.map('map', {
+        center: [54.5, -2.5],   // Centre of GB
+        zoom: 6,
+        zoomControl: true,
+        attributionControl: true,
+    });
+
+    // Base tile layer (OpenStreetMap)
+    const osmLayer = L.tileLayer(
+        "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+        {
+            attribution: "© OpenStreetMap contributors © CARTO",
+            maxZoom: 18,
+            subdomains: "abcd",
+        }
+    );
+    osmLayer.addTo(map);
+
+    // Layer groups
+    var vcLayer = null;         // Vice county boundaries
+    var gridLayer = L.featureGroup().addTo(map);  // Record grid squares
+    var legendControl = null;
+
+    // State
+    var currentSpecies = null;
+    var currentBandColors = {
+        'historical': '#e8d5c4',
+        'recent': '#c2956e',
+        'current': '#9a7555',
+    };
+    var currentBandLabels = {
+        'historical': 'Pre-2000',
+        'recent': '2000–2019',
+        'current': '2020+',
+    };
+
+    // =========================================================================
+    // VICE COUNTY BOUNDARIES
+    // =========================================================================
+
+    function loadVCBoundaries(geojsonData) {
+        if (vcLayer) {
+            map.removeLayer(vcLayer);
+        }
+        vcLayer = L.geoJSON(geojsonData, {
+            coordsToLatLng: function(coords) {
+                // GeoJSON file has [lat, lng] instead of standard [lng, lat]
+                return L.latLng(coords[0], coords[1]);
+            },
+            style: function(feature) {
+                return {
+                    color: '#9a7555',
+                    weight: 1,
+                    opacity: 0.6,
+                    fillColor: 'transparent',
+                    fillOpacity: 0,
+                };
+            },
+            onEachFeature: function(feature, layer) {
+                const p = feature.properties || {};
+                const vcNum = p.VCNUMBER || '?';
+                const vcName = p.VCNAME || 'Unknown';
+                layer.bindPopup(
+                    '<div class="popup-title">VC' + vcNum + '</div>' +
+                    '<div class="popup-detail">' + vcName + '</div>'
+                );
+            },
+        });
+        vcLayer.addTo(map);
+        // Ensure grid squares render on top
+        gridLayer.bringToFront();
+    }
+
+    function setVCVisibility(visible) {
+        if (vcLayer) {
+            if (visible) {
+                vcLayer.addTo(map);
+            } else {
+                map.removeLayer(vcLayer);
+            }
+        }
+    }
+
+    function highlightVCs(vcNumbers, highlightColor) {
+        /**
+         * Highlight specific VCs (e.g., for gap analysis).
+         * vcNumbers: array of integers
+         * highlightColor: CSS colour for fill
+         */
+        if (!vcLayer) return;
+        const vcSet = new Set(vcNumbers);
+        vcLayer.eachLayer(function(layer) {
+            const vcNum = (layer.feature.properties || {}).VCNUMBER;
+            if (vcSet.has(vcNum)) {
+                layer.setStyle({
+                    fillColor: highlightColor || '#c2956e',
+                    fillOpacity: 0.3,
+                });
+            } else {
+                layer.setStyle({
+                    fillColor: 'transparent',
+                    fillOpacity: 0,
+                });
+            }
+        });
+    }
+
+    function resetVCStyles() {
+        if (!vcLayer) return;
+        vcLayer.eachLayer(function(layer) {
+            layer.setStyle({
+                color: '#9a7555',
+                weight: 1,
+                opacity: 0.6,
+                fillColor: 'transparent',
+                fillOpacity: 0,
+            });
+        });
+    }
+
+    // =========================================================================
+    // GRID SQUARE RENDERING
+    // =========================================================================
+
+    function updateGridSquares(data) {
+        /**
+         * Draw record grid squares on the map.
+         *
+         * data: array of objects:
+         *   {
+         *     grid: "SP43",
+         *     sw_lat: 52.0, sw_lon: -1.5,
+         *     ne_lat: 52.1, ne_lon: -1.4,
+         *     count: 15,
+         *     band: "current",       // "historical", "recent", "current"
+         *     years: "2020-2024",
+         *     species_list: "Bombus terrestris (5), Bombus pascuorum (3)"
+         *   }
+         */
+        gridLayer.clearLayers();
+
+        if (!data || data.length === 0) {
+            showNoSpeciesOverlay(true);
+            removeLegend();
+            return;
+        }
+
+        showNoSpeciesOverlay(false);
+
+        data.forEach(function(sq) {
+            const bounds = [[sq.sw_lat, sq.sw_lon], [sq.ne_lat, sq.ne_lon]];
+            const color = currentBandColors[sq.band] || '#c2956e';
+
+            const rect = L.rectangle(bounds, {
+                color: color,
+                fillColor: color,
+                fillOpacity: 0.6,
+                weight: 1,
+                opacity: 0.8,
+            });
+
+            // Popup content
+            let popupHtml = '<div class="popup-title">' + sq.grid + '</div>';
+            popupHtml += '<div class="popup-detail">';
+            popupHtml += sq.count + ' record' + (sq.count !== 1 ? 's' : '');
+            if (sq.years) {
+                popupHtml += '<br>' + sq.years;
+            }
+            if (sq.species_list) {
+                popupHtml += '<br><br>' + sq.species_list;
+            }
+            popupHtml += '</div>';
+
+            rect.bindPopup(popupHtml);
+
+            // Click handler — notify Python
+            rect.on('click', function() {
+                if (window.bridge) {
+                    window.bridge.gridClicked(sq.grid);
+                }
+            });
+
+            rect.addTo(gridLayer);
+        });
+
+        updateLegend();
+        gridLayer.bringToFront();
+    }
+
+    function clearGridSquares() {
+        gridLayer.clearLayers();
+        showNoSpeciesOverlay(true);
+        removeLegend();
+    }
+
+    // =========================================================================
+    // LEGEND
+    // =========================================================================
+
+    function updateLegend() {
+        removeLegend();
+
+        legendControl = L.control({ position: 'bottomleft' });
+        legendControl.onAdd = function(map) {
+            const div = L.DomUtil.create('div', 'map-legend');
+            let html = '<div class="legend-title">' +
+                (currentSpecies || 'Records') + '</div>';
+
+            for (const [band, label] of Object.entries(currentBandLabels)) {
+                const color = currentBandColors[band] || '#ccc';
+                html += '<div class="legend-item">' +
+                    '<span class="legend-swatch" style="background:' + color + '"></span>' +
+                    label + '</div>';
+            }
+
+            div.innerHTML = html;
+            return div;
+        };
+        legendControl.addTo(map);
+    }
+
+    function removeLegend() {
+        if (legendControl) {
+            map.removeControl(legendControl);
+            legendControl = null;
+        }
+    }
+
+    // =========================================================================
+    // CONFIGURATION
+    // =========================================================================
+
+    function setBandColors(colors) {
+        /** colors: {historical: "#hex", recent: "#hex", current: "#hex"} */
+        currentBandColors = colors;
+    }
+
+    function setBandLabels(labels) {
+        /** labels: {historical: "Pre-2000", recent: "2000-2019", current: "2020+"} */
+        currentBandLabels = labels;
+    }
+
+    function setSpeciesName(name) {
+        currentSpecies = name;
+    }
+
+    function setMapView(lat, lon, zoom) {
+        map.setView([lat, lon], zoom);
+    }
+
+    function fitBounds(swLat, swLon, neLat, neLon) {
+        map.fitBounds([[swLat, swLon], [neLat, neLon]]);
+    }
+
+    function fitToGB() {
+        map.fitBounds([[49.9, -6.5], [58.7, 1.8]]);
+    }
+
+    // =========================================================================
+    // OVERLAY
+    // =========================================================================
+
+    function showNoSpeciesOverlay(show) {
+        const el = document.getElementById('noSpeciesOverlay');
+        if (el) {
+            el.style.display = show ? 'flex' : 'none';
+        }
+    }
+
+
+    function zoomToVC(vcNumber) {
+        /**
+         * Zoom the map to fit a specific vice county's bounds.
+         * vcNumber: integer VC number
+         */
+        if (!vcLayer) return;
+        
+        var targetBounds = null;
+        vcLayer.eachLayer(function(layer) {
+            var vcNum = (layer.feature.properties || {}).VCNUMBER;
+            if (vcNum === vcNumber) {
+                if (targetBounds === null) {
+                    targetBounds = layer.getBounds();
+                } else {
+                    targetBounds.extend(layer.getBounds());
+                }
+                // Highlight this VC
+                layer.setStyle({
+                    fillColor: "#c2956e",
+                    fillOpacity: 0.15,
+                    weight: 2,
+                    opacity: 1.0,
+                });
+            } else {
+                // Dim other VCs
+                layer.setStyle({
+                    fillColor: "transparent",
+                    fillOpacity: 0,
+                    weight: 1,
+                    opacity: 0.4,
+                });
+            }
+        });
+        
+        if (targetBounds && targetBounds.isValid()) {
+            map.fitBounds(targetBounds, { padding: [20, 20] });
+        }
+    }
+
+    function zoomToNational() {
+        /**
+         * Reset to national view and restore all VC styles.
+         */
+        fitToGB();
+        if (vcLayer) {
+            vcLayer.eachLayer(function(layer) {
+                layer.setStyle({
+                    color: "#9a7555",
+                    weight: 1,
+                    opacity: 0.6,
+                    fillColor: "transparent",
+                    fillOpacity: 0,
+                });
+            });
+        }
+    }
+
+    // =========================================================================
+    // QWebChannel BRIDGE (Python ↔ JS)
+    // =========================================================================
+
+    // The bridge object is set by Python via QWebChannel.
+    // It exposes: bridge.gridClicked(gridRef)
+    //
+    // Python calls JS functions directly via page().runJavaScript():
+    //   updateGridSquares(data)
+    //   loadVCBoundaries(geojson)
+    //   clearGridSquares()
+    //   setSpeciesName(name)
+    //   setBandColors(colors)
+    //   fitToGB()
+    //   etc.
+
+    if (typeof QWebChannel !== 'undefined') {
+        new QWebChannel(qt.webChannelTransport, function(channel) {
+            window.bridge = channel.objects.bridge;
+        });
+    }
+
+    // Initial state
+    fitToGB();
+    showNoSpeciesOverlay(true);
+    </script>
+</body>
+</html>

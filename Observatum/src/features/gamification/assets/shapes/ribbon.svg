@@ -1,0 +1,13 @@
+<svg viewBox="0 0 60 100" xmlns="http://www.w3.org/2000/svg">
+  <!-- Ribbon shape for Family First -->
+  <defs>
+    <linearGradient id="ribbonGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#e8b84a"/>
+      <stop offset="100%" style="stop-color:#8b6914"/>
+    </linearGradient>
+  </defs>
+  <path fill="#3a3425" stroke="url(#ribbonGrad)" stroke-width="2.5"
+        d="M10 5 L50 5 L50 80 L30 70 L10 80 Z"/>
+  <path fill="#c9a227" d="M10 5 L50 5 L50 12 L10 12 Z"/>
+  <circle fill="#c9a227" cx="30" cy="40" r="14"/>
+</svg>

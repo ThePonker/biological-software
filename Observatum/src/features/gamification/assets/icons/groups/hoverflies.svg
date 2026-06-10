@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+  <!-- Simple hoverfly silhouette - top view, wasp-like but rounder -->
+  <!-- head with large eyes -->
+  <circle cx="40" cy="18" r="10"/>
+  <!-- thorax -->
+  <ellipse cx="40" cy="34" rx="10" ry="8"/>
+  <!-- abdomen - striped appearance (oval) -->
+  <ellipse cx="40" cy="55" rx="12" ry="16"/>
+  <!-- stripes on abdomen (white gaps would show in use) -->
+  <rect x="28" y="45" width="24" height="3" fill="white"/>
+  <rect x="28" y="52" width="24" height="3" fill="white"/>
+  <rect x="28" y="59" width="24" height="3" fill="white"/>
+  <!-- wings - characteristic fly wings -->
+  <ellipse cx="22" cy="34" rx="16" ry="8" transform="rotate(-20 22 34)"/>
+  <ellipse cx="58" cy="34" rx="16" ry="8" transform="rotate(20 58 34)"/>
+  <!-- antennae - short fly-type -->
+  <path d="M35 10 L32 4" fill="none" stroke="black" stroke-width="2"/>
+  <path d="M45 10 L48 4" fill="none" stroke="black" stroke-width="2"/>
+</svg>

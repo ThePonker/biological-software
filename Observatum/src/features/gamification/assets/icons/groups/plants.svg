@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+  <!-- Simple plant silhouette - stylised flower/leaf -->
+  <!-- stem -->
+  <path d="M40 75 Q40 50 40 35" fill="none" stroke="black" stroke-width="3"/>
+  <!-- leaves on stem -->
+  <ellipse cx="30" cy="55" rx="10" ry="5" transform="rotate(-30 30 55)"/>
+  <ellipse cx="50" cy="48" rx="10" ry="5" transform="rotate(30 50 48)"/>
+  <!-- flower petals -->
+  <ellipse cx="40" cy="18" rx="6" ry="12"/>
+  <ellipse cx="28" cy="26" rx="6" ry="12" transform="rotate(-60 28 26)"/>
+  <ellipse cx="52" cy="26" rx="6" ry="12" transform="rotate(60 52 26)"/>
+  <ellipse cx="30" cy="38" rx="6" ry="12" transform="rotate(-120 30 38)"/>
+  <ellipse cx="50" cy="38" rx="6" ry="12" transform="rotate(120 50 38)"/>
+  <!-- centre -->
+  <circle cx="40" cy="30" r="6"/>
+</svg>
