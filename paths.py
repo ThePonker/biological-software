@@ -35,6 +35,7 @@ PANTHEON_DB     = DATA_DIR / 'pantheon.db'
 CODEX_DB        = DATA_DIR / 'codex.db'
 VC_LOOKUP_DB    = DATA_DIR / 'vc_lookup.db'
 EXAMEN_DB       = DATA_DIR / 'examen.db'
+MUNIA_DB = DATA_DIR / "munia.db"
 GAMIFICATION_DB = DATA_DIR / 'gamification.db'
 VC_GEOJSON      = MAPS_DIR / 'vc_brc_wgs84.geojson'
 SAVED_FILTERS   = DATA_DIR / 'saved_filters.json'
