@@ -111,6 +111,10 @@ CREATE TABLE IF NOT EXISTS observations (
     comment TEXT,
     internal_notes TEXT,
     sample_comment TEXT,
+    -- Sub-location / sampling context (internal; excluded from iRecord export)
+    sub_location TEXT,
+    trap_number TEXT,
+    visit_number TEXT,
     biotope TEXT,
     
     -- Verification
