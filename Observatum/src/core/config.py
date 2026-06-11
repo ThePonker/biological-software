@@ -97,6 +97,7 @@ class Settings:
     FILTERS_VISIBLE_COLLECTION = "display/filters_visible_collection"
     CSV_BACKUP_ON_CLOSE = "general/csv_backup_on_close"
     CSV_BACKUP_PATH = "general/csv_backup_path"
+    ACTIVE_RECORD_BOOKS_PATH = "general/active_record_books_path"
 
     # --- Export Settings ---
     EXPORT_INCLUDE_COMMON_NAMES = "export/include_common_names"

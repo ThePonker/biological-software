@@ -74,6 +74,9 @@ class GeneralSettingsPanel(QScrollArea):
 
         self._setup_csv_backup_section(layout)
 
+        # Active Record Books (Tabella) section
+        self._setup_record_books_section(layout)
+
         layout.addStretch()
         self.setWidget(content)
 
@@ -421,6 +424,45 @@ class GeneralSettingsPanel(QScrollArea):
             self.csv_backup_path.setText(folder)
             self.save_settings()
 
+    def _setup_record_books_section(self, layout):
+        """Set up Active Record Books folder section (Tabella integration)."""
+        t = theme()
+
+        rb_group = QGroupBox("Active Record Books (Tabella)")
+        rb_layout = QVBoxLayout(rb_group)
+        rb_layout.setSpacing(8)
+
+        rb_desc = QLabel("Folder of in-use Tabella .xlsm workbooks. The pending-records refresh scans this folder for entries not yet imported into Observatum.")
+        rb_desc.setStyleSheet(f"color: {t.get('text_secondary')}; margin-bottom: 4px;")
+        rb_desc.setWordWrap(True)
+        rb_layout.addWidget(rb_desc)
+
+        path_layout = QHBoxLayout()
+        path_label = QLabel("Folder:")
+        path_label.setMinimumWidth(90)
+        path_layout.addWidget(path_label)
+
+        self.record_books_path = QLineEdit()
+        self.record_books_path.setReadOnly(True)
+        self.record_books_path.setPlaceholderText("Select a folder...")
+        path_layout.addWidget(self.record_books_path, 1)
+
+        rb_browse_btn = QPushButton("Browse...")
+        rb_browse_btn.clicked.connect(self._browse_record_books_path)
+        path_layout.addWidget(rb_browse_btn)
+
+        rb_layout.addLayout(path_layout)
+        layout.addWidget(rb_group)
+
+    def _browse_record_books_path(self):
+        """Open folder picker for the Active Record Books location."""
+        from PySide6.QtWidgets import QFileDialog
+        current = self.record_books_path.text()
+        folder = QFileDialog.getExistingDirectory(self, "Select Active Record Books Folder", current)
+        if folder:
+            self.record_books_path.setText(folder)
+            self.save_settings()
+
     def _load_settings(self):
         """Load settings from QSettings (internal)."""
         self._loading = True  # Block saves during load
@@ -467,6 +509,11 @@ class GeneralSettingsPanel(QScrollArea):
             import os
             default_path = os.path.join(os.path.dirname(os.path.abspath(".")), "data", "csv_backups")
             self.csv_backup_path.setText(settings.value(Settings.CSV_BACKUP_PATH, default_path))
+
+            # Active Record Books folder (Tabella)
+            import os as _os
+            default_rb = _os.path.join(_os.path.expanduser("~"), "OneDrive", "Active Record Books")
+            self.record_books_path.setText(settings.value(Settings.ACTIVE_RECORD_BOOKS_PATH, default_rb))
             
         finally:
             # Recording Scheme families
@@ -509,6 +556,7 @@ class GeneralSettingsPanel(QScrollArea):
         # CSV backup settings
         settings.setValue(Settings.CSV_BACKUP_ON_CLOSE, self.csv_backup_enabled.isChecked())
         settings.setValue(Settings.CSV_BACKUP_PATH, self.csv_backup_path.text())
+        settings.setValue(Settings.ACTIVE_RECORD_BOOKS_PATH, self.record_books_path.text())
 
         # Recording Scheme families
         settings.setValue(Settings.SCHEME_FAMILIES,

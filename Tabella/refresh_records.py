@@ -37,8 +37,44 @@ import paths
 
 OUTPUT = Path(__file__).resolve().parent / "output" / ".records_cache.csv"
 
-# Active workbooks folder -- scanned for pending entries
-ACTIVE_WORKBOOKS_DIR = Path.home() / "OneDrive" / "Active Record Books"
+# Default Active Record Books folder -- overridden by the Observatum
+# Settings panel (General > Active Record Books) when configured.
+DEFAULT_WORKBOOKS_DIR = Path.home() / "OneDrive" / "Active Record Books"
+
+
+def _active_workbooks_dir() -> Path:
+    """Resolve the Active Record Books folder.
+
+    Reads Observatum's QSettings INI (%APPDATA%/Observatum/Observatum.ini,
+    key general/active_record_books_path) so the folder is configurable
+    from the Observatum Settings panel without editing this script.
+    Note: QSettings writes a group named "general" to the INI as the
+    section "[%General]", so both spellings are accepted here.
+    Falls back to the historical default if unset or missing.
+    """
+    ini = Path(os.environ.get("APPDATA", "")) / "Observatum" / "Observatum.ini"
+    try:
+        if ini.exists():
+            import configparser
+            cp = configparser.ConfigParser(interpolation=None)
+            cp.read(str(ini), encoding="utf-8")
+            raw = ""
+            for sect in cp.sections():
+                if sect.lower() in ("%general", "general"):
+                    raw = cp.get(sect, "active_record_books_path",
+                                 fallback="").strip().strip('"')
+                    if raw:
+                        break
+            if raw:
+                p = Path(raw)
+                if p.exists():
+                    return p
+                print(f"[Refresh] Configured folder missing: {raw} "
+                      f"-- using default", file=sys.stderr)
+    except Exception as e:
+        print(f"[Refresh] Settings read failed ({e}) -- using default",
+              file=sys.stderr)
+    return DEFAULT_WORKBOOKS_DIR
 
 
 def _normalise(p) -> str:
@@ -206,8 +242,10 @@ def main():
     conn.close()
 
     # Scan active workbooks for pending entries (excluding the caller's own)
+    workbooks_dir = _active_workbooks_dir()
+    print(f"[Refresh] Active Record Books: {workbooks_dir}")
     pending_personal, pending_commercial = _scan_workbooks(
-        ACTIVE_WORKBOOKS_DIR, skip_paths
+        workbooks_dir, skip_paths
     )
 
     if pending_personal or pending_commercial:

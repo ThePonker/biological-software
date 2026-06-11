@@ -34,7 +34,7 @@ except ImportError:
     print("pywin32 required: pip install pywin32")
     sys.exit(1)
 
-from Tabella.vba_source import MODULE_CODE
+from Tabella.vba_source import MODULE_CODE, THISWORKBOOK_CODE
 
 
 def patch_workbook(xlsm_path: Path) -> bool:
@@ -72,6 +72,14 @@ def patch_workbook(xlsm_path: Path) -> bool:
         mod.Name = "DataEntry"
         mod.CodeModule.AddFromString(MODULE_CODE)
         print("    Injected updated DataEntry module")
+
+        # Refresh ThisWorkbook handlers (adds Workbook_Open protection)
+        tw = vb_proj.VBComponents("ThisWorkbook")
+        cm = tw.CodeModule
+        if cm.CountOfLines > 0:
+            cm.DeleteLines(1, cm.CountOfLines)
+        cm.AddFromString(THISWORKBOOK_CODE)
+        print("    Refreshed ThisWorkbook handlers (Workbook_Open protection)")
 
         wb.Save()
         wb.Close(SaveChanges=False)
@@ -129,6 +137,9 @@ def main():
     print(f"Done: {success}/{len(paths)} workbooks patched.")
     print()
     print("Next step:")
+    print("  Reopen each patched workbook (macros enabled) -- sheet")
+    print("  protection applies automatically at open. Or run Alt+F8 ->")
+    print("  ApplyProtection manually.")
     print("  Open each patched workbook and run Alt+F8 -> RefreshRecords.")
     print("  The Records sheet will be repopulated with correctly-parsed")
     print("  values. Verify by selecting a species you know has multiple")
