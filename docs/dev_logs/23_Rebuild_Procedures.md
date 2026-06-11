@@ -109,3 +109,47 @@ python scripts/import_codex_review.py review.csv --name "..." --author "..." --g
 | examen.db | On demand | No (frozen assessments) | N/A ? backup with observatum |
 | munia.db | ~varies | No (user data) | N/A ? backup regularly |
 | gamification.db | ~0.2 MB | Recreated | Automatic |
+
+---
+
+## Stale TVK check after UKSI update (added 11 June 2026)
+
+When UKSI is rebuilt, some stored `species_tvk` values in observatum.db may no longer
+exist in the new `taxa` table (species renamed, merged, gender-corrected). There is no
+TVK→TVK mapping in UKSI — its `synonyms` table is name-based (`synonym` name → current
+`tvk`). So the check resolves via the stored *name*.
+
+**This is a small, re-runnable diagnostic, not a standing script.** As of 11 June 2026 only
+30 records / 3 TVKs were ever stale, so a general refresh tool was judged over-engineering.
+Re-run the diagnosis after each UKSI update; hand-resolve the (usually few) hits.
+
+### Step 1 — count stale TVKs
+```python
+import sqlite3, paths
+obs = sqlite3.connect(str(paths.OBSERVATUM_DB))
+obs.execute("ATTACH ? AS uksi", (str(paths.UKSI_DB),))
+for tbl in ("observations", "specimens"):
+    stale = obs.execute(
+        "SELECT COUNT(*) FROM " + tbl + " WHERE species_tvk IS NOT NULL AND species_tvk!='' "
+        "AND species_tvk NOT IN (SELECT tvk FROM uksi.taxa)").fetchone()[0]
+    distinct = obs.execute(
+        "SELECT COUNT(DISTINCT species_tvk) FROM " + tbl + " WHERE species_tvk IS NOT NULL "
+        "AND species_tvk!='' AND species_tvk NOT IN (SELECT tvk FROM uksi.taxa)").fetchone()[0]
+    print(tbl, "stale:", stale, "distinct:", distinct)
+```
+
+### Step 2 — for each stale TVK, find the current target
+List stale (tvk, name, count); for each, look up the stored name in `uksi.synonyms`
+(→ current tvk) and/or `uksi.taxa.scientific_name`. Confirm each by eye — name matching
+can be ambiguous (gender variants e.g. Lepisma saccharina/saccharinum may not be in
+synonyms; aggregates; capitalisation).
+
+### Step 3 — backup, then update TVK + re-derive name/family/order/superfamily/sort_order
+Always `shutil.copy2` observatum.db to a timestamped `_taxrefresh_<stamp>.db` first.
+Update only the confirmed old→new TVK pairs; re-derive the taxonomy fields from
+`uksi.taxa` so each record stays internally consistent. Verify 0 stale remaining, then
+delete the backup once the app confirms the records look right.
+
+### History
+- 11 Jun 2026: Ranunculus ficaria→Ficaria verna (26), Australopacifica atrata→Kontikia
+  atrata (2), Lepisma saccharinum→Lepisma saccharina (2). 30 records, 0 remaining.
