@@ -543,14 +543,19 @@ class InfoPanel(QWidget):
         if not getattr(self, "_wb_fn", None) or not hasattr(self, "_wb_title"):
             return
         try:
-            records, species, breakdown = self._wb_fn()
+            got = self._wb_fn()
+            records, species, breakdown = got[0], got[1], got[2]
+            individuals = got[3] if len(got) > 3 else None
         except Exception:
             return
         if not records:
             self._wb_title.setText("No records yet")
             self._clear_wb_grid()
             return
-        self._wb_title.setText(f"{records} record{'s' if records != 1 else ''}  \u00b7  {species} species")
+        _t = f"{records} record{'s' if records != 1 else ''}  \u00b7  {species} species"
+        if individuals is not None:
+            _t += f"  \u00b7  {individuals} individuals"
+        self._wb_title.setText(_t)
         from PySide6.QtWidgets import QLabel
         self._clear_wb_grid()
         cap = self._WB_PER_COL * 2
@@ -585,10 +590,10 @@ class InfoPanel(QWidget):
         p, c, s = self._svc.counts(tvk)
         pend = self._pending_for(tvk)
         mode = (self._job_mode or "").lower()
-        pt = f"Personal  {p}" + (f"  (+{pend})" if pend and mode.startswith("pers") else "")
-        ct = f"Commercial  {c}" + (f"  (+{pend})" if pend and mode.startswith("comm") else "")
+        pt = f"Personal {p}" + (f" (+{pend})" if pend and mode.startswith("pers") else "")
+        ct = f"Commercial {c}" + (f" (+{pend})" if pend and mode.startswith("comm") else "")
         self._pills_row.set_items([self._pill(pt), self._pill(ct),
-                                   self._pill(f"Specimens  {s}")])
+                                   self._pill(f"Specimens {s}")])
 
     def refresh_counts(self):
         """Recompute just the count pills for the current species (live pending update)."""

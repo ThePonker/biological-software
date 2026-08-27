@@ -39,6 +39,7 @@ COLUMNS = [
     ("site_name", "Site", "text", 150),
     ("grid_ref", "Grid ref", "text", 95),
     ("vice_county", "VC", "text", 60),
+    ("vc_number", "VC No.", "number", 60),
     ("recorder", "Recorder", "text", 110),
     ("method", "Method", "method", 120),
     ("comment", "Comment", "text", 170),
@@ -603,6 +604,7 @@ class EntryTableView(QTableView):
         super().__init__(parent)
         self._clip_rows = None   # internal rich buffer (species dicts preserved)
         self._clip_text = None   # the text we put on the system clipboard at copy time
+        self._clip_marker = None  # (r0, r1, c0, c1) of the copied block, for the dashed outline
 
     def keyPressEvent(self, event):
         k = event.key()
@@ -626,6 +628,10 @@ class EntryTableView(QTableView):
                 dr, dc = {Qt.Key.Key_Up: (-1, 0), Qt.Key.Key_Down: (1, 0),
                           Qt.Key.Key_Left: (0, -1), Qt.Key.Key_Right: (0, 1)}[k]
                 self._ctrl_move(dr, dc); return
+
+        # Escape clears the copy outline (Excel behaviour) when not editing a cell.
+        if k == Qt.Key.Key_Escape and not editing and self._clip_marker:
+            self._clear_marker(); return
 
         # Enter / Shift+Enter -> commit the cell and wrap to the FIRST column (Species) of the
         # next / previous row, like starting a fresh record. Works while editing too.
@@ -766,6 +772,8 @@ class EntryTableView(QTableView):
         self._clip_rows = rich
         self._clip_text = text
         self._clip_cols = cols
+        self._clip_marker = (rows[0], rows[-1], cols[0], cols[-1]) if rows and cols else None
+        self.viewport().update()
 
     def _clipboard_grid(self):
         text = QApplication.clipboard().text()
@@ -779,27 +787,60 @@ class EntryTableView(QTableView):
         return [ln.split("\t") for ln in lines]
 
     # -- Ctrl+V: paste block anchored at the current cell --------------------
-    def _paste(self):
-        cur = self.currentIndex()
-        if not cur.isValid():
+    def _clear_marker(self):
+        if self._clip_marker is not None:
+            self._clip_marker = None
+            self.viewport().update()
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if not self._clip_marker:
             return
+        from PySide6.QtGui import QPainter, QPen, QColor
+        r0, r1, c0, c1 = self._clip_marker
+        m = self.model()
+        if m is None or r1 >= m.rowCount() or c1 >= m.columnCount():
+            return
+        tl = self.visualRect(m.index(r0, c0))
+        br = self.visualRect(m.index(r1, c1))
+        rect = tl.united(br).adjusted(0, 0, -1, -1)
+        p = QPainter(self.viewport())
+        pen = QPen(QColor(74, 124, 89), 2, Qt.PenStyle.DashLine)
+        p.setPen(pen)
+        p.drawRect(rect)
+        p.end()
+
+    def _paste(self):
         grid = self._clipboard_grid()
         if not grid:
             return
         m = self.model()
-        r0, c0 = cur.row(), cur.column()
+        sel = [i for i in self.selectedIndexes() if i.isValid()]
+
+        # single value + multi-cell selection -> fill the whole selection
+        if len(grid) == 1 and len(grid[0]) == 1 and len(sel) > 1:
+            val = grid[0][0]
+            m.ensure_rows(max(i.row() for i in sel) + 1)
+            for idx in sel:
+                m.setData(m.index(idx.row(), idx.column()), val, Qt.ItemDataRole.EditRole)
+            return
+
+        if sel:
+            r0 = min(i.row() for i in sel)
+            c0 = min(i.column() for i in sel)
+        else:
+            cur = self.currentIndex()
+            if not cur.isValid():
+                return
+            r0, c0 = cur.row(), cur.column()
+
         m.ensure_rows(r0 + len(grid))
         for i, rowvals in enumerate(grid):
             for j, val in enumerate(rowvals):
                 c = c0 + j
                 if c >= m.columnCount():
                     break
-                tr = r0 + i
-                idx = m.index(tr, c)
-                if isinstance(val, dict):
-                    m.setData(idx, val, Qt.ItemDataRole.EditRole)          # rich species
-                else:
-                    m.setData(idx, val, Qt.ItemDataRole.EditRole)          # scalar / text
+                m.setData(m.index(r0 + i, c), val, Qt.ItemDataRole.EditRole)
 
 
 class ExportOptionsDialog(QDialog):
@@ -1112,18 +1153,25 @@ class EntryGridPage(QWidget):
         self._update_count()
 
     def _workbook_summary(self):
-        """(records, distinct species, [(order, count), ...]) for staged rows in this job."""
+        """(records, distinct species, [(order, count), ...], individuals) for this job."""
         try:
             rows = self._conn.execute(
-                "SELECT species_tvk, species_name, order_name FROM entry_staging WHERE job_id=?",
+                "SELECT species_tvk, species_name, order_name, quantity FROM entry_staging WHERE job_id=?",
                 (self._job_id,)).fetchall()
         except Exception:
-            return (0, 0, [])
+            return (0, 0, [], 0)
         recs = [r for r in rows if (r["species_name"] or r["species_tvk"])]
         species = len({(r["species_tvk"] or r["species_name"]) for r in recs})
         from collections import Counter
         by_order = Counter((r["order_name"] or "Unassigned") for r in recs)
-        return (len(recs), species, by_order.most_common())
+        individuals = 0
+        for r in recs:
+            try:
+                q = int(r["quantity"])
+            except (TypeError, ValueError):
+                q = 1
+            individuals += q if q > 0 else 1
+        return (len(recs), species, by_order.most_common(), individuals)
 
     def _pending_count(self, tvk):
         if not tvk:
