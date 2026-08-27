@@ -1,4 +1,4 @@
-﻿"""Recording Scheme Tab - Orchestrator
+"""Recording Scheme Tab - Orchestrator
 
 Main tab for viewing Longhorn Beetle Recording Scheme data.
 Uses Model/View pattern matching Observation Data tab structure.

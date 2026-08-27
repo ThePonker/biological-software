@@ -1,4 +1,4 @@
-﻿"""
+"""
 Recording Scheme Stats Service.
 
 Centralized statistics for recording scheme data.

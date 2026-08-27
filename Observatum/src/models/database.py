@@ -1,4 +1,4 @@
-﻿"""
+"""
 Database connection manager for Observatum V2.
 
 Handles connections to:

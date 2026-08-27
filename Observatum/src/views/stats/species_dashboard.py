@@ -1,4 +1,4 @@
-﻿"""
+"""
 Species Dashboard Component.
 
 Dashboard for species lookup across all databases.

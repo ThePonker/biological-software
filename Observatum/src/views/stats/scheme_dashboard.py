@@ -1,4 +1,4 @@
-﻿"""
+"""
 Recording Scheme Dashboard Component - Enhanced Version.
 
 Dashboard for scheme organisers showing:

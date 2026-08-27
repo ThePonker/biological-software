@@ -1,4 +1,4 @@
-﻿"""
+"""
 Scheme Record Model Component.
 
 High-performance table model for recording scheme data.

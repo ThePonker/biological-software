@@ -103,6 +103,22 @@ class MainWindow(QMainWindow):
         self.home_tab = HomeTab()
         self.tabs.addTab(self.home_tab, "Home")
 
+        # Data Entry tab -- PREVIEW by default (dev copy, commit disabled).
+        # TO GO LIVE (commit into data\observatum.db):
+        #   1) BACK UP data\observatum.db first,
+        #   2) change go_live=False to go_live=True on the next line.
+        try:
+            from DataEntry.embed import make_data_entry_tab
+            self.data_entry_tab = make_data_entry_tab(go_live=True)
+            # Claude: defer Observation-Data refresh wiring until all tabs exist
+            from PySide6.QtCore import QTimer as _QTimer
+            _QTimer.singleShot(0, lambda: _claude_wire_obs_refresh(self))
+
+
+            self.tabs.addTab(self.data_entry_tab, "Data Entry")
+        except Exception as _de_err:
+            print(f"[Observatum] Data Entry tab unavailable: {_de_err}")
+
         self.observation_tab = ObservationTab()
         self.tabs.addTab(self.observation_tab, "Observation Data")
 
@@ -804,12 +820,14 @@ class MainWindow(QMainWindow):
             print(f"[MainWindow] Could not clear collection filters: {e}")
 
     def _on_tab_changed(self, index: int):
-        """Lazy load tab data on first visit."""
+        """Lazy load tab data on first visit. Widget-based so tab ORDER does not matter."""
         if not getattr(self, "_ready", False):
             return
 
+        w = self.tabs.widget(index)
+
         # Refresh stats on every visit (data/settings may have changed)
-        if index == 4 and index in self._initialized_tabs:
+        if w is self.stats_reports_tab and index in self._initialized_tabs:
             try:
                 self.stats_reports_tab.refresh()
             except Exception:
@@ -821,26 +839,22 @@ class MainWindow(QMainWindow):
 
         self._initialized_tabs.add(index)
         self.statusbar.showMessage("Loading...")
-        tab_names = {1: "Observation Data", 2: "Recording Scheme", 3: "Insect Collection", 4: "Stats/Reports", 5: "Mapping", 6: "Settings"}
 
         try:
-            if index == 1:
+            if w is self.observation_tab:
                 self.observation_tab.initialize()
                 if hasattr(self.observation_tab, '_enable_sorting_on_first_view'):
                     self.observation_tab._enable_sorting_on_first_view()
-            elif index == 2:
+            elif w is self.recording_scheme_tab:
                 self.recording_scheme_tab.initialize(self._main_db_path, self._uksi_db_path)
                 # Sorting enabled after async data load completes (in _on_data_loaded)
-            elif index == 3:
+            elif w is self.insect_collection_tab:
                 self.insect_collection_tab.initialize(self._main_db_path, self._uksi_db_path)
                 if hasattr(self.insect_collection_tab, '_enable_sorting_on_first_view'):
                     self.insect_collection_tab._enable_sorting_on_first_view()
-            elif index == 4:
+            elif w is self.stats_reports_tab:
                 self.stats_reports_tab.initialize(self._main_db_path, self._uksi_db_path)
-            elif index == 5:
-                pass
-            elif index == 6:
-                pass
+            # Mapping / Settings / Data Entry: no lazy init required
             self.statusbar.showMessage("Ready", 2000)
         except Exception as e:
             print(f"Warning: Could not initialize tab {index}: {e}")
@@ -1108,3 +1122,31 @@ class MainWindow(QMainWindow):
         except Exception as e:
             print(f"CSV backup error: {e}")
 
+
+# Claude: deferred Observation-Data refresh worker (module-level; safe, auto-detecting)
+def _claude_wire_obs_refresh(mw):
+    """Connect Data Entry 'committed' -> Observation Data refresh() once all tabs exist."""
+    try:
+        de = getattr(mw, "data_entry_tab", None)
+        if de is None or not hasattr(de, "committed"):
+            return
+        obs = None
+        for _n, _v in list(vars(mw).items()):
+            if _v is not de and _v.__class__.__name__ == "ObservationTab" and hasattr(_v, "refresh"):
+                obs = _v
+                break
+        if obs is None:
+            for _attr in ("tabs", "tab_widget", "tabWidget", "central_tabs", "main_tabs"):
+                _tw = getattr(mw, _attr, None)
+                if _tw is not None and hasattr(_tw, "count"):
+                    for _i in range(_tw.count()):
+                        _pg = _tw.widget(_i)
+                        if _pg.__class__.__name__ == "ObservationTab" and hasattr(_pg, "refresh"):
+                            obs = _pg
+                            break
+                if obs is not None:
+                    break
+        if obs is not None:
+            de.committed.connect(obs.refresh)
+    except Exception:
+        pass

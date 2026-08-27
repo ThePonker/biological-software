@@ -1,4 +1,4 @@
-﻿"""
+"""
 Stats Widget Components.
 
 Reusable widgets for stats dashboards:

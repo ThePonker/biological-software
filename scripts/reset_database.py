@@ -160,6 +160,68 @@ CREATE TABLE IF NOT EXISTS observations (
 );
 """
 
+CREATE_ENTRY_JOBS = """
+CREATE TABLE IF NOT EXISTS entry_jobs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    mode TEXT DEFAULT 'Personal',        -- Personal | Commercial
+    client TEXT,
+    project TEXT,
+    embargo_until TEXT,                  -- intended embargo, applied at commit
+    status TEXT DEFAULT 'active',        -- active | committed | exported | discarded
+    notes TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
+CREATE_ENTRY_STAGING = """
+CREATE TABLE IF NOT EXISTS entry_staging (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    job_id INTEGER NOT NULL,
+    row_order INTEGER,
+
+    -- Species (permissive: rows may be in-progress / half-typed)
+    species_name TEXT,
+    species_tvk TEXT,
+    common_name TEXT,
+    order_name TEXT,
+    family TEXT,
+    taxon_rank TEXT,
+
+    -- Per-record
+    stage TEXT,
+    sex TEXT,
+    quantity INTEGER,
+
+    -- Carry / context fields
+    determiner TEXT,
+    sub_location TEXT,
+    trap_number TEXT,
+    visit_number TEXT,
+    date TEXT,
+    site_name TEXT,
+    grid_ref TEXT,
+    vice_county TEXT,
+    vc_number INTEGER,
+    recorder TEXT,
+    method TEXT,
+    certainty TEXT,
+    comment TEXT,
+
+    -- Commercial
+    project_name TEXT,
+    client TEXT,
+    embargo_until TEXT,
+
+    -- Timestamps
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (job_id) REFERENCES entry_jobs(id)
+);
+"""
+
 CREATE_COMMERCIAL_RECORDS = """
 CREATE TABLE IF NOT EXISTS commercial_records (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -460,6 +522,10 @@ CREATE INDEX IF NOT EXISTS idx_profile_tvk ON species_profiles(species_tvk);
 CREATE INDEX IF NOT EXISTS idx_cons_species ON conservation_overrides(species_name);
 CREATE INDEX IF NOT EXISTS idx_cons_tvk ON conservation_overrides(species_tvk);
 
+-- Data entry staging indexes
+CREATE INDEX IF NOT EXISTS idx_entry_staging_job ON entry_staging(job_id);
+CREATE INDEX IF NOT EXISTS idx_entry_jobs_status ON entry_jobs(status);
+
 """
 
 
@@ -524,6 +590,8 @@ def create_tables(cursor):
         ('saved_filters', CREATE_SAVED_FILTERS),
         ('settings', CREATE_SETTINGS),
         ('specimen_notifications', CREATE_SPECIMEN_NOTIFICATIONS),
+        ('entry_jobs', CREATE_ENTRY_JOBS),
+        ('entry_staging', CREATE_ENTRY_STAGING),
     ]
     
     for name, sql in tables:
@@ -642,6 +710,8 @@ def reset_database(db_path: Path):
         print("  - saved_filters")
         print("  - settings")
         print("  - specimen_notifications")
+        print("  - entry_jobs (data-entry grid: job registry)")
+        print("  - entry_staging (data-entry grid: in-progress rows)")
         
         print(f"\nDatabase: {db_path}")
         print(f"Size: {db_path.stat().st_size / 1024:.1f} KB")

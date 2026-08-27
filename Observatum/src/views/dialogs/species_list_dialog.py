@@ -1,4 +1,4 @@
-﻿"""Species List Dialog - Shows species with first/last recorded dates."""
+"""Species List Dialog - Shows species with first/last recorded dates."""
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,

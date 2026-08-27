@@ -125,10 +125,23 @@ class ObservationDetailMixin:
             record_id = record.get('id')
             if record_id:
                 try:
-                    if self._obs_repo:
-                        self._obs_repo.update(record_id, obs_data)
-                    elif self._observation_model:
-                        self._observation_model.update(record_id, obs_data)
+                    import sqlite3
+                    import paths
+                    conn = sqlite3.connect(str(paths.OBSERVATUM_DB))
+                    allowed = {'species_name', 'species_tvk', 'common_name', 'family',
+                               'order_name', 'date', 'site_name', 'grid_ref',
+                               'vice_county', 'vc_number', 'recorder', 'determiner',
+                               'comment'}
+                    updates = {k: v for k, v in obs_data.items() if k in allowed and v is not None}
+                    if updates:
+                        set_parts = [f"{k} = ?" for k in updates]
+                        values = list(updates.values()) + [record_id]
+                        conn.execute(
+                            f"UPDATE observations SET {', '.join(set_parts)} WHERE id = ?",
+                            values
+                        )
+                        conn.commit()
+                    conn.close()
                     self._load_data()
                 except Exception as e:
                     print(f"[ObservationTab] Error updating record: {e}")

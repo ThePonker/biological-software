@@ -21,6 +21,7 @@ class ObservationToolbar(QFrame):
     clear_filters_requested = Signal()
     export_requested = Signal()
     export_selected_requested = Signal()
+    delete_selected_requested = Signal()
     import_requested = Signal()
     columns_requested = Signal()
     mark_commercial_requested = Signal()
@@ -83,6 +84,13 @@ class ObservationToolbar(QFrame):
         self.export_selected_btn.clicked.connect(self.export_selected_requested.emit)
         self.export_selected_btn.setEnabled(False)
         layout.addWidget(self.export_selected_btn)
+
+        # Delete selected button (red outlined)
+        self.delete_selected_btn = QPushButton("Delete Selected")
+        self.delete_selected_btn.setStyleSheet(self._get_delete_button_style())
+        self.delete_selected_btn.clicked.connect(self.delete_selected_requested.emit)
+        self.delete_selected_btn.setEnabled(False)
+        layout.addWidget(self.delete_selected_btn)
 
         # Mark as Commercial button (shown when rows selected)
         self.mark_commercial_btn = QPushButton("Mark as Commercial")
@@ -183,6 +191,27 @@ class ObservationToolbar(QFrame):
             }}
         """
     
+
+    def _get_delete_button_style(self) -> str:
+        """Get delete button style (red outlined for destructive action)."""
+        t = theme()
+        return f"""
+            QPushButton {{
+                background-color: transparent;
+                color: {t.get('error')};
+                border: 1px solid {t.get('error')};
+                border-radius: 4px;
+                padding: 6px 12px;
+                font-size: {t.font_size('sm')};
+            }}
+            QPushButton:hover {{
+                background-color: {t.get('error')};
+                color: white;
+            }}
+            QPushButton:pressed {{
+                background-color: {t.get('error_dark', '#8b2d2d')};
+            }}
+        """
     def _toggle_select_all(self):
         """Toggle between select all and deselect all."""
         if self.select_all_btn.text() == "Select All":
@@ -263,10 +292,12 @@ class ObservationToolbar(QFrame):
             self.selection_info.setText(f"{count} selected")
             self.selection_info.show()
             self.export_selected_btn.setEnabled(True)
+            self.delete_selected_btn.setEnabled(True)
             self.mark_commercial_btn.setEnabled(True)
         else:
             self.selection_info.hide()
             self.export_selected_btn.setEnabled(False)
+            self.delete_selected_btn.setEnabled(False)
             self.mark_commercial_btn.setEnabled(False)
             self.select_all_btn.setText("Select All")
     

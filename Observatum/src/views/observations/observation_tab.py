@@ -9,7 +9,7 @@ from typing import Optional, Dict, Any, List
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QFrame,
     QTableView, QHeaderView, QAbstractItemView
-)
+, QMessageBox)
 from PySide6.QtCore import Qt, QSortFilterProxyModel, QSettings, Signal
 
 from .observation_toolbar import ObservationToolbar
@@ -291,6 +291,7 @@ class ObservationTab(
         # Export signals
         self.toolbar.export_selected_requested.connect(self._on_export_selected)
         self.toolbar.mark_commercial_requested.connect(self._mark_as_commercial)
+        self.toolbar.delete_selected_requested.connect(self._on_delete_selected)
         self.toolbar.select_all_requested.connect(self._select_all_records)
         self.toolbar.export_requested.connect(self._on_export_all)
         
@@ -709,3 +710,40 @@ class ObservationTab(
 
 
 
+
+    def _on_delete_selected(self):
+        """Delete checked observations after confirmation."""
+        from PySide6.QtWidgets import QMessageBox
+        from ...models.database import get_database
+
+        checked = self.table_model.get_checked_observations()
+        checked_ids = [obs.get("id") for obs in checked if obs.get("id")]
+        if not checked_ids:
+            QMessageBox.information(self, "Delete Selected", "No records are selected.")
+            return
+
+        count = len(checked_ids)
+        reply = QMessageBox.warning(
+            self,
+            "Delete Selected",
+            f"Permanently delete {count} observation{'s' if count != 1 else ''}?\n\nThis cannot be undone.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        db = get_database()
+        try:
+            placeholders = ",".join(["?"] * len(checked_ids))
+            db.execute_main_write(
+                f"DELETE FROM observations WHERE id IN ({placeholders})",
+                tuple(checked_ids),
+            )
+            print(f"[ObservationTab] Deleted {count} records")
+            self.table_model.set_all_checked(False)
+            self._load_data()
+            self._update_selection_count()
+        except Exception as e:
+            print(f"[ObservationTab] Error deleting: {e}")
+            QMessageBox.critical(self, "Delete Failed", f"Could not delete records:\n{e}")

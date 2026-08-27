@@ -1,4 +1,4 @@
-﻿"""
+"""
 UKSI Repository for Observatum V2.
 
 Provides clean data access layer for UK Species Inventory reference data.
@@ -170,7 +170,7 @@ class UKSIRepository:
         rows = self._execute(
             '''SELECT common_name FROM common_names 
                WHERE tvk = ? 
-               AND common_name NOT GLOB '*[àáâãäåèéêëìíîïòóôõöùúûüýÿŵŷwy]*'
+               AND common_name NOT GLOB '*[àáâãäåèéêëìíîïòóôõöùúûüýÿŵŷ]*'
                AND SUBSTR(common_name, 1, 1) = UPPER(SUBSTR(common_name, 1, 1))
                ORDER BY LENGTH(common_name)
                LIMIT 1''',
