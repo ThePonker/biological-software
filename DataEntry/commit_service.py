@@ -36,6 +36,8 @@ def build_kwargs_from_row(row: Dict, job: Dict, embargo_until: Optional[str] = N
     is_commercial = mode.lower().startswith("comm")
 
     from DataEntry import date_utils
+    from datetime import datetime
+    batch = 'DataEntry batch ' + datetime.now().isoformat(timespec='seconds')
     iso_date = date_utils.to_iso(row.get("date")) or row.get("date")
 
     kwargs = {
@@ -90,6 +92,8 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
     unresolved = 0
     future = 0
     from DataEntry import date_utils
+    from datetime import datetime
+    batch = 'DataEntry batch ' + datetime.now().isoformat(timespec='seconds')
     for row in repo.fetch_rows(conn, job["id"]):
         reason = _eligibility(row)
         if reason == "no_species":
@@ -104,11 +108,11 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
             future += 1
         kwargs = build_kwargs_from_row(row, job, embargo_until)
         new_id = model.create(observation_cls(**kwargs))
-        if new_id and (row.get("sub_location") or row.get("trap_number") or row.get("visit_number")):
+        if new_id:
             db.execute_main_write(
-                "UPDATE observations SET sub_location=?, trap_number=?, visit_number=? WHERE id=?",
+                "UPDATE observations SET sub_location=?, trap_number=?, visit_number=?, import_notes=? WHERE id=?",
                 (row.get("sub_location") or None, row.get("trap_number") or None,
-                 row.get("visit_number") or None, new_id),
+                 row.get("visit_number") or None, batch, new_id),
             )
         repo.delete_row(conn, row["id"])
         committed += 1
@@ -123,6 +127,7 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
         "unresolved": unresolved,
         "future": future,
         "remaining": remaining,
+        "batch": batch,
     }
 
 
