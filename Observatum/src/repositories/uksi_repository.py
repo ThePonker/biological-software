@@ -159,29 +159,18 @@ class UKSIRepository:
     
     def _get_preferred_common_name(self, tvk: str) -> Optional[str]:
         """
-        Get the preferred (English) common name for a species.
-        
-        Filters out Scottish Gaelic and Welsh names by:
-        1. Excluding names with accented characters (Gaelic)
-        2. Preferring names starting with uppercase (English convention)
-        3. Falling back to any name if no English name exists
+        Get the preferred common name for a species.
+
+        uksi.db's common_names table is already English-only (filtered at
+        extraction time by LANGUAGE='en') and carries a preferred flag -
+        exactly one per TVK across all 16,351 TVKs. Trust it. The length
+        tiebreak only applies if a future extract leaves a TVK unflagged.
         """
-        # Try English name (no accents, starts uppercase)
         rows = self._execute(
-            '''SELECT common_name FROM common_names 
-               WHERE tvk = ? 
-               AND common_name NOT GLOB '*[àáâãäåèéêëìíîïòóôõöùúûüýÿŵŷ]*'
-               AND SUBSTR(common_name, 1, 1) = UPPER(SUBSTR(common_name, 1, 1))
-               ORDER BY LENGTH(common_name)
+            '''SELECT common_name FROM common_names
+               WHERE tvk = ?
+               ORDER BY preferred DESC, LENGTH(common_name)
                LIMIT 1''',
-            (tvk,)
-        )
-        if rows:
-            return rows[0]['common_name']
-        
-        # Fall back to any name if no English name exists
-        rows = self._execute(
-            "SELECT common_name FROM common_names WHERE tvk = ? LIMIT 1",
             (tvk,)
         )
         return rows[0]['common_name'] if rows else None
