@@ -48,6 +48,37 @@ class DataEntryWidget(QWidget):
         self.setWindowTitle("Data Entry")
         self._build_ui()
 
+    # -- csv safety net ---------------------------------------------------
+    def _start_backup_timer(self):
+        """Rolling CSV backup of staging every 15 minutes while the tab is open."""
+        try:
+            from PySide6.QtCore import QTimer
+            self._backup_timer = QTimer(self)
+            self._backup_timer.setInterval(15 * 60 * 1000)
+            self._backup_timer.timeout.connect(self.backup_now)
+            self._backup_timer.start()
+        except Exception as e:
+            print(f"[DataEntry] backup timer not started: {e}")
+
+    def backup_now(self):
+        """Write the staging CSV. Safe to call at any time; never raises."""
+        if self._conn is None:
+            return
+        try:
+            from DataEntry import csv_backup
+            csv_backup.backup_staging(self._conn)
+        except Exception as e:
+            print(f"[DataEntry] staging backup failed: {e}")
+
+    def backup_observations_now(self, *_):
+        """Write the observations CSV. Wired to the grid's committed signal."""
+        try:
+            from DataEntry import csv_backup
+            csv_backup.backup_staging(self._conn)
+            csv_backup.backup_observations(self._db_path)
+        except Exception as e:
+            print(f"[DataEntry] post-commit backup failed: {e}")
+
     # -- db --------------------------------------------------------------
     def is_live_db(self) -> bool:
         return os.path.basename(self._db_path).lower() == LIVE_DB_BASENAME
@@ -104,6 +135,7 @@ class DataEntryWidget(QWidget):
         self._codex_path = cand if os.path.exists(cand) else None
 
     def closeEvent(self, event):
+        self.backup_now()          # last write before the connection goes
         if self._conn is not None:
             self._conn.close()
             self._conn = None
@@ -216,6 +248,7 @@ class DataEntryWidget(QWidget):
         self._status.setText(f"Open: {job['name']} ({job.get('mode')}). Staged \u2014 nothing committed.")
 
     def _back_to_jobs(self):
+        self.backup_now()          # leaving a job: commit / export / discard / Jobs
         self._jobs.refresh()
         self._stack.setCurrentIndex(0)
         self._status.setText(self._summary())

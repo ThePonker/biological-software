@@ -1031,6 +1031,14 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         """Handle window close with optional CSV backup."""
+        # Data Entry staging -> rolling CSV, before anything else can go wrong
+        try:
+            _de = getattr(self, "data_entry_tab", None)
+            if _de is not None and hasattr(_de, "backup_now"):
+                _de.backup_now()
+        except Exception as _e:
+            print(f"[DataEntry] close backup skipped: {_e}")
+
         if True:  # Always offer backup option
             from PySide6.QtCore import QSettings
             from src.core.config import Settings
