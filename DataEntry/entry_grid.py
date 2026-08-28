@@ -28,6 +28,10 @@ from DataEntry.session_header import load_stages, load_sexes, load_methods
 # (key, header, kind, width). Default order per Wil: Species, No., Sex, Stage, then context.
 COLUMNS = [
     ("species_name", "Species", "species", 230),
+    ("common_name", "Common Name", "text", 150),
+    ("order_name", "Order", "text", 110),
+    ("family", "Family", "text", 130),
+    ("taxon_rank", "Rank", "text", 80),
     ("quantity", "No.", "number", 52),
     ("sex", "Sex", "sex", 78),
     ("stage", "Stage", "stage", 90),
@@ -135,6 +139,39 @@ class StagingTableModel(QAbstractTableModel):
         return (Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
                 | Qt.ItemFlag.ItemIsEditable)
 
+    def sort_rows(self, column: int, descending: bool = False) -> None:
+        """Sort the real staging rows in place. Blanks always go last; nothing is written."""
+        key = COLUMNS[column][0]
+        kind = COLUMNS[column][2]
+
+        def sort_key(row):
+            v = row.get(key)
+            blank = v is None or str(v).strip() == ""
+            if blank:
+                return (1, "")            # blanks last, either direction
+            if kind == "number":
+                try:
+                    return (0, float(v))
+                except (TypeError, ValueError):
+                    return (0, 0.0)
+            return (0, str(v).strip().lower())
+
+        real = [r for r in self._rows if r.get("species_name") or r.get("id")]
+        blanks = [r for r in self._rows if r not in real]
+        try:
+            real.sort(key=sort_key, reverse=descending)
+        except TypeError:
+            real.sort(key=lambda r: (sort_key(r)[0], str(sort_key(r)[1])), reverse=descending)
+        self.beginResetModel()
+        self._rows = real + blanks
+        self.endResetModel()
+
+    def restore_entry_order(self) -> None:
+        """Re-read the job's rows in their stored row_order."""
+        self.beginResetModel()
+        self._rows = repo.fetch_rows(self._conn, self._job_id)
+        self.endResetModel()
+
     def _is_virtual(self, r: int) -> bool:
         return r >= len(self._rows)
 
@@ -235,6 +272,17 @@ class StagingTableModel(QAbstractTableModel):
                     changed_cols += [COLIDX[k] for k in ctx]
             lo, hi = min(changed_cols), max(changed_cols)
             self.dataChanged.emit(self.index(r, lo), self.index(r, hi),
+                                  [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole])
+            return True
+
+        if kind == "species" and not str(value or "").strip() and not virtual:
+            row = self._rows[r]
+            clears = {"species_name": None, "species_tvk": None, "common_name": None,
+                      "order_name": None, "family": None, "taxon_rank": None}
+            row.update(clears)
+            repo.update_row(self._conn, row["id"], clears)
+            self.dataChanged.emit(self.index(r, 0),
+                                  self.index(r, self.columnCount() - 1),
                                   [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole])
             return True
 
@@ -983,6 +1031,10 @@ class EntryGridPage(QWidget):
         hh.customContextMenuRequested.connect(self._header_menu)
         self._restore_header_state()
         hh.sectionMoved.connect(lambda *a: self._save_header_state())
+        self._sort_col = None
+        self._sort_desc = False
+        hh.setSectionsClickable(True)
+        hh.sectionClicked.connect(self._on_header_sort)
         hh.sectionResized.connect(lambda *a: self._save_header_state())
         self._view.setStyleSheet(
             f"QTableView {{ background: {theme.CARD}; border: 1px solid {theme.LINE};"
@@ -1069,6 +1121,14 @@ class EntryGridPage(QWidget):
             b.setCursor(Qt.CursorShape.PointingHandCursor)
             b.clicked.connect(lambda _=False, k=n: self._model.add_display_rows(k))
             addr.addWidget(b)
+        self._sort_btn = QPushButton("Entry order")
+        self._sort_btn.setStyleSheet(theme.button_secondary_qss())
+        self._sort_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._sort_btn.setToolTip("Restore the rows to their entry order.")
+        self._sort_btn.clicked.connect(self._restore_entry_order)
+        self._sort_btn.setVisible(False)
+        addr.addWidget(self._sort_btn)
+
         self._del_btn = QPushButton("Remove empty tail")
         self._del_btn.setStyleSheet(theme.button_delete_qss())
         self._del_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -1151,6 +1211,28 @@ class EntryGridPage(QWidget):
         # trim trailing blank rows (housekeeping after over-scrolling / gaps at the end)
         self._model.trim_empty_tail()
         self._update_count()
+
+    def _on_header_sort(self, column: int):
+        """Click a header to sort; click again to reverse. View only -- nothing is saved."""
+        if self._sort_col == column:
+            self._sort_desc = not self._sort_desc
+        else:
+            self._sort_col, self._sort_desc = column, False
+        self._model.sort_rows(column, self._sort_desc)
+        arrow = "\u25be" if self._sort_desc else "\u25b4"
+        self._sort_btn.setText(f"Entry order  (sorted by {COLUMNS[column][1]} {arrow})")
+        self._sort_btn.setVisible(True)
+        if self._copy_ctx.isChecked():
+            self._ctx_was_on = True
+            self._copy_ctx.setChecked(False)   # 'row above' is meaningless while sorted
+
+    def _restore_entry_order(self):
+        self._sort_col, self._sort_desc = None, False
+        self._model.restore_entry_order()
+        self._sort_btn.setVisible(False)
+        if getattr(self, "_ctx_was_on", False):
+            self._copy_ctx.setChecked(True)
+            self._ctx_was_on = False
 
     def _workbook_summary(self):
         """(records, distinct species, [(order, count), ...], individuals) for this job."""
