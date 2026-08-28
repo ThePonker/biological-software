@@ -139,6 +139,26 @@ class StagingTableModel(QAbstractTableModel):
         return (Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
                 | Qt.ItemFlag.ItemIsEditable)
 
+    def delete_rows(self, rows) -> int:
+        """Delete real staging rows by view index. Virtual rows are ignored. Returns count."""
+        targets = sorted({r for r in rows if 0 <= r < len(self._rows)}, reverse=True)
+        if not targets:
+            return 0
+        self.beginResetModel()
+        done = 0
+        for r in targets:
+            row = self._rows[r]
+            rid = row.get("id")
+            if rid is not None:
+                try:
+                    repo.delete_row(self._conn, rid)
+                except Exception:
+                    continue
+            del self._rows[r]
+            done += 1
+        self.endResetModel()
+        return done
+
     def sort_rows(self, column: int, descending: bool = False) -> None:
         """Sort the real staging rows in place. Blanks always go last; nothing is written."""
         key = COLUMNS[column][0]
@@ -666,6 +686,8 @@ class EntryTableView(QTableView):
                 self._copy(); return
             if k == Qt.Key.Key_V:
                 self._paste(); return
+            if k in (Qt.Key.Key_Minus, Qt.Key.Key_Underscore):
+                self._delete_selected_rows(); return
             if k == Qt.Key.Key_Home:
                 self._go(0, 0); return
             if k == Qt.Key.Key_End:
@@ -790,6 +812,42 @@ class EntryTableView(QTableView):
                 self._copy_cell(src, col, tgt, col)
 
     # -- Ctrl+C: bounding box of the selection -> clipboard (+ rich buffer) ---
+    def _selected_rows(self):
+        return sorted({i.row() for i in self.selectionModel().selectedIndexes()})
+
+    def _delete_selected_rows(self):
+        """Remove whole rows (Ctrl+-). Rows below shift up; confirms for more than one."""
+        rows = self._selected_rows()
+        m = self.model()
+        real = [r for r in rows if r < len(getattr(m, "_rows", []))]
+        if not real:
+            return
+        if len(real) > 1:
+            from PySide6.QtWidgets import QMessageBox
+            if QMessageBox.question(
+                self, "Delete rows",
+                f"Delete {len(real)} rows?\n\nRows below will move up. "
+                f"This cannot be undone.",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            ) != QMessageBox.StandardButton.Yes:
+                return
+        n = m.delete_rows(real)
+        print(f"[DataEntry] deleted {n} row(s)")
+
+    def contextMenuEvent(self, event):
+        from PySide6.QtWidgets import QMenu
+        rows = self._selected_rows()
+        m = self.model()
+        real = [r for r in rows if r < len(getattr(m, "_rows", []))]
+        if not real:
+            return
+        menu = QMenu(self)
+        label = "Delete row" if len(real) == 1 else f"Delete {len(real)} rows"
+        act = menu.addAction(label)
+        act.triggered.connect(self._delete_selected_rows)
+        menu.exec(event.globalPos())
+
     def _copy(self):
         idxs = self.selectionModel().selectedIndexes()
         if not idxs:
