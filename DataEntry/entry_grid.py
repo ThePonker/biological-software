@@ -27,26 +27,25 @@ from DataEntry.session_header import load_stages, load_sexes, load_methods
 
 # (key, header, kind, width). Default order per Wil: Species, No., Sex, Stage, then context.
 COLUMNS = [
-    ("species_name", "Species", "species", 230),
-    ("common_name", "Common Name", "text", 150),
-    ("order_name", "Order", "text", 110),
-    ("family", "Family", "text", 130),
-    ("taxon_rank", "Rank", "text", 80),
+    ("species_name", "Species", "species", 200),
     ("quantity", "No.", "number", 52),
     ("sex", "Sex", "sex", 78),
     ("stage", "Stage", "stage", 90),
-    ("determiner", "Determiner", "text", 110),
+    ("grid_ref", "Grid ref", "text", 95),
+    ("method", "Method", "method", 120),
+    ("date", "Date", "text", 100),
     ("sub_location", "Sub-location", "text", 120),
     ("trap_number", "Trap", "text", 70),
     ("visit_number", "Visit", "text", 60),
-    ("date", "Date", "text", 100),
-    ("site_name", "Site", "text", 150),
-    ("grid_ref", "Grid ref", "text", 95),
-    ("vice_county", "VC", "text", 60),
+    ("comment", "Comment", "text", 100),
     ("vc_number", "VC No.", "number", 60),
+    ("vice_county", "VC", "text", 60),
     ("recorder", "Recorder", "text", 110),
-    ("method", "Method", "method", 120),
-    ("comment", "Comment", "text", 170),
+    ("determiner", "Determiner", "text", 110),
+    ("common_name", "Common Name", "text", 120),
+    ("order_name", "Order", "text", 110),
+    ("family", "Family", "text", 130),
+    ("site_name", "Site", "text", 100),
 ]
 
 COLIDX = {key: i for i, (key, _, _, _) in enumerate(COLUMNS)}
@@ -71,7 +70,7 @@ class StagingTableModel(QAbstractTableModel):
         self._entry_determiner = (determiner or "").strip()
 
     # context fields copied down on a species match (never Certainty -- that's a fixed constant)
-    _CONTEXT_COPY_KEYS = ("date", "grid_ref", "site_name", "vice_county",
+    _CONTEXT_COPY_KEYS = ("date", "grid_ref", "site_name",
                           "recorder", "determiner", "method",
                           "sub_location", "trap_number", "visit_number")
 
@@ -138,6 +137,39 @@ class StagingTableModel(QAbstractTableModel):
             return Qt.ItemFlag.NoItemFlags
         return (Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
                 | Qt.ItemFlag.ItemIsEditable)
+
+    def insert_rows(self, at: int, count: int = 1, inherit: bool = True) -> int:
+        """Insert count blank rows above view index t, renumbering row_order below.
+
+        New rows inherit the context fields (date, site, grid ref, trap, etc.) of the row
+        above, since insertion happens inside a block that shares them.
+        """
+        at = max(0, min(at, len(self._rows)))
+        ctx = {}
+        if inherit and at > 0:
+            src = self._rows[at - 1]
+            for k in self._CONTEXT_COPY_KEYS:
+                v = src.get(k)
+                if v not in (None, ""):
+                    ctx[k] = v
+
+        self.beginResetModel()
+        made = []
+        for _ in range(count):
+            new_id = repo.insert_row(self._conn, self._job_id, dict(ctx))
+            fresh = {c[0]: None for c in COLUMNS}
+            fresh.update(ctx)
+            fresh["id"] = new_id
+            made.append(fresh)
+        for i, row in enumerate(made):
+            self._rows.insert(at + i, row)
+        for i, row in enumerate(self._rows, start=1):
+            if row.get("id") is not None:
+                self._conn.execute(
+                    "UPDATE entry_staging SET row_order=? WHERE id=?", (i, row["id"]))
+        self._conn.commit()
+        self.endResetModel()
+        return len(made)
 
     def delete_rows(self, rows) -> int:
         """Delete real staging rows by view index. Virtual rows are ignored. Returns count."""
@@ -289,7 +321,11 @@ class StagingTableModel(QAbstractTableModel):
                 if ctx:
                     row.update(ctx)
                     repo.update_row(self._conn, row["id"], ctx)
-                    changed_cols += [COLIDX[k] for k in ctx]
+                    changed_cols += [COLIDX[k] for k in ctx if k in COLIDX]
+                    if "grid_ref" in ctx:
+                        self._derive_vc(r)   # VC always from the ref, never copied down
+                        changed_cols += [COLIDX[k] for k in ("vice_county", "vc_number")
+                                         if k in COLIDX]
             lo, hi = min(changed_cols), max(changed_cols)
             self.dataChanged.emit(self.index(r, lo), self.index(r, hi),
                                   [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole])
@@ -349,9 +385,10 @@ class StagingTableModel(QAbstractTableModel):
         updates = {"vice_county": vc_name, "vc_number": vc_num}
         row.update(updates)
         repo.update_row(self._conn, row["id"], updates)
-        if "vice_county" in COLIDX:
-            idx = self.index(r, COLIDX["vice_county"])
-            self.dataChanged.emit(idx, idx, [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole])
+        cols = [COLIDX[k] for k in ("vice_county", "vc_number") if k in COLIDX]
+        if cols:
+            self.dataChanged.emit(self.index(r, min(cols)), self.index(r, max(cols)),
+                                  [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole])
 
     @staticmethod
     def _as_qty(sval: str) -> int:
@@ -688,6 +725,8 @@ class EntryTableView(QTableView):
                 self._paste(); return
             if k in (Qt.Key.Key_Minus, Qt.Key.Key_Underscore):
                 self._delete_selected_rows(); return
+            if k in (Qt.Key.Key_Plus, Qt.Key.Key_Equal):
+                self._insert_selected_rows(); return
             if k == Qt.Key.Key_Home:
                 self._go(0, 0); return
             if k == Qt.Key.Key_End:
@@ -835,6 +874,18 @@ class EntryTableView(QTableView):
         n = m.delete_rows(real)
         print(f"[DataEntry] deleted {n} row(s)")
 
+    def _insert_selected_rows(self):
+        """Insert blank rows above the selection (Ctrl++), one per selected row."""
+        rows = self._selected_rows()
+        if not rows:
+            return
+        m = self.model()
+        at = rows[0]
+        n = m.insert_rows(at, len(rows), inherit=False)
+        print(f"[DataEntry] inserted {n} row(s) above row {at + 1}")
+        if n:
+            self.setCurrentIndex(m.index(at, 0))
+
     def contextMenuEvent(self, event):
         from PySide6.QtWidgets import QMenu
         rows = self._selected_rows()
@@ -843,6 +894,9 @@ class EntryTableView(QTableView):
         if not real:
             return
         menu = QMenu(self)
+        ins = "Insert row above" if len(real) == 1 else f"Insert {len(real)} rows above"
+        menu.addAction(ins).triggered.connect(self._insert_selected_rows)
+        menu.addSeparator()
         label = "Delete row" if len(real) == 1 else f"Delete {len(real)} rows"
         act = menu.addAction(label)
         act.triggered.connect(self._delete_selected_rows)
@@ -1235,6 +1289,7 @@ class EntryGridPage(QWidget):
 
         self._info.set_pending_provider(self._job.get("mode", "Personal"), self._pending_count)
         self._info.set_workbook_provider(self._workbook_summary)
+        self._info.set_locations_provider(self._locations_summary)
         self._info.set_controls_widget(controls)
         self._push_entry_defaults()
 
@@ -1245,6 +1300,7 @@ class EntryGridPage(QWidget):
         self._model.rowsInserted.connect(lambda *a: self._info.refresh_counts())
         self._model.rowsRemoved.connect(lambda *a: self._info.refresh_counts())
         self._model.dataChanged.connect(lambda *a: self._info.refresh_workbook())
+        self._model.dataChanged.connect(lambda *a: self._info.refresh_locations())
         self._model.rowsInserted.connect(lambda *a: self._info.refresh_workbook())
         self._model.rowsRemoved.connect(lambda *a: self._info.refresh_workbook())
         self._update_count()
@@ -1291,6 +1347,19 @@ class EntryGridPage(QWidget):
         if getattr(self, "_ctx_was_on", False):
             self._copy_ctx.setChecked(True)
             self._ctx_was_on = False
+
+    def _locations_summary(self):
+        """[(sub_location, trap_number, grid_ref, count)] for this job, most-used first."""
+        try:
+            rows = self._conn.execute(
+                "SELECT sub_location, trap_number, grid_ref, COUNT(*) n "
+                "FROM entry_staging WHERE job_id=? AND grid_ref IS NOT NULL "
+                "AND trap_number IS NOT NULL AND TRIM(trap_number)<>'' "
+                "AND TRIM(grid_ref)<>'' GROUP BY 1,2,3 ORDER BY sub_location, trap_number, grid_ref",
+                (self._job_id,)).fetchall()
+        except Exception:
+            return []
+        return [(r["sub_location"], r["trap_number"], r["grid_ref"], r["n"]) for r in rows]
 
     def _workbook_summary(self):
         """(records, distinct species, [(order, count), ...], individuals) for this job."""
@@ -1438,10 +1507,19 @@ class EntryGridPage(QWidget):
         return QSettings("Flauna", "Observatum")
 
     def _save_header_state(self):
-        self._settings().setValue(self._HEADER_KEY, self._view.horizontalHeader().saveState())
+        s = self._settings()
+        s.setValue(self._HEADER_KEY, self._view.horizontalHeader().saveState())
+        s.setValue(self._HEADER_KEY + "Cols", len(COLUMNS))
 
     def _restore_header_state(self):
-        st = self._settings().value(self._HEADER_KEY)
+        s = self._settings()
+        st = s.value(self._HEADER_KEY)
+        try:
+            saved_cols = int(s.value(self._HEADER_KEY + "Cols", 0))
+        except (TypeError, ValueError):
+            saved_cols = 0
+        if saved_cols != len(COLUMNS):
+            st = None   # column set changed -- fall back to the default order
         if st is not None:
             try:
                 self._view.horizontalHeader().restoreState(st)
@@ -1455,6 +1533,9 @@ class EntryGridPage(QWidget):
         from PySide6.QtWidgets import QMenu
         hh = self._view.horizontalHeader()
         menu = QMenu(self)
+        ins = "Insert row above" if len(real) == 1 else f"Insert {len(real)} rows above"
+        menu.addAction(ins).triggered.connect(self._insert_selected_rows)
+        menu.addSeparator()
         for c, (key, header, _, _) in enumerate(COLUMNS):
             act = menu.addAction(header)
             act.setCheckable(True)

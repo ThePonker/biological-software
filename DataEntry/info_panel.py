@@ -248,6 +248,7 @@ class InfoPanel(QWidget):
         readout_w.setFixedHeight(_BANNER_H)
         outer.addWidget(readout_w, 0, Qt.AlignmentFlag.AlignTop)
         outer.addWidget(self._build_workbook_card(), 0, Qt.AlignmentFlag.AlignTop)
+        outer.addWidget(self._build_locations_card(), 0, Qt.AlignmentFlag.AlignTop)
 
         # ---- maps area ----
         maps_card = QWidget()
@@ -502,6 +503,97 @@ class InfoPanel(QWidget):
         return ""
 
     _WB_PER_COL = 6   # orders per column (2 columns -> up to 12 shown, then "+N more")
+
+    def _build_locations_card(self):
+        """Distinct trap / sub-location / grid-ref combinations in this job. Click to copy."""
+        from PySide6.QtWidgets import QVBoxLayout, QLabel, QWidget, QScrollArea
+        card = QWidget()
+        card.setFixedWidth(210); card.setFixedHeight(_BANNER_H)
+        card.setStyleSheet(theme.card_qss())
+        v = QVBoxLayout(card); v.setContentsMargins(12, 10, 12, 6); v.setSpacing(4)
+
+        head = QLabel("Traps")
+        head.setStyleSheet(
+            f"color: {theme.HEADING}; font-size: 13px; font-weight: 700;"
+            " border: none; background: transparent;")
+        v.addWidget(head)
+
+        self._loc_hint = QLabel("Click to copy")
+        self._loc_hint.setStyleSheet(
+            f"color: {theme.FAINT}; font-size: 11px; border: none; background: transparent;")
+        v.addWidget(self._loc_hint)
+
+        self._loc_scroll = QScrollArea()
+        self._loc_scroll.setWidgetResizable(True)
+        self._loc_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        self._loc_scroll.setStyleSheet("background: transparent; border: none;")
+        self._loc_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
+        self._loc_body = QWidget()
+        self._loc_body.setStyleSheet("background: transparent;")
+        self._loc_lay = QVBoxLayout(self._loc_body)
+        self._loc_lay.setContentsMargins(0, 0, 0, 0)
+        self._loc_lay.setSpacing(1)
+        self._loc_lay.addStretch(1)
+        self._loc_scroll.setWidget(self._loc_body)
+        v.addWidget(self._loc_scroll, 1)
+        return card
+
+    def set_locations_provider(self, fn):
+        """fn() -> [(sub_location, trap_number, grid_ref, count), ...] most-used first."""
+        self._loc_fn = fn
+        self.refresh_locations()
+
+    def _copy_grid_ref(self, ref: str):
+        from PySide6.QtWidgets import QApplication
+        from PySide6.QtCore import QTimer
+        QApplication.clipboard().setText(ref)
+        self._loc_hint.setText(f"Copied {ref}")
+        QTimer.singleShot(1800, lambda: self._loc_hint.setText("Click to copy"))
+
+    def refresh_locations(self):
+        from PySide6.QtWidgets import QLabel
+        fn = getattr(self, "_loc_fn", None)
+        if fn is None or not hasattr(self, "_loc_lay"):
+            return
+        while self._loc_lay.count():
+            it = self._loc_lay.takeAt(0)
+            w = it.widget()
+            if w is not None:
+                w.deleteLater()
+        try:
+            entries = fn() or []
+        except Exception:
+            entries = []
+
+        if not entries:
+            none_lab = QLabel("No traps recorded yet")
+            none_lab.setStyleSheet(
+                f"color: {theme.FAINT}; font-size: 12px; border: none; background: transparent;")
+            self._loc_lay.addWidget(none_lab)
+            self._loc_lay.addStretch(1)
+            return
+
+        last_sub = object()
+        for sub, trap, ref, n in entries:
+            if sub != last_sub:
+                last_sub = sub
+                hdr = QLabel(sub or "No sub-location")
+                hdr.setStyleSheet(
+                    f"color: {theme.HEADING}; font-size: 11px; font-weight: 700;"
+                    " padding: 4px 0 1px 0; border: none; background: transparent;")
+                self._loc_lay.addWidget(hdr)
+            text = (str(trap) + "  \u2014  " + ref) if trap else ref
+            lab = QLabel(text)
+            lab.setToolTip(f"{ref}\n{n} record(s) \u2014 click to copy")
+            lab.setCursor(Qt.CursorShape.PointingHandCursor)
+            lab.setWordWrap(True)
+            lab.setStyleSheet(
+                f"color: {theme.INK}; font-size: 11px; padding: 1px 3px 1px 12px;"
+                " border: none; background: transparent;")
+            lab.mousePressEvent = (lambda _e, r=ref: self._copy_grid_ref(r))
+            self._loc_lay.addWidget(lab)
+        self._loc_lay.addStretch(1)
 
     def _build_workbook_card(self):
         from PySide6.QtWidgets import QVBoxLayout, QGridLayout, QLabel, QWidget
