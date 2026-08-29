@@ -1371,8 +1371,12 @@ class EntryGridPage(QWidget):
             return (0, 0, [], 0)
         recs = [r for r in rows if (r["species_name"] or r["species_tvk"])]
         species = len({(r["species_tvk"] or r["species_name"]) for r in recs})
-        from collections import Counter
+        from collections import Counter, defaultdict
         by_order = Counter((r["order_name"] or "Unassigned") for r in recs)
+        spp_by_order = defaultdict(set)
+        for r in recs:
+            spp_by_order[r["order_name"] or "Unassigned"].add(
+                r["species_tvk"] or r["species_name"])
         individuals = 0
         for r in recs:
             try:
@@ -1380,18 +1384,27 @@ class EntryGridPage(QWidget):
             except (TypeError, ValueError):
                 q = 1
             individuals += q if q > 0 else 1
-        return (len(recs), species, by_order.most_common(), individuals)
+        ordered = [(o, len(spp_by_order[o]), n) for o, n in by_order.most_common()]
+        return (len(recs), species, ordered, individuals)
 
     def _pending_count(self, tvk):
+        """Staged rows for this species across ALL jobs, split by job mode."""
         if not tvk:
-            return 0
+            return {"personal": 0, "commercial": 0}
         try:
             row = self._conn.execute(
-                "SELECT COUNT(*) FROM entry_staging WHERE job_id=? AND species_tvk=?",
-                (self._job_id, tvk)).fetchone()
-            return int(row[0]) if row else 0
+                "SELECT j.mode, COUNT(*) FROM entry_staging s "
+                "JOIN entry_jobs j ON j.id = s.job_id "
+                "WHERE s.species_tvk=? GROUP BY j.mode", (tvk,)).fetchall()
+            out = {"personal": 0, "commercial": 0}
+            for mode, n in row:
+                if str(mode or "").lower().startswith("comm"):
+                    out["commercial"] += n
+                else:
+                    out["personal"] += n
+            return out
         except Exception:
-            return 0
+            return {"personal": 0, "commercial": 0}
 
     def _push_entry_defaults(self, *args):
         rec = self._rec_box.text().strip()

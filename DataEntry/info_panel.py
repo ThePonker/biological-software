@@ -598,7 +598,7 @@ class InfoPanel(QWidget):
     def _build_workbook_card(self):
         from PySide6.QtWidgets import QVBoxLayout, QGridLayout, QLabel, QWidget
         card = QWidget()
-        card.setFixedWidth(300); card.setFixedHeight(_BANNER_H)
+        card.setFixedWidth(330); card.setFixedHeight(_BANNER_H)
         card.setStyleSheet(theme.card_qss())
         v = QVBoxLayout(card); v.setContentsMargins(12, 10, 12, 10); v.setSpacing(4)
         head = QLabel("This workbook")
@@ -653,7 +653,12 @@ class InfoPanel(QWidget):
         cap = self._WB_PER_COL * 2
         top = breakdown[:cap]
         extra = len(breakdown) - len(top)
-        cells = [f"{o}  {n}" for o, n in top]
+        cells = []
+        for item in top:
+            if len(item) >= 3:
+                cells.append(f"{item[0]}  {item[1]} ({item[2]})")
+            else:
+                cells.append(f"{item[0]}  {item[1]}")
         if extra > 0:
             cells.append(f"+{extra} more")
         for i, txt in enumerate(cells):
@@ -673,19 +678,37 @@ class InfoPanel(QWidget):
         self.refresh_counts()
 
     def _pending_for(self, tvk):
+        """{"personal": n, "commercial": n} staged across all jobs."""
+        blank = {"personal": 0, "commercial": 0}
+        if not (self._pending_fn and tvk):
+            return blank
         try:
-            return int(self._pending_fn(tvk)) if (self._pending_fn and tvk) else 0
+            got = self._pending_fn(tvk)
         except Exception:
-            return 0
+            return blank
+        if isinstance(got, dict):
+            return {"personal": int(got.get("personal", 0)),
+                    "commercial": int(got.get("commercial", 0))}
+        try:  # older provider returned a single number for the current mode
+            n = int(got)
+        except (TypeError, ValueError):
+            return blank
+        key = "commercial" if str(self._job_mode or "").lower().startswith("comm") else "personal"
+        out = dict(blank); out[key] = n
+        return out
 
     def _set_count_pills(self, tvk):
         p, c, s = self._svc.counts(tvk)
         pend = self._pending_for(tvk)
-        mode = (self._job_mode or "").lower()
-        pt = f"Personal {p}" + (f" (+{pend})" if pend and mode.startswith("pers") else "")
-        ct = f"Commercial {c}" + (f" (+{pend})" if pend and mode.startswith("comm") else "")
-        self._pills_row.set_items([self._pill(pt), self._pill(ct),
-                                   self._pill(f"Specimens {s}")])
+        pp, pc = pend["personal"], pend["commercial"]
+        pt = f"Pers. {p}" + (f" (+{pp})" if pp else "")
+        ct = f"Comm. {c}" + (f" (+{pc})" if pc else "")
+        tip = ("Committed records in Observatum. Any bracketed figure is rows still "
+               "in Data Entry staging, across every open workbook.")
+        pills = [self._pill(pt), self._pill(ct), self._pill(f"Spec. {s}")]
+        for w in pills:
+            w.setToolTip(tip)
+        self._pills_row.set_items(pills)
 
     def refresh_counts(self):
         """Recompute just the count pills for the current species (live pending update)."""

@@ -19,6 +19,20 @@ from ...themes import theme
 from ...core.config import TabColors, ButtonColors
 
 
+
+# Curatorial vocabularies -- edit these lists to change the dropdown options.
+PREPARATION_TYPES = ["", "Pinned", "Carded", "Pointed", "In alcohol",
+                     "Slide-mounted", "Genitalia prep"]
+CONDITIONS = ["", "Good", "Damaged"]
+STORAGE_LOCATIONS = ["", "Cabinet", "Useful Box", "Storage box"]
+
+# Default preparation by taxonomic order (only applied to an empty field).
+PREP_BY_ORDER = {
+    "diptera": "Pinned",
+    "hymenoptera": "Pinned",
+    "coleoptera": "Carded",
+}
+
 class AddSpecimenDialog(QDialog):
     """Modal dialog for adding or editing a specimen."""
     
@@ -77,6 +91,7 @@ class AddSpecimenDialog(QDialog):
         """Set up the user interface."""
         t = theme()
         
+        self.setMinimumWidth(900)
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
@@ -88,9 +103,15 @@ class AddSpecimenDialog(QDialog):
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         
         content = QWidget()
-        layout = QVBoxLayout(content)
-        layout.setSpacing(12)
-        layout.setContentsMargins(16, 16, 16, 8)
+        _cols = QHBoxLayout(content)
+        _cols.setSpacing(20)
+        _cols.setContentsMargins(16, 16, 16, 8)
+
+        _left = QVBoxLayout(); _left.setSpacing(12)
+        _right = QVBoxLayout(); _right.setSpacing(12)
+        _cols.addLayout(_left, 1)
+        _cols.addLayout(_right, 1)
+        layout = _left          # fields below build into the left column
         
         # Species search
         species_group = QVBoxLayout()
@@ -130,8 +151,10 @@ class AddSpecimenDialog(QDialog):
         # Location / Site Name
         self._add_form_field(layout, "Location / Site Name *", "location_edit", "e.g. Bernwood Forest")
         
-        # Local Site Name (protected during sync)
-        self._add_form_field(layout, "Local Site Name", "site_local_edit", "Your local name for this site (optional)")
+        # Local Site Name removed from the dialog (DB column retained); keep the
+        # attribute so _populate_from_existing / get_specimen_data stay valid.
+        self.site_local_edit = QLineEdit()
+        self.site_local_edit.hide()
         
         # Grid Reference
         grid_group = QVBoxLayout()
@@ -176,6 +199,41 @@ class AddSpecimenDialog(QDialog):
         auto_layout2.addWidget(self.vc_info_label)
         layout.addWidget(auto_note2)
         
+        # Location map (left column, under the grid ref) -- best effort
+        self._loc_map = None
+        try:
+            import paths as _paths
+            from DataEntry.raster_map import RasterMiniMap, find_tiles_dir
+            _tiles = find_tiles_dir(str(_paths.MAPS_DIR))
+            _m = RasterMiniMap(_tiles, self._vc_service)
+            if _m.has_data():
+                self._loc_map = _m
+            else:
+                _m.deleteLater()
+        except Exception:
+            self._loc_map = None
+        if self._loc_map is None:
+            try:
+                import paths as _paths
+                from DataEntry.vc_map import MiniMap
+                _g = str(_paths.VC_GEOJSON)
+                _m = MiniMap(_g, self._vc_service)
+                if _m.has_data():
+                    self._loc_map = _m
+                else:
+                    _m.deleteLater()
+            except Exception:
+                self._loc_map = None
+        if self._loc_map is not None:
+            _map_lbl = QLabel("Location")
+            _map_lbl.setStyleSheet(
+                f"font-size: 11px; font-weight: 600; color: {t.get('text_secondary')};")
+            layout.addWidget(_map_lbl)
+            layout.addWidget(self._loc_map)
+        layout.addStretch()
+
+        layout = _right        # remaining fields build into the right column
+
         # Sex
         sex_group = QVBoxLayout()
         sex_label = QLabel("Sex")
@@ -201,6 +259,43 @@ class AddSpecimenDialog(QDialog):
         
         # Determiner
         self._add_form_field(layout, "Determiner", "determiner_edit", "", "")
+        # --- curatorial fields ------------------------------------------
+        def _combo(label_text, attr, items):
+            grp = QVBoxLayout()
+            lbl = QLabel(label_text)
+            lbl.setStyleSheet(
+                f"font-size: 11px; font-weight: 600; color: {t.get('text_secondary')};")
+            grp.addWidget(lbl)
+            cb = QComboBox()
+            cb.addItems(items)
+            cb.setMinimumHeight(36)
+            cb.setStyleSheet(
+                f"QComboBox {{ border: 1px solid {t.get('border')};"
+                f" border-radius: {t.get('radius_sm')}; padding: 8px; font-size: 13px; }}")
+            grp.addWidget(cb)
+            setattr(self, attr, cb)
+            layout.addLayout(grp)
+
+        _combo("Preparation", "prep_combo", PREPARATION_TYPES)
+        _combo("Condition", "condition_combo", CONDITIONS)
+        _combo("Storage Location", "storage_combo", STORAGE_LOCATIONS)
+        self._add_form_field(layout, "Drawer Number", "drawer_edit", "e.g. 3", "")
+
+
+        # Defaults from Settings > General (not applied when editing an existing specimen)
+        if not self._existing_specimen:
+            try:
+                from PySide6.QtCore import QSettings
+                from src.core.config import Settings as _S
+                _st = QSettings()
+                _rec = _st.value(_S.DEFAULT_RECORDER, "") or ""
+                _det = _st.value(_S.DEFAULT_DETERMINER, "") or ""
+                if _rec:
+                    self.collector_edit.setText(str(_rec))
+                if _det:
+                    self.determiner_edit.setText(str(_det))
+            except Exception as _e:
+                print(f"[AddSpecimen] defaults not applied: {_e}")
         
         # Specimen Notes (specific to this specimen)
         notes_group = QVBoxLayout()
@@ -364,6 +459,21 @@ class AddSpecimenDialog(QDialog):
         # We'll do live search on text change instead of using static completer
         # Species search component handles text change internally
     
+    def _default_prep_from_order(self):
+        """Set Preparation from the taxon order, but never over a chosen value."""
+        cb = getattr(self, "prep_combo", None)
+        if cb is None or cb.currentText().strip():
+            return
+        order = ""
+        if self._selected_species:
+            order = (self._selected_species.get("order") or "").strip().lower()
+        want = PREP_BY_ORDER.get(order)
+        if not want:
+            return
+        i = cb.findText(want)
+        if i >= 0:
+            cb.setCurrentIndex(i)
+
     def _on_species_selected_from_search(self, species_data: dict):
         """Handle species selection from SpeciesSearch component."""
         self._selected_species = species_data
@@ -382,6 +492,7 @@ class AddSpecimenDialog(QDialog):
             self.species_info_label.show()
         
         # Load profile
+        self._default_prep_from_order()
         self._load_species_profile(
             species_data.get('scientific_name', ''),
             species_data.get('tvk')
@@ -391,6 +502,7 @@ class AddSpecimenDialog(QDialog):
         """Connect widget signals."""
         # Validate grid ref on change
         self.gridref_edit.editingFinished.connect(self._validate_grid_ref)
+        self.gridref_edit.editingFinished.connect(self._refresh_loc_map)
     
     def _on_species_text_changed(self, text: str):
         """Handle species search as user types."""
@@ -531,6 +643,16 @@ class AddSpecimenDialog(QDialog):
         if species_name:
             self.profile_edit_requested.emit(species_name, species_tvk or '')
     
+    def _refresh_loc_map(self):
+        """Point the mini map at the current grid ref (no-op if there is no map)."""
+        m = getattr(self, "_loc_map", None)
+        if m is None:
+            return
+        try:
+            m.update_for_row({"grid_ref": self.gridref_edit.text().strip().upper()})
+        except Exception:
+            pass
+
     def _validate_grid_ref(self):
         """Validate the grid reference and look up vice county."""
         t = theme()
@@ -683,6 +805,11 @@ class AddSpecimenDialog(QDialog):
         }
         
         # Add UKSI data if species was found
+        data['preparation_type'] = self.prep_combo.currentText().strip()
+        data['condition'] = self.condition_combo.currentText().strip()
+        data['storage_location'] = self.storage_combo.currentText().strip()
+        data['drawer_unit'] = self.drawer_edit.text().strip()
+
         if self._selected_species:
             data['species_tvk'] = self._selected_species.get('tvk')
             data['common_name'] = self._selected_species.get('common_name')

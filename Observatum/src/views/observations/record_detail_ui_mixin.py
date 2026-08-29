@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QLabel, QLineEdit, QDateEdit, QComboBox, QSpinBox,
     QPushButton, QFrame, QCheckBox, QWidget
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QSettings
 from PySide6.QtGui import QFont
 
 from ...themes import theme
@@ -182,7 +182,9 @@ class RecordDetailUIMixin:
         self.date_edit = QDateEdit()
         self.date_edit.setCalendarPopup(True)
         self.date_edit.calendarWidget().setMinimumWidth(280)
-        self.date_edit.setDisplayFormat("yyyy-MM-dd")
+        _s = QSettings()
+        _fmt = _s.value("general/date_format", "dd/MM/yyyy") or "dd/MM/yyyy"
+        self.date_edit.setDisplayFormat(str(_fmt).replace("mm", "MM"))
         self.date_edit.setMinimumHeight(28)
         grid.addWidget(self.date_edit, row, 0)
         
