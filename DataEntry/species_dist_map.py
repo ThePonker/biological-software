@@ -22,12 +22,14 @@ _DEDUP_M = 1000  # collapse points to a 1 km grid so dots don't overplot
 _SEA_C   = "#dbe9f4"; _LAND_C = "#e7ece3"; _COAST_C = "#9fb0a0"
 _VCLINE_C = "#c2ccc1"; _GRID100_C = "#c8d2cb"; _GRID10_C = "#b9c6bd"
 
-SOURCE_ORDER = ["personal", "commercial", "collection", "rs"]
+SOURCE_ORDER = ["personal", "commercial", "collection", "rs", "staging"]
 SOURCE_LABELS = {"personal": "Personal", "commercial": "Commercial",
-                 "collection": "Insect Collection", "rs": "Recording scheme"}
+                 "collection": "Insect Collection", "rs": "Recording scheme",
+                 "staging": "Data Entry (staged)"}
 def source_colours():
     return {"personal": theme.MOSS, "commercial": theme.SLATE,
-            "collection": theme.CLAY, "rs": theme.PURPLE}
+            "collection": theme.CLAY, "rs": theme.PURPLE,
+            "staging": getattr(theme, "GOLD", "#b8860b")}
 _MOSAIC_CACHE = {}  # mosaic path -> (cropped QImage, tight OSGB extent)
 
 
@@ -69,10 +71,21 @@ class DistributionService:
             else:
                 rt = next((c for c in cols if c.lower() == "record_type"), None)
                 self._obs = (tbl, tvk_col, grid_col, rt)
+
+        # entry_staging: uncommitted Data Entry rows (all jobs)
+        self._stage = None
+        try:
+            scols = [r[1] for r in
+                     self._conn.execute("PRAGMA table_info(entry_staging)").fetchall()]
+            if "species_tvk" in scols and "grid_ref" in scols:
+                self._stage = ("entry_staging", "species_tvk", "grid_ref")
+        except sqlite3.Error:
+            self._stage = None
         return []
 
+
     # source priority: lower rank wins when a square has more than one source
-    _RANK = {"personal": 0, "commercial": 1, "collection": 2, "rs": 3}
+    _RANK = {"personal": 0, "commercial": 1, "collection": 2, "rs": 3, "staging": 4}
 
     def squares_by_source(self, tvk, enabled):
         """Return {(e,n): source} -- one entry per 1 km square, coloured by highest-priority
@@ -133,6 +146,18 @@ class DistributionService:
                 rows = []
             for (gr,) in rows:
                 consider("rs", gr)
+
+        # data entry staging -- uncommitted, all jobs
+        if getattr(self, "_stage", None) and enabled.get("staging"):
+            tbl, tvkc, gridc = self._stage
+            try:
+                rows = self._conn.execute(
+                    f"SELECT {gridc} FROM {tbl} WHERE {tvkc}=? AND {gridc} IS NOT NULL "
+                    f"AND {gridc}!=''", (tvk,)).fetchall()
+            except sqlite3.Error:
+                rows = []
+            for (gr,) in rows:
+                consider("staging", gr)
         return {k: (v[1], v[2], v[3]) for k, v in best.items()}
 
 

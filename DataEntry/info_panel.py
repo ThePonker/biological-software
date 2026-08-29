@@ -347,7 +347,8 @@ class InfoPanel(QWidget):
         self._chk_loc.toggled.connect(lambda v: S.setValue("DataEntry/mapShowLocation", bool(v)))
         self._chk_dist.toggled.connect(lambda v: S.setValue("DataEntry/mapShowDistribution", bool(v)))
         _keys = {"personal": "srcPersonal", "commercial": "srcCommercial",
-                 "collection": "srcCollection", "rs": "srcRS"}
+                 "collection": "srcCollection", "rs": "srcRS",
+                 "staging": "srcStaging"}
         if getattr(self, "_src_chk", None):   # legend only exists when a map was built
             for k in _src.SOURCE_ORDER:
                 self._src_chk[k].setChecked(S.value("DataEntry/" + _keys[k], True, type=bool))

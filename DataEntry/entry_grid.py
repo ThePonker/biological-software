@@ -78,12 +78,20 @@ class StagingTableModel(QAbstractTableModel):
         self._copy_context = bool(on)
 
     def _nearest_above(self, r: int, key: str):
-        """Nearest non-empty value for `key` in a row above r (skips blank gap rows)."""
-        for i in range(r - 1, -1, -1):
-            v = self._rows[i].get(key)
-            if v not in (None, ""):
-                return v
-        return None
+        """Value for `key` from the row IMMEDIATELY above r.
+
+        Stops at a blank row: Wil uses empty rows to separate date / trap / parcel
+        blocks, so reaching across one would copy context from the wrong block and
+        silently produce a record with the wrong grid ref, trap or sub-location.
+        """
+        i = r - 1
+        if i < 0 or i >= len(self._rows):
+            return None
+        above = self._rows[i]
+        if not (above.get("species_name") or "").strip():
+            return None            # blank separator row -- copy nothing
+        v = above.get(key)
+        return v if v not in (None, "") else None
 
     def rowCount(self, parent=QModelIndex()):
         # at least _min_display rows on screen; always one blank past the real data
