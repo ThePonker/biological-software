@@ -293,4 +293,15 @@ class DataEntryWidget(QWidget):
         job = repo.get_job(self._conn, job_id)
         if not job:
             return None
+        # Snapshot observatum.db before the one irreversible action. A failed backup
+        # refuses the commit -- None is already handled upstream as 'nothing written'.
+        try:
+            from shared.backup_service import backup_main_only
+            if not backup_main_only('pre-commit'):
+                print('[backup] pre-commit backup failed -- commit refused')
+                return None
+        except Exception as _e:
+            print(f'[backup] pre-commit unavailable -- commit refused: {_e}')
+            return None
+
         return cs.commit_job(db, model, self._conn, job, embargo)

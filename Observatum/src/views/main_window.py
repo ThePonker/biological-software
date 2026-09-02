@@ -1070,6 +1070,13 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
 
+        # Database backup -- working set only (~115 MB), after the WAL checkpoint
+        try:
+            from shared.backup_service import backup_working
+            backup_working('on close')
+        except Exception as _e:
+            print(f'[backup] close backup skipped: {_e}')
+
         event.accept()
 
     def _export_csv_backups(self, backup_path: str):
