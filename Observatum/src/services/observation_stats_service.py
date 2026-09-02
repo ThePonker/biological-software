@@ -155,7 +155,6 @@ class ObservationStatsService:
             self._valid = True
             self._last_refresh = datetime.now()
             return
-            return
 
         try:
             exclusion = self._get_exclusion_clause()
