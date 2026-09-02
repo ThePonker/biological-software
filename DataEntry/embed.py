@@ -72,7 +72,9 @@ def make_data_entry_tab(parent: Optional[QWidget] = None, embedded: bool = True,
     if go_live:
         import paths
         live = str(paths.OBSERVATUM_DB)
-        _backup_live_db(live)  # safety net before any live use
+        # Superseded by shared/backup_service.py, which snapshots observatum.db
+        # before every commit and on Observatum close, outside OneDrive.
+        # _backup_live_db(live)
         return DataEntryWidget(live, parent=parent, embedded=True, allow_commit=True)
 
     db = _resolve_preview_db()
