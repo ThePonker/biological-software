@@ -160,16 +160,10 @@ class WizardImportMixin:
             if insert_rows:
                 insert_batch = []
                 for i, row in enumerate(insert_rows):
-                    # Combine import notes with error/warning messages
-                    notes_parts = []
-                    if row.import_notes:
-                        notes_parts.append(row.import_notes)
-                    if row.status == RowStatus.ERROR and row.error_message:
-                        notes_parts.append(f"[Error: {row.error_message}]")
-                    elif row.status == RowStatus.WARNING and row.warnings:
-                        notes_parts.append(f"[Warning: {'; '.join(row.warnings)}]")
-                    if notes_parts:
-                        row.import_notes = " | ".join(notes_parts)
+                    # Notes are combined non-destructively by
+                    # _combine_import_notes(), called from
+                    # _row_to_observation_dict() below. Doing it here as well
+                    # mutated row.import_notes and doubled every warning.
                     obs_data = self._row_to_observation_dict(row, import_mode)
                     insert_batch.append(obs_data)
                     
