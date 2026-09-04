@@ -17,6 +17,15 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
 from DataEntry import theme
 from DataEntry import species_dist_map as _src
 
+# QSettings key per map source -- used by both the restore block and _on_source_toggle.
+SRC_SETTING_KEYS = {
+    "personal": "srcPersonal",
+    "commercial": "srcCommercial",
+    "collection": "srcCollection",
+    "rs": "srcRS",
+    "staging": "srcStaging",
+}
+
 _BANNER_H = 194  # common height for the banner cards (trimmed to fit content)
 
 
@@ -244,7 +253,7 @@ class InfoPanel(QWidget):
         readout_w = _QW()
         readout_w.setLayout(text_col)
         readout_w.setStyleSheet(theme.card_qss())
-        readout_w.setFixedWidth(320)
+        readout_w.setFixedWidth(272)
         readout_w.setFixedHeight(_BANNER_H)
         outer.addWidget(readout_w, 0, Qt.AlignmentFlag.AlignTop)
         outer.addWidget(self._build_workbook_card(), 0, Qt.AlignmentFlag.AlignTop)
@@ -346,9 +355,7 @@ class InfoPanel(QWidget):
         self._chk_dist.setChecked(S.value("DataEntry/mapShowDistribution", True, type=bool))
         self._chk_loc.toggled.connect(lambda v: S.setValue("DataEntry/mapShowLocation", bool(v)))
         self._chk_dist.toggled.connect(lambda v: S.setValue("DataEntry/mapShowDistribution", bool(v)))
-        _keys = {"personal": "srcPersonal", "commercial": "srcCommercial",
-                 "collection": "srcCollection", "rs": "srcRS",
-                 "staging": "srcStaging"}
+        _keys = SRC_SETTING_KEYS
         if getattr(self, "_src_chk", None):   # legend only exists when a map was built
             for k in _src.SOURCE_ORDER:
                 self._src_chk[k].setChecked(S.value("DataEntry/" + _keys[k], True, type=bool))
@@ -398,8 +405,7 @@ class InfoPanel(QWidget):
         return {k: self._src_chk[k].isChecked() for k in _src.SOURCE_ORDER}
 
     def _on_source_toggle(self, _=None):
-        keys = {"personal": "srcPersonal", "commercial": "srcCommercial",
-                "collection": "srcCollection", "rs": "srcRS"}
+        keys = SRC_SETTING_KEYS
         for k in _src.SOURCE_ORDER:
             self._settings.setValue("DataEntry/" + keys[k], self._src_chk[k].isChecked())
             self._style_legend_row(k)
@@ -741,10 +747,9 @@ class InfoPanel(QWidget):
         common = (row.get("common_name") or "").strip()
         if common:
             line1 += f"  \u2014  {common}"
-        bits = [b for b in (row.get("family"), row.get("order_name")) if b]
-        if bits:
-            line1 += "   [" + ", ".join(bits) + "]"
         self._l1.setText(line1)
+        bits = [b for b in (row.get("family"), row.get("order_name")) if b]
+        self._taxon_line = "  \u00b7  ".join(bits) if bits else ""
 
         tvk = (row.get("species_tvk") or "").strip()
         # Line 2: conservation as coloured chips (text line kept blank; chips carry it)
@@ -756,9 +761,9 @@ class InfoPanel(QWidget):
             if not chips:
                 self._l2.setText("No conservation status")
         self._chips_row.set_items(chips)
-        # Line 3 -> count pills
+        # Line 3 -> family / order, then count pills
         if tvk:
-            self._l3.setText("")
+            self._l3.setText(getattr(self, "_taxon_line", ""))
             self._set_count_pills(tvk)
         else:
             self._l3.setText("Unresolved species \u2014 no TVK, so no records/status shown")

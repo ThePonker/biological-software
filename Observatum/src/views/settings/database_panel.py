@@ -333,44 +333,34 @@ class DatabaseSettingsPanel(QScrollArea):
         )
         if path:
             try:
-                import shutil
-                shutil.copy2(self.db_manager.main_db_path, path)
+                # SQLite online backup API -- consistent even with the database
+                # open in WAL mode, which shutil.copy2 is not.
+                self.db_manager.backup_main(path)
                 QMessageBox.information(self, "Backup", f"Database backed up to:\n{path}")
             except Exception as e:
                 QMessageBox.critical(self, "Backup Failed", f"Could not backup database:\n{e}")
 
     def _restore_database(self):
-        """Restore database from backup."""
-        if not self.db_manager or not self.db_manager.main_db_path:
-            QMessageBox.warning(self, "Restore", "No database configured.")
-            return
+        """Restoring is done with the app closed -- point the user at the script.
 
-        result = QMessageBox.warning(
+        Replacing a database file while Observatum holds it open leaves stale
+        -wal / -shm side-files that do not match the restored main file. The
+        standalone script checks the chosen backup before touching anything,
+        takes a safety copy via the SQLite backup API, clears the side-files,
+        and verifies the result.
+        """
+        QMessageBox.information(
             self, "Restore Database",
-            "This will replace your current database with the backup.\n\n"
-            "A safety copy of the current database will be made first.\n\n"
-            "The application will need to be restarted afterwards.\n\n"
-            "Are you sure?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            "Restoring is done with Observatum closed, so that nothing is "
+            "holding the database while it is replaced.\n\n"
+            "1. Close Observatum.\n"
+            "2. Open a terminal in the project folder.\n"
+            "3. Run:   python scripts\\restore_database.py\n\n"
+            "It lists the available backups with their record counts and dates, "
+            "checks the one you choose before touching anything, and takes a "
+            "safety copy of your current database first."
         )
-        if result == QMessageBox.StandardButton.Yes:
-            path, _ = QFileDialog.getOpenFileName(
-                self, "Select Backup", "", "SQLite Database (*.db)"
-            )
-            if path:
-                try:
-                    import shutil
-                    # Safety copy
-                    safety = self.db_manager.main_db_path + ".pre_restore"
-                    shutil.copy2(self.db_manager.main_db_path, safety)
-                    # Copy backup over current db
-                    shutil.copy2(path, self.db_manager.main_db_path)
-                    QMessageBox.information(self, "Restore",
-                        f"Database restored successfully.\n\n"
-                        f"Safety copy saved at:\n{safety}\n\n"
-                        f"Please restart the application for changes to take effect.")
-                except Exception as e:
-                    QMessageBox.critical(self, "Restore Failed", f"Could not restore database:\n{e}")
+
 
     def apply_theme(self):
         """Apply the current theme to all components."""

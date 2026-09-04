@@ -152,7 +152,12 @@ class StagingTableModel(QAbstractTableModel):
         New rows inherit the context fields (date, site, grid ref, trap, etc.) of the row
         above, since insertion happens inside a block that shares them.
         """
-        at = max(0, min(at, len(self._rows)))
+        at = max(0, at)
+        if at > len(self._rows):
+            # inserting into the virtual canvas below the "*" marker: make the rows
+            # above real first, exactly as typing into a blank row would.
+            self._materialize_to(at - 1)
+        at = min(at, len(self._rows))
         ctx = {}
         if inherit and at > 0:
             src = self._rows[at - 1]
