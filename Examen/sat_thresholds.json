@@ -1,0 +1,34 @@
+{
+    "_comment": "SAT Favourable Condition thresholds from Pantheon. Threshold = minimum species count for SSSI-level quality. Compiled from two Pantheon output datasets (March 2026).",
+    "_updated": "2026-03-25",
+
+    "bark & sapwood decay": {"threshold": 19, "code": "A212"},
+    "heartwood decay": {"threshold": 6, "code": "A211"},
+    "fungal fruiting bodies": {"threshold": 7, "code": "A213"},
+    "epiphyte fauna": {"threshold": 3, "code": "A215"},
+
+    "bare sand & chalk": {"threshold": 19, "code": "F111"},
+    "open short sward": {"threshold": 13, "code": "F112"},
+    "exposed sea-cliff": {"threshold": null, "code": "F113", "_note": "No FC threshold shown in Pantheon output"},
+    "rich flower resource": {"threshold": 15, "code": "F002"},
+    "scrub edge": {"threshold": 11, "code": "F001"},
+    "scrub-heath & moorland": {"threshold": 9, "code": "F003"},
+    "montane & upland": {"threshold": 8, "code": "F221"},
+
+    "saltmarsh & transitional brackish marsh": {"threshold": 9, "code": "M311"},
+    "sandy beaches": {"threshold": 7, "code": "M211"},
+
+    "reed-fen & pools": {"threshold": 11, "code": "W314"},
+    "Sphagnum bog": {"threshold": 8, "code": "W312"},
+    "moss & tussock fen": {"threshold": 6, "code": "W313"},
+    "open water in acid mire": {"threshold": 5, "code": "W311"},
+    "undisturbed fluctuating marsh": {"threshold": 4, "code": "W221"},
+    "open water on disturbed mineral sediments": {"threshold": 6, "code": "W211"},
+    "northern lakes & lochs": {"threshold": 3, "code": "W212"},
+    "stream & river margin": {"threshold": 6, "code": "W114"},
+    "riparian sand": {"threshold": 5, "code": "W122"},
+    "fast flowing streams & waterfalls": {"threshold": 3, "code": "W113"},
+    "slow-flowing rivers": {"threshold": 4, "code": "W125"},
+    "shingle banks": {"threshold": 9, "code": "W111"},
+    "seepage": {"threshold": 6, "code": "W126"}
+}
