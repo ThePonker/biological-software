@@ -13,9 +13,38 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 
+# Which designations count in which jurisdiction is decided in ONE place --
+# CodexRepository, the same functions _classify uses for the key-species count.
+# The tab calls them rather than keeping its own list, so the display can never
+# disagree with the number above it.
+try:
+    from shared.repositories.codex_repository import (
+        _priority_applies, _legal_applies, StatusEntry)
+except ImportError:  # pragma: no cover -- degrade to "everything applies"
+    _priority_applies = None
+    _legal_applies = None
+    StatusEntry = None
+
+
+def _priority_ok(value, jurisdiction):
+    if _priority_applies is None:
+        return True
+    return _priority_applies(value, jurisdiction)
+
+
+def _legal_ok(text, jurisdiction):
+    # KeySpeciesEntry.legal holds (detail or value); rebuild a StatusEntry so
+    # _legal_applies sees exactly what _classify saw.
+    if _legal_applies is None or StatusEntry is None:
+        return True
+    return _legal_applies(StatusEntry(value=text, detail=text), jurisdiction)
+
 BG = "#f5f5f4"; SURFACE = "#ffffff"; TEXT_PRIMARY = "#1f2937"; TEXT_HEADING = "#4b5563"
 TEXT_SECONDARY = "#6b7280"; TEXT_MUTED = "#9ca3af"; BORDER = "#d1d5db"; SEPARATOR = "#e5e7eb"
 MOSS_GREEN = "#4a7c59"; ACCENT_DARK = "#5a4d78"; RED_STATUS = "#a63d40"; AMBER = "#c2956e"
+# Designations from another jurisdiction: shown for completeness, greyed because
+# they do not count towards key species here.
+NA_TEXT = TEXT_MUTED; NA_BAR = "#d9dce1"
 
 # Status categories in display order.
 # Threat and rarity codes are fixed vocabularies. Priority jurisdictions and
@@ -57,6 +86,7 @@ class ConservationTab(QWidget):
         self._layout.setContentsMargins(8, 12, 8, 8)
         self._layout.setSpacing(12)
         self._widgets = []
+        self._juris = "England"
 
     def set_result(self, result, detail=None):
         for w in self._widgets:
@@ -79,6 +109,9 @@ class ConservationTab(QWidget):
             for inst in getattr(k, "legal", None) or []:
                 legal_counts[inst] = legal_counts.get(inst, 0) + 1
 
+        juris = getattr(result, "jurisdiction", None) or "England"
+        self._juris = juris
+
         total_key = result.key_species_count
         total_species = result.total_species
 
@@ -96,15 +129,18 @@ class ConservationTab(QWidget):
             if rows:
                 self._add_group(group_name, rows)
 
-        # Open-set groups, most frequent first.
+        # Open-set groups. Designations that apply in this jurisdiction first,
+        # most frequent first; other jurisdictions' designations after, greyed.
         if priority_counts:
-            self._add_group(PRIORITY_GROUP, [
-                (self._abbrev(j), j, MOSS_GREEN, n)
-                for j, n in sorted(priority_counts.items(), key=lambda kv: -kv[1])])
+            rows = [(self._abbrev(j), j, MOSS_GREEN, n, _priority_ok(j, juris))
+                    for j, n in priority_counts.items()]
+            rows.sort(key=lambda r: (not r[4], -r[3]))
+            self._add_group(PRIORITY_GROUP, rows)
         if legal_counts:
-            self._add_group(LEGAL_GROUP, [
-                ("", inst, ACCENT_DARK, n)
-                for inst, n in sorted(legal_counts.items(), key=lambda kv: -kv[1])])
+            rows = [("", inst, ACCENT_DARK, n, _legal_ok(inst, juris))
+                    for inst, n in legal_counts.items()]
+            rows.sort(key=lambda r: (not r[4], -r[3]))
+            self._add_group(LEGAL_GROUP, rows)
 
         self._add_guilds(result)
 
@@ -140,7 +176,15 @@ class ConservationTab(QWidget):
         # filled the bar for anything over five species.
         peak = max(r[3] for r in rows) or 1
 
-        for code, label, colour, count in rows:
+        any_na = False
+        for r in rows:
+            code, label, colour, count = r[:4]
+            applies = r[4] if len(r) > 4 else True
+            bar_colour = colour
+            if not applies:
+                any_na = True
+                colour, bar_colour = NA_TEXT, NA_BAR
+                label = f"{label} \u2014 not applicable in {self._juris}"
             row = QHBoxLayout(); row.setSpacing(8)
 
             code_lbl = QLabel(code)
@@ -152,7 +196,9 @@ class ConservationTab(QWidget):
             desc_lbl = QLabel(label)
             desc_lbl.setFixedWidth(200)
             desc_lbl.setWordWrap(True)
-            desc_lbl.setStyleSheet("color: " + TEXT_SECONDARY + "; font-size: 11px; border: none;")
+            desc_lbl.setStyleSheet("color: " + (TEXT_SECONDARY if applies else NA_TEXT)
+                                   + "; font-size: 11px; border: none;"
+                                   + ("" if applies else " font-style: italic;"))
             row.addWidget(desc_lbl)
 
             bar_container = QFrame()
@@ -160,7 +206,7 @@ class ConservationTab(QWidget):
             bar_container.setStyleSheet("background: " + BG + "; border-radius: 3px; border: none;")
             bar = QFrame(bar_container)
             bar.setFixedSize(max(6, int(200 * count / peak)), 18)
-            bar.setStyleSheet(f"background: {colour}; border-radius: 3px;")
+            bar.setStyleSheet(f"background: {bar_colour}; border-radius: 3px;")
             row.addWidget(bar_container, 1)
 
             count_lbl = QLabel(str(count))
@@ -171,6 +217,15 @@ class ConservationTab(QWidget):
             row.addWidget(count_lbl)
 
             gl.addLayout(row)
+
+        if any_na:
+            note = QLabel("Greyed designations apply in another jurisdiction. "
+                          "They are shown for completeness and do not count "
+                          f"towards key species under {self._juris}.")
+            note.setWordWrap(True)
+            note.setStyleSheet("color: " + NA_TEXT + "; font-size: 10px; "
+                               "font-style: italic; border: none;")
+            gl.addWidget(note)
 
         self._layout.insertWidget(self._layout.count(), grp)
         self._widgets.append(grp)
@@ -199,4 +254,3 @@ class ConservationTab(QWidget):
 
         self._layout.insertWidget(self._layout.count(), guild_frame)
         self._widgets.append(guild_frame)
-

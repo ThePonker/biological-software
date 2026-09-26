@@ -109,6 +109,7 @@ SCHEMA = """
 
     CREATE TABLE IF NOT EXISTS reviews (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        licence TEXT,
         review_name TEXT NOT NULL,
         author TEXT,
         taxon_group TEXT,
@@ -123,12 +124,15 @@ SCHEMA = """
     );
 
     CREATE TABLE IF NOT EXISTS species_profiles (
-        tvk TEXT PRIMARY KEY,
+        tvk TEXT NOT NULL,
+        review_id INTEGER NOT NULL DEFAULT 0,
+        species_name TEXT,
         profile_text TEXT NOT NULL,
         source TEXT,
         date_added TEXT NOT NULL,
         date_updated TEXT,
-        added_by TEXT DEFAULT 'review-import'
+        added_by TEXT,
+        PRIMARY KEY (tvk, review_id)
     );
 
     CREATE TABLE IF NOT EXISTS metadata (
@@ -467,17 +471,30 @@ def build_codex():
             except sqlite3.OperationalError:
                 pass
             try:
-                oc.execute("""SELECT review_name, author, taxon_group, status_track,
-                              date_published, date_imported, source_file,
-                              species_count, supersedes_id, notes
-                              FROM reviews""")
+                try:
+                    oc.execute("""SELECT id, review_name, author, taxon_group, status_track,
+                                  date_published, date_imported, source_file,
+                                  species_count, supersedes_id, notes, licence
+                                  FROM reviews ORDER BY id""")
+                except sqlite3.OperationalError:
+                    # Older schema without licence
+                    oc.execute("""SELECT id, review_name, author, taxon_group, status_track,
+                                  date_published, date_imported, source_file,
+                                  species_count, supersedes_id, notes, NULL
+                                  FROM reviews ORDER BY id""")
                 saved_reviews = oc.fetchall()
             except sqlite3.OperationalError:
                 pass
             try:
-                oc.execute("""SELECT tvk, profile_text, source, date_added,
-                              date_updated, added_by
-                              FROM species_profiles""")
+                try:
+                    oc.execute("""SELECT tvk, review_id, species_name, profile_text, source,
+                                  date_added, date_updated, added_by
+                                  FROM species_profiles""")
+                except sqlite3.OperationalError:
+                    # Older schema: one account per TVK, no review link
+                    oc.execute("""SELECT tvk, 0, NULL, profile_text, source,
+                                  date_added, date_updated, added_by
+                                  FROM species_profiles""")
                 saved_profiles = oc.fetchall()
             except sqlite3.OperationalError:
                 pass
@@ -856,18 +873,21 @@ def build_codex():
         print(f"Restored {len(manual_sqs)} manual SQS scores")
 
     if saved_reviews:
+        # id restored explicitly: manual_entries.review_id, supersedes_id and
+        # species_profiles.review_id all point at it, so it must not be renumbered.
         c.executemany("""INSERT INTO reviews
-            (review_name, author, taxon_group, status_track,
+            (id, review_name, author, taxon_group, status_track,
              date_published, date_imported, source_file,
-             species_count, supersedes_id, notes)
-            VALUES (?,?,?,?,?,?,?,?,?,?)""", saved_reviews)
+             species_count, supersedes_id, notes, licence)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""", saved_reviews)
         print(f"Restored {len(saved_reviews)} review records")
 
     profiles_count = 0
     if saved_profiles:
         c.executemany("""INSERT INTO species_profiles
-            (tvk, profile_text, source, date_added, date_updated, added_by)
-            VALUES (?,?,?,?,?,?)""", saved_profiles)
+            (tvk, review_id, species_name, profile_text, source,
+             date_added, date_updated, added_by)
+            VALUES (?,?,?,?,?,?,?,?)""", saved_profiles)
         profiles_count = len(saved_profiles)
         print(f"Restored {profiles_count} species profiles")
 

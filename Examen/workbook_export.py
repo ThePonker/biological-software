@@ -74,6 +74,24 @@ try:
 except ImportError:  # pragma: no cover
     raise ImportError("openpyxl is required for workbook export")
 
+try:
+    from openpyxl.cell.rich_text import CellRichText, TextBlock
+    from openpyxl.cell.text import InlineFont
+    _RICH = True
+except ImportError:  # openpyxl < 3.1: greyed parts fall back to an (n/a) suffix
+    _RICH = False
+
+# Which designations count where is decided in ONE place -- CodexRepository,
+# the same functions _classify uses. The workbook calls them rather than keeping
+# its own list, so the report can never disagree with the key-species count.
+try:
+    from shared.repositories.codex_repository import (
+        _priority_applies, _legal_applies, StatusEntry)
+except ImportError:  # pragma: no cover -- degrade to "everything applies"
+    _priority_applies = None
+    _legal_applies = None
+    StatusEntry = None
+
 
 # ============================================================
 # Presentation
@@ -209,6 +227,75 @@ def _short_jurisdiction(value):
     if "bap" in v:
         return "UK BAP"
     return value or ""
+
+
+# ---- jurisdiction-aware status cells --------------------------------------
+
+NA_GREY = "9CA3AF"
+
+# Appendix labels (CodexRepository._priority_label output) back to a substring
+# _priority_applies recognises. "SBL" in particular carries no "scottish".
+_LABEL_KEYS = (("S41", "s41"), ("Wales S7", "wales"), ("SBL", "scottish"),
+               ("NI Priority", "ni priority"), ("UK BAP", "bap"))
+
+
+def _priority_ok(value, jurisdiction):
+    if _priority_applies is None:
+        return True
+    return _priority_applies(value, jurisdiction)
+
+
+def _legal_ok(text, jurisdiction):
+    if _legal_applies is None or StatusEntry is None:
+        return True
+    return _legal_applies(StatusEntry(value=text, detail=text), jurisdiction)
+
+
+def _label_ok(token, jurisdiction):
+    for prefix, key in _LABEL_KEYS:
+        if token.startswith(prefix):
+            return _priority_ok(key, jurisdiction)
+    return True      # threat / rarity codes and anything unrecognised: GB-wide
+
+
+def status_parts(entry, jurisdiction):
+    """[(text, applies), ...] for a KeySpeciesEntry."""
+    parts = []
+    for v in (getattr(entry, "threat", ""), getattr(entry, "threat_legacy", ""),
+              getattr(entry, "rarity", "")):
+        if v and (v, True) not in parts:
+            parts.append((v, True))
+    for j in getattr(entry, "priority", None) or []:
+        parts.append((_short_jurisdiction(j), _priority_ok(j, jurisdiction)))
+    legal = getattr(entry, "legal", None) or []
+    ok = sum(1 for x in legal if _legal_ok(x, jurisdiction))
+    if ok:
+        parts.append((f"Legal ({ok})", True))
+    if len(legal) - ok:
+        parts.append((f"Legal, other jurisdiction ({len(legal) - ok})", False))
+    return parts
+
+
+def _parts_from_string(s, jurisdiction):
+    """Same, for a non-key species' Codex display string."""
+    return [(t, _label_ok(t, jurisdiction))
+            for t in (x.strip() for x in (s or "").split(",")) if t]
+
+
+def status_cell(parts, jurisdiction):
+    """Cell value: plain text, with other jurisdictions' designations in grey."""
+    if not parts:
+        return ""
+    if all(a for _, a in parts):
+        return ", ".join(t for t, _ in parts)
+    if _RICH:
+        blocks = []
+        for i, (t, a) in enumerate(parts):
+            if i:
+                blocks.append(", ")
+            blocks.append(t if a else TextBlock(InlineFont(color=NA_GREY, i=True), t))
+        return CellRichText(*blocks)
+    return ", ".join(t if a else f"{t} (n/a {jurisdiction})" for t, a in parts)
 
 
 # ============================================================
@@ -521,7 +608,8 @@ def _sheet_key_species(wb, result, project, stamp):
                    k.family or "",
                    k.species_name,
                    getattr(k, "common_name", "") or "",
-                   status_string(k),
+                   status_cell(status_parts(k, stamp["jurisdiction"]),
+                               stamp["jurisdiction"]),
                    k.sqs or "",
                    k.broad_biotope or "",
                    k.habitat or "",
@@ -564,7 +652,9 @@ def _sheet_appendix(wb, detail, result, stamp):
         if not sp.tvk:
             no_tvk += 1
         k = key_by_tvk.get(sp.tvk)
-        status = status_string(k) if k else (sp.status or "")
+        juris = stamp["jurisdiction"]
+        status = status_cell(status_parts(k, juris) if k
+                             else _parts_from_string(sp.status, juris), juris)
         if sp.sqs:
             scoring += 1
             sqs_total += sp.sqs
@@ -747,6 +837,10 @@ STATUS_DEFINITIONS = [
     ("[square brackets]",
      "Pantheon flags the status as unreliable pending formal reassessment."),
     ("p prefix (pNS, pNT)", "A provisional status from an unpublished review."),
+    ("Grey italic",
+     "A designation that applies in another jurisdiction. Shown for "
+     "completeness; it does not count towards Key Species under the "
+     "jurisdiction this assessment was made for (see Summary)."),
 ]
 
 
@@ -789,6 +883,7 @@ def export_workbook(result, detail, project, path,
         "project_name": name,
         "client": client,
         "survey_year": year or None,
+        "jurisdiction": jurisdiction,
         "basis": [
             ("Assessment run", date.today().isoformat()),
             ("Survey dates", f"{getattr(site, 'first_date', '')} to "
