@@ -418,6 +418,9 @@ CREATE TABLE IF NOT EXISTS species_profiles (
     notes TEXT,
     profile_text TEXT,
     image_path TEXT,
+    origin TEXT DEFAULT 'own',          -- own | review | edited
+    source_review TEXT,                 -- citation, where seeded from a review
+    source_year INTEGER,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
