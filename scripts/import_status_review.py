@@ -35,9 +35,9 @@ Every write, including every clear, goes into manual_entries, so a Codex
 rebuild re-applies the lot. build_codex_db.py must carry the matching fix
 (patch_codex_manual_apply.py) or a rebuild would reintroduce duplicates.
 
-Species accounts go to observatum.db.species_profiles with origin='review' and
-the citation -- the store decided on in September -- and never overwrite an
-account Wil has written or edited.
+Species accounts go to codex.db.species_profiles, one per species per review,
+keyed (tvk, review_id), with the review's citation. An import never touches
+observatum.db.species_profiles, which holds Wil's own accounts only.
 
 Why the legacy tracks are cleared
 ---------------------------------
@@ -438,29 +438,43 @@ def main():
         print(f"  (could not read observatum.db: {e})")
 
     # ------------------------------------------------------------ profiles
+    # Review accounts go to codex.db.species_profiles, one per species per
+    # review. Wil's own accounts live in observatum.db; an import never touches them.
     obs_path = str(paths.OBSERVATUM_DB)
-    ob = sqlite3.connect(obs_path)
-    new_prof = upd_prof = kept = 0
+    ob = sqlite3.connect(obs_path)        # kept open for verify()
+    existing_rid = find_review_id(c, a.name)
+    if existing_rid is not None and not a.profiles_only:
+        print("")
+        print(f"  NOTE: a review named {a.name!r} is already registered (id {existing_rid});")
+        print("        importing again registers a second review. Use --profiles-only")
+        print("        to refresh accounts under the existing one.")
+    have = set()
+    if a.profiles_only and existing_rid is not None:
+        have = {r[0] for r in c.execute(
+            "SELECT tvk FROM species_profiles WHERE review_id=?", (existing_rid,))}
+    new_prof = upd_prof = 0
     prof_plan = []
+    seen_tvk = set()
     for p in plan:
-        text = p["row"]["ecology"]
-        if not text:
-            continue
-        ex = ob.execute("""SELECT id, origin, source_review FROM species_profiles
-                           WHERE species_tvk=? OR species_name=?""",
-                        (p["tvk"], p["name"])).fetchone()
-        if ex is None:
-            new_prof += 1
-            prof_plan.append(("insert", p, None))
-        elif (ex[1] or "own") == "review":
+        if not p["row"]["ecology"] or p["tvk"] in seen_tvk:
+            continue                      # one account per TVK
+        seen_tvk.add(p["tvk"])
+        if p["tvk"] in have:
             upd_prof += 1
-            prof_plan.append(("update", p, ex[0]))
         else:
-            kept += 1                     # Wil's own or edited -- never touched
+            new_prof += 1
+        prof_plan.append(p)
+    target = existing_rid if a.profiles_only else "new"
     print("")
-    print(f"  SPECIES ACCOUNTS -> observatum.db (origin='review')")
-    print(f"    new {new_prof}   replacing an earlier review's text {upd_prof}   "
-          f"left alone (your own / edited) {kept}")
+    print(f"  SPECIES ACCOUNTS -> codex.db (review {target})")
+    print(f"    new {new_prof}   replacing this review's earlier text {upd_prof}")
+    print("    (your own accounts are in observatum.db and are never touched)")
+    if a.profiles_only and existing_rid is None:
+        print("")
+        print(f"  x --profiles-only needs the review registered; none named {a.name!r}")
+        codex.close()
+        ob.close()
+        return 1
 
     if not a.apply:
         print("")
@@ -473,16 +487,16 @@ def main():
         return 0
 
     # ------------------------------------------------------------ write
+    # Statuses and accounts land in codex.db in ONE transaction: all or nothing.
     print("")
-    if not a.profiles_only:
-        print(f"  backup: {backup(paths.CODEX_DB, 'codex')}")
-    print(f"  backup: {backup(paths.OBSERVATUM_DB, 'observatum')}")
+    print(f"  backup: {backup(paths.CODEX_DB, 'codex')}")
 
-    if not a.profiles_only:
-        write_statuses(c, a, plan, tracks_written, source, now)
-        codex.commit()
-
-    write_profiles(ob, prof_plan, source, year, now)
+    if a.profiles_only:
+        rid = existing_rid
+    else:
+        rid = write_statuses(c, a, plan, tracks_written, source, now)
+    write_profiles(c, prof_plan, rid, source, now)
+    codex.commit()
     return verify(c, codex, ob)
 
 
@@ -510,27 +524,32 @@ def write_statuses(c, a, plan, tracks_written, source, now):
             apply_status(c, p["tvk"], tr, v, None, source, a.date)
             writes += 1
     print(f"  review #{rid} registered; {writes} status entries written")
+    return rid
 
 
-def write_profiles(ob, prof_plan, source, year, now):
-    seen = set()
-    for action, p, pid in prof_plan:
-        if p["name"] in seen:          # never two accounts for one species
-            continue
-        seen.add(p["name"])
-        if action == "insert":
-            ob.execute("""INSERT INTO species_profiles
-                (species_name, species_tvk, order_name, family, profile_text,
-                 origin, source_review, source_year, created_at, updated_at)
-                VALUES (?,?,?,?,?,'review',?,?,?,?)""",
-                (p["name"], p["tvk"], p["order"], p["family"],
-                 p["row"]["ecology"], source, year, now, now))
-        else:
-            ob.execute("""UPDATE species_profiles SET profile_text=?,
-                source_review=?, source_year=?, updated_at=? WHERE id=?""",
-                (p["row"]["ecology"], source, year, now, pid))
-    ob.commit()
-    print(f"  {len(seen)} species accounts written")
+def find_review_id(c, name):
+    """Id of the registered review with this name; the latest if several."""
+    rows = c.execute("SELECT id FROM reviews WHERE review_name=? ORDER BY id",
+                     (name,)).fetchall()
+    if len(rows) > 1:
+        print(f"  NOTE: {len(rows)} reviews share the name {name!r}; using id {rows[-1][0]}")
+    return rows[-1][0] if rows else None
+
+
+def write_profiles(c, prof_plan, rid, source, now):
+    """Review accounts into codex.db, under the review they came from.
+
+    DELETE then INSERT, never INSERT OR REPLACE -- the same rule as statuses.
+    """
+    for p in prof_plan:
+        c.execute("DELETE FROM species_profiles WHERE tvk=? AND review_id=?",
+                  (p["tvk"], rid))
+        c.execute("""INSERT INTO species_profiles
+            (tvk, review_id, species_name, profile_text, source,
+             date_added, date_updated, added_by)
+            VALUES (?,?,?,?,?,?,NULL,'review-import')""",
+            (p["tvk"], rid, p["name"], p["row"]["ecology"], source, now))
+    print(f"  {len(prof_plan)} species accounts written to codex.db (review {rid})")
 
 
 def verify(c, codex, ob):
