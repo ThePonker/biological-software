@@ -10,7 +10,7 @@ import sqlite3
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QSplitter, QTableWidget, QTableWidgetItem, QHeaderView,
-    QTabWidget, QFileDialog, QMessageBox, QInputDialog, QCheckBox,
+    QTabWidget, QFileDialog, QMessageBox, QInputDialog, QCheckBox, QComboBox,
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QColor
@@ -48,6 +48,9 @@ TAB_STYLE = (
     "QTabBar::tab:hover:!selected { color: " + TEXT_SECONDARY + "; }")
 
 
+AUTO_JURISDICTION = "Auto (vice-county)"
+
+
 class SiteAnalysisView(QWidget):
 
     def __init__(self, analysis_service, snapshot_mgr):
@@ -58,11 +61,83 @@ class SiteAnalysisView(QWidget):
         self._current_detail = None; self._current_result = None
         self._current_site_name = ""
         self._current_project = None    # ProjectRecord; None for an imported list
+        self._jurisdiction = "England"  # resolved per project; see _resolve_jurisdiction
         self._pool_years = False    # False = one row per survey year
         self._setup_ui(); self._load_projects()
 
     def set_mode(self, mode):
         self._mode = mode; self._load_projects()
+
+    # ── Jurisdiction ─────────────────────────────────────────────
+    # Watsonian vice-counties. VC is already on every record and derived from
+    # the grid reference, so the country can be read from the data rather than
+    # chosen from a menu that can be forgotten.
+    _VC_COUNTRY = ([("England", range(1, 35))] +
+                   [("Wales", [35])] +
+                   [("England", range(36, 41))] +
+                   [("Wales", range(41, 53))] +
+                   [("England", range(53, 71))] +
+                   [("Isle of Man", [71])] +
+                   [("Scotland", range(72, 113))])
+
+    @classmethod
+    def _country_for_vc(cls, vc):
+        for country, rng in cls._VC_COUNTRY:
+            if vc in rng:
+                return country
+        return ""
+
+    def _derive_jurisdiction(self, proj):
+        """Commonest country across the project's records, or '' if unknown."""
+        if proj is None or not paths.OBSERVATUM_DB.exists():
+            return ""
+        where = "record_type='Commercial' AND project_name=?"
+        params = [proj.project_name]
+        if getattr(proj, "client", ""):
+            where += " AND client=?"
+            params.append(proj.client)
+        if getattr(proj, "survey_year", ""):
+            where += " AND substr(date,1,4)=?"
+            params.append(str(proj.survey_year))
+        try:
+            conn = sqlite3.connect(f"file:{paths.OBSERVATUM_DB}?mode=ro", uri=True)
+            rows = conn.execute(
+                f"""SELECT vc_number, COUNT(1) FROM observations
+                    WHERE {where} AND vc_number IS NOT NULL AND vc_number != ''
+                    GROUP BY 1 ORDER BY 2 DESC""", params).fetchall()
+            conn.close()
+        except sqlite3.Error:
+            return ""
+        tally = {}
+        for vc, n in rows:
+            try:
+                country = self._country_for_vc(int(vc))
+            except (TypeError, ValueError):
+                continue
+            if country:
+                tally[country] = tally.get(country, 0) + n
+        if not tally:
+            return ""
+        return max(tally, key=tally.get)
+
+    def _resolve_jurisdiction(self, proj):
+        """The jurisdiction to assess under, and how it was arrived at."""
+        chosen = self.juris_combo.currentText()
+        if chosen != AUTO_JURISDICTION:
+            return chosen, "chosen"
+        derived = self._derive_jurisdiction(proj)
+        if derived in ("", "Isle of Man"):
+            # No usable vice-county, or a jurisdiction with no separate
+            # priority list. England is the documented default; say so rather
+            # than assert a country the records do not support.
+            return "England", ("default" if not derived else f"default, VC in {derived}")
+        return derived, "from vice-county"
+
+    def _on_jurisdiction_changed(self, _text=None):
+        if self._current_result is not None:
+            self.detail_header.setText(
+                self.detail_header.text().split("   \u2014 assessed")[0]
+                + "   (re-select the project to apply the new jurisdiction)")
 
     def _on_pool_toggled(self, on):
         self._pool_years = on
@@ -81,6 +156,23 @@ class SiteAnalysisView(QWidget):
             "On:  all years of a project combined into one list.")
         self.pool_chk.toggled.connect(self._on_pool_toggled)
         toolbar.addWidget(self.pool_chk)
+
+        # Jurisdiction decides which priority listings confer key status. It is
+        # a property of the site, so it is derived from the vice-county by
+        # default rather than left as a mode that can be forgotten.
+        toolbar.addWidget(QLabel("Jurisdiction:"))
+        self.juris_combo = QComboBox()
+        self.juris_combo.addItems([AUTO_JURISDICTION, "England", "Wales",
+                                   "Scotland", "Northern Ireland"])
+        self.juris_combo.setToolTip(
+            "Which country's rules decide key species.\n"
+            "Auto reads the vice-county from the records.\n"
+            "Rarity and threat are GB-wide and unaffected.")
+        self.juris_combo.currentTextChanged.connect(self._on_jurisdiction_changed)
+        self.juris_combo.setStyleSheet(
+            "QComboBox { padding: 3px 6px; border: 1px solid " + BORDER +
+            "; border-radius: 3px; font-size: 11px; }")
+        toolbar.addWidget(self.juris_combo)
 
         import_btn = QPushButton("Import List..."); import_btn.setStyleSheet(BTN_ACCENT)
         import_btn.clicked.connect(self._on_import); toolbar.addWidget(import_btn)
@@ -182,12 +274,19 @@ class SiteAnalysisView(QWidget):
         title = (f"{proj.display_name} \u2014 {proj.client}{sites_info}"
                  if proj.survey_year else
                  f"{proj.project_name} \u2014 {proj.client}{sites_info} (all years pooled)")
+        self._jurisdiction, how = self._resolve_jurisdiction(proj)
+        title += f"   \u2014 assessed under {self._jurisdiction} ({how})"
         self._run_analysis(tvks, names, title, detail.site.visit_count)
 
     def _run_analysis(self, tvks, names, title, visits=0):
         mode = self._mode if isinstance(self._mode, AnalysisMode) else AnalysisMode.CODEX_FULL
+        juris = getattr(self, "_jurisdiction", "England")
         try:
-            result = self._service.analyse(tvks, names, mode); self._current_result = result
+            try:
+                result = self._service.analyse(tvks, names, mode, juris)
+            except TypeError:
+                result = self._service.analyse(tvks, names, mode)
+            self._current_result = result
         except Exception as e:
             self.detail_header.setText(f"Analysis error: {e}"); return
         self.detail_header.setText(title)
@@ -230,6 +329,8 @@ class SiteAnalysisView(QWidget):
             if tvks:
                 self._current_detail = None; self._current_project = None
                 self._current_site_name = "Imported List"
+                # An imported list has no records, so no vice-county to read.
+                self._jurisdiction, how = self._resolve_jurisdiction(None)
                 self._run_analysis(tvks, names, f"Imported List ({len(tvks)} species)")
 
     def _on_export_appendix(self):
@@ -262,6 +363,7 @@ class SiteAnalysisView(QWidget):
 
         try:
             export_workbook(self._current_result, self._current_detail, proj, path,
+                            jurisdiction=getattr(self, "_jurisdiction", "England"),
                             pooled_years=self._pool_years)
         except Exception as e:  # noqa: BLE001
             QMessageBox.warning(self, "Export failed",
