@@ -1,6 +1,6 @@
 # Roadmap
 
-## Updated 6 September 2026
+## Updated 26 September 2026
 
 ---
 
@@ -46,9 +46,9 @@ every figure says which it is.
 | Data integrity — schema, taxonomy refresh, backup audit | ✅ Complete |
 | **Codex correctness** | ✅ Complete, 5 September 2026 |
 | **Examen — analysis** | ✅ Working and validated |
-| **Examen — reports** | Excel ✅ delivered. **PDF next**, then Word |
+| **Examen — reports** | Excel ✅ delivered, on a button. **PDF next**, then Word |
 | Examen — saproxylic framework | Not started, ~3 days |
-| Insect Collection curation | Bulk editor outstanding |
+| Insect Collection curation | Sidebar corrected, sex shown ✅. **Bulk editor next** |
 | Distributable Observatum | Winter or later |
 | Web Examen | Future, if reach ever justifies it |
 
@@ -58,15 +58,13 @@ every figure says which it is.
 
 ### Now
 
-**1. Wire the workbook to a button** — small. The exporter works and is
-validated; it is reachable only from a script.
+**1. Bulk curatorial editor** — 0.5–1 day. 2,745 specimens with the tray-level
+fields almost entirely empty.
 
-**2. Jurisdiction selector** — small, but it gates any non-English work.
+**2. The SQI verdict** — a decision rather than a build. The Overview sentence
+gives a site-importance verdict on thresholds with no found source.
 
-**3. Bulk curatorial editor** — 0.5–1 day. Blocking 2,549 specimens' worth of
-collection data.
-
-**4. External drive copy** — 10 minutes, and it closes the last real backup gap.
+**3. Merge `main` → `stable`** — 15 minutes, once the staging jobs are committed.
 
 ### Then
 
@@ -126,9 +124,11 @@ developer.
 
 | Risk | Severity | State |
 |---|---|---|
-| **Single machine, no off-site copy** | **Medium** | **Open.** OneDrive is sync, not backup — a deletion propagates. Ten minutes to close (D2). |
+| Single machine, no off-site copy | — | ✅ **Closed 26 September.** Verified external copy. Refresh after sessions that change data. |
 | **`stable` stale since June** | Medium | Open. Four months of work on `main` only. |
-| **Curatorial fields empty across 2,549 specimens** | Medium | Open (A1). |
+| **Curatorial fields empty across the collection** | Medium | Open (A1). Condition 8, storage 2, drawer 0 of 2,745. |
+| **Unsourced verdict in generated prose** | Medium | Open (E16). The Overview asserts site importance on thresholds with no found source. |
+| **Silent write whitelists** | Medium | One found and fixed (`SpecimenRepository`). The pattern — a layer that drops unknown fields without error — is worth a sweep of the other repositories. |
 | **Two build scripts missing** | Medium | Open. `uksi_extractor.py` and `build_pantheon_db.py`, both lost in the March restructure. Neither database is at risk — both are backed up — but a UKSI release would find us unable to rebuild. |
 | **Never-executed code paths** | Medium | Seven found this year, all crash-on-first-use. Sweep outstanding (D6). |
 | **Duplicated rules drifting** | Medium | **The dominant failure mode.** Nine instances found. Grid-ref maths in three places is the one that could produce silently wrong data (I3). |
@@ -136,7 +136,7 @@ developer.
 | Tabella bakes Codex at generation time | Low | Reduced — Tabella paused, workbooks migrated. Import wizards should still re-enrich (C1). |
 | Stale TVKs in `observatum.db` | Low, compounding | Diagnostic exists; re-run after UKSI updates. |
 | SQLite over a syncing folder from two machines | Medium *if attempted* | Needs a decision before anyone tries it (D8). |
-| Doc drift | Low | Set rewritten 5 September; `00_README.md` says how to keep it. |
+| Doc drift | Low | Set rewritten 5 September, kept current since; `00_README.md` says how. |
 
 ---
 

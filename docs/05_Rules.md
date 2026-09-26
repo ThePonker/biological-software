@@ -1,6 +1,6 @@
 # Rules
 
-## Updated 6 September 2026
+## Updated 26 September 2026
 ## Every rule here was paid for. Read this before a long session.
 
 ---
@@ -15,7 +15,7 @@
 | `species_database_view.py`'s 8-track names | A blank status panel for five months, and a crash |
 | `SRC_SETTING_KEYS` in the Data Entry info panel | A `KeyError` on legend toggle |
 | The import-notes combining | Every warning doubled, 175 rows |
-| `shared/sqs_derivation.py` vs `scripts/sqs_derivation.py` | Already drifted; nothing imports the second |
+| `shared/sqs_derivation.py` vs `scripts/sqs_derivation.py` | Had drifted; the second deleted 26 September |
 | Four `theme.py` files | Defensible — the satellite apps started standalone |
 | **Three grid-ref implementations** | **Not yet cost anything. Would produce wrong vice-counties, silently.** |
 | The SQI arithmetic in four places | Now one call to `compute_sqi` |
@@ -27,6 +27,23 @@ When a design says two things go in the same place, verify both got there.
 
 **The rule:** move it to one place. A comment saying "keep in sync" is a
 prediction that it will not be.
+
+Applied from the start for specimen sex: five displays, one formatter
+(`shared/sex_summary.py`), so `♂3 ♀4` cannot come out differently in two places.
+
+---
+
+## Two numbers side by side
+
+**Put a second, independently-derived number next to an existing one, and the
+wrong one declares itself.** The Insect Collection tree had been under-reporting
+for six months — 338 specimens missing — and looked entirely plausible
+throughout. It was exposed only when a sex breakdown, counted a different way,
+sat beside the totals and failed to add up. The sex figures were right; the
+counts were not.
+
+Nothing else would have found it. Worth doing deliberately: wherever a figure
+matters, show how it was arrived at alongside it.
 
 ---
 
@@ -60,6 +77,22 @@ this codebase and multi-line string anchors fail unpredictably.
 **A failed replacement is silent.** Verify with `Select-String` or a re-read,
 not just a syntax check.
 
+**After a line-based edit, re-read the region — don't trust the index.** With
+mixed line endings the file splits on `\r\n`, so runs of LF-only lines collapse
+into one "line" and the count goes wrong. One patch reported inserting at line
+358 when the target was at 420. It landed correctly; a patch that *trusted* its
+line number could have inserted anywhere.
+
+**A patch that refused has not been applied.** The jurisdiction patch was run,
+reported as done, and sat unapplied for weeks — it had refused on a missing
+import and written nothing. Read the output every time; "I ran it" is not "it
+worked". The only proof is seeing the change in the running application.
+
+**Don't import a view module to test a static method.** It drags in the whole
+application's import chain — Observatum's config expects `src/` on the path —
+and fails for reasons unrelated to the change. Compile the file and exercise the
+logic separately.
+
 ---
 
 ## Diagnostics
@@ -79,6 +112,13 @@ guessed column names and failed. `pantheon.db.conservation_status` has
 reading is a hypothesis. One such finding was carried through five documents and
 gated the Examen revival for a week; ten minutes of running the application
 disproved it.
+
+**Verify a write by reading the row back.** `AddSpecimenDialog` was patched to
+compute the sort key. It compiled; its formula reproduced all 2,566 existing keys;
+it had **no effect at all**, because `SpecimenRepository` was discarding the
+column one layer down. Only saving a real specimen and querying the row showed
+it. A compile, a unit check and a code review all passed a change that did
+nothing.
 
 **Test your own assertion, don't assume it.** "J2 is now moot" was asserted from
 reasoning and turned out to be wrong — the read layer could not see taxa that
@@ -127,6 +167,15 @@ Use `$content[-10..-1]`, `Select-String -Context 1,2`,
 **Use `powershell -ExecutionPolicy Bypass -File`** rather than running `.ps1`
 directly.
 
+**OneDrive locks `.git/objects` during git's post-commit tidy-up**, producing
+*"Deletion of directory '.git/objects/01' failed. Should I try again?"* The
+commit has already been written; answer `n`. To stop the prompt:
+`[Environment]::SetEnvironmentVariable("GIT_ASK_YESNO", "false", "User")`.
+
+**Clipboard contents go to whichever window has focus.** Pasting a Python file
+into PowerShell runs each line as a command — harmless, since every one fails,
+but alarming. Attach files rather than pasting them.
+
 **Do not write to `QSettings` from the command line.** A bare `QSettings()` may
 not reach the store the app uses, and may reach something else.
 
@@ -144,6 +193,21 @@ while the one correct method had no callers at all.
 **Any join between Pantheon and anything else goes through the TVK bridge.**
 `pantheon.db` is keyed on 2017 TVKs; everything else on current UKSI TVKs.
 Ignoring that lost the ecology of 3,666 species silently.
+
+**A whitelist that silently drops unknown keys turns a correct caller into a
+no-op.** `SpecimenRepository.create()`, `update()` and `create_many()` each
+filtered writes through a field list that had never included
+`taxonomic_sort_key` or `superfamily`. No error, no warning. Any repository with
+an `allowed_fields` set is worth checking against its table's columns.
+
+**Accumulate, don't assign, when rows can share a key.** `build_tree` did
+`d[species] = count`. When NULL and `''` subfamily split one species into two
+query rows, the second silently overwrote the first — 94 specimens gone. `+=`
+would have been correct regardless of what the query returned.
+
+**NULL and `''` are different groups to SQL.** Normalise with
+`NULLIF(TRIM(COALESCE(col,'')),'')` before grouping on any column that might
+hold either.
 
 **Derive, don't copy, anything with a spatial dependency.** Vice-county always
 comes from the grid reference, never carried down from the row above — a

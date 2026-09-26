@@ -1,7 +1,7 @@
 # Examen
 
 ## Invertebrate assemblage assessment
-## Updated 6 September 2026
+## Updated 26 September 2026
 ## Supersedes `29_Examen_Revival_Assessment.md`, whose central finding was wrong,
 ## and the desktop portion of `08_Examen_Web_Design_Spec.md`.
 
@@ -19,8 +19,10 @@ Examen uses **Pantheon's ecology** — which has no alternative source — with
 **Codex's conservation status**, which is JNCC December 2023 plus Wil's own
 review imports.
 
-**It works, and it exports.** Site Analysis and Species Database both run, and
-the Excel workbook is delivered. What remains is PDF, Word and presentation.
+**It works, and it exports.** Site Analysis and Species Database both run, the
+Excel workbook exports from a button, and the jurisdiction is derived from the
+data. What remains is PDF, Word, presentation — and one decision about the
+summary sentence (§9).
 
 ---
 
@@ -101,7 +103,28 @@ For an English site, S41 and UK BAP confer key status; SBL, NI Priority and Env
 (Wales) Act S7 do not. Rarity and threat are GB-wide and unfiltered. Every
 designation is still stored and displayed.
 
-**No UI control yet** — backlog E1, and it gates any non-English work.
+**The jurisdiction is a property of the site, not the session**, so it is read
+from the data rather than left as a mode that can be forgotten. The combo
+defaults to *Auto (vice-county)*, takes the commonest country across the
+survey's records, and the header states the result:
+
+> *BAM Glory Park — 2024 — Nicholsons — assessed under England (from vice-county)*
+
+| Watsonian VC | Country |
+|---|---|
+| 1–34, 36–40, 53–70 | England |
+| 35, 41–52 | Wales |
+| 71 | Isle of Man |
+| 72–112 | Scotland |
+
+Where no usable VC exists — an imported list, or records without one — it falls
+back to England and says *"(default)"*, so an assumption is never presented as a
+reading. Explicit settings remain for cross-border projects; Northern Ireland has
+no Watsonian VC and must be chosen. Changing the combo asks you to re-select the
+project rather than silently re-running, so the header and the figures never
+disagree.
+
+The workbook stamp records the jurisdiction actually used.
 
 ---
 
@@ -182,9 +205,10 @@ Everything below was found and fixed on 5 September. Full detail in
 
 | | Item | Size |
 |---|---|---|
-| E1 | Jurisdiction selector in the UI | small |
+| ~~E1~~ | ~~Jurisdiction in the UI~~ | ✅ done |
 | ~~E2~~ | ~~Excel report renderer~~ | ✅ done |
-| **E2b** | **Wire the export to a button** | **small** |
+| ~~E2b~~ | ~~Export button~~ | ✅ done |
+| **E16** | **Decide the SQI verdict wording** | **decision** |
 | E3 | PDF renderer | 1–1.5 days |
 | E4 | Word renderer | 0.5–1 day |
 | E5 | Resolve the two parallel enrichment paths | 0.5 day |
@@ -193,8 +217,15 @@ Everything below was found and fixed on 5 September. Full detail in
 | E8–E12 | Presentation, punctuation, palettes | ~1.5 days |
 | E13 | Decide the fate of freeze / snapshots | decision |
 
-**The PDF is next**, once the workbook has a button. It is the document that
-actually gets attached to a report.
+**The SQI verdict needs deciding.** The Overview's summary sentence ends by
+calling a site *of national importance* at SQI ≥200, *regional* at ≥150, *of some
+conservation value* at ≥125. No published source has been found for those bands
+— they are neither Pantheon's nor Fowles's. It is prose written to be lifted into
+a report, asserting a conclusion the literature does not support in those terms.
+Options: remove it; replace it with Telfer's sourced test; or keep the bands with
+a stated source. See `06_Faults.md` F14.
+
+**Then the PDF** — the document that actually gets attached to a report.
 
 ---
 

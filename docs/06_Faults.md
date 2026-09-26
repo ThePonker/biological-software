@@ -1,18 +1,12 @@
 # Faults
 
-## Updated 6 September 2026
+## Updated 26 September 2026
 ## Open faults carry an action. Closed ones are kept in brief, because knowing
 ## what has already gone wrong is how the rules in `05` were earned.
 
 ---
 
 ## Open
-
-### F1. Single machine, no off-site copy
-Everything lives on one computer with OneDrive underneath. **OneDrive is sync,
-not backup: a deletion propagates.** The largest remaining gap.
-**Action:** external drive copy of `data\` and `C:\BiologicalSoftware_Backups\`
-— backlog D2, ten minutes. The offline server later.
 
 ### F2. `stable` branch stale since June
 The Data Entry build and four months of work sit on `main` only. The branching
@@ -34,11 +28,10 @@ OneDrive — but a rewrite is needed before NHM's next release.
 Same event. Pantheon has not been updated since 2017 v3.7.4, so this is insurance
 rather than need. **Action:** backlog D5.
 
-### F5. Curatorial fields empty across the collection
-`preparation_type`, `storage_location`, `drawer_unit`, `condition`, `label_data`,
-`specimen_code` are empty across all 2,549 specimens. Curator does not write
-them; the Add Specimen dialog now captures four, but only for new specimens.
-**Action:** bulk editor — backlog A1.
+### F5. Curatorial fields almost empty across the collection
+Of 2,745 specimens: preparation 204, condition 8, storage 2, drawer 0. Curator
+does not write them; the Add Specimen dialog captures four, but only for new
+specimens. **Action:** bulk editor — backlog A1.
 
 ### F6. Two parallel enrichment paths in Examen
 `site_analysis_view` imports `load_all_projects` from `examen_data` **and** takes
@@ -83,13 +76,89 @@ unconverted, so multi-line string anchors still fail unpredictably.
 The UI reads "Drawer Number"; the column is `drawer_unit`. Rename touches four
 files plus reset scripts. Column empty, no data risk. **Action:** backlog A4.
 
-### F13. Generated prose has stray punctuation
-"128 species recorded. across 4 visits." and "conservation value..". It is
-sentence text that would be read straight into a report. **Action:** backlog E11.
+### F14. The Overview gives a site-importance verdict with no source
+`overview_tab.py` ends its summary sentence with *"This indicates a site of
+national importance"* at SQI ≥200, *regional* at ≥150, *some conservation value*
+at ≥125. **No published source found for those bands.** They are not Pantheon's;
+Fowles's thresholds are 500 and 590 and for the saproxylic index. The surveyed
+reports cite percentages and name their convention because thresholds are
+contested — Alexander thinks even Fowles's are too high.
+
+The same class as the invented Section 41: plausible, confident, unsourced, in
+prose written to be lifted into a report. Left unchanged pending a decision.
+**Action:** backlog E16.
+
+### F15. Two specimens without a TVK
+*Phoracantha recurva* (id 1263) and *Oberea linearis* (id 1356). No TVK, so no
+sort key, so invisible to the sidebar. **Action:** backlog A5.
+
+### F16. `subfamily` stored inconsistently
+NULL on some rows and `''` on others for the same species. The sidebar now
+normalises; the data does not. **Action:** backlog A7.
 
 ---
 
 ## Closed — the ones worth remembering
+
+### 338 specimens missing from the Insect Collection tree
+*Fixed 12–13 September 2026.*
+
+The sidebar had been under-reporting for six months. Found only when a sex
+breakdown — counted independently — sat beside the totals and did not add up.
+Coleoptera read 1,550 against a true 1,613.
+
+**244 had no `taxonomic_sort_key`**, and the tree filters `WHERE
+taxonomic_sort_key IS NOT NULL`. Every specimen added since March, including all
+35 then sexed.
+
+The cause ran two layers deep:
+
+1. `AddSpecimenDialog.get_specimen_data()` copied four fields off the selected
+   species and never computed the sort key.
+2. When patched to compute it, **the next specimen still came out without one**.
+   `SpecimenRepository`'s `create()`, `update()` and `create_many()` whitelists
+   had never included `taxonomic_sort_key` or `superfamily`, and dropped them
+   silently. This is the true root cause, older than March.
+
+The key is `INSECT_ORDER_POSITION[order] × 1,000,000 + uksi.taxa.sort_code` —
+measured against 2,323 of 2,324 existing specimens rather than assumed, since
+UKSI holds both `sort_code` and `sort_order` and neither matched directly. The
+one exception, *Tillus elongatus*, carried a key from the 99 fallback — the same
+March fault caught mid-failure.
+
+**94 more were lost** to `subfamily` stored as NULL or `''` for the same species.
+The query grouped them apart, and `build_tree` did `d[species] = count` — an
+assignment — so the second row overwrote the first. 81 species affected.
+
+All backfilled; the dialog and all three repository whitelists fixed. Proven by
+saving a real specimen and reading the row back, and by editing one across
+orders (key prefix 19 → 23). A batch of 184 added afterwards all carried keys.
+
+### The record detail dialog hid most of a specimen
+*Fixed 13 September 2026.* For a specimen it showed date, grid reference,
+location and vice-county — and nothing else. Sex, collector, determiner and all
+four curatorial fields went undisplayed. **Collector and determiner are recorded
+on every one of the 2,568 specimens held at the time**, and had never been shown.
+
+### The jurisdiction patch never applied
+*Fixed 26 September 2026.* Written in early September, run, reported as done — and
+refused, because `site_analysis_view.py` did not import `QComboBox`. It wrote
+nothing, correctly. The service half had applied, so the two were out of step,
+harmlessly: every assessment ran under the England default. Found only by
+opening Examen and looking for the header. A process fault, not a code one —
+see `05_Rules.md`.
+
+### Single machine, no off-site copy
+*Closed 26 September 2026.* `D:\BiologicalSoftware_Offsite`, 3.8 GB, 1,249 files,
+zero failures. **Verified** by running `integrity_check` against the copied
+`observatum.db` and counting specimens — the same standard that closed the
+restore test in September.
+
+### Generated prose had stray punctuation
+*Fixed 26 September 2026.* Clauses were joined with `". "`, turning "across 4
+visits" into a sentence of its own and doubling the final full stop. The card
+beside it read "6.2% of Pantheon species" for a figure out of total species
+recorded.
 
 ### DD and NT inflated 200 derived SQS scores
 *Fixed 6 September 2026.*
@@ -291,7 +360,10 @@ have written into a two-month-old database.
 existing rows retain doubled notes; cosmetic.
 
 ### Earlier, in brief
-Codex → Pantheon build order documented · `shared/` extracted so Examen no longer
+`reset_database.py` given the profile provenance columns (26 Sep) · a
+superseded diagnostic and a drifted duplicate of `sqs_derivation.py` deleted
+(26 Sep) · Data Entry readout card widened when the specimen pill clipped
+(13 Sep) · Codex → Pantheon build order documented · `shared/` extracted so Examen no longer
 depends on Observatum's `src/` · manual Codex entries made portable · `paths.py`
 given a permanent banner · concurrent access handled with WAL and
 `PRAGMA query_only` · Tabella generator relocated and its VBA written · six

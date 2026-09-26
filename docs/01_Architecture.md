@@ -1,6 +1,6 @@
 # Architecture
 
-## Updated 6 September 2026
+## Updated 26 September 2026
 
 ---
 
@@ -36,6 +36,7 @@ Biological Software/
 │   ├── db_config.py         Per-app path resolution for standalone use
 │   ├── backup_service.py    The single database-copy routine
 │   ├── sqs_derivation.py    Pantheon's published SQS rule
+│   ├── sex_summary.py       The one formatter for specimen sex (♂3 ♀4 +2)
 │   ├── repositories/        CodexRepository · PantheonRepository
 │   └── services/            PantheonAnalysisService
 ├── Observatum/              Main app; src/ re-exports from shared/ via shims
@@ -45,6 +46,7 @@ Biological Software/
 ├── Codex/                   Conservation manager GUI
 ├── Curator/  Munia/  Atrium/  Tabella/
 ├── data/                    8 databases (git-excluded, backup-protected)
+├── build_gb_basemap.py      Builds the GB basemap for Data Entry — keep
 ├── scripts/                 Build, reset, import, patch and check scripts
 ├── launchers/               All .bat files
 ├── _archive/                Retired code, dated
@@ -53,7 +55,14 @@ Biological Software/
 C:\BiologicalSoftware_Backups\    Outside OneDrive by design
 ├── current/  previous/           Working databases, two generations
 └── reference/                    Codex/Pantheon/UKSI copies, on demand
+
+D:\BiologicalSoftware_Offsite\     External drive — mirror of both of the above
 ```
+
+**`build_gb_basemap.py`** was deleted in September and restored from git before
+the deletion was committed. It is a build script, and build scripts are exactly
+what this project has lost before (`uksi_extractor.py`, `build_pantheon_db.py`).
+Being recoverable from history is not the same as being where you would look.
 
 **`paths.py` is load-bearing.** Every project does `import paths` rather than
 walking `.parent.parent`. It was accidentally deleted once during the March 2026
@@ -176,8 +185,12 @@ Data Entry build and four months of work sit on `main` only.
 Excluded: `data/`, `_archive/`, `_backups/`, test data, `.bak` variants.
 Databases are protected by the backup system, not by git.
 
-Known friction: OneDrive locks `.git/objects` during `gc`. Pause sync or
-`taskkill /f /im OneDrive.exe` before repacking.
+Known friction: OneDrive locks `.git/objects` during git's post-commit tidy-up,
+prompting *"Deletion of directory … failed. Should I try again?"* The commit is
+already written; answer `n`. Set `GIT_ASK_YESNO=false` as a user environment
+variable to stop the prompt.
+
+`.gitignore` also excludes `_dump/`, the source dump used for code review.
 
 ---
 
@@ -192,6 +205,7 @@ Known friction: OneDrive locks `.git/objects` during `gc`. Pause sync or
 | `staging_backup.csv` (+prev) | all staging jobs | job close, 15-min timer, commit, app close |
 | `observations_backup.csv` (+prev) | observations | after commit |
 | OneDrive version history | the project folder | continuous |
+| **Off-site copy** | project folder + backups folder | **by hand, after sessions that change data** |
 
 Every `.db` copy uses `conn.backup()`, never `shutil.copy2` — copying a WAL-mode
 database while open can capture a main file missing recent commits.
@@ -199,6 +213,27 @@ database while open can capture a main file missing recent commits.
 **Restore:** `python scripts/restore_database.py`, with the app closed. Tested
 end to end 4 September 2026.
 
-**The remaining gap is that everything is on one machine.** OneDrive is sync, not
-backup: a deletion propagates. An external drive copy of `data\` and the backup
-folder is ten minutes (backlog D2b).
+### The off-site copy
+
+Close Observatum and Examen first — `robocopy` knows nothing about SQLite, and
+copying a WAL-mode database while it is open is the fault fixed in Session 30.
+
+```powershell
+$dest = "D:\BiologicalSoftware_Offsite"
+robocopy "C:\Users\Wil J. Heeney\OneDrive\Biological Software" "$dest\Biological Software" /MIR /R:1 /W:1 /XD __pycache__ /NFL /NDL /NP
+robocopy "C:\BiologicalSoftware_Backups" "$dest\BiologicalSoftware_Backups" /MIR /R:1 /W:1 /NFL /NDL /NP
+```
+
+Check **FAILED** reads 0 in both summaries. `/MIR` mirrors, so later runs copy
+only what changed — and deletes anything on the destination absent from the
+source, so point it at this dedicated folder, never a drive root.
+
+Then verify, rather than assume:
+
+```powershell
+python -c "import sqlite3; c=sqlite3.connect(r'D:\BiologicalSoftware_Offsite\Biological Software\data\observatum.db'); print(c.execute('PRAGMA integrity_check').fetchone()[0]); print('specimens:', c.execute('SELECT COUNT(1) FROM specimens').fetchone()[0])"
+```
+
+First run 26 September 2026: 3.8 GB in eleven minutes, `ok`, 2,745 specimens.
+**Keep the drive away from the computer** — a fire, flood or theft takes both
+otherwise.

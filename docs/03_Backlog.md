@@ -1,6 +1,6 @@
 # Backlog
 
-## Updated 6 September 2026
+## Updated 26 September 2026
 ## Check this before starting a session.
 
 ---
@@ -9,23 +9,26 @@
 
 | | Item | Size |
 |---|---|---|
-| 1 | **E2b** — wire the workbook export to a button | small |
-| 2 | **E1** — jurisdiction selector in the UI | small |
-| 3 | **A1** — bulk curatorial editor | 0.5–1 day |
-| 4 | **D2** — external drive copy | 10 minutes |
-| 5 | **D3** — merge `main` → `stable` | 15 minutes |
-| 6 | **E3** — PDF renderer | 1–1.5 days |
+| 1 | **A1** — bulk curatorial editor | 0.5–1 day |
+| 2 | **E16** — decide the SQI verdict wording | decision |
+| 3 | **E3** — PDF renderer | 1–1.5 days |
+| 4 | **D3** — merge `main` → `stable` | 15 minutes |
 
-The Excel renderer is delivered and validated; it needs a button. After that the
-PDF is the document that actually gets attached to a report.
+Examen is fully usable: the workbook has a button and the jurisdiction is
+derived. The bulk editor is the most pressing — 2,745 specimens and the tray-level
+fields are almost entirely empty.
 
 ---
 
 ## A. Insect Collection
 
-**A1. Bulk curatorial editor — HIGH.** 0.5–1 day. Six curatorial columns empty
-across all 2,549 specimens; per-record editing is not viable. Select many, set
-Preparation / Condition / Storage / Drawer, never touching biological data.
+**A1. Bulk curatorial editor — HIGH.** 0.5–1 day. Of 2,745 specimens: condition
+8, storage 2, drawer 0, preparation 204. Those are properties of a tray, not a
+specimen — select everything in a drawer, set Storage and Drawer once.
+Per-record editing is not viable. Never touches biological data.
+
+Sex is the exception: it needs the animal under the scope, and is being worked
+through by hand (602 so far).
 
 **A2. Verify curatorial edit on existing specimens.** Small. May already be
 closed by the Session 29 dialog work — test by editing one and confirming it
@@ -35,6 +38,19 @@ saves and reloads.
 
 **A4. `drawer_unit` → `drawer_number` rename.** 0.5 day. The UI already says
 Drawer Number. Column empty, no data risk; touches four files plus reset scripts.
+
+**A5. Two specimens without a TVK.** Minutes. *Phoracantha recurva* (id 1263) and
+*Oberea linearis* (id 1356) — both longhorns. With no TVK they get no sort key
+and stay invisible to the sidebar. Assign one by hand.
+
+**A6. Live sidebar refresh — parked.** Small. After editing a specimen the tree
+keeps its old counts until restart. `_refresh_sidebar()` exists; it simply isn't
+called after a save. Parked by choice: rebuilding collapses the tree and loses
+your place, which may annoy more than a periodic restart.
+
+**A7. Normalise `subfamily` storage.** Small, low. Stored as NULL on some rows
+and `''` on others for the same species. The sidebar now copes; the data is
+still inconsistent and any other query grouping on it would split the same way.
 
 ---
 
@@ -75,8 +91,10 @@ it matters.
 **D1. Reconfigure the offline server.** Unscoped; documentation lost. The proper
 answer to single-machine risk.
 
-**D2. External drive copy — HIGH, 10 minutes.** `data\` and
-`C:\BiologicalSoftware_Backups\`. The only true off-machine copy available today.
+**D2. External drive copy** — ✅ **DONE** (26 September). `D:\BiologicalSoftware_Offsite`,
+3.8 GB, verified by `integrity_check` on the copy. **Refresh after any session
+that changes data** — re-run the two `robocopy /MIR` lines in `01_Architecture.md`
+§7; only changes copy.
 
 **D3. Merge `main` → `stable`.** 15 minutes. Stale since June.
 
@@ -108,9 +126,8 @@ and reimport; or the server. Needs a decision before it is attempted.
 
 Examen runs and is validated. See `08_Examen.md`.
 
-**E1. Jurisdiction selector in the UI — HIGH.** Small. The parameter exists on
-`get_status_summary` / `get_statuses_batch` and defaults to England; there is no
-control. **Needed before the tool is trusted on a Scottish or Welsh job.**
+**E1. Jurisdiction in the UI** — ✅ **DONE** (26 September). Derived from the
+vice-county, with an override. See `08_Examen.md` §5.
 
 **E2. Excel report renderer** — ✅ **DONE** (6 September). `Examen/workbook_export.py`.
 Seven sheets: Summary with the stamp, Key species (Rare Key first, per Telfer,
@@ -119,9 +136,7 @@ footers, Habitats, Assemblages with FC thresholds and colour-coded PtT, Guilds,
 and a generated status-definitions annex. Structure follows
 `38_Report_Survey.md`. Validated against Glory Park: 128 species, 8 key, SQI 134.
 
-**E2b. Wire the export to a button.** Small. `site_analysis_view` already has
-Export Appendix; this is a second button calling `export_workbook` with the
-selected project and a file dialog.
+**E2b. Workbook export button** — ✅ **DONE**. Beside Export Appendix.
 
 **E3. PDF renderer.** 1–1.5 days. The flagship — the document that gets attached.
 
@@ -175,9 +190,9 @@ tree now withholds the index below threshold and shows the scoring count instead
 **E10. "Favourable (97 species, 19 required)".** Small. State the verdict with
 its evidence, as Pantheon does.
 
-**E11. Stray punctuation in the generated sentence.** Trivial. "128 species
-recorded. across 4 visits." and "conservation value..". It is prose that would be
-read straight into a report.
+**E11. Overview sentence punctuation** — ✅ **DONE** (26 September). Also the
+key-species card label, which read "of Pantheon species" when the figure is out
+of total species recorded.
 
 **E12. Views hardcode their own colour palettes.** 0.5 day. Six files define
 their own constants rather than using `theme()`, contrary to coding rule 6.
@@ -191,6 +206,15 @@ and Session 26 decided the frozen record is the downloaded report. But
 import with no way to correct or extend it. Musgrove et al. independently call
 for an expert-consensus update mechanism. Natural England has funding again as of
 2026, so upstream updates may resume.
+
+**E16. The SQI verdict bands — DECISION.** The Overview sentence ends *"This
+indicates a site of national / regional importance / some conservation value"*
+at SQI 200 / 150 / 125. **No published source found** — not Pantheon's, not
+Fowles's (whose are 500 and 590, for a different index). The report survey found
+authors citing percentages and naming their convention, precisely because
+thresholds are contested. Options: remove the verdict; replace it with Telfer's
+sourced test (~10% Key, >1% Rare Key); or keep the bands with a stated source.
+Leaning to Telfer. See `06_Faults.md` F14.
 
 **E15. Survey-year edge case.** Small. A survey spanning a year boundary —
 October to March fieldwork — would split across two rows. No current work does.
@@ -284,8 +308,8 @@ From `37_Code_Review_Findings.md`, an independent static-analysis pass.
 **I1. Verify the four claimed crash bugs.** Start with `vc_lookup_service`, the
 fastest to disprove.
 
-**I2. Delete `scripts/sqs_derivation.py`.** Drifted from the `shared/` copy and
-nothing imports it.
+**I2. Delete `scripts/sqs_derivation.py`** — ✅ **DONE** (26 September), along
+with the superseded `check_bridge_gap.py`. Confirmed nothing imported either.
 
 **I3. Consolidate grid-ref maths.** Three implementations —
 `grid_ref_service.py`, `DataEntry/osgb.py`, `Tabella/grid_ref.py`. **The

@@ -1,6 +1,6 @@
 # Biological Software — Documentation
 
-## Set v2, updated 6 September 2026
+## Set v2, updated 26 September 2026
 ## Replaces the 01–37 series, which had drifted into three append files and
 ## several documents describing states that lasted hours.
 
@@ -78,6 +78,8 @@ After finishing:
 2. Move backlog items, do not annotate them in place
 3. Add faults to `06`, rules to `05`
 4. Add one paragraph to the history section of `02`
+5. **Commit** — `git add -A` then `git commit`
+6. **Refresh the off-site copy** if data changed — `01_Architecture.md` §7
 
 ---
 

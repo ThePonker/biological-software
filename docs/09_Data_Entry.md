@@ -1,7 +1,7 @@
 # Data Entry
 
 ## The recording grid
-## Updated 5 September 2026
+## Updated 26 September 2026
 ## Consolidates `26_Data_Entry_Design.md` (the design) and
 ## `27_Data_Entry_State.md` (what was built). The research behind it is in
 ## `25_Data_Entry_Research.md`, which remains worth reading.
@@ -123,7 +123,9 @@ Four fixed-height cards plus maps:
 
 - **Species readout** — name, family and order, conservation chips, count pills.
   Pills show committed records suite-wide with staged rows in brackets, across
-  all jobs, split by mode.
+  all jobs, split by mode. The specimen pill carries the sex of held specimens —
+  `Spec. 13 (♀1 +12)` — so "do I need to keep this male?" is answerable at the
+  scope. Card widened from 272 to 316px to fit it.
 - **This workbook** — records, species, individuals, and a per-order breakdown
   showing distinct species with record counts.
 - **Traps** — distinct sub-location / trap / grid-ref combinations for the job,

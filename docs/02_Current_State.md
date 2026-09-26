@@ -1,6 +1,6 @@
 # Current State
 
-## 6 September 2026
+## 26 September 2026
 ## The only home for these figures. If a number appears elsewhere, it is a copy
 ## and it will drift.
 
@@ -10,9 +10,9 @@
 
 | Component | State |
 |---|---|
-| **Observatum** | Active. Stats audited, iRecord sync verified, mapping functional, embargo, filter wizard. Delete Selected on the Observations tab. Add Specimen rebuilt two-column with a map and curatorial fields. |
+| **Observatum** | Active. Stats audited, iRecord sync verified, mapping functional, embargo, filter wizard. Delete Selected on the Observations tab. Add Specimen rebuilt two-column with a map and curatorial fields. **Insect Collection sidebar corrected** — it had been omitting 338 specimens. Specimen sex shown in five places. |
 | **Data Entry** | **In production.** 13 jobs, 12 active, ~2,373 staged rows. Nothing committed to `observations` yet. |
-| **Examen** | **Runs, validated, and exports.** Site Analysis and Species Database working, survey-year scoping, **Excel workbook export delivered**. Remaining: PDF, Word, presentation. |
+| **Examen** | **Runs, validated, and exports.** Site Analysis and Species Database working, survey-year scoping, Excel workbook export on a button, **jurisdiction derived from vice-county** with an override. Remaining: PDF, Word, presentation, and a decision on the SQI verdict wording. |
 | **Codex** | Correct and reproducible as of today. 11 tracks, biodiversity-wide for status, invertebrate-only for SQS. |
 | **Curator** | Working. Suborder support, Hemiptera sort override, label preview. Does not write curatorial fields. |
 | **Tabella** | **Paused** August 2026. Workbooks migrated into Data Entry staging. |
@@ -67,11 +67,22 @@ under vernacular names in Pantheon — backlog F1).
 | With `irecord_id` | 1,178 / 18,758 |
 | Specimens | 2,549, all ISO dates |
 | Recording scheme | ~110,510 |
-| Staging rows | ~2,373 across 13 jobs |
-| Species profiles | 0 — table now carries `origin`, `source_review`, `source_year` |
+| Staging rows | ~2,373 across 13 jobs *(as of 6 September; not re-measured)* |
+| Species profiles | 0 — table carries `origin`, `source_review`, `source_year` |
 
-All six curatorial columns are empty across all 2,549 specimens. New specimens
-capture four of them; the backfill needs the bulk editor (backlog A1).
+### Specimens — measured 26 September
+
+| | |
+|---|---:|
+| Specimens | **2,745** (184 added 13–26 September) |
+| With a taxonomic sort key | 2,743 — all but the two longhorns without a TVK |
+| Sex recorded | **602** (22%) — up from 35 on 12 September |
+| Preparation | 204 (7%) — the order-based default on new specimens |
+| Condition / Storage / Drawer | 8 / 2 / 0 |
+
+Sex is being worked through by hand under the microscope. Condition, storage and
+drawer are properties of a tray rather than a specimen, which is what makes them
+bulk-settable — backlog A1.
 
 ### The rest
 
@@ -88,7 +99,7 @@ capture four of them; the backfill needs the bulk editor (backlog A1).
 
 ## 3. Examen — validated
 
-Glory Park 2024 reports **8 key species of 128**, which is exactly what the
+Glory Park 2024 reports **8 key species of 128**, SQI 134 from 61 scoring species, which is exactly what the
 issued report says: *"a total of 128 species were identified, eight of which had
 a Nature Conservation Status and are considered Key Species."* Same eight
 species, same tiers.
@@ -115,8 +126,6 @@ Survey-year grouping now removes the reason for that restamping.
 
 Bicester pooled across years gives 519 species / 31 key / SQI 145 — a list that
 corresponds to no report, which is why pooling is now an explicit choice.
-
-SQI 134 from 61 scoring species.
 
 **SQI figures moved on 5 and 6 September** through the ecology bridge fix, the
 removal of derived SQS, the collision merges and the DD/NT correction. Anything
@@ -158,12 +167,61 @@ Every designation is still stored and displayed — an SBL listing recorded in
 England remains visible in the appendix and worth a sentence. It simply does not
 make the species a key species there.
 
-**There is no UI control yet** (backlog E1). Needed before a Scottish or Welsh
-job.
+**Derived from the vice-county** since 26 September. Watsonian VCs 1–34, 36–40
+and 53–70 are England; 35 and 41–52 Wales; 71 the Isle of Man; 72–112 Scotland.
+A Jurisdiction combo defaults to *Auto (vice-county)* and the header states what
+it found — *"assessed under England (from vice-county)"* — or *"(default)"*
+where the records carry no usable VC. Explicit settings remain for cross-border
+projects. Northern Ireland has no Watsonian VC and must be chosen.
 
 ---
 
 ## 5. Recent history
+
+### Session 35 — 26 September 2026
+
+Loose ends, all closed. **Two days of patches committed to git** (5995e85 and
+after), with scratch files removed and `_dump/` ignored. **An off-site copy on
+an external drive**, 3.8 GB, verified by `PRAGMA integrity_check` on the copied
+database rather than assumed — the largest open risk since June.
+
+**The jurisdiction patch had never applied.** It had been run and reported as
+done; it had refused because `QComboBox` was not imported, and written nothing.
+Found only by opening Examen and looking. Now applied and seen working.
+
+`reset_database.py` brought into line with the live database for the profile
+provenance columns. The Overview sentence's punctuation and its mislabelled
+percentage fixed. One question left open deliberately: the SQI verdict bands in
+that sentence have no published source (`06_Faults.md` F14).
+
+### Session 34 — 12–13 September 2026
+
+A request to show specimen sex found a fault that had been hiding a sixth of the
+collection's recent additions.
+
+**Sex is now shown in five places** — the Data Entry specimen pill, four levels
+of the Insect Collection tree, the taxon detail panel, the record detail dialog
+and the table — all through one formatter, `shared/sex_summary.py`. Format:
+`Specimens 7 (♂3 ♀4)`, `(♂2 ♀1 +4)` where some are unsexed, plain
+`Specimens 7` where none are.
+
+Putting a second, independently-derived number beside the existing counts
+exposed that they were wrong:
+
+- **244 specimens were invisible to the sidebar**, which filters on
+  `taxonomic_sort_key IS NOT NULL` and every specimen added since March lacked
+  one — including all 35 then sexed. Coleoptera read 1,550 against a true 1,613.
+- **94 more were lost** to `subfamily` stored as NULL on some rows and `''` on
+  others: the tree query split them, and `build_tree` *assigned* rather than
+  accumulated, so one count overwrote the other.
+- **The root cause was two layers down.** `AddSpecimenDialog` never computed the
+  sort key — and when it was patched to, the next specimen still came out
+  without one, because `SpecimenRepository`'s write whitelists had never
+  included `taxonomic_sort_key` or `superfamily`. They were silently dropped.
+
+Also: the record detail dialog showed four fields of a specimen out of a dozen —
+collector and determiner, recorded on all 2,568 specimens, had never been
+displayed.
 
 ### Session 33 — 6 September 2026
 
