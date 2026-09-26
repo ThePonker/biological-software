@@ -405,9 +405,11 @@ CREATE TABLE IF NOT EXISTS recording_scheme (
 
 CREATE_SPECIES_PROFILES = """
 CREATE TABLE IF NOT EXISTS species_profiles (
+    -- Wil's own species accounts. Review accounts live in
+    -- codex.db.species_profiles, one per species per review.
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    species_name TEXT UNIQUE NOT NULL,
-    species_tvk TEXT,
+    species_name TEXT NOT NULL,
+    species_tvk TEXT UNIQUE NOT NULL,
     common_name TEXT,
     order_name TEXT,
     family TEXT,
@@ -418,9 +420,6 @@ CREATE TABLE IF NOT EXISTS species_profiles (
     notes TEXT,
     profile_text TEXT,
     image_path TEXT,
-    origin TEXT DEFAULT 'own',          -- own | review | edited
-    source_review TEXT,                 -- citation, where seeded from a review
-    source_year INTEGER,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
