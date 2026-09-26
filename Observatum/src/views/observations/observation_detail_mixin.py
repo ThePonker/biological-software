@@ -75,31 +75,13 @@ class ObservationDetailMixin:
         self._current_detail_dialog = None
 
     def _load_species_profile(self, species_tvk: str, species_name: str) -> str:
-        """Load species profile text from database."""
-        from ...models.database import get_database
-        
-        profile_text = None
+        """Profile text for display -- via the one shared reader."""
         try:
-            db = get_database()
-            if species_tvk:
-                result = db.execute_main(
-                    "SELECT profile_text FROM species_profiles WHERE species_tvk = ?",
-                    (species_tvk,)
-                )
-                if result and result[0][0]:
-                    profile_text = result[0][0]
-
-            if not profile_text and species_name:
-                result = db.execute_main(
-                    "SELECT profile_text FROM species_profiles WHERE species_name = ?",
-                    (species_name,)
-                )
-                if result and result[0][0]:
-                    profile_text = result[0][0]
+            from shared.species_accounts import get_preview_text
+            return get_preview_text(species_tvk, species_name)
         except Exception as e:
             print(f"[ObservationTab] Error loading profile: {e}")
-        
-        return profile_text
+            return None
 
     def _on_detail_edit_requested(self, record: Dict):
         """Handle edit request from detail dialog."""

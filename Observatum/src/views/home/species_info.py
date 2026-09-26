@@ -284,7 +284,11 @@ class SpeciesInfoPanel(Card):
         self._load_profile(species_data.get('tvk'))
 
     def _load_profile(self, tvk: str):
-        """Load species profile from database."""
+        """Load the profile preview -- via the one shared reader.
+
+        _current_profile holds YOUR account only. The preview may show the
+        review's text, cited, but it must never become editable text of yours.
+        """
         t = theme()
         self._current_profile = ""
         self.profile_preview.clear()
@@ -294,16 +298,13 @@ class SpeciesInfoPanel(Card):
             return
 
         try:
-            from ...models.database import get_database
-            db = get_database()
-            query = "SELECT profile_text FROM species_profiles WHERE species_tvk = ?"
-            results = db.execute_main(query, (tvk,))
-
-            if results and results[0][0]:
-                self._current_profile = results[0][0]
-                # Show truncated preview
-                preview = self._current_profile[:300]
-                if len(self._current_profile) > 300:
+            from shared.species_accounts import get_species_accounts
+            acc = get_species_accounts(tvk)
+            self._current_profile = acc.own or ""
+            text = acc.preview_text()
+            if text:
+                preview = text[:300]
+                if len(text) > 300:
                     preview += "..."
                 self.profile_preview.setText(preview)
                 self.profile_btn.setText("View")

@@ -35,26 +35,11 @@ class ICSidebarMixin:
             except Exception as e:
                 print(f"[InsectCollectionTab] Error counting species: {e}")
 
-        # Get profile text if available
+        # Profile text -- your account, else the review's, via the one shared reader
         profile_text = None
         try:
-            db = get_database()
-            species_tvk = _get_attr(specimen, 'species_tvk')
-            if species_tvk:
-                result = db.execute_main(
-                    "SELECT profile_text FROM species_profiles WHERE species_tvk = ?",
-                    (species_tvk,)
-                )
-                if result and result[0][0]:
-                    profile_text = result[0][0]
-
-            if not profile_text and species_name:
-                result = db.execute_main(
-                    "SELECT profile_text FROM species_profiles WHERE species_name = ?",
-                    (species_name,)
-                )
-                if result and result[0][0]:
-                    profile_text = result[0][0]
+            from shared.species_accounts import get_preview_text
+            profile_text = get_preview_text(_get_attr(specimen, 'species_tvk'), species_name)
         except Exception as e:
             print(f"[InsectCollectionTab] Error loading profile: {e}")
 

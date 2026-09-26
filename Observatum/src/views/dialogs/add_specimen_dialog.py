@@ -581,25 +581,9 @@ class AddSpecimenDialog(QDialog):
             return
         
         try:
-            # Try by TVK first, then by name
-            profile_text = None
-            
-            if species_tvk:
-                result = self._db.execute_main(
-                    "SELECT profile_text FROM species_profiles WHERE species_tvk = ?",
-                    (species_tvk,)
-                )
-                if result and result[0][0]:
-                    profile_text = result[0][0]
-            
-            if not profile_text and species_name:
-                result = self._db.execute_main(
-                    "SELECT profile_text FROM species_profiles WHERE species_name = ?",
-                    (species_name,)
-                )
-                if result and result[0][0]:
-                    profile_text = result[0][0]
-            
+            # Your account, else the review's, via the one shared reader
+            from shared.species_accounts import get_preview_text
+            profile_text = get_preview_text(species_tvk, species_name)
             self._update_profile_display(profile_text)
             
         except Exception as e:

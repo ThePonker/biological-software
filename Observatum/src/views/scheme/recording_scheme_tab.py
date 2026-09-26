@@ -262,24 +262,17 @@ class RecordingSchemeTab(QWidget):
             self._current_detail_dialog = None
 
     def _load_species_profile(self, record: dict) -> str:
-        """Load species profile text from database."""
-        profile_text = None
+        """Profile text for display -- via the one shared reader (TVK, else name)."""
         species_name = record.get('species') or record.get('species_name', '')
-        
-        if not species_name:
+        tvk = record.get('species_tvk') or record.get('tvk')
+        if not (species_name or tvk):
             return None
-            
         try:
-            result = self._db.execute_main(
-                "SELECT profile_text FROM species_profiles WHERE species_name = ?",
-                (species_name,)
-            )
-            if result and result[0][0]:
-                profile_text = result[0][0]
+            from shared.species_accounts import get_preview_text
+            return get_preview_text(tvk, species_name)
         except Exception as e:
             print(f"[RecordingSchemeTab] Error loading profile: {e}")
-        
-        return profile_text
+            return None
     
     def _on_profile_requested(self, record: dict):
         """Handle profile view/create request from detail dialog."""
