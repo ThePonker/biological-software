@@ -1,0 +1,33 @@
+﻿
+Species Status review import
+============================================================================
+  sheet: Leaf & Flea Beetles   species rows: 290
+  IUCN column: 2022   rarity column: 2022
+  assessed and resolved: 287   unresolved: 2   unrecognised values: 0
+    unresolved: Gonioctena fornicata  (NHMSYS0021814001)
+    unresolved: Dicladispa testacea  (NHMSYS0021832931)
+    collapsed: Bruchus affinis reached Bruchus rufimanus via synonym -- skipped; Bruchus rufimanus's own row is used
+  (these are skipped; nothing is written for them)
+
+  CHANGES BY TRACK
+    threat_iucn_2001     added    0   changed    0   cleared    0   unchanged  287
+    rarity_modern        added    0   changed    0   cleared    0   unchanged  287
+    rarity_legacy        added    0   changed    0   cleared    0   unchanged  287
+    threat_iucn_legacy   added    0   changed    0   cleared    0   unchanged  287
+
+  KEY SPECIES STATUS (Telfer), before -> after
+    become Key           0
+    cease to be Key      0
+    become Rare Key      0
+    cease to be Rare Key 0
+
+  Of those, species in your own records: 0
+
+  SPECIES ACCOUNTS -> observatum.db (origin='review')
+    new 287   replacing an earlier review's text 0   left alone (your own / edited) 0
+
+  backup: C:\BiologicalSoftware_Backups\reference\observatum_pre_review_20260926_193122.db
+  287 species accounts written
+
+  verify: duplicated (tvk, track, detail) rows in status_summary: 0
+

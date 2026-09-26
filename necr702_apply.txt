@@ -1,0 +1,103 @@
+﻿
+Species Status review import
+============================================================================
+  sheet: Leaf & Flea Beetles   species rows: 290
+  IUCN column: 2022   rarity column: 2022
+  assessed and resolved: 288   unresolved: 2   unrecognised values: 0
+    unresolved: Gonioctena fornicata  (NHMSYS0021814001)
+    unresolved: Dicladispa testacea  (NHMSYS0021832931)
+  (these are skipped; nothing is written for them)
+
+  CHANGES BY TRACK
+    threat_iucn_2001     added   17   changed   58   cleared    0   unchanged  213
+    rarity_modern        added   18   changed    8   cleared   11   unchanged  251
+    rarity_legacy        added    0   changed    0   cleared    1   unchanged  287
+    threat_iucn_legacy   added    0   changed    0   cleared    1   unchanged  287
+
+  KEY SPECIES STATUS (Telfer), before -> after
+    become Key           17
+      Zeugophora subspinosa            LC                       -> VU
+      Chrysolina kuesteri              -                        -> VU, NR
+      Chrysolina varians               LC                       -> VU
+      Gonioctena pallida               LC                       -> NT, NS
+      Timarcha goettingensis           LC                       -> NT
+      Altica helianthemi               LC                       -> LC, NS
+      Aphthona atratula                LC                       -> EN, NS
+      Aphthona atrocaerulea            LC                       -> VU
+      Batophila rubi                   LC                       -> NT
+      Longitarsus aeruginosus          -                        -> CR, NR
+      Longitarsus holsaticus           LC                       -> LC, NS
+      Longitarsus pellucidus           LC                       -> LC, NS
+      ... and 5 more
+    cease to be Key      12
+      Orsodacne cerasi                 LC, NS                   -> LC
+      Donacia thalassina               LC, NS                   -> LC
+      Smaragdina affinis               CR, NR                   -> RE
+      Smaragdina salicina              DD                       -> NA, NR
+      Cryptocephalus bipunctatus       LC, NS                   -> LC
+      Agelastica alni                  DD, NR                   -> NA
+      Longitarsus ballotae             LC, NS                   -> LC
+      Longitarsus lycopi               LC, NS                   -> LC
+      Longitarsus strigicollis         LC, NS                   -> LC
+      Podagrica fuscicornis            LC, NS                   -> LC
+      Cassida nobilis                  LC, NS                   -> LC
+      Cassida prasina                  LC, NS                   -> LC
+    become Rare Key      23
+      Zeugophora subspinosa            LC                       -> VU
+      Donacia bicolora                 LC, NS                   -> VU, NS
+      Macroplea appendiculata          LC, NS                   -> VU, NR
+      Plateumaris rustica              LC, NS                   -> VU, NS
+      Cryptocephalus frontalis         NT, NS                   -> VU, NR
+      Chrysolina kuesteri              -                        -> VU, NR
+      Chrysolina varians               LC                       -> VU
+      Phaedon concinnus                LC, NS                   -> VU, NS
+      Calomicrus circumfusus           LC, NS                   -> VU, NS
+      Luperus flavipes                 LC, NS                   -> VU, NS
+      Altica brevicollis               LC, NS                   -> VU, NS
+      Aphthona atratula                LC                       -> EN, NS
+      ... and 11 more
+    cease to be Rare Key 9
+      Donacia aquatica                 VU, NS                   -> NT, NS
+      Smaragdina affinis               CR, NR                   -> RE
+      Smaragdina salicina              DD                       -> NA, NR
+      Chrysolina marginata             NT, NR                   -> NT, NS
+      Agelastica alni                  DD, NR                   -> NA
+      Longitarsus nigrofasciatus       NT, NR                   -> NT, NS
+      Longitarsus quadriguttatus       LC, NR                   -> LC, NS
+      Neocrepidodera impressa          LC, NR                   -> LC, NS
+      Pilemostoma fastuosum            NT, NR                   -> LC, NS
+
+  Of those, species in your own records: 5
+      Agelastica alni                      16 records    2 specimens
+      Orsodacne cerasi                      5 records    1 specimens
+      Cassida prasina                       1 records    1 specimens
+      Zeugophora subspinosa                 1 records    0 specimens
+      Podagrica fuscicornis                 1 records    0 specimens
+
+  SPECIES ACCOUNTS -> observatum.db (origin='review')
+    new 288   replacing an earlier review's text 0   left alone (your own / edited) 0
+
+  backup: C:\BiologicalSoftware_Backups\reference\codex_pre_review_20260926_192858.db
+  backup: C:\BiologicalSoftware_Backups\reference\observatum_pre_review_20260926_192859.db
+  review #1 registered; 1152 status entries written
+python : Traceback (most recent call last):
+At line:1 char:1
++ python scripts\import_status_review.py "data\reviews\NECR702_Chrysome ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Traceback (most recent call last)::String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  File "C:\Users\Wil J. Heeney\OneDrive\Biological Software\scripts\import_status_review.py", line 503, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "C:\Users\Wil J. Heeney\OneDrive\Biological Software\scripts\import_status_review.py", line 476, in main
+    ob.execute("""INSERT INTO species_profiles
+    ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        (species_name, species_tvk, order_name, family, profile_text,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+        (p["name"], p["tvk"], p["order"], p["family"],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         p["row"]["ecology"], source, year, now, now))
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.IntegrityError: UNIQUE constraint failed: species_profiles.species_name

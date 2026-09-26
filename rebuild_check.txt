@@ -1,0 +1,5 @@
+﻿manual rows in status_summary: 403
+manual_entries preserved:      1148
+reviews preserved:             [('A Review of the Status of the Leaf Beetles and allies of Great Britain (NECR702)',)]
+duplicates:                    0
+Z. subspinosa: [('threat_iucn_2001', 'VU', 'manual')]

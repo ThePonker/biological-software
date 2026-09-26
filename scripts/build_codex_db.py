@@ -825,10 +825,24 @@ def build_codex():
             (tvk, species_name, status_track, status_value, status_detail,
              source_review, date_added, added_by, notes, review_id)
             VALUES (?,?,?,?,?,?,?,?,?,?)""", manual_statuses)
-        # Apply to status_summary
-        for row in manual_statuses:
+        # Apply to status_summary, oldest first so a later review wins.
+        #
+        # DELETE then INSERT -- never INSERT OR REPLACE. SQLite treats NULL as
+        # distinct inside a composite primary key, so REPLACE with a NULL
+        # status_detail ADDS a row beside the JNCC one instead of replacing it,
+        # leaving the old status and the new side by side.
+        #
+        # A value of 'none' records a status the review REMOVED (a downgrade):
+        # delete, insert nothing. See patch_codex_manual_apply.py.
+        for row in sorted(manual_statuses, key=lambda r: r[6] or ""):
             tvk, name, track, value, detail, source, date_added, by, notes, rid = row
-            c.execute("""INSERT OR REPLACE INTO status_summary
+            c.execute("""DELETE FROM status_summary
+                         WHERE tvk = ? AND status_track = ?
+                           AND COALESCE(status_detail, '') = COALESCE(?, '')""",
+                      (tvk, track, detail))
+            if (value or "").strip().lower() == "none":
+                continue
+            c.execute("""INSERT INTO status_summary
                 (tvk, status_track, status_value, status_detail,
                  source, iucn_version, date_designated, origin)
                 VALUES (?, ?, ?, ?, ?, NULL, ?, 'manual')""",

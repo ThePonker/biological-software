@@ -886,6 +886,16 @@ def _classify(status, jurisdiction=DEFAULT_JURISDICTION):
     `jurisdiction` filters which priority listings and legal instruments count
     towards the Priority tier. Rarity and threat are GB-wide and unfiltered.
     """
+    # An NA species -- not applicable: not an established native, so not
+    # eligible for IUCN assessment -- is never a Key Species, whatever its
+    # rarity status. A recent arrival or a single stray can be "Nationally Rare"
+    # simply because it has barely been recorded. Its rarity is still stored
+    # and displayed; it confers no key status. Decided 26 September 2026 on
+    # NECR702 (Chrysomela vigintipunctata, Smaragdina salicina).
+    if status.threat_iucn_2001 and \
+            (status.threat_iucn_2001.value or "").strip().upper() == "NA":
+        return KeySpeciesTier.NONE
+
     is_rare = is_scarce = is_priority = False
 
     # Modern IUCN GB threat

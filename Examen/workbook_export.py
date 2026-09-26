@@ -169,6 +169,10 @@ def telfer_tier(entry):
     t = _norm(getattr(entry, "threat", ""))
     tl = _norm(getattr(entry, "threat_legacy", ""))
 
+    # NA -- not an established native -- is never Key, whatever its rarity.
+    # Mirrors CodexRepository._classify; see patch_na_not_key.py.
+    if t == "NA":
+        return ""
     if r in _RARE_V3 or t in _RARE_V2 or tl in _RARE_V1:
         return "rare"
     if r in _SCARCE_V3 or r in _SCARCE_V1 or t in _SCARCE_V2 or tl in _SCARCE_V1:
