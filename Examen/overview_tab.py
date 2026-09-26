@@ -98,32 +98,40 @@ class OverviewTab(QWidget):
                           self._sqi_colour(sqi.sqi if sqi else 0))
         self._update_hero(self.key_card,
                           str(result.key_species_count),
-                          f"{result.key_species_pct}% of Pantheon species",
+                          f"{result.key_species_pct}% of species recorded",
                           RED_STATUS if result.key_species_count > 0 else TEXT_MUTED)
         self._update_hero(self.total_card,
                           str(result.total_species),
                           f"{result.species_in_pantheon} in Pantheon",
                           TEXT_PRIMARY)
 
-        # Summary sentence
-        parts = []
-        parts.append(f"{result.total_species} species recorded")
-        if visits: parts.append(f"across {visits} visits")
-        parts.append(f"{result.key_species_count} key species ({result.key_species_pct}%)")
+        # Summary sentence. Built as whole sentences, then joined -- the old
+        # version joined clauses with ". ", which split "across 4 visits" into
+        # a sentence of its own and doubled the final full stop.
+        first = f"{result.total_species} species recorded"
+        if visits:
+            first += f" across {visits} visit{'s' if visits != 1 else ''}"
+        sentences = [
+            first,
+            f"{result.key_species_count} key species "
+            f"({result.key_species_pct}% of species recorded)",
+        ]
         sqi_text = f"SQI {sqi_val}"
         if sqi_reliable:
             sqi_text += " (reliable)"
         else:
-            sqi_text += " (fewer than 15 scoring species — treat with caution)"
-        parts.append(sqi_text)
+            sqi_text += " (fewer than 15 scoring species \u2014 treat with caution)"
+        sentences.append(sqi_text)
 
-        # SQI interpretation
+        # SQI interpretation. NOTE: these bands have no published source -- they
+        # are not Pantheon's and not Fowles's. Left unchanged pending a decision;
+        # see patch_overview_sentence.py.
         if sqi and sqi.sqi:
-            if sqi.sqi >= 200: parts.append("This indicates a site of national importance.")
-            elif sqi.sqi >= 150: parts.append("This indicates a site of regional importance.")
-            elif sqi.sqi >= 125: parts.append("This indicates a site of some conservation value.")
-            elif sqi.sqi >= 100: parts.append("No significant concentration of rare species.")
-        self.summary_sentence.setText(". ".join(parts) + ".")
+            if sqi.sqi >= 200: sentences.append("This indicates a site of national importance")
+            elif sqi.sqi >= 150: sentences.append("This indicates a site of regional importance")
+            elif sqi.sqi >= 125: sentences.append("This indicates a site of some conservation value")
+            elif sqi.sqi >= 100: sentences.append("No significant concentration of rare species")
+        self.summary_sentence.setText(". ".join(sentences) + ".")
 
         # Tier breakdown
         self._update_tier(self.rare_label, str(result.rare_count))
