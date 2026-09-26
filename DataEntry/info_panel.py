@@ -117,6 +117,27 @@ class InfoService:
             pass
         return (personal, commercial, specimens)
 
+    def specimen_sexes(self, tvk: str):
+        """(male, female, other) specimens held for a TVK.
+
+        `other` is everything not resolvable to male or female -- unsexed,
+        blank, and "Unknown" alike. Kept separate from counts() so the existing
+        three-tuple contract is untouched.
+        """
+        if not tvk:
+            return (0, 0, 0)
+        try:
+            rows = self._main.execute(
+                "SELECT sex FROM specimens WHERE species_tvk=?", (tvk,)
+            ).fetchall()
+        except sqlite3.Error:
+            return (0, 0, 0)
+        try:
+            from shared.sex_summary import count_sexes
+        except ImportError:
+            return (0, 0, len(rows))
+        return count_sexes(r[0] for r in rows)
+
     def conservation(self, tvk: str) -> str:
         """Compact conservation summary from codex status_summary, or '' if none/unavailable."""
         if not tvk:
@@ -253,7 +274,8 @@ class InfoPanel(QWidget):
         readout_w = _QW()
         readout_w.setLayout(text_col)
         readout_w.setStyleSheet(theme.card_qss())
-        readout_w.setFixedWidth(272)
+        readout_w.setFixedWidth(316)   # 272 was too narrow once the specimen
+        # pill gained its sex breakdown -- 'Spec. 12 (F1 +11)' clipped.
         readout_w.setFixedHeight(_BANNER_H)
         outer.addWidget(readout_w, 0, Qt.AlignmentFlag.AlignTop)
         outer.addWidget(self._build_workbook_card(), 0, Qt.AlignmentFlag.AlignTop)
@@ -712,9 +734,36 @@ class InfoPanel(QWidget):
         ct = f"Comm. {c}" + (f" (+{pc})" if pc else "")
         tip = ("Committed records in Observatum. Any bracketed figure is rows still "
                "in Data Entry staging, across every open workbook.")
-        pills = [self._pill(pt), self._pill(ct), self._pill(f"Spec. {s}")]
+
+        # Specimens held, with the sex breakdown where any has been recorded.
+        # The bracket is omitted entirely when nothing is sexed -- saying
+        # "7 unsexed" adds nothing the total does not already give.
+        male = female = other = 0
+        st = f"Spec. {s}"
+        try:
+            from shared.sex_summary import format_sex_summary
+            male, female, other = self._svc.specimen_sexes(tvk)
+            summary = format_sex_summary(male, female, other)
+            if summary:
+                st = f"Spec. {s} ({summary})"
+        except (ImportError, AttributeError):
+            pass
+
+        spec_pill = self._pill(st)
+        if male or female:
+            spec_pill.setToolTip(
+                f"{s} specimen(s) held \u2014 {male} male, {female} female"
+                + (f", {other} not yet sexed" if other else "")
+                + ".\nFrom the Insect Collection.")
+        else:
+            spec_pill.setToolTip(
+                f"{s} specimen(s) held in the Insect Collection."
+                + (" None sexed yet." if s else ""))
+
+        pills = [self._pill(pt), self._pill(ct)]
         for w in pills:
             w.setToolTip(tip)
+        pills.append(spec_pill)
         self._pills_row.set_items(pills)
 
     def refresh_counts(self):

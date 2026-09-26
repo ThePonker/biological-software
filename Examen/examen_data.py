@@ -1,47 +1,63 @@
 """
-Site Register — Data Layer (v3 — mode-aware, fixed Pantheon routing)
+Examen — Data Layer (v5)
 
-Uses the same PANTHEON_GB_STATUS_MAP as CodexRepository for consistent
-Pantheon-only mode results across all tools.
+Queries observatum.db for commercial sites, projects, pooled species lists and
+accumulation curves. Conservation enrichment and SQI are delegated to
+CodexRepository; Pantheon ecology to PantheonRepository. This module owns no
+conservation rules of its own.
+
+v5 changes (Session 32)
+-----------------------
+SURVEY YEAR is now a first-class grouping. load_all_projects(by_year=True)
+returns one row per project per survey year; by_year=False pools every year into
+one row, as before.
+
+Why it matters. Bicester Graven Hill is two surveys under one project name --
+2023 (367 species, synced to iRecord) and 2025 (254 species, embargoed). Pooled,
+they make a 519-species list that corresponds to no report. The 2025 report's
+headline of 433 species turns out to be the cumulative 2023+2025 list, submitted
+to Pantheon with every date restamped into the 2025 window because the tool
+needed a single date range. Making the year explicit removes the reason for that.
+
+v4 changes (retained)
+---------------------
+  - Optional date_from / date_to on every loader (ISO 'YYYY-MM-DD').
+  - PANTHEON_GB_STATUS_MAP and _classify_tier DELETED. Both duplicated
+    CodexRepository, and _classify_tier had drifted (RDB3/RDBK scarce here,
+    treated differently there), so the two analysis modes classified by
+    different rules. PANTHEON_ONLY now routes through
+    CodexRepository.get_statuses_batch(tvks, PANTHEON_ONLY), which is correct
+    and jurisdiction-aware.
+  - The SQI arithmetic appeared in FOUR places. It is now one call to
+    CodexRepository.compute_sqi.
+  - Ecology lookups were one query per TVK -- over 1,500 round trips for a
+    large project. Now batched via PantheonRepository.
+  - Key-species percentage settled on TOTAL SPECIES RECORDED as the
+    denominator, matching Wil's own reports ("34 ... equates to 7.8% of the
+    species from the survey" = 34/433).
 """
 
 import sqlite3
 import sys; sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.parent))
 import paths
-from pathlib import Path
 from dataclasses import dataclass, field
-from enum import Enum
+
+try:
+    from shared.repositories.codex_repository import CodexRepository, AnalysisMode
+    from shared.repositories.pantheon_repository import PantheonRepository
+except ImportError:  # standalone / older layout
+    from src.repositories.codex_repository import CodexRepository, AnalysisMode
+    from src.repositories.pantheon_repository import PantheonRepository
 
 
 DB_PATH = paths.OBSERVATUM_DB
-CODEX_PATH = paths.CODEX_DB
-PANTHEON_PATH = paths.PANTHEON_DB
 
-# Mirror of CodexRepository mapping — keep in sync
-PANTHEON_GB_STATUS_MAP = {
-    "NR": ("gb_rarity", "NR"), "(NR)": ("gb_rarity", "NR"),
-    "NR (marine)": ("gb_rarity", "NR"),
-    "NS": ("gb_rarity", "NS"), "(NS)": ("gb_rarity", "NS"),
-    "NS (marine)": ("gb_rarity", "NS"),
-    "Na": ("gb_rarity_legacy", "Na"),
-    "Nb": ("gb_rarity_legacy", "Nb"),
-    "Notable": ("gb_rarity_legacy", "Notable"),
-    "RDB 1": ("gb_red_list_legacy", "RDB1"),
-    "RDB 2": ("gb_red_list_legacy", "RDB2"),
-    "RDB 3": ("gb_red_list_legacy", "RDB3"),
-    "RDB K": ("gb_red_list_legacy", "RDBK"),
-    "RDB I": ("gb_red_list_legacy", "RDBK"),
-    "pRDB 1": ("gb_red_list_legacy", "RDB1"),
-    "pRDB 2": ("gb_red_list_legacy", "RDB2"),
-    "pRDB 3": ("gb_red_list_legacy", "RDB3"),
-    "Extinct": ("gb_red_list_legacy", "EX"),
-}
+POOLED = ""     # survey_year value meaning "all years pooled"
 
 
-class AnalysisMode(Enum):
-    CODEX_FULL = "codex_full"
-    PANTHEON_ONLY = "pantheon_only"
-
+# ============================================================
+# Dataclasses (shapes unchanged -- views depend on these)
+# ============================================================
 
 @dataclass
 class SiteRecord:
@@ -64,6 +80,7 @@ class SiteRecord:
     last_date: str = ""
     accumulation: list = field(default_factory=list)
     mode: str = "codex_full"
+    survey_year: str = POOLED
 
 
 @dataclass
@@ -89,7 +106,7 @@ class SiteDetail:
 
 @dataclass
 class ProjectRecord:
-    """One row per project+client — pools all sites."""
+    """One project. With by_year=True, one row per survey year."""
     project_name: str
     client: str = ""
     site_count: int = 0
@@ -108,541 +125,432 @@ class ProjectRecord:
     first_date: str = ""
     last_date: str = ""
     mode: str = "codex_full"
+    survey_year: str = POOLED
 
-
-def load_all_sites(mode=AnalysisMode.CODEX_FULL):
-    if not DB_PATH.exists():
-        return []
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.execute("PRAGMA query_only = ON")
-    c = conn.cursor()
-    c.execute("PRAGMA table_info(observations)")
-    cols = [r[1] for r in c.fetchall()]
-    if "record_type" not in cols:
-        conn.close()
-        return []
-    c.execute("""
-        SELECT site_name, project_name, client,
-               COUNT(*), COUNT(DISTINCT species_name),
-               COUNT(DISTINCT date), MIN(date), MAX(date)
-        FROM observations
-        WHERE record_type = 'Commercial'
-          AND site_name IS NOT NULL AND site_name != ''
-        GROUP BY site_name, project_name ORDER BY site_name
-    """)
-    sites = []
-    for row in c.fetchall():
-        sites.append(SiteRecord(
-            site_name=row[0], project_name=row[1] or "",
-            client=row[2] or "", record_count=row[3],
-            species_count=row[4], visit_count=row[5],
-            first_date=row[6] or "", last_date=row[7] or "",
-            mode=mode.value))
-    conn.close()
-    _enrich_sites(sites, mode)
-    return sites
-
-
-def load_site_detail(site_name, project_name="", mode=AnalysisMode.CODEX_FULL):
-    if not DB_PATH.exists():
-        return None
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.execute("PRAGMA query_only = ON")
-    c = conn.cursor()
-    where = "record_type = 'Commercial' AND site_name = ?"
-    params = [site_name]
-    if project_name:
-        where += " AND project_name = ?"
-        params.append(project_name)
-
-    c.execute(f"""SELECT site_name, project_name, client,
-                         COUNT(*), COUNT(DISTINCT species_name),
-                         COUNT(DISTINCT date), MIN(date), MAX(date)
-                  FROM observations WHERE {where}""", params)
-    row = c.fetchone()
-    if not row or not row[0]:
-        conn.close()
-        return None
-
-    site = SiteRecord(
-        site_name=row[0], project_name=row[1] or "", client=row[2] or "",
-        record_count=row[3], species_count=row[4], visit_count=row[5],
-        first_date=row[6] or "", last_date=row[7] or "", mode=mode.value)
-
-    c.execute(f"""SELECT species_name, species_tvk, COUNT(*) FROM observations
-                  WHERE {where} AND species_name IS NOT NULL
-                  GROUP BY species_name, species_tvk ORDER BY species_name""", params)
-    species_rows = c.fetchall()
-
-    c.execute(f"""SELECT date, species_name FROM observations
-                  WHERE {where} AND date IS NOT NULL AND species_name IS NOT NULL
-                  ORDER BY date""", params)
-    seen = set()
-    accum_by_date = {}
-    for date, sp in c.fetchall():
-        seen.add(sp)
-        accum_by_date[date] = len(seen)
-    site.visit_dates = sorted(accum_by_date.keys())
-    site.accumulation = [(d, accum_by_date[d]) for d in site.visit_dates]
-    conn.close()
-
-    detail = SiteDetail(site=site)
-    tvk_map = {row[1]: (row[0], row[2]) for row in species_rows if row[1]}
-    tvks = list(tvk_map.keys())
-
-    if mode == AnalysisMode.PANTHEON_ONLY:
-        enrichment = _load_pantheon_only_data(tvks)
-    else:
-        enrichment = _load_codex_data(tvks)
-    pantheon_eco = _load_pantheon_ecology(tvks)
-
-    sqs_total = sqs_count = 0
-    for tvk in tvks:
-        name, count = tvk_map[tvk]
-        cd = enrichment.get(tvk, {})
-        pd = pantheon_eco.get(tvk, {})
-        sqs = cd.get("sqs", 0)
-        if sqs:
-            sqs_total += sqs
-            sqs_count += 1
-        detail.species_list.append(SiteSpecies(
-            name=name, tvk=tvk, count=count, sqs=sqs,
-            status=cd.get("short_status", ""), tier=cd.get("tier", ""),
-            broad_biotope=pd.get("biotope", ""), habitat=pd.get("habitat", "")))
-        for b in pd.get("biotopes", []):
-            detail.biotope_counts[b] = detail.biotope_counts.get(b, 0) + 1
-        for h in pd.get("habitats", []):
-            detail.habitat_counts[h] = detail.habitat_counts.get(h, 0) + 1
-
-    if sqs_count > 0:
-        site.sqi = round(sqs_total / sqs_count * 100)
-        site.sqi_reliable = sqs_count >= 15
-        site.species_with_sqs = sqs_count
-
-    key = [s for s in detail.species_list if s.tier]
-    site.key_species_count = len(key)
-    site.rare_count = sum(1 for s in key if s.tier == "Rare")
-    site.scarce_count = sum(1 for s in key if s.tier == "Scarce")
-    site.priority_count = sum(1 for s in key if s.tier == "Priority")
-    if site.species_count > 0:
-        site.key_species_pct = round(len(key) / site.species_count * 100, 1)
-
-    detail.species_list.sort(key=lambda s: (-s.sqs if s.tier else 0, s.name))
-    for row in species_rows:
-        if not row[1]:
-            detail.species_list.append(SiteSpecies(name=row[0], tvk="", count=row[2]))
-    return detail
+    @property
+    def display_name(self):
+        return (f"{self.project_name} \u2014 {self.survey_year}"
+                if self.survey_year else self.project_name)
 
 
 # ============================================================
-# Project-level queries (pools all sites in a project)
+# Scoping
 # ============================================================
 
-def load_all_projects(mode=AnalysisMode.CODEX_FULL):
-    """Load commercial projects grouped by project_name + client."""
+def _scope(date_from=None, date_to=None, survey_year=None):
+    """SQL fragment + params for a date window and/or a survey year.
+
+    Dates are ISO throughout observatum.db, so both string comparison and
+    substr(date,1,4) behave. Any argument may be omitted.
+    """
+    clause, params = "", []
+    if survey_year:
+        clause += " AND substr(date,1,4) = ?"
+        params.append(str(survey_year))
+    if date_from:
+        clause += " AND date >= ?"
+        params.append(date_from)
+    if date_to:
+        clause += " AND date <= ?"
+        params.append(date_to)
+    return clause, params
+
+
+def survey_years():
+    """Every survey year present in commercial records, newest first."""
     if not DB_PATH.exists():
         return []
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.execute("PRAGMA query_only = ON")
-    c = conn.cursor()
-    c.execute("PRAGMA table_info(observations)")
-    cols = [r[1] for r in c.fetchall()]
-    if "record_type" not in cols:
+    conn = _connect()
+    try:
+        return [r[0] for r in conn.execute(
+            """SELECT DISTINCT substr(date,1,4) FROM observations
+               WHERE record_type = 'Commercial' AND date IS NOT NULL
+                 AND date != '' ORDER BY 1 DESC""") if r[0]]
+    finally:
         conn.close()
-        return []
-    c.execute("""
-        SELECT project_name, client,
-               COUNT(DISTINCT site_name) as site_count,
-               COUNT(*) as records,
-               COUNT(DISTINCT species_name) as species,
-               COUNT(DISTINCT date) as visits,
-               MIN(date), MAX(date),
-               GROUP_CONCAT(DISTINCT site_name) as sites
-        FROM observations
-        WHERE record_type = 'Commercial'
-          AND project_name IS NOT NULL AND project_name != ''
-        GROUP BY project_name, client
-        ORDER BY project_name
-    """)
-    projects = []
-    for row in c.fetchall():
-        site_names = sorted(set(row[8].split(",") if row[8] else []))
-        projects.append(ProjectRecord(
-            project_name=row[0], client=row[1] or "",
-            site_count=row[2], record_count=row[3],
-            species_count=row[4], visit_count=row[5],
-            first_date=row[6] or "", last_date=row[7] or "",
-            site_names=site_names, mode=mode.value))
-    conn.close()
-    _enrich_projects(projects, mode)
-    return projects
 
 
-def load_project_detail(project_name, client="", mode=AnalysisMode.CODEX_FULL):
-    """Load all species across all sites in a project. Returns SiteDetail."""
+def date_range_available():
+    """(min_date, max_date) across all commercial records, for UI defaults."""
     if not DB_PATH.exists():
-        return None
+        return ("", "")
     conn = sqlite3.connect(str(DB_PATH))
     conn.execute("PRAGMA query_only = ON")
-    c = conn.cursor()
-    where = "record_type = 'Commercial' AND project_name = ?"
-    params = [project_name]
-    if client:
-        where += " AND client = ?"
-        params.append(client)
-
-    c.execute(f"""SELECT project_name, client,
-                         COUNT(*), COUNT(DISTINCT species_name),
-                         COUNT(DISTINCT date), MIN(date), MAX(date),
-                         COUNT(DISTINCT site_name)
-                  FROM observations WHERE {where}""", params)
-    row = c.fetchone()
-    if not row or not row[0]:
+    try:
+        row = conn.execute(
+            "SELECT MIN(date), MAX(date) FROM observations "
+            "WHERE record_type = 'Commercial' AND date IS NOT NULL").fetchone()
+        return (row[0] or "", row[1] or "")
+    finally:
         conn.close()
-        return None
-
-    # Use SiteRecord to hold project-level summary (compatible with existing code)
-    site = SiteRecord(
-        site_name=row[0], project_name=row[0], client=row[1] or "",
-        record_count=row[2], species_count=row[3], visit_count=row[4],
-        first_date=row[5] or "", last_date=row[6] or "", mode=mode.value)
-
-    # Pool all species across all sites
-    c.execute(f"""SELECT species_name, species_tvk, COUNT(*) FROM observations
-                  WHERE {where} AND species_name IS NOT NULL
-                  GROUP BY species_name, species_tvk ORDER BY species_name""", params)
-    species_rows = c.fetchall()
-
-    # Accumulation across project
-    c.execute(f"""SELECT date, species_name FROM observations
-                  WHERE {where} AND date IS NOT NULL AND species_name IS NOT NULL
-                  ORDER BY date""", params)
-    seen = set()
-    accum_by_date = {}
-    for date, sp in c.fetchall():
-        seen.add(sp)
-        accum_by_date[date] = len(seen)
-    site.visit_dates = sorted(accum_by_date.keys())
-    site.accumulation = [(d, accum_by_date[d]) for d in site.visit_dates]
-    conn.close()
-
-    detail = SiteDetail(site=site)
-    tvk_map = {row[1]: (row[0], row[2]) for row in species_rows if row[1]}
-    tvks = list(tvk_map.keys())
-
-    enrichment = (_load_pantheon_only_data(tvks) if mode == AnalysisMode.PANTHEON_ONLY
-                  else _load_codex_data(tvks))
-    pantheon_eco = _load_pantheon_ecology(tvks)
-
-    sqs_total = sqs_count = 0
-    for tvk in tvks:
-        name, count = tvk_map[tvk]
-        cd = enrichment.get(tvk, {})
-        pd = pantheon_eco.get(tvk, {})
-        sqs = cd.get("sqs", 0)
-        if sqs:
-            sqs_total += sqs
-            sqs_count += 1
-        detail.species_list.append(SiteSpecies(
-            name=name, tvk=tvk, count=count, sqs=sqs,
-            status=cd.get("short_status", ""), tier=cd.get("tier", ""),
-            broad_biotope=pd.get("biotope", ""), habitat=pd.get("habitat", "")))
-        for b in pd.get("biotopes", []):
-            detail.biotope_counts[b] = detail.biotope_counts.get(b, 0) + 1
-        for h in pd.get("habitats", []):
-            detail.habitat_counts[h] = detail.habitat_counts.get(h, 0) + 1
-
-    if sqs_count > 0:
-        site.sqi = round(sqs_total / sqs_count * 100)
-        site.sqi_reliable = sqs_count >= 15
-        site.species_with_sqs = sqs_count
-
-    key = [s for s in detail.species_list if s.tier]
-    site.key_species_count = len(key)
-    site.rare_count = sum(1 for s in key if s.tier == "Rare")
-    site.scarce_count = sum(1 for s in key if s.tier == "Scarce")
-    site.priority_count = sum(1 for s in key if s.tier == "Priority")
-    if site.species_count > 0:
-        site.key_species_pct = round(len(key) / site.species_count * 100, 1)
-
-    detail.species_list.sort(key=lambda s: (-s.sqs if s.tier else 0, s.name))
-    for row in species_rows:
-        if not row[1]:
-            detail.species_list.append(SiteSpecies(name=row[0], tvk="", count=row[2]))
-    return detail
 
 
-def _enrich_projects(projects, mode):
-    """Enrich project records with SQI and key species from pooled species."""
+def _connect():
     conn = sqlite3.connect(str(DB_PATH))
     conn.execute("PRAGMA query_only = ON")
-    c = conn.cursor()
-    for proj in projects:
-        where = "record_type = 'Commercial' AND project_name = ?"
-        params = [proj.project_name]
-        if proj.client:
-            where += " AND client = ?"
-            params.append(proj.client)
-        c.execute(f"""SELECT DISTINCT species_tvk FROM observations
-                      WHERE {where} AND species_tvk IS NOT NULL AND species_tvk != ''""", params)
-        tvks = [r[0] for r in c.fetchall()]
-        if not tvks:
-            continue
-        enrichment = (_load_pantheon_only_data(tvks) if mode == AnalysisMode.PANTHEON_ONLY
-                      else _load_codex_data(tvks))
-        sqs_total = sqs_count = key_count = rare = scarce = priority = 0
-        for tvk in tvks:
-            cd = enrichment.get(tvk, {})
-            sqs = cd.get("sqs", 0)
-            if sqs:
-                sqs_total += sqs
-                sqs_count += 1
-            tier = cd.get("tier", "")
-            if tier:
-                key_count += 1
-                if tier == "Rare": rare += 1
-                elif tier == "Scarce": scarce += 1
-                elif tier == "Priority": priority += 1
-        if sqs_count > 0:
-            proj.sqi = round(sqs_total / sqs_count * 100)
-            proj.sqi_reliable = sqs_count >= 15
-            proj.species_with_sqs = sqs_count
-        proj.key_species_count = key_count
-        proj.rare_count = rare
-        proj.scarce_count = scarce
-        proj.priority_count = priority
-        if proj.species_count > 0:
-            proj.key_species_pct = round(key_count / proj.species_count * 100, 1)
-    conn.close()
+    return conn
+
+
+def _has_record_type(conn):
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(observations)")]
+    return "record_type" in cols
 
 
 # ============================================================
-# Codex-full
+# Enrichment -- one path, both modes
 # ============================================================
 
-def _tier_str(tier):
-    # CodexRepository returns a KeySpeciesTier enum; callers expect a string.
-    # Empty string for no tier, so `if species.tier` stays falsy for non-key
-    # species and `tier == "Rare"` continues to work.
-    if tier is None:
-        return ""
-    v = str(getattr(tier, "value", tier)).strip()
-    return "" if v.lower() in ("none", "") else v
+def _load_status_data(tvks, mode=AnalysisMode.CODEX_FULL):
+    """Conservation status + SQS per TVK, via CodexRepository.
 
+    Both CODEX_FULL and PANTHEON_ONLY go through the same repository call, so
+    the two modes cannot classify by different rules. Jurisdiction filtering
+    (England by default) is applied inside the repository.
 
-def _load_codex_data(tvks):
-    """Conservation enrichment from Codex, via the canonical repository.
-
-    Delegates to CodexRepository rather than querying codex.db directly. The
-    repository is 11-track aware and is what PantheonAnalysisService already
-    uses, so Examen and the analysis service cannot disagree.
-
-    Returns {tvk: {"sqs": int, "short_status": str, "tier": str}} -- the same
-    shape as before, so callers are unaffected.
+    Returns {tvk: {"sqs": int, "short_status": str, "tier": str}}.
     """
     if not tvks:
         return {}
     try:
-        from shared.repositories.codex_repository import CodexRepository
-    except ImportError:
-        try:
-            from src.repositories.codex_repository import CodexRepository
-        except ImportError as e:
-            print(f"[examen_data] CodexRepository unavailable: {e}")
-            return {}
-
-    try:
         repo = CodexRepository()
-        statuses = repo.get_statuses_batch(tvks)
-        scores = repo.get_sqs_scores(tvks)
-    except Exception as e:
-        print(f"[examen_data] Codex enrichment failed: {e}")
+        statuses = repo.get_statuses_batch(tvks, mode)
+        scores = repo.get_sqs_scores(tvks, mode)
+    except Exception as e:  # noqa: BLE001 -- degrade to unenriched, but say so
+        print(f"[examen_data] enrichment failed: {e}")
         return {}
 
     result = {}
     for tvk in tvks:
         st = statuses.get(tvk)
+        tier = getattr(st, "tier", None) if st else None
+        tier_s = str(getattr(tier, "value", tier or "")).strip()
         result[tvk] = {
             "sqs": scores.get(tvk, 0) or 0,
-            "short_status": getattr(st, "short_status", "") or "" if st else "",
-            "tier": _tier_str(getattr(st, "tier", None)) if st else "",
+            "short_status": (getattr(st, "short_status", "") or "") if st else "",
+            "tier": "" if tier_s.lower() in ("none", "") else tier_s,
         }
     return result
 
 
-# ============================================================
-# Pantheon-only (fixed routing)
-# ============================================================
-
-def _load_pantheon_only_data(tvks):
-    if not tvks or not PANTHEON_PATH.exists():
-        return {}
-    pan = sqlite3.connect(str(PANTHEON_PATH))
-    pc = pan.cursor()
-    result = {}
-
-    for tvk in tvks:
-        pc.execute("SELECT sqs FROM sqs_scores WHERE tvk = ?", (tvk,))
-        r = pc.fetchone()
-        sqs = r[0] if r else 0
-
-        # Parse GB Status + GB Red List + Section 41
-        pc.execute("""SELECT reporting_category, abbreviation
-                      FROM conservation_status WHERE tvk = ?""", (tvk,))
-
-        gb_rarity = ""
-        gb_rarity_legacy = ""
-        gb_red_list = ""
-        gb_red_list_legacy = ""
-        section41 = False
-        legal = False
-
-        for cat, abbr in pc.fetchall():
-            if cat == "GB Status":
-                mapping = PANTHEON_GB_STATUS_MAP.get(abbr)
-                if mapping:
-                    track, value = mapping
-                    if track == "gb_rarity" and not gb_rarity:
-                        gb_rarity = value
-                    elif track == "gb_rarity_legacy" and not gb_rarity_legacy:
-                        gb_rarity_legacy = value
-                    elif track == "gb_red_list_legacy" and not gb_red_list_legacy:
-                        gb_red_list_legacy = value
-            elif cat == "GB Red List":
-                if abbr not in ("None", "Unknown", "Not reviewed"):
-                    gb_red_list = abbr
-            elif "Section 41" in cat:
-                section41 = True
-            elif cat == "Legal Protection":
-                legal = True
-
-        # Classify
-        tracks = {}
-        if gb_rarity:
-            tracks["gb_rarity"] = gb_rarity
-        if gb_rarity_legacy:
-            tracks["gb_rarity_legacy"] = gb_rarity_legacy
-        if gb_red_list:
-            tracks["gb_red_list"] = gb_red_list
-        if gb_red_list_legacy:
-            tracks["gb_red_list_legacy"] = gb_red_list_legacy
-        if section41:
-            tracks["section_41"] = "England"
-        if legal:
-            tracks["legal_protection"] = "Yes"
-
-        tier = _classify_tier(tracks)
-
-        # Short status
-        short = gb_rarity or gb_rarity_legacy or ""
-        if not short:
-            if gb_red_list and gb_red_list not in ("LC", "NA", "NE"):
-                short = gb_red_list
-            elif gb_red_list_legacy:
-                short = gb_red_list_legacy
-            elif section41:
-                short = "S41"
-
-        result[tvk] = {"sqs": sqs, "short_status": short, "tier": tier}
-
-    pan.close()
-    return result
-
-
-# ============================================================
-# Pantheon ecology (mode-independent)
-# ============================================================
-
 def _load_pantheon_ecology(tvks):
-    if not tvks or not PANTHEON_PATH.exists():
+    """Biotopes and habitats per TVK, batched.
+
+    Previously one query per TVK -- over 1,500 round trips for a large project.
+    """
+    if not tvks:
         return {}
-    pan = sqlite3.connect(str(PANTHEON_PATH))
-    pc = pan.cursor()
+    try:
+        repo = PantheonRepository()
+        biotopes = repo.get_broad_biotopes(tvks)
+        habitats = repo.get_habitats(tvks)
+        sats = repo.get_sats(tvks)
+        repo.close()
+    except Exception as e:  # noqa: BLE001
+        print(f"[examen_data] Pantheon ecology unavailable: {e}")
+        return {}
+
     result = {}
     for tvk in tvks:
-        pc.execute("SELECT biotope FROM broad_biotope WHERE tvk = ?", (tvk,))
-        biotopes = [r[0] for r in pc.fetchall()]
-        pc.execute("SELECT habitat FROM habitats WHERE tvk = ?", (tvk,))
-        habitats = [r[0] for r in pc.fetchall()]
-        result[tvk] = {"biotope": ", ".join(biotopes[:2]),
-                       "habitat": ", ".join(habitats[:2]),
-                       "biotopes": biotopes, "habitats": habitats}
-    pan.close()
+        b = biotopes.get(tvk, [])
+        h = habitats.get(tvk, [])
+        result[tvk] = {
+            "biotope": ", ".join(b[:2]),
+            "habitat": ", ".join(h[:2]),
+            "biotopes": b,
+            "habitats": h,
+            "sats": sats.get(tvk, []),
+        }
     return result
 
 
-# ============================================================
-# Site enrichment
-# ============================================================
+def _apply_metrics(record, tvks, species_list, mode):
+    """Fill SQI and key-species counts on a SiteRecord / ProjectRecord.
 
-def _enrich_sites(sites, mode):
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.execute("PRAGMA query_only = ON")
-    c = conn.cursor()
-    for site in sites:
-        where = "record_type = 'Commercial' AND site_name = ?"
-        params = [site.site_name]
-        if site.project_name:
-            where += " AND project_name = ?"
-            params.append(site.project_name)
-        c.execute(f"""SELECT DISTINCT species_tvk FROM observations
-                      WHERE {where} AND species_tvk IS NOT NULL AND species_tvk != ''""", params)
-        tvks = [r[0] for r in c.fetchall()]
-        if not tvks:
-            continue
-        enrichment = (_load_pantheon_only_data(tvks) if mode == AnalysisMode.PANTHEON_ONLY
-                      else _load_codex_data(tvks))
-        sqs_total = sqs_count = key_count = rare = scarce = priority = 0
-        for tvk in tvks:
-            cd = enrichment.get(tvk, {})
-            sqs = cd.get("sqs", 0)
-            if sqs:
-                sqs_total += sqs
-                sqs_count += 1
-            tier = cd.get("tier", "")
-            if tier:
-                key_count += 1
-                if tier == "Rare": rare += 1
-                elif tier == "Scarce": scarce += 1
-                elif tier == "Priority": priority += 1
-        if sqs_count > 0:
-            site.sqi = round(sqs_total / sqs_count * 100)
-            site.sqi_reliable = sqs_count >= 15
-            site.species_with_sqs = sqs_count
-        site.key_species_count = key_count
-        site.rare_count = rare
-        site.scarce_count = scarce
-        site.priority_count = priority
-        if site.species_count > 0:
-            site.key_species_pct = round(key_count / site.species_count * 100, 1)
-    conn.close()
+    The single place the SQI is computed -- it previously appeared in four.
+    CodexRepository.compute_sqi owns the arithmetic and the 15-species
+    reliability threshold.
+    """
+    if tvks:
+        try:
+            sqi = CodexRepository().compute_sqi(tvks, mode)
+            record.sqi = sqi["sqi"]
+            record.sqi_reliable = sqi["reliable"]
+            record.species_with_sqs = sqi["scoring_species"]
+        except Exception as e:  # noqa: BLE001
+            print(f"[examen_data] SQI failed: {e}")
+
+    key = [s for s in species_list if s.tier]
+    record.key_species_count = len(key)
+    record.rare_count = sum(1 for s in key if s.tier == "Rare")
+    record.scarce_count = sum(1 for s in key if s.tier == "Scarce")
+    record.priority_count = sum(1 for s in key if s.tier == "Priority")
+    # Denominator is total species recorded, matching Wil's reports:
+    # "34 ... equates to 7.8% of the species from the survey" = 34/433.
+    if record.species_count > 0:
+        record.key_species_pct = round(len(key) / record.species_count * 100, 1)
 
 
+def _build_species_list(species_rows, mode):
+    """(species_list, biotope_counts, habitat_counts, tvks) from grouped rows."""
+    tvk_map = {r[1]: (r[0], r[2]) for r in species_rows if r[1]}
+    tvks = list(tvk_map)
+    enrichment = _load_status_data(tvks, mode)
+    ecology = _load_pantheon_ecology(tvks)
+
+    species_list, biotope_counts, habitat_counts = [], {}, {}
+    for tvk in tvks:
+        name, count = tvk_map[tvk]
+        cd = enrichment.get(tvk, {})
+        pd = ecology.get(tvk, {})
+        species_list.append(SiteSpecies(
+            name=name, tvk=tvk, count=count, sqs=cd.get("sqs", 0),
+            status=cd.get("short_status", ""), tier=cd.get("tier", ""),
+            broad_biotope=pd.get("biotope", ""), habitat=pd.get("habitat", "")))
+        for b in pd.get("biotopes", []):
+            biotope_counts[b] = biotope_counts.get(b, 0) + 1
+        for h in pd.get("habitats", []):
+            habitat_counts[h] = habitat_counts.get(h, 0) + 1
+
+    species_list.sort(key=lambda s: (-s.sqs if s.tier else 0, s.name))
+    # Species with no TVK cannot be analysed; they are listed last so the
+    # exclusion is visible rather than silent.
+    for r in species_rows:
+        if not r[1]:
+            species_list.append(SiteSpecies(name=r[0], tvk="", count=r[2]))
+    return species_list, biotope_counts, habitat_counts, tvks
+
+
+def _accumulation(conn, where, params):
+    """Species-accumulation curve by date."""
+    seen, by_date = set(), {}
+    for date, sp in conn.execute(
+            f"""SELECT date, species_name FROM observations
+                WHERE {where} AND date IS NOT NULL AND species_name IS NOT NULL
+                ORDER BY date""", params):
+        seen.add(sp)
+        by_date[date] = len(seen)
+    dates = sorted(by_date)
+    return dates, [(d, by_date[d]) for d in dates]
+
+
 # ============================================================
-# Tier classification (mirrors CodexRepository)
+# Sites
 # ============================================================
 
-def _classify_tier(tracks):
-    is_rare = is_scarce = is_priority = False
-    rl = tracks.get("gb_red_list", "")
-    if rl in ("CR", "EN", "VU", "DD", "EX", "RE"):
-        is_rare = True
-    elif rl == "NT":
-        is_scarce = True
-    if tracks.get("gb_rarity") == "NR":
-        is_rare = True
-    elif tracks.get("gb_rarity") == "NS":
-        is_scarce = True
-    legacy_rl = tracks.get("gb_red_list_legacy", "")
-    if legacy_rl in ("RDB1", "RDB2"):
-        is_rare = True
-    elif legacy_rl in ("RDB3", "RDBK"):
-        is_scarce = True
-    if tracks.get("gb_rarity_legacy") in ("Na", "Nb", "Notable", "Spider-Amber"):
-        is_scarce = True
-    if tracks.get("section_41") or tracks.get("legal_protection"):
-        is_priority = True
-    if is_rare: return "Rare"
-    if is_scarce: return "Scarce"
-    if is_priority: return "Priority"
-    return ""
+def load_all_sites(mode=AnalysisMode.CODEX_FULL, date_from=None, date_to=None,
+                   survey_year=None):
+    if not DB_PATH.exists():
+        return []
+    conn = _connect()
+    try:
+        if not _has_record_type(conn):
+            return []
+        sc, sp = _scope(date_from, date_to, survey_year)
+        rows = conn.execute(f"""
+            SELECT site_name, project_name, client,
+                   COUNT(*), COUNT(DISTINCT species_name),
+                   COUNT(DISTINCT date), MIN(date), MAX(date)
+            FROM observations
+            WHERE record_type = 'Commercial'
+              AND site_name IS NOT NULL AND site_name != ''{sc}
+            GROUP BY site_name, project_name ORDER BY site_name""", sp).fetchall()
+    finally:
+        conn.close()
+
+    sites = [SiteRecord(
+        site_name=r[0], project_name=r[1] or "", client=r[2] or "",
+        record_count=r[3], species_count=r[4], visit_count=r[5],
+        first_date=r[6] or "", last_date=r[7] or "", mode=mode.value,
+        survey_year=str(survey_year or POOLED)) for r in rows]
+    _enrich_sites(sites, mode, date_from, date_to, survey_year)
+    return sites
+
+
+def load_site_detail(site_name, project_name="", mode=AnalysisMode.CODEX_FULL,
+                     date_from=None, date_to=None, survey_year=None):
+    if not DB_PATH.exists():
+        return None
+    sc, sp = _scope(date_from, date_to, survey_year)
+    where = "record_type = 'Commercial' AND site_name = ?"
+    params = [site_name]
+    if project_name:
+        where += " AND project_name = ?"
+        params.append(project_name)
+    where += sc
+    params += sp
+
+    conn = _connect()
+    try:
+        row = conn.execute(
+            f"""SELECT site_name, project_name, client,
+                       COUNT(*), COUNT(DISTINCT species_name),
+                       COUNT(DISTINCT date), MIN(date), MAX(date)
+                FROM observations WHERE {where}""", params).fetchone()
+        if not row or not row[0]:
+            return None
+        site = SiteRecord(
+            site_name=row[0], project_name=row[1] or "", client=row[2] or "",
+            record_count=row[3], species_count=row[4], visit_count=row[5],
+            first_date=row[6] or "", last_date=row[7] or "", mode=mode.value,
+            survey_year=str(survey_year or POOLED))
+
+        species_rows = conn.execute(
+            f"""SELECT species_name, species_tvk, COUNT(*) FROM observations
+                WHERE {where} AND species_name IS NOT NULL
+                GROUP BY species_name, species_tvk ORDER BY species_name""",
+            params).fetchall()
+        site.visit_dates, site.accumulation = _accumulation(conn, where, params)
+    finally:
+        conn.close()
+
+    species_list, bio, hab, tvks = _build_species_list(species_rows, mode)
+    detail = SiteDetail(site=site, species_list=species_list,
+                        biotope_counts=bio, habitat_counts=hab)
+    _apply_metrics(site, tvks, species_list, mode)
+    return detail
+
+
+def _enrich_sites(sites, mode, date_from=None, date_to=None, survey_year=None):
+    sc, sp = _scope(date_from, date_to, survey_year)
+    conn = _connect()
+    try:
+        for site in sites:
+            where = "record_type = 'Commercial' AND site_name = ?"
+            params = [site.site_name]
+            if site.project_name:
+                where += " AND project_name = ?"
+                params.append(site.project_name)
+            tvks = [r[0] for r in conn.execute(
+                f"""SELECT DISTINCT species_tvk FROM observations WHERE {where}{sc}
+                    AND species_tvk IS NOT NULL AND species_tvk != ''""",
+                params + sp)]
+            if not tvks:
+                continue
+            enrichment = _load_status_data(tvks, mode)
+            stub = [SiteSpecies(name="", tvk=t,
+                                tier=enrichment.get(t, {}).get("tier", ""))
+                    for t in tvks]
+            _apply_metrics(site, tvks, stub, mode)
+    finally:
+        conn.close()
+
+
+# ============================================================
+# Projects
+# ============================================================
+
+def load_all_projects(mode=AnalysisMode.CODEX_FULL, date_from=None, date_to=None,
+                      by_year=True):
+    """Commercial projects, one row per survey year by default.
+
+    by_year=True   one row per project per year -- a survey, which is what a
+                   report covers
+    by_year=False  one row per project, all years pooled
+
+    A project may span several surveys: Bicester Graven Hill holds 2023 and 2025
+    under one name, and pooling them produces a species list that corresponds to
+    no report.
+    """
+    if not DB_PATH.exists():
+        return []
+    conn = _connect()
+    try:
+        if not _has_record_type(conn):
+            return []
+        sc, sp = _scope(date_from, date_to)
+        year_sel = "substr(date,1,4)" if by_year else "''"
+        year_grp = ", substr(date,1,4)" if by_year else ""
+        rows = conn.execute(f"""
+            SELECT project_name, client, {year_sel},
+                   COUNT(DISTINCT site_name), COUNT(*),
+                   COUNT(DISTINCT species_name), COUNT(DISTINCT date),
+                   MIN(date), MAX(date),
+                   GROUP_CONCAT(DISTINCT site_name)
+            FROM observations
+            WHERE record_type = 'Commercial'
+              AND project_name IS NOT NULL AND project_name != ''{sc}
+            GROUP BY project_name, client{year_grp}
+            ORDER BY project_name, 3 DESC""", sp).fetchall()
+    finally:
+        conn.close()
+
+    projects = [ProjectRecord(
+        project_name=r[0], client=r[1] or "", survey_year=r[2] or POOLED,
+        site_count=r[3], record_count=r[4], species_count=r[5],
+        visit_count=r[6], first_date=r[7] or "", last_date=r[8] or "",
+        site_names=sorted(set(r[9].split(",") if r[9] else [])),
+        mode=mode.value) for r in rows]
+    _enrich_projects(projects, mode, date_from, date_to)
+    return projects
+
+
+def load_project_detail(project_name, client="", mode=AnalysisMode.CODEX_FULL,
+                        date_from=None, date_to=None, survey_year=None):
+    """All species across all sites in a project, scoped to a survey year."""
+    if not DB_PATH.exists():
+        return None
+    sc, sp = _scope(date_from, date_to, survey_year)
+    where = "record_type = 'Commercial' AND project_name = ?"
+    params = [project_name]
+    if client:
+        where += " AND client = ?"
+        params.append(client)
+    where += sc
+    params += sp
+
+    conn = _connect()
+    try:
+        row = conn.execute(
+            f"""SELECT project_name, client, COUNT(*),
+                       COUNT(DISTINCT species_name), COUNT(DISTINCT date),
+                       MIN(date), MAX(date), COUNT(DISTINCT site_name)
+                FROM observations WHERE {where}""", params).fetchone()
+        if not row or not row[0]:
+            return None
+        # SiteRecord doubles as the project summary -- the views expect it.
+        site = SiteRecord(
+            site_name=row[0], project_name=row[0], client=row[1] or "",
+            record_count=row[2], species_count=row[3], visit_count=row[4],
+            first_date=row[5] or "", last_date=row[6] or "", mode=mode.value,
+            survey_year=str(survey_year or POOLED))
+
+        species_rows = conn.execute(
+            f"""SELECT species_name, species_tvk, COUNT(*) FROM observations
+                WHERE {where} AND species_name IS NOT NULL
+                GROUP BY species_name, species_tvk ORDER BY species_name""",
+            params).fetchall()
+        site.visit_dates, site.accumulation = _accumulation(conn, where, params)
+    finally:
+        conn.close()
+
+    species_list, bio, hab, tvks = _build_species_list(species_rows, mode)
+    detail = SiteDetail(site=site, species_list=species_list,
+                        biotope_counts=bio, habitat_counts=hab)
+    _apply_metrics(site, tvks, species_list, mode)
+    return detail
+
+
+def _enrich_projects(projects, mode, date_from=None, date_to=None):
+    conn = _connect()
+    try:
+        for proj in projects:
+            # Each row carries its own survey year, so scope per row.
+            sc, sp = _scope(date_from, date_to, proj.survey_year or None)
+            where = "record_type = 'Commercial' AND project_name = ?"
+            params = [proj.project_name]
+            if proj.client:
+                where += " AND client = ?"
+                params.append(proj.client)
+            tvks = [r[0] for r in conn.execute(
+                f"""SELECT DISTINCT species_tvk FROM observations WHERE {where}{sc}
+                    AND species_tvk IS NOT NULL AND species_tvk != ''""",
+                params + sp)]
+            if not tvks:
+                continue
+            enrichment = _load_status_data(tvks, mode)
+            stub = [SiteSpecies(name="", tvk=t,
+                                tier=enrichment.get(t, {}).get("tier", ""))
+                    for t in tvks]
+            _apply_metrics(proj, tvks, stub, mode)
+    finally:
+        conn.close()

@@ -785,6 +785,48 @@ class AddSpecimenDialog(QDialog):
         
         self.accept()
     
+    def _add_taxonomy_keys(self, data: Dict[str, Any]):
+        """Set taxonomic_sort_key and superfamily from UKSI.
+
+        Without the sort key the specimen is invisible to the Insect Collection
+        sidebar, which filters on `taxonomic_sort_key IS NOT NULL`. 244
+        specimens were lost this way between March and September 2026 before
+        anyone noticed -- the tree simply reported fewer than the collection
+        held.
+
+        The key is the order's position from INSECT_ORDER_POSITION, times a
+        million, plus UKSI's sort_code: order first, taxonomic within it.
+        Orders not in that table take 99 and sort last, which is what the
+        sidebar does with them anyway.
+
+        Fails soft. A specimen saved without a sort key is recoverable by
+        scripts/backfill_sort_keys.py; one not saved at all is not.
+        """
+        tvk = data.get('species_tvk')
+        if not tvk:
+            return
+        try:
+            import sqlite3
+            import paths
+            from ...utils.constants import INSECT_ORDER_POSITION
+
+            conn = sqlite3.connect(f"file:{paths.UKSI_DB}?mode=ro", uri=True)
+            row = conn.execute(
+                "SELECT sort_code, superfamily FROM taxa WHERE tvk = ?", (tvk,)
+            ).fetchone()
+            conn.close()
+            if not row or row[0] is None:
+                return
+
+            sort_code, superfamily = int(row[0]), row[1]
+            order = (data.get('order_name') or '').strip()
+            position = INSECT_ORDER_POSITION.get(order, 99)
+            data['taxonomic_sort_key'] = position * 1000000 + sort_code
+            if superfamily and not data.get('superfamily'):
+                data['superfamily'] = superfamily
+        except Exception as e:  # noqa: BLE001
+            print(f"[AddSpecimen] taxonomy keys not set: {e}")
+
     def get_specimen_data(self) -> Dict[str, Any]:
         """
         Get the entered specimen data.
@@ -815,6 +857,7 @@ class AddSpecimenDialog(QDialog):
             data['common_name'] = self._selected_species.get('common_name')
             data['family'] = self._selected_species.get('family')
             data['order_name'] = self._selected_species.get('order')
+            self._add_taxonomy_keys(data)
         
         # Add vice county if available
         if self._vc_service and data['grid_ref']:

@@ -58,10 +58,21 @@ _CRITICAL = {
 _ENDANGERED = {"EN", "ENDANGERED"}
 _VULNERABLE = {"VU", "VULNERABLE"}
 
-# Not in the published lexicon, but Pantheon's practice and already present in
-# Codex as derived scores. Data Deficient means the species went through review
-# and could not be assessed -- not that it is common -- so Pantheon scores it as
-# rare. Near Threatened sits between common and scarce at 2.
+# Data Deficient and Near Threatened DO NOT elevate the score.
+#
+# Pantheon's scoring-systems page lists five criteria, and DD and NT appear in
+# them only as things a Nationally Scarce or Nationally Rare species may ALSO
+# be -- never as a qualification in their own right:
+#
+#   "Nationally Scarce species that do not qualify under any of the other
+#    criteria. They may be classed as IUCN Least Concern, Near Threatened, or
+#    Data Deficient, Not Evaluated, or Not Assessed."
+#
+# So a species that is DD or NT and nothing else scores 1, and one that is DD
+# AND Nationally Rare scores 8 because of the rarity, not the DD.
+#
+# These sets are retained for readability and for any caller that wants to
+# report the status; they take no part in the score. See patch_sqs_dd_nt.py.
 _DATA_DEFICIENT = {"DD", "DATA DEFICIENT"}
 _NEAR_THREATENED = {"NT", "NEAR THREATENED"}
 
@@ -102,10 +113,11 @@ def derive_sqs(rarity: Optional[str] = None,
     r, t, tl = _norm(rarity), _norm(threat), _norm(threat_legacy)
 
     rdb_confers_rare = tl in _RDB1 or tl in _RDB23 or tl in _RDB_KI or tl in _RDB_EXTINCT
-    is_dd = t in _DATA_DEFICIENT or tl in _DATA_DEFICIENT
-    is_nt = t in _NEAR_THREATENED or tl in _NEAR_THREATENED
     iucn_confers_listing = t in _CRITICAL or t in _ENDANGERED or t in _VULNERABLE
-    is_rare = r in _RARE or rdb_confers_rare or is_dd
+    # DD is deliberately NOT included: it qualifies a species for nothing on its
+    # own. A Data Deficient species that is also Nationally Rare still scores 8,
+    # through r in _RARE.
+    is_rare = r in _RARE or rdb_confers_rare
     is_scarce = r in _SCARCE
     is_notable = r in _NOTABLE
     listed = is_rare or is_scarce or is_notable or iucn_confers_listing
@@ -140,11 +152,10 @@ def derive_sqs(rarity: Optional[str] = None,
     if is_scarce or is_notable:
         return 4
 
-    # 2 -- Near Threatened, per Pantheon practice
-    if is_nt:
-        return 2
-
-    # 1 -- everything else that is native and neither rare nor scarce
+    # 1 -- everything else that is native and neither rare nor scarce.
+    #      This includes species that are only Near Threatened, Data Deficient,
+    #      Least Concern, Not Evaluated or Not Assessed: under Pantheon's rule
+    #      none of those qualifies a species for a higher score.
     return 1
 
 
@@ -163,4 +174,4 @@ def derive_from_tracks(tracks: Dict[str, str], native: bool = True) -> int:
     )
 
 
-VALID_SCORES = (0, 1, 2, 4, 8, 16, 32)
+VALID_SCORES = (0, 1, 4, 8, 16, 32)

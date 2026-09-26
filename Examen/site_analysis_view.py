@@ -10,7 +10,7 @@ import sqlite3
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QSplitter, QTableWidget, QTableWidgetItem, QHeaderView,
-    QTabWidget, QFileDialog, QMessageBox, QInputDialog,
+    QTabWidget, QFileDialog, QMessageBox, QInputDialog, QCheckBox,
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QColor
@@ -57,16 +57,31 @@ class SiteAnalysisView(QWidget):
         self._projects = []; self._mode = AnalysisMode.CODEX_FULL
         self._current_detail = None; self._current_result = None
         self._current_site_name = ""
+        self._current_project = None    # ProjectRecord; None for an imported list
+        self._pool_years = False    # False = one row per survey year
         self._setup_ui(); self._load_projects()
 
     def set_mode(self, mode):
         self._mode = mode; self._load_projects()
+
+    def _on_pool_toggled(self, on):
+        self._pool_years = on
+        self._load_projects()
 
     def _setup_ui(self):
         layout = QVBoxLayout(self); layout.setContentsMargins(8, 8, 8, 8); layout.setSpacing(6)
         toolbar = QHBoxLayout(); toolbar.setSpacing(8)
         title = QLabel("Commercial projects"); title.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
         title.setStyleSheet("color: " + TEXT_HEADING + ";"); toolbar.addWidget(title); toolbar.addStretch()
+        # A project may hold several surveys. One row per survey year is the
+        # default because that is what a report covers; pooling is a choice.
+        self.pool_chk = QCheckBox("Pool years")
+        self.pool_chk.setToolTip(
+            "Off: one row per survey year -- what a report covers.\n"
+            "On:  all years of a project combined into one list.")
+        self.pool_chk.toggled.connect(self._on_pool_toggled)
+        toolbar.addWidget(self.pool_chk)
+
         import_btn = QPushButton("Import List..."); import_btn.setStyleSheet(BTN_ACCENT)
         import_btn.clicked.connect(self._on_import); toolbar.addWidget(import_btn)
         refresh_btn = QPushButton("Refresh"); refresh_btn.setStyleSheet(BTN_ACCENT)
@@ -74,14 +89,22 @@ class SiteAnalysisView(QWidget):
         self.freeze_btn = QPushButton("Freeze"); self.freeze_btn.setStyleSheet(BTN_PRIMARY)
         self.freeze_btn.clicked.connect(self._on_freeze); self.freeze_btn.setEnabled(False); toolbar.addWidget(self.freeze_btn)
         self.appendix_btn = QPushButton("Export Appendix"); self.appendix_btn.setStyleSheet(BTN_OUTLINE)
+        self.appendix_btn.setToolTip("One sheet: the species list, for checking.")
         self.appendix_btn.clicked.connect(self._on_export_appendix); self.appendix_btn.setEnabled(False); toolbar.addWidget(self.appendix_btn)
+        self.workbook_btn = QPushButton("Export Workbook"); self.workbook_btn.setStyleSheet(BTN_PRIMARY)
+        self.workbook_btn.setToolTip(
+            "Seven sheets: summary, key species, full appendix, habitats,\n"
+            "assemblages, guilds and status definitions — with the stamp\n"
+            "recording what the figures were computed against.")
+        self.workbook_btn.clicked.connect(self._on_export_workbook)
+        self.workbook_btn.setEnabled(False); toolbar.addWidget(self.workbook_btn)
         export_btn = QPushButton("Export CSV"); export_btn.setStyleSheet(BTN_OUTLINE)
         export_btn.clicked.connect(self._export_csv); toolbar.addWidget(export_btn)
         layout.addLayout(toolbar)
 
         splitter = QSplitter(Qt.Orientation.Vertical)
-        self.table = QTableWidget(); self.table.setColumnCount(9)
-        self.table.setHorizontalHeaderLabels(["Project", "Client", "Sites", "Visits", "Species", "Key spp", "% Key", "SQI", "Dates"])
+        self.table = QTableWidget(); self.table.setColumnCount(10)
+        self.table.setHorizontalHeaderLabels(["Project", "Year", "Client", "Sites", "Visits", "Species", "Key spp", "% Key", "SQI", "Dates"])
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
@@ -111,40 +134,55 @@ class SiteAnalysisView(QWidget):
         layout.addWidget(self.summary_label)
 
     def _load_projects(self):
-        self._projects = load_all_projects(self._mode); self.table.setRowCount(len(self._projects))
+        self._projects = load_all_projects(self._mode,
+                                           by_year=not self._pool_years)
+        self.table.setRowCount(len(self._projects))
         self.freeze_btn.setEnabled(False); self.appendix_btn.setEnabled(False)
         self._current_detail = None; self._current_result = None; self.detail_tabs.hide()
         for i, p in enumerate(self._projects):
             self.table.setItem(i, 0, QTableWidgetItem(p.project_name))
-            self.table.setItem(i, 1, QTableWidgetItem(p.client))
+            yr = QTableWidgetItem(p.survey_year or "all")
+            yr.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            if not p.survey_year:
+                yr.setForeground(QColor(TEXT_MUTED))
+            self.table.setItem(i, 1, yr)
+            self.table.setItem(i, 2, QTableWidgetItem(p.client))
             st = QTableWidgetItem(str(p.site_count)); st.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            st.setToolTip(", ".join(p.site_names) if p.site_names else ""); self.table.setItem(i, 2, st)
-            for col, val in [(3, p.visit_count), (4, p.species_count), (5, p.key_species_count)]:
+            st.setToolTip(", ".join(p.site_names) if p.site_names else ""); self.table.setItem(i, 3, st)
+            for col, val in [(4, p.visit_count), (5, p.species_count), (6, p.key_species_count)]:
                 it = QTableWidgetItem(str(val)); it.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                if col == 5 and val > 0: it.setForeground(QColor(RED_STATUS))
+                if col == 6 and val > 0: it.setForeground(QColor(RED_STATUS))
                 self.table.setItem(i, col, it)
-            pct = QTableWidgetItem(f"{p.key_species_pct}%"); pct.setTextAlignment(Qt.AlignmentFlag.AlignCenter); self.table.setItem(i, 6, pct)
+            pct = QTableWidgetItem(f"{p.key_species_pct}%"); pct.setTextAlignment(Qt.AlignmentFlag.AlignCenter); self.table.setItem(i, 7, pct)
             sq = (str(int(p.sqi)) if p.sqi > 0 else "-") + ("*" if p.sqi > 0 and not p.sqi_reliable else "")
             si = QTableWidgetItem(sq); si.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             if p.sqi >= 150: si.setForeground(QColor(MOSS_GREEN))
             elif p.sqi >= 125: si.setForeground(QColor(AMBER))
-            self.table.setItem(i, 7, si)
-            self.table.setItem(i, 8, QTableWidgetItem(f"{p.first_date} \u2013 {p.last_date}" if p.first_date else ""))
+            self.table.setItem(i, 8, si)
+            self.table.setItem(i, 9, QTableWidgetItem(f"{p.first_date} \u2013 {p.last_date}" if p.first_date else ""))
         self.table.resizeColumnsToContents()
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         mode_t = "Codex Full" if self._mode == AnalysisMode.CODEX_FULL else "Pantheon Only"
-        self.summary_label.setText(f"{len(self._projects)} projects  |  {sum(p.species_count for p in self._projects)} species  |  Mode: {mode_t}")
+        grouping = "pooled across years" if self._pool_years else "by survey year"
+        self.summary_label.setText(f"{len(self._projects)} rows ({grouping})  |  "
+                                   f"Mode: {mode_t}")
 
     def _on_project_clicked(self, row, col):
         if row >= len(self._projects): return
         proj = self._projects[row]
-        detail = load_project_detail(proj.project_name, proj.client, self._mode)
+        detail = load_project_detail(proj.project_name, proj.client, self._mode,
+                                     survey_year=proj.survey_year or None)
         if not detail: return
-        self._current_detail = detail; self._current_site_name = proj.project_name
+        self._current_detail = detail
+        self._current_project = proj
+        self._current_site_name = proj.display_name
         tvks = [sp.tvk for sp in detail.species_list if sp.tvk]
         names = {sp.tvk: sp.name for sp in detail.species_list if sp.tvk}
         sites_info = f" ({proj.site_count} sites)" if proj.site_count > 1 else ""
-        self._run_analysis(tvks, names, f"{proj.project_name} \u2014 {proj.client}{sites_info}", detail.site.visit_count)
+        title = (f"{proj.display_name} \u2014 {proj.client}{sites_info}"
+                 if proj.survey_year else
+                 f"{proj.project_name} \u2014 {proj.client}{sites_info} (all years pooled)")
+        self._run_analysis(tvks, names, title, detail.site.visit_count)
 
     def _run_analysis(self, tvks, names, title, visits=0):
         mode = self._mode if isinstance(self._mode, AnalysisMode) else AnalysisMode.CODEX_FULL
@@ -154,6 +192,7 @@ class SiteAnalysisView(QWidget):
             self.detail_header.setText(f"Analysis error: {e}"); return
         self.detail_header.setText(title)
         self.freeze_btn.setEnabled(True); self.appendix_btn.setEnabled(True)
+        self.workbook_btn.setEnabled(True)
         self.detail_tabs.show()
         taxonomy = self._load_taxonomy(tvks)
         fidelity = self._load_fidelity(tvks)
@@ -189,13 +228,50 @@ class SiteAnalysisView(QWidget):
         if dlg.exec():
             tvks, names = dlg.get_results()
             if tvks:
-                self._current_detail = None; self._current_site_name = "Imported List"
+                self._current_detail = None; self._current_project = None
+                self._current_site_name = "Imported List"
                 self._run_analysis(tvks, names, f"Imported List ({len(tvks)} species)")
 
     def _on_export_appendix(self):
         if not self._current_result: return
         from .appendix_export import export_appendix
         export_appendix(self, self._current_site_name or "Site", self._current_result, self._current_detail)
+
+    def _on_export_workbook(self):
+        """Write the full assessment workbook.
+
+        Pooled analyses are still exportable -- the stamp says so, rather than
+        the export refusing -- because a deliberately pooled site-wide list is a
+        legitimate thing to assess, just not the same thing as a survey.
+        """
+        if not self._current_result:
+            return
+        from .workbook_export import export_workbook
+
+        proj = self._current_project
+        base = (self._current_site_name or "Assessment").replace(" \u2014 ", " ")
+        base = "".join(ch if ch.isalnum() or ch in " -_" else "_" for ch in base)
+        suggested = f"{base.strip()} assessment.xlsx"
+
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export assessment workbook", suggested, "Excel workbook (*.xlsx)")
+        if not path:
+            return
+        if not path.lower().endswith(".xlsx"):
+            path += ".xlsx"
+
+        try:
+            export_workbook(self._current_result, self._current_detail, proj, path,
+                            pooled_years=self._pool_years)
+        except Exception as e:  # noqa: BLE001
+            QMessageBox.warning(self, "Export failed",
+                                f"The workbook could not be written.\n\n{e}")
+            return
+        QMessageBox.information(
+            self, "Workbook exported",
+            f"Written to:\n{path}\n\nThe Summary sheet records the Codex "
+            "version, survey scope and jurisdiction the figures were computed "
+            "against.")
 
     def _on_freeze(self):
         if not self._current_result: return
@@ -230,8 +306,8 @@ class SiteAnalysisView(QWidget):
         if not p: return
         with open(p, "w", newline="", encoding="utf-8") as f:
             w = csv.writer(f)
-            w.writerow(["Project","Client","Sites","Visits","Species","Key Species","% Key","SQI","Reliable","Rare","Scarce","Priority","First","Last"])
+            w.writerow(["Project","Year","Client","Sites","Visits","Species","Key Species","% Key","SQI","Reliable","Rare","Scarce","Priority","First","Last"])
             for s in self._projects:
-                w.writerow([s.project_name, s.client, s.site_count, s.visit_count, s.species_count,
+                w.writerow([s.project_name, s.survey_year or "all", s.client, s.site_count, s.visit_count, s.species_count,
                             s.key_species_count, s.key_species_pct, int(s.sqi) if s.sqi else "",
                             "Yes" if s.sqi_reliable else "No", s.rare_count, s.scarce_count, s.priority_count, s.first_date, s.last_date])

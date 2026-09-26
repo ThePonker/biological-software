@@ -58,7 +58,7 @@ class HabitatTab(QWidget):
 
         self.tree = QTreeWidget()
         self.tree.setColumnCount(5)
-        self.tree.setHeaderLabels(["Biotope / Habitat", "Species", "Scoring", "SQI", "% Rep"])
+        self.tree.setHeaderLabels(["Biotope / Habitat", "Species", "Scoring", "SQI", "% National Pool"])
         self.tree.setAlternatingRowColors(True)
         hdr = self.tree.header()
         hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
@@ -88,24 +88,67 @@ class HabitatTab(QWidget):
         self._build_tree(result)
         self._build_fidelity(fidelity_data or {})
 
+    @staticmethod
+    def _sqi_text(sqi):
+        """SQI cell text. Withheld below the reliability threshold.
+
+        A habitat with three scoring species was rendering "SQI 200*". The
+        asterisk was honest, but the figure invites misreading in a report and
+        Pantheon withholds it. Show the evidence instead.
+        """
+        if not sqi or not sqi.species_with_sqs:
+            return "-"
+        if not sqi.reliable:
+            return f"({sqi.species_with_sqs} spp)"
+        return str(int(sqi.sqi))
+
+    @staticmethod
+    def _sqi_colour(sqi):
+        if not sqi or not sqi.reliable or not sqi.sqi:
+            return None
+        if sqi.sqi >= 150:
+            return QColor(MOSS_GREEN)
+        if sqi.sqi >= 125:
+            return QColor(AMBER)
+        return None
+
+    def _fill(self, item, count, sqi, pct):
+        item.setText(1, str(count))
+        item.setTextAlignment(1, Qt.AlignmentFlag.AlignCenter)
+        item.setText(2, str(sqi.species_with_sqs) if sqi else "0")
+        item.setTextAlignment(2, Qt.AlignmentFlag.AlignCenter)
+        item.setText(3, self._sqi_text(sqi))
+        item.setTextAlignment(3, Qt.AlignmentFlag.AlignCenter)
+        col = self._sqi_colour(sqi)
+        if col:
+            item.setForeground(3, col)
+        elif sqi and not sqi.reliable:
+            item.setForeground(3, QColor(TEXT_MUTED))
+        item.setText(4, f"{pct}%" if pct > 0 else "-")
+        item.setTextAlignment(4, Qt.AlignmentFlag.AlignCenter)
+        if pct >= 21:
+            item.setForeground(4, QColor(MOSS_GREEN))
+        elif pct >= 10:
+            item.setForeground(4, QColor(AMBER))
+
     def _build_tree(self, result):
+        """Biotope -> habitat, using only the pairs this sample holds.
+
+        Previously the pairs came from a join across the whole of pantheon.db,
+        so every habitat appeared under every biotope carrying the site-wide
+        count -- "coastal" with one species listed "short sward & bare ground:
+        41" beneath it.
+        """
         self.tree.clear()
         refs = _load_reference_counts()
         bio_refs = refs.get("biotope", {})
         hab_refs = refs.get("habitat", {})
 
-        # Group habitats under biotopes
-        # result has biotope_sqi (list of SQIResult) and habitat_sqi
         bio_map = {s.label: s for s in result.biotope_sqi}
-        hab_map = {s.label: s for s in result.habitat_sqi}
-
-        # Build biotope → habitat mapping from the species data
-        # We need to know which habitats belong under which biotopes
-        # This requires querying pantheon.db for the hierarchy
-        bio_to_hab = self._load_biotope_habitat_mapping(result)
+        pair_counts = getattr(result, "biotope_habitat_counts", {}) or {}
+        pair_sqi = getattr(result, "biotope_habitat_sqi", {}) or {}
 
         for bio_name in sorted(result.biotope_counts.keys()):
-            bio_sqi = bio_map.get(bio_name)
             bio_count = result.biotope_counts.get(bio_name, 0)
             bio_total = bio_refs.get(bio_name, 0)
             pct = round(bio_count / bio_total * 100, 1) if bio_total else 0
@@ -113,73 +156,22 @@ class HabitatTab(QWidget):
             bio_item = QTreeWidgetItem()
             bio_item.setText(0, bio_name)
             bio_item.setFont(0, QFont("Segoe UI", 10, QFont.Weight.Bold))
-            bio_item.setText(1, str(bio_count))
-            bio_item.setTextAlignment(1, Qt.AlignmentFlag.AlignCenter)
-            if bio_sqi:
-                bio_item.setText(2, str(bio_sqi.species_with_sqs))
-                bio_item.setTextAlignment(2, Qt.AlignmentFlag.AlignCenter)
-                sqi_text = str(int(bio_sqi.sqi)) if bio_sqi.sqi else "-"
-                if not bio_sqi.reliable: sqi_text += "*"
-                bio_item.setText(3, sqi_text)
-                bio_item.setTextAlignment(3, Qt.AlignmentFlag.AlignCenter)
-                if bio_sqi.sqi >= 150: bio_item.setForeground(3, QColor(MOSS_GREEN))
-                elif bio_sqi.sqi >= 125: bio_item.setForeground(3, QColor(AMBER))
-            pct_text = f"{pct}%" if pct > 0 else "-"
-            bio_item.setText(4, pct_text)
-            bio_item.setTextAlignment(4, Qt.AlignmentFlag.AlignCenter)
-            if pct >= 21: bio_item.setForeground(4, QColor(MOSS_GREEN))
-            elif pct >= 10: bio_item.setForeground(4, QColor(AMBER))
+            self._fill(bio_item, bio_count, bio_map.get(bio_name), pct)
 
-            # Add habitat children
-            hab_names = bio_to_hab.get(bio_name, [])
-            for hab_name in sorted(hab_names):
-                if hab_name not in result.habitat_counts:
-                    continue
-                hab_sqi = hab_map.get(hab_name)
-                hab_count = result.habitat_counts.get(hab_name, 0)
+            habs = pair_counts.get(bio_name, {})
+            for hab_name in sorted(habs, key=lambda h: -habs[h]):
+                hab_count = habs[hab_name]
                 hab_total = hab_refs.get(hab_name, 0)
                 h_pct = round(hab_count / hab_total * 100, 1) if hab_total else 0
-
                 hab_item = QTreeWidgetItem()
                 hab_item.setText(0, hab_name)
-                hab_item.setText(1, str(hab_count))
-                hab_item.setTextAlignment(1, Qt.AlignmentFlag.AlignCenter)
-                if hab_sqi:
-                    hab_item.setText(2, str(hab_sqi.species_with_sqs))
-                    hab_item.setTextAlignment(2, Qt.AlignmentFlag.AlignCenter)
-                    h_sqi_text = str(int(hab_sqi.sqi)) if hab_sqi.sqi else "-"
-                    if not hab_sqi.reliable: h_sqi_text += "*"
-                    hab_item.setText(3, h_sqi_text)
-                    hab_item.setTextAlignment(3, Qt.AlignmentFlag.AlignCenter)
-                    if hab_sqi.sqi >= 150: hab_item.setForeground(3, QColor(MOSS_GREEN))
-                    elif hab_sqi.sqi >= 125: hab_item.setForeground(3, QColor(AMBER))
-                h_pct_text = f"{h_pct}%" if h_pct > 0 else "-"
-                hab_item.setText(4, h_pct_text)
-                hab_item.setTextAlignment(4, Qt.AlignmentFlag.AlignCenter)
-                if h_pct >= 21: hab_item.setForeground(4, QColor(MOSS_GREEN))
-                elif h_pct >= 10: hab_item.setForeground(4, QColor(AMBER))
+                self._fill(hab_item, hab_count,
+                           pair_sqi.get(bio_name, {}).get(hab_name), h_pct)
                 bio_item.addChild(hab_item)
 
             self.tree.addTopLevelItem(bio_item)
 
         self.tree.expandAll()
-
-    def _load_biotope_habitat_mapping(self, result):
-        """Map biotope → [habitat] from pantheon.db for species in this sample."""
-        if not paths.PANTHEON_DB.exists():
-            return {}
-        conn = sqlite3.connect(str(paths.PANTHEON_DB))
-        c = conn.cursor()
-        c.execute("""SELECT DISTINCT bb.biotope, h.habitat
-                     FROM broad_biotope bb
-                     JOIN habitats h ON bb.tvk = h.tvk""")
-        mapping = {}
-        for bio, hab in c.fetchall():
-            mapping.setdefault(bio, set()).add(hab)
-        conn.close()
-        # Filter to only habitats present in this result
-        present = set(result.habitat_counts.keys())
-        return {bio: sorted(habs & present) for bio, habs in mapping.items()}
 
     def _build_fidelity(self, fidelity_data):
         """Display fidelity indices. fidelity_data: {index_name: {tvk: score}}."""

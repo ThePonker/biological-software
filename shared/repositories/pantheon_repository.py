@@ -43,9 +43,16 @@ class SpeciesProfile:
 class PantheonRepository:
     """Read-only access to pantheon.db."""
 
-    def __init__(self, db_path: str = None):
+    def __init__(self, db_path: str = None, use_bridge: bool = True):
         self._db_path = str(db_path or DB_PATH)
         self._conn = None
+        # pantheon.db is keyed on 2017 TVKs; callers hold current UKSI TVKs.
+        # Without translation, every species re-keyed by name or synonym
+        # returns no ecology at all -- 3,666 of them. See
+        # patch_pantheon_bridge.py.
+        self._use_bridge = use_bridge
+        self._uksi_to_pan = None    # {uksi_tvk: [pantheon_tvk, ...]}
+        self._pan_to_uksi = None    # {pantheon_tvk: uksi_tvk}
 
     def _get_conn(self):
         if self._conn is None:
@@ -61,19 +68,79 @@ class PantheonRepository:
             self._conn = None
 
     # ================================================================
+    # TVK bridge -- UKSI (current) <-> Pantheon (2017)
+    # ================================================================
+
+    def _load_bridge(self):
+        """Load tvk_bridge from codex.db, once. Silent no-op if unavailable."""
+        if self._uksi_to_pan is not None:
+            return
+        self._uksi_to_pan, self._pan_to_uksi = {}, {}
+        if not self._use_bridge:
+            return
+        try:
+            import paths as _paths
+            if not Path(str(_paths.CODEX_DB)).exists():
+                return
+            cx = sqlite3.connect(f"file:{_paths.CODEX_DB}?mode=ro", uri=True)
+            try:
+                for pan_tvk, uksi_tvk in cx.execute(
+                        "SELECT pantheon_tvk, uksi_tvk FROM tvk_bridge"):
+                    self._uksi_to_pan.setdefault(uksi_tvk, []).append(pan_tvk)
+                    self._pan_to_uksi[pan_tvk] = uksi_tvk
+            finally:
+                cx.close()
+        except Exception:  # noqa: BLE001 -- degrade to unbridged behaviour
+            self._uksi_to_pan, self._pan_to_uksi = {}, {}
+
+    def _to_pantheon(self, tvks):
+        """UKSI TVKs -> Pantheon TVKs to query with.
+
+        A TVK not in the bridge is passed through unchanged, so callers already
+        holding Pantheon TVKs still work. Several Pantheon taxa can map to one
+        current species; all of them are queried and the results unioned.
+        """
+        self._load_bridge()
+        if not self._uksi_to_pan:
+            return list(tvks)
+        out = []
+        for t in tvks:
+            mapped = self._uksi_to_pan.get(t)
+            out.extend(mapped if mapped else [t])
+        return out
+
+    def _back(self, pan_tvk):
+        """Pantheon TVK -> the UKSI TVK the caller asked about."""
+        if not self._pan_to_uksi:
+            return pan_tvk
+        return self._pan_to_uksi.get(pan_tvk, pan_tvk)
+
+    # ================================================================
     # Single species lookups
     # ================================================================
 
     def get_species_profile(self, tvk: str) -> SpeciesProfile:
-        """Get complete Pantheon profile for a species."""
+        """Get complete Pantheon profile for a species.
+
+        `tvk` may be a current UKSI TVK; it is translated via the bridge. Where
+        several Pantheon taxa map to one current species, the first is used for
+        the scalar fields -- see backlog J2 for the merge rule.
+        """
         c = self._get_conn().cursor()
+
+        lookup = tvk
+        for cand in self._to_pantheon([tvk]):
+            if c.execute("SELECT 1 FROM species WHERE tvk = ?", (cand,)).fetchone():
+                lookup = cand
+                break
+        tvk = lookup
 
         c.execute("SELECT species_name, family FROM species WHERE tvk = ?", (tvk,))
         row = c.fetchone()
         if not row:
             return None
 
-        profile = SpeciesProfile(tvk=tvk, species_name=row["species_name"],
+        profile = SpeciesProfile(tvk=self._back(tvk), species_name=row["species_name"],
                                   family=row["family"] or "")
 
         # SQS
@@ -134,16 +201,23 @@ class PantheonRepository:
     # ================================================================
 
     def get_sqs_scores(self, tvks: list) -> dict:
-        """Get SQS scores for a list of TVKs. Returns {tvk: sqs}."""
+        """Get SQS scores for a list of TVKs. Returns {tvk: sqs}.
+
+        Where several Pantheon taxa map to one current species, the highest
+        score is kept -- this is a bare Pantheon lookup, distinct from Codex's
+        merge rule (backlog J2).
+        """
         if not tvks:
             return {}
         c = self._get_conn().cursor()
         result = {}
-        for batch in _chunked(tvks, 500):
+        for batch in _chunked(self._to_pantheon(tvks), 500):
             placeholders = ",".join("?" * len(batch))
             c.execute(f"SELECT tvk, sqs FROM sqs_scores WHERE tvk IN ({placeholders})", batch)
             for r in c.fetchall():
-                result[r["tvk"]] = r["sqs"]
+                key = self._back(r["tvk"])
+                if r["sqs"] > result.get(key, 0):
+                    result[key] = r["sqs"]
         return result
 
     def get_broad_biotopes(self, tvks: list) -> dict:
@@ -164,15 +238,16 @@ class PantheonRepository:
             return {}
         c = self._get_conn().cursor()
         result = {}
-        for batch in _chunked(tvks, 500):
+        for batch in _chunked(self._to_pantheon(tvks), 500):
             placeholders = ",".join("?" * len(batch))
             c.execute(f"""SELECT tvk, abbreviation FROM conservation_status
                          WHERE tvk IN ({placeholders}) AND reporting_category = 'GB Status'
                          AND abbreviation NOT IN ('None', 'Unknown', 'Not reviewed')""",
                       batch)
             for r in c.fetchall():
-                if r["tvk"] not in result:
-                    result[r["tvk"]] = r["abbreviation"]
+                key = self._back(r["tvk"])
+                if key not in result:
+                    result[key] = r["abbreviation"]
         return result
 
     def get_feeding_guilds(self, tvks: list) -> dict:
@@ -181,11 +256,11 @@ class PantheonRepository:
             return {}
         c = self._get_conn().cursor()
         result = {}
-        for batch in _chunked(tvks, 500):
+        for batch in _chunked(self._to_pantheon(tvks), 500):
             placeholders = ",".join("?" * len(batch))
             c.execute(f"SELECT tvk, life_stage, guild FROM feeding_guilds WHERE tvk IN ({placeholders})", batch)
             for r in c.fetchall():
-                result.setdefault(r["tvk"], {})[r["life_stage"]] = r["guild"]
+                result.setdefault(self._back(r["tvk"]), {})[r["life_stage"]] = r["guild"]
         return result
 
     def get_fidelity_scores(self, tvks: list, index_name: str = None) -> dict:
@@ -194,7 +269,7 @@ class PantheonRepository:
             return {}
         c = self._get_conn().cursor()
         result = {}
-        for batch in _chunked(tvks, 500):
+        for batch in _chunked(self._to_pantheon(tvks), 500):
             placeholders = ",".join("?" * len(batch))
             if index_name:
                 c.execute(f"""SELECT tvk, index_name, score FROM fidelity_scores
@@ -203,7 +278,7 @@ class PantheonRepository:
             else:
                 c.execute(f"SELECT tvk, index_name, score FROM fidelity_scores WHERE tvk IN ({placeholders})", batch)
             for r in c.fetchall():
-                result.setdefault(r["tvk"], {})[r["index_name"]] = r["score"]
+                result.setdefault(self._back(r["tvk"]), {})[r["index_name"]] = r["score"]
         return result
 
     def get_metadata(self) -> dict:
@@ -222,15 +297,23 @@ class PantheonRepository:
     # ================================================================
 
     def _get_multi(self, tvks, table, column):
+        """Batch multi-value lookup, keyed back to the caller's TVKs.
+
+        Values are unioned where several Pantheon taxa map to one current
+        species, and de-duplicated.
+        """
         if not tvks:
             return {}
         c = self._get_conn().cursor()
         result = {}
-        for batch in _chunked(tvks, 500):
+        for batch in _chunked(self._to_pantheon(tvks), 500):
             placeholders = ",".join("?" * len(batch))
             c.execute(f"SELECT tvk, {column} FROM {table} WHERE tvk IN ({placeholders})", batch)
             for r in c.fetchall():
-                result.setdefault(r["tvk"], []).append(r[column])
+                key = self._back(r["tvk"])
+                vals = result.setdefault(key, [])
+                if r[column] not in vals:
+                    vals.append(r[column])
         return result
 
 

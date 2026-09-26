@@ -177,9 +177,15 @@ class SpecimenRepository:
         values = []
         placeholders = []
         
+        # taxonomic_sort_key and superfamily were absent from this list, so
+        # every caller that set them had them silently dropped. The Insect
+        # Collection sidebar filters on the sort key, so those specimens became
+        # invisible to it -- 244 of them before anyone noticed.
         allowed_fields = {
             'specimen_code', 'species_name', 'species_tvk', 'common_name',
-            'order_name', 'family', 'subfamily', 'date_collected', 'grid_ref',
+            'order_name', 'family', 'subfamily', 'superfamily',
+            'taxonomic_sort_key', 'taxon_group',
+            'date_collected', 'grid_ref',
             'vice_county', 'vc_number', 'site_name', 'site_name_local', 'collector', 'determiner',
             'sex', 'preparation_type', 'storage_location', 'drawer_unit',
             'condition', 'label_data', 'notes', 'import_notes', 'observation_id'
@@ -217,9 +223,14 @@ class SpecimenRepository:
         now = datetime.now().isoformat()
         
         # Build SET clause dynamically
+        # Same omission as create(): without these two, correcting a species
+        # on an existing specimen would leave a sort key belonging to the old
+        # determination, or none at all.
         allowed_fields = {
             'specimen_code', 'species_name', 'species_tvk', 'common_name',
-            'order_name', 'family', 'subfamily', 'date_collected', 'grid_ref',
+            'order_name', 'family', 'subfamily', 'superfamily',
+            'taxonomic_sort_key', 'taxon_group',
+            'date_collected', 'grid_ref',
             'vice_county', 'vc_number', 'site_name', 'site_name_local', 'collector', 'determiner',
             'sex', 'preparation_type', 'storage_location', 'drawer_unit',
             'condition', 'label_data', 'notes', 'import_notes', 'observation_id'
@@ -677,9 +688,14 @@ class SpecimenRepository:
         now = datetime.now().isoformat()
         
         # Define all fields for batch insert
+        # The batch path had the same gap. Missing one of the three would
+        # leave a route that still loses the columns, which is how this
+        # survived unnoticed.
         fields = [
             'specimen_code', 'species_name', 'species_tvk', 'common_name',
-            'order_name', 'family', 'subfamily', 'date_collected', 'grid_ref',
+            'order_name', 'family', 'subfamily', 'superfamily',
+            'taxonomic_sort_key', 'taxon_group',
+            'date_collected', 'grid_ref',
             'vice_county', 'vc_number', 'site_name', 'site_name_local', 'collector', 'determiner',
             'sex', 'preparation_type', 'storage_location', 'drawer_unit',
             'condition', 'label_data', 'notes', 'import_notes', 'observation_id',

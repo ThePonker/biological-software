@@ -127,8 +127,25 @@ class FamilyDetailPanel(QWidget):
         self.save_btn.clicked.connect(self._save_notes)
         layout.addWidget(self.save_btn, 0, Qt.AlignmentFlag.AlignRight)
 
+    @staticmethod
+    def _specimens_text(specimen_count, sexes=None):
+        """'55' or '55 (\u26425 \u26402 +48)'.
+
+        The bracket appears only where something has been sexed -- 55 unsexed
+        specimens are adequately described by 55. Shared with the tree nodes
+        and the Data Entry pill via shared/sex_summary.py.
+        """
+        if not sexes:
+            return str(specimen_count)
+        try:
+            from shared.sex_summary import format_sex_summary
+        except ImportError:
+            return str(specimen_count)
+        s = format_sex_summary(*sexes)
+        return f"{specimen_count} ({s})" if s else str(specimen_count)
+
     def show_order(self, order_name: str, specimen_count: int,
-                   species_count: int, families: list):
+                   species_count: int, families: list, sexes=None):
         """Show order-level detail."""
         self._auto_save()
         self._current_level = "order"
@@ -141,7 +158,8 @@ class FamilyDetailPanel(QWidget):
         british = self._count_british("order", order_name)
         self.stats_label.setText(
             f"British species: {british}  |  "
-            f"Your specimens: {specimen_count}  |  Your species: {species_count}")
+            f"Your specimens: {self._specimens_text(specimen_count, sexes)}"
+            f"  |  Your species: {species_count}")
 
         if families:
             self.extra_label.setText(f"Families: {', '.join(families[:10])}")
@@ -153,7 +171,8 @@ class FamilyDetailPanel(QWidget):
         self._load_notes(order_name, order_name)
 
     def show_superfamily(self, order_name: str, superfamily: str,
-                         specimen_count: int, species_count: int, families: list):
+                         specimen_count: int, species_count: int, families: list,
+                         sexes=None):
         """Show superfamily-level detail."""
         self._auto_save()
         self._current_level = "superfamily"
@@ -166,7 +185,8 @@ class FamilyDetailPanel(QWidget):
         british = self._count_british("superfamily", superfamily)
         self.stats_label.setText(
             f"British species: {british}  |  "
-            f"Your specimens: {specimen_count}  |  Your species: {species_count}")
+            f"Your specimens: {self._specimens_text(specimen_count, sexes)}"
+            f"  |  Your species: {species_count}")
 
         if families:
             self.extra_label.setText(f"Families: {', '.join(families[:10])}")
@@ -178,7 +198,8 @@ class FamilyDetailPanel(QWidget):
         self._load_notes(order_name, superfamily)
 
     def show_family(self, order_name: str, family: str,
-                    specimen_count: int, species_count: int, genera: list):
+                    specimen_count: int, species_count: int, genera: list,
+                    sexes=None):
         """Show family-level detail."""
         self._auto_save()
         self._current_level = "family"
@@ -194,7 +215,8 @@ class FamilyDetailPanel(QWidget):
         british = self._count_british("family", family)
         self.stats_label.setText(
             f"British species: {british}  |  "
-            f"Your specimens: {specimen_count}  |  Your species: {species_count}")
+            f"Your specimens: {self._specimens_text(specimen_count, sexes)}"
+            f"  |  Your species: {species_count}")
 
         if genera:
             self.extra_label.setText(f"Genera: {', '.join(genera[:8])}")
@@ -207,7 +229,7 @@ class FamilyDetailPanel(QWidget):
 
     def show_species(self, species_name: str, tvk: str, common_name: str,
                      family: str, order_name: str, specimen_count: int,
-                     conservation: str):
+                     conservation: str, sexes=None):
         """Show species-level detail."""
         self._auto_save()
         self._current_level = "species"
@@ -224,7 +246,7 @@ class FamilyDetailPanel(QWidget):
         self.name_label.setText(species_name)
         self.subtitle_label.setText(common_name if common_name else family)
 
-        stats_parts = [f"Specimens: {specimen_count}"]
+        stats_parts = [f"Specimens: {self._specimens_text(specimen_count, sexes)}"]
         if conservation:
             stats_parts.append(conservation)
         self.stats_label.setText("  |  ".join(stats_parts))

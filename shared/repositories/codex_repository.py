@@ -80,6 +80,50 @@ PANTHEON_GB_STATUS_MAP = {
 }
 
 
+# ============================================================
+# Jurisdiction -- which designations confer key-species status where
+# ============================================================
+# A priority listing is made under the law of one country and is a material
+# consideration only there. Section 41 is England's list; the Scottish
+# Biodiversity List is Scotland's. Rarity and threat are GB-wide and are not
+# filtered. This affects the KEY SPECIES decision only -- every designation is
+# still stored, returned and displayed.
+#
+# Defined here, above the class, because method default arguments are evaluated
+# when the class body runs.
+
+DEFAULT_JURISDICTION = "England"
+
+# Substrings matched case-insensitively against status_value.
+_PRIORITY_BY_JURISDICTION = {
+    "England":          ("s.41", "s41", "section 41", "bap"),
+    "Wales":            ("wales", "s7", "bap"),
+    "Scotland":         ("scottish", "bap"),
+    "Northern Ireland": ("northern ireland", "ni priority", "bap"),
+    "UK":               (),   # empty tuple = accept everything
+}
+
+# Legal instruments that apply only in Northern Ireland, matched against
+# status_detail. Everything else (WACA, Habitats Regs, Bern, CITES, CMS, the
+# Directives) is GB-wide or international.
+_NI_ONLY_LEGAL = ("ni wildlife order", "ni conservation regs")
+
+
+def _priority_applies(value, jurisdiction):
+    keys = _PRIORITY_BY_JURISDICTION.get(jurisdiction)
+    if keys is None or keys == ():
+        return True          # unknown or UK-wide: do not filter
+    v = (value or "").lower()
+    return any(k in v for k in keys)
+
+
+def _legal_applies(entry, jurisdiction):
+    if jurisdiction in ("Northern Ireland", "UK"):
+        return True
+    d = ((entry.detail or entry.value) or "").lower()
+    return not any(k in d for k in _NI_ONLY_LEGAL)
+
+
 # Key-species classification thresholds
 RARE_IUCN_2001   = {"CR", "EN", "VU", "DD", "EX", "RE"}
 SCARCE_IUCN_2001 = {"NT"}
@@ -99,6 +143,26 @@ class StatusEntry:
     source: str = ""
     iucn_version: str = ""
 
+
+def _priority_label(value: str) -> str:
+    """Short, honest label for a priority jurisdiction.
+
+    Abbreviated to fit an appendix cell, but never collapsed to a different
+    jurisdiction's name. Anything unrecognised is passed through unchanged
+    rather than guessed at.
+    """
+    v = (value or "").lower()
+    if "s.41" in v or "s41" in v or "section 41" in v:
+        return "S41"
+    if "wales" in v or "s7" in v:
+        return "Wales S7"
+    if "scottish" in v:
+        return "SBL"
+    if "northern ireland" in v or v.startswith("ni "):
+        return "NI Priority"
+    if "bap" in v:
+        return "UK BAP"
+    return value or ""
 
 @dataclass
 class SpeciesStatus:
@@ -168,10 +232,13 @@ class SpeciesStatus:
         # BoCC (birds)
         if self.bocc:
             parts.append(f"BoCC {self.bocc.value}")
-        # Priority
-        if self.priority:
-            parts.append(f"S41/BAP ({len(self.priority)})")
-        # Legal
+        # Priority -- name the jurisdictions. The old "S41/BAP (n)" label
+        # predated the 11-track scheme and read as Section 41 for species
+        # listed only in Scotland, Wales or Northern Ireland.
+        for entry in self.priority:
+            parts.append(_priority_label(entry.value))
+        # Legal -- kept as a count. The instrument names are long, the
+        # appendix cell is narrow, and "Legal" is accurate whichever it is.
         if self.legal_protection:
             parts.append(f"Legal ({len(self.legal_protection)})")
         return ", ".join(parts) if parts else ""
@@ -252,9 +319,10 @@ class CodexRepository:
     # ================================================================
     # Single species
     # ================================================================
-    def get_status_summary(self, tvk, mode=AnalysisMode.CODEX_FULL):
+    def get_status_summary(self, tvk, mode=AnalysisMode.CODEX_FULL,
+                           jurisdiction=DEFAULT_JURISDICTION):
         if mode == AnalysisMode.PANTHEON_ONLY:
-            return self._pantheon_status(tvk)
+            return self._pantheon_status(tvk, jurisdiction)
 
         c = self._get_conn().cursor()
         status = SpeciesStatus(tvk=tvk)
@@ -288,7 +356,7 @@ class CodexRepository:
             status.profile_source = r["source"]
 
         # Classification (invertebrate-only)
-        status.tier = _classify(status) if status.is_invertebrate else KeySpeciesTier.NONE
+        status.tier = _classify(status, jurisdiction) if status.is_invertebrate else KeySpeciesTier.NONE
         status.is_key = status.tier != KeySpeciesTier.NONE
         return status
 
@@ -326,6 +394,14 @@ class CodexRepository:
     # Batch
     # ================================================================
     def get_sqs_scores(self, tvks, mode=AnalysisMode.CODEX_FULL):
+        """SQS per TVK: what Pantheon published, else derived from the rule.
+
+        Stored scores are Pantheon's own (and any manual entries) -- a record
+        of what was published, which is what makes an SQI comparable. Where
+        Pantheon has no score, the published rule is applied to current Codex
+        statuses instead of storing an invented value. See
+        patch_sqs_derive_live.py.
+        """
         if not tvks:
             return {}
         if mode == AnalysisMode.PANTHEON_ONLY:
@@ -334,16 +410,61 @@ class CodexRepository:
         result = {}
         for batch in _chunked(tvks, 500):
             ph = ",".join("?" * len(batch))
-            c.execute(f"SELECT tvk, sqs FROM sqs_scores WHERE tvk IN ({ph})", batch)
+            c.execute(f"""SELECT tvk, sqs FROM sqs_scores WHERE tvk IN ({ph})
+                          AND source != 'derived'""", batch)
             for row in c.fetchall():
                 result[row["tvk"]] = row["sqs"]
+        missing = [t for t in set(tvks) if t not in result]
+        if missing:
+            result.update(self._derive_sqs_batch(missing))
         return result
 
-    def get_statuses_batch(self, tvks, mode=AnalysisMode.CODEX_FULL):
+    def _derive_sqs_batch(self, tvks):
+        """Apply Pantheon's published rule to current Codex statuses.
+
+        Invertebrates only -- SQS is an invertebrate construct, and a score for
+        a lichen would be arithmetic without meaning.
+
+        Queries status_summary directly: get_statuses_batch calls
+        get_sqs_scores, so routing through it would recurse.
+        """
+        if not tvks:
+            return {}
+        try:
+            from shared.sqs_derivation import derive_from_tracks
+        except ImportError:
+            try:
+                from sqs_derivation import derive_from_tracks
+            except ImportError:
+                return {}
+
+        invert = self._get_invert_tvks()
+        candidates = [t for t in tvks if t in invert]
+        if not candidates:
+            return {}
+
+        c = self._get_conn().cursor()
+        tracks = {}
+        for batch in _chunked(candidates, 500):
+            ph = ",".join("?" * len(batch))
+            c.execute(f"""SELECT tvk, status_track, status_value
+                          FROM status_summary WHERE tvk IN ({ph})""", batch)
+            for row in c.fetchall():
+                tracks.setdefault(row["tvk"], {})[row["status_track"]] = row["status_value"]
+
+        result = {}
+        for tvk in candidates:
+            score = derive_from_tracks(tracks.get(tvk, {}))
+            if score:          # 0 and 1 are not worth storing as "has a score"
+                result[tvk] = score
+        return result
+
+    def get_statuses_batch(self, tvks, mode=AnalysisMode.CODEX_FULL,
+                           jurisdiction=DEFAULT_JURISDICTION):
         if not tvks:
             return {}
         if mode == AnalysisMode.PANTHEON_ONLY:
-            return self._pantheon_statuses_batch(tvks)
+            return self._pantheon_statuses_batch(tvks, jurisdiction)
 
         c = self._get_conn().cursor()
         invert_set = self._get_invert_tvks()
@@ -381,7 +502,7 @@ class CodexRepository:
             if tvk in profile_map:
                 status.profile = profile_map[tvk][0]
                 status.profile_source = profile_map[tvk][1]
-            status.tier = _classify(status) if status.is_invertebrate else KeySpeciesTier.NONE
+            status.tier = _classify(status, jurisdiction) if status.is_invertebrate else KeySpeciesTier.NONE
             status.is_key = status.tier != KeySpeciesTier.NONE
             result[tvk] = status
         return result
@@ -612,7 +733,7 @@ class CodexRepository:
                 result[uksi_tvk] = r["sqs"]
         return result
 
-    def _pantheon_status(self, tvk):
+    def _pantheon_status(self, tvk, jurisdiction=DEFAULT_JURISDICTION):
         """Single species Pantheon-only lookup. Uses Pantheon ecology DB,
         maps via the bridge, routes legacy Pantheon status codes to new
         track names."""
@@ -634,11 +755,11 @@ class CodexRepository:
         for row in pc.fetchall():
             self._apply_pantheon_row(status, row["reporting_category"], row["abbreviation"])
 
-        status.tier = _classify(status) if status.is_invertebrate else KeySpeciesTier.NONE
+        status.tier = _classify(status, jurisdiction) if status.is_invertebrate else KeySpeciesTier.NONE
         status.is_key = status.tier != KeySpeciesTier.NONE
         return status
 
-    def _pantheon_statuses_batch(self, tvks):
+    def _pantheon_statuses_batch(self, tvks, jurisdiction=DEFAULT_JURISDICTION):
         pan = self._get_pantheon_conn()
         if not pan:
             return {tvk: SpeciesStatus(tvk=tvk) for tvk in tvks}
@@ -675,7 +796,7 @@ class CodexRepository:
             status.is_invertebrate = tvk in invert_set
             for cat, abbr in con_data.get(tvk, []):
                 self._apply_pantheon_row(status, cat, abbr)
-            status.tier = _classify(status) if status.is_invertebrate else KeySpeciesTier.NONE
+            status.tier = _classify(status, jurisdiction) if status.is_invertebrate else KeySpeciesTier.NONE
             status.is_key = status.tier != KeySpeciesTier.NONE
             result[tvk] = status
         return result
@@ -756,11 +877,14 @@ class CodexRepository:
 # ============================================================
 # Module-level helpers
 # ============================================================
-def _classify(status):
+def _classify(status, jurisdiction=DEFAULT_JURISDICTION):
     """Classify into Rare / Scarce / Priority / None.
 
     Called ONLY for invertebrate species (the caller is responsible for
     checking status.is_invertebrate). This function assumes invert-only.
+
+    `jurisdiction` filters which priority listings and legal instruments count
+    towards the Priority tier. Rarity and threat are GB-wide and unfiltered.
     """
     is_rare = is_scarce = is_priority = False
 
@@ -793,8 +917,11 @@ def _classify(status):
         if status.rarity_legacy.value in SCARCE_LEGACY_RARITY:
             is_scarce = True
 
-    # Legal / priority -- priority tier
-    if status.legal_protection or status.priority:
+    # Legal / priority -- priority tier, but only designations that apply in
+    # this jurisdiction. An SBL listing does not make a species key in England.
+    if any(_priority_applies(e.value, jurisdiction) for e in status.priority):
+        is_priority = True
+    if any(_legal_applies(e, jurisdiction) for e in status.legal_protection):
         is_priority = True
 
     # Specialist panel (Spider Amber etc.) -- scarce-like

@@ -33,6 +33,7 @@ class TaxonomicSidebar(QWidget):
         self._uksi_db_path = uksi_db_path
         self._tree_data = {}  # order -> {family -> {species -> count}}
         self._family_stats = {}  # family -> (specimen_count, species_count, genera)
+        self._sexes = {}         # species_name -> (male, female, other)
         self._setup_ui()
 
     def _setup_ui(self):
@@ -140,6 +141,7 @@ class TaxonomicSidebar(QWidget):
         self.tree.clear()
         self._tree_data = {}
         self._family_stats = {}
+        self._sexes = {}
 
         if not specimens:
             return
@@ -154,6 +156,10 @@ class TaxonomicSidebar(QWidget):
             species = sp.get('species_name', '')
             count = int(sp.get('specimen_count', 0) or 0)
             sort_key = int(sp.get('taxonomic_sort_key', 0) or 0)
+            if species:
+                self._sexes[species] = (int(sp.get('male_count', 0) or 0),
+                                        int(sp.get('female_count', 0) or 0),
+                                        int(sp.get('other_count', 0) or 0))
 
             if order not in orders:
                 orders[order] = {}
@@ -161,7 +167,16 @@ class TaxonomicSidebar(QWidget):
                 orders[order][superfamily] = {}
             if family not in orders[order][superfamily]:
                 orders[order][superfamily][family] = {}
-            orders[order][superfamily][family][species] = (count, sort_key)
+            # ACCUMULATE, do not assign. Two query rows can share a species --
+            # they did for 81 species, through inconsistent subfamily storage --
+            # and an assignment silently discards the first. The query has been
+            # fixed too, but the tree should not depend on that being perfect.
+            prev = orders[order][superfamily][family].get(species)
+            if prev:
+                orders[order][superfamily][family][species] = (
+                    prev[0] + count, prev[1] or sort_key)
+            else:
+                orders[order][superfamily][family][species] = (count, sort_key)
 
         # Compute family stats
         for order, superfamilies in orders.items():
@@ -187,7 +202,9 @@ class TaxonomicSidebar(QWidget):
                 for species_dict in families.values():
                     for c, _ in species_dict.values():
                         total_all += int(c)
-        all_item = QTreeWidgetItem(self.tree, [f"All Specimens ({total_all:,})"])
+        all_item = QTreeWidgetItem(
+            self.tree, [self._node_label("All Specimens", total_all,
+                                         self._sexes.keys())])
         all_item.setData(0, Qt.ItemDataRole.UserRole, ('all', ''))
         font = all_item.font(0)
         font.setBold(True)
@@ -204,7 +221,10 @@ class TaxonomicSidebar(QWidget):
             )
 
             # Order node
-            order_item = QTreeWidgetItem(self.tree, [f"{order} ({order_count:,})"])
+            order_species = {s for fams in superfamilies.values()
+                             for sd in fams.values() for s in sd}
+            order_item = QTreeWidgetItem(
+                self.tree, [self._node_label(order, order_count, order_species)])
             order_item.setData(0, Qt.ItemDataRole.UserRole, ('order', order))
             font = order_item.font(0)
             font.setBold(True)
@@ -224,7 +244,10 @@ class TaxonomicSidebar(QWidget):
                     sf_count = sum(
                         int(c) for fam in families.values() for c, _ in fam.values()
                     )
-                    sf_item = QTreeWidgetItem(order_item, [f"{sf_name} ({sf_count})"])
+                    sf_species = {s for fam in families.values() for s in fam}
+                    sf_item = QTreeWidgetItem(
+                        order_item,
+                        [self._node_label(sf_name, sf_count, sf_species)])
                     sf_item.setData(0, Qt.ItemDataRole.UserRole, ('superfamily', sf_name))
                     parent_for_families = sf_item
                 else:
@@ -239,7 +262,8 @@ class TaxonomicSidebar(QWidget):
                 for family, species_dict in sorted_families:
                     family_count = sum(int(c) for c, _ in species_dict.values())
 
-                    family_text = f"{family} ({family_count})"
+                    family_text = self._node_label(family, family_count,
+                                                   species_dict.keys())
                     family_item = QTreeWidgetItem(parent_for_families, [family_text])
                     family_item.setData(0, Qt.ItemDataRole.UserRole, ('family', family))
 
@@ -250,12 +274,47 @@ class TaxonomicSidebar(QWidget):
                     )
 
                     for species, (count, sort_key) in sorted_species:
-                        species_text = f"{species} ({count})" if int(count) > 1 else species
+                        species_text = self._species_label(species, int(count))
                         species_item = QTreeWidgetItem(family_item, [species_text])
                         species_item.setData(0, Qt.ItemDataRole.UserRole, ('species', species))
+                        # The count is carried as data, not parsed back out of
+                        # the label -- see _show_species_detail.
+                        species_item.setData(0, Qt.ItemDataRole.UserRole + 1, int(count))
 
         # Expand first level by default
         self.tree.expandItem(all_item)
+
+    # ── Sex summaries ───────────────────────────────────────────────
+    # Formatting comes from shared/sex_summary.py so the sidebar, the Data
+    # Entry pill and the family detail panel cannot drift apart.
+
+    def _sum_sexes(self, species_names):
+        """(male, female, other) totalled across a set of species names."""
+        m = f = o = 0
+        for name in species_names:
+            a, b, c = self._sexes.get(name, (0, 0, 0))
+            m += a; f += b; o += c
+        return m, f, o
+
+    def _sex_summary(self, species_names):
+        """The bracketed breakdown, or '' where nothing has been sexed."""
+        try:
+            from shared.sex_summary import format_sex_summary
+        except ImportError:
+            return ""
+        return format_sex_summary(*self._sum_sexes(species_names))
+
+    def _node_label(self, name, count, species_names):
+        """'Apidae (61)' or 'Apidae (61: \u26421 \u26402 +58)'."""
+        s = self._sex_summary(species_names)
+        return f"{name} ({count:,}: {s})" if s else f"{name} ({count:,})"
+
+    def _species_label(self, species, count):
+        """A single unsexed specimen still shows just the name, as before."""
+        s = self._sex_summary([species])
+        if s:
+            return f"{species} ({count}: {s})" if count > 1 else f"{species} ({s})"
+        return f"{species} ({count})" if count > 1 else species
 
     def _on_item_clicked(self, item: QTreeWidgetItem, column: int):
         """Handle tree item click — emit filter signal and update detail panel."""
@@ -321,8 +380,9 @@ class TaxonomicSidebar(QWidget):
                         if sp_data and sp_data[0] == 'species':
                             total_species.add(sp_data[1])
 
-        self.detail_panel.show_order(order_name, total_specimens, 
-                                      len(total_species), families)
+        self.detail_panel.show_order(order_name, total_specimens,
+                                     len(total_species), families,
+                                     self._sum_sexes(total_species))
 
     def _show_superfamily_detail(self, sf_name: str, item: QTreeWidgetItem):
         """Show detail panel for a superfamily."""
@@ -344,15 +404,24 @@ class TaxonomicSidebar(QWidget):
                         total_species.add(sp_data[1])
 
         self.detail_panel.show_superfamily(order_name, sf_name, total_specimens,
-                                            len(total_species), families)
+                                           len(total_species), families,
+                                           self._sum_sexes(total_species))
 
     def _show_family_detail(self, family: str, item: QTreeWidgetItem):
         """Show detail panel for a family."""
         order_name = self._get_parent_order(item)
         stats = self._family_stats.get(family, (0, 0, []))
         specimen_count, species_count, genera = stats
+        # Species names from the item's own children, so the panel and the node
+        # above it are computed from the same set.
+        fam_species = set()
+        for i in range(item.childCount()):
+            d = item.child(i).data(0, Qt.ItemDataRole.UserRole)
+            if d and d[0] == 'species':
+                fam_species.add(d[1])
         self.detail_panel.show_family(
-            order_name, family, specimen_count, species_count, genera)
+            order_name, family, specimen_count, species_count, genera,
+            self._sum_sexes(fam_species))
 
     def _show_species_detail(self, species_name: str, item: QTreeWidgetItem):
         """Show detail panel for a species."""
@@ -392,22 +461,16 @@ class TaxonomicSidebar(QWidget):
         except Exception:
             pass
 
-        # Count specimens
-        specimen_count = 0
-        stats = self._family_stats.get(family, (0, 0, []))
-        # Get from tree item text
-        text = item.text(0)
-        if '(' in text and text.endswith(')'):
-            try:
-                specimen_count = int(text.split('(')[-1].rstrip(')'))
-            except ValueError:
-                specimen_count = 1
-        else:
+        # Specimen count, carried as data on the item. It used to be parsed
+        # back out of the label text, which breaks as soon as the label gains
+        # anything else -- a sex breakdown, for instance.
+        specimen_count = item.data(0, Qt.ItemDataRole.UserRole + 1)
+        if not isinstance(specimen_count, int):
             specimen_count = 1
 
         self.detail_panel.show_species(
             species_name, tvk, common_name, family, order_name,
-            specimen_count, conservation)
+            specimen_count, conservation, self._sum_sexes([species_name]))
 
     def _on_reset(self):
         """Reset sidebar: clear filter, collapse tree, show all specimens."""

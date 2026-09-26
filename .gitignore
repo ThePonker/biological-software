@@ -23,3 +23,5 @@ Observatum/BackUps/
 Observatum/test data/
 *.bak*
 *bak_*
+
+_dump/

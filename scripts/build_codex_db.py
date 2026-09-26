@@ -289,13 +289,16 @@ DESIG_TO_TRACK = {
     "RedList_WAL_post2001-EX":      ("red_list_wales", "EX", None),
 
     # -----------------------------------------------------------------
-    # PRIORITY LISTINGS -- jurisdiction goes in status_value (per design)
+    # PRIORITY LISTINGS -- jurisdiction in BOTH status_value and status_detail.
+    # status_detail is part of the primary key and part of the collapse key at
+    # the status_summary build; leaving it None made all five jurisdictions
+    # compete for one slot per species. See patch_priority_detail.py.
     # -----------------------------------------------------------------
-    "BAP-2007":                     ("priority", "UK BAP",                     None),
-    "England_NERC_S.41":            ("priority", "NERC S.41 England",          None),
-    "Env (Wales) Act S7":           ("priority", "Env (Wales) Act S7",         None),
-    "Scottish_Biodiversity_List":   ("priority", "Scottish Biodiversity List", None),
-    "NI_Priority":                  ("priority", "NI Priority Species",        None),
+    "BAP-2007":                     ("priority", "UK BAP",                     "UK BAP"),
+    "England_NERC_S.41":            ("priority", "NERC S.41 England",          "NERC S.41 England"),
+    "Env (Wales) Act S7":           ("priority", "Env (Wales) Act S7",         "Env (Wales) Act S7"),
+    "Scottish_Biodiversity_List":   ("priority", "Scottish Biodiversity List", "Scottish Biodiversity List"),
+    "NI_Priority":                  ("priority", "NI Priority Species",        "NI Priority Species"),
 
     # -----------------------------------------------------------------
     # LEGAL PROTECTION -- instrument goes in status_detail
@@ -595,6 +598,9 @@ def build_codex():
                             date_designated, origin
                      FROM designations WHERE tvk = ?""", (tvk,))
         # best[(track, detail)] = (value, abbr, source, iucn_ver, date_d, origin, priority)
+        # Winner = highest priority, then latest date_designated. Precedence must
+        # come first: Notable-B (40) must still beat the generic Notable (30) even
+        # though the generic review is newer. See patch_status_tiebreak.py.
         best = {}
         for abbr, source, iucn_ver, date_d, origin in c.fetchall():
             mapping = DESIG_TO_TRACK.get(abbr)
@@ -604,7 +610,8 @@ def build_codex():
             track, value, detail = mapping
             prio = get_desig_priority(abbr)
             key = (track, detail or "")
-            if key not in best or prio > best[key][6]:
+            if (key not in best
+                    or (prio, date_d or "") > (best[key][6], best[key][4] or "")):
                 best[key] = (value, abbr, source, iucn_ver, date_d, origin, prio)
 
         for (track, detail), (value, abbr, source, iucn_ver, date_d, origin, _) in best.items():
@@ -647,6 +654,18 @@ def build_codex():
         uc.execute("SELECT scientific_name, tvk FROM taxa WHERE rank = 'Species'")
         uksi_name_tvk = {r[0].lower(): r[1] for r in uc.fetchall()}
 
+        # Synonym index: Pantheon's names are 2017-era, so most bridge
+        # failures are species since renamed or moved genus. uksi.synonyms
+        # is name-based (synonym string -> current tvk).
+        uksi_syn_tvk = {}
+        try:
+            uc.execute("SELECT synonym, tvk FROM synonyms")
+            for _syn, _tvk in uc.fetchall():
+                if _syn:
+                    uksi_syn_tvk.setdefault(_syn.lower(), _tvk)
+        except sqlite3.OperationalError:
+            print("  ! uksi.synonyms unavailable -- synonym pass skipped")
+
         pc.execute("SELECT tvk, species_name FROM species")
         pan_species = pc.fetchall()
 
@@ -667,12 +686,52 @@ def build_codex():
                 else:
                     unmatched += 1
 
+        # Third pass -- synonym resolution for what the first two missed.
+        #
+        # Collisions ARE bridged (J2, Session 32). Where UKSI has merged two
+        # Pantheon taxa into one current species, both are mapped to it and the
+        # merge happens at read time: PantheonRepository unions the ecology and
+        # keeps the highest SQS. Excluding them lost habitat data for 89 species
+        # that nothing else could reach, and a higher SQS for 85.
+        #
+        # The SQS import below must keep the highest score per species, not the
+        # last one written, or this reintroduces the arbitrary overwrite the
+        # exclusion was there to prevent.
+        syn_match = 0
+        syn_collision = 0
+        # Pantheon taxa that landed on a species another taxon already claimed.
+        # Their SQS must not displace the incumbent's -- see the merge rule in
+        # patch_j2_incumbent_wins.py.
+        collider_pan_tvks = set()
+        claimed = {r[1] for r in bridge_rows}
+        resolved_pan = {r[0] for r in bridge_rows}
+        for pan_tvk, pan_name in pan_species:
+            if pan_tvk in resolved_pan or not pan_name:
+                continue
+            new_tvk = uksi_syn_tvk.get(pan_name.lower())
+            if not new_tvk:
+                continue
+            if new_tvk in claimed:
+                syn_collision += 1      # counted, and now also bridged
+                collider_pan_tvks.add(pan_tvk)
+            bridge_rows.append((pan_tvk, new_tvk, pan_name, "name"))
+            claimed.add(new_tvk)
+            syn_match += 1
+            unmatched -= 1
+
         c.executemany("INSERT OR REPLACE INTO tvk_bridge VALUES (?,?,?,?)", bridge_rows)
         bridge_count = len(bridge_rows)
+        # Carried to the SQS import below.
+        globals()["_COLLIDER_PAN_TVKS"] = collider_pan_tvks
 
         print(f"  Direct TVK match: {direct_match:,}")
         print(f"  Name-resolved:    {name_match:,}")
+        print(f"  Synonym-resolved: {syn_match:,}")
         print(f"  Unmatched:        {unmatched:,}")
+        if syn_collision:
+            print(f"  of which merged taxa:             {syn_collision:,}"
+                  f"  -- two Pantheon taxa in one current species;"
+                  f" ecology unioned, incumbent SQS kept")
         print(f"  Bridge total:     {bridge_count:,}")
 
         pan.close()
@@ -707,15 +766,37 @@ def build_codex():
         pc.execute("SELECT tvk, sqs FROM sqs_scores WHERE sqs > 0")
 
         sqs_rows = []
-        for pan_tvk, sqs in pc.fetchall():
-            uksi_tvk = bridge.get(pan_tvk, pan_tvk)
-            if uksi_tvk != pan_tvk:
-                sqs_rekeyed += 1
-            # Filter: only invertebrates per Codex's category column
-            if uksi_tvk not in invert_tvks:
-                sqs_dropped_noninvert += 1
-                continue
-            sqs_rows.append((uksi_tvk, sqs, "pantheon"))
+        # Several Pantheon taxa can map to one current species (J2). The
+        # INCUMBENT wins -- the taxon bridged by the direct or name pass, whose
+        # TVK or name matches the current species. A collider's score is used
+        # only where the incumbent has none.
+        #
+        # NOT the highest score: the sunk taxon usually carries the higher one
+        # because it was a scarce segregate, so taking the maximum inflates the
+        # merged species. Sympetrum striolatum (Common Darter, one of the
+        # commonest British dragonflies) went 1 -> 4 by inheriting the score of
+        # S. nigrescens, the Highland Darter form sunk into it.
+        colliders = globals().get("_COLLIDER_PAN_TVKS", set())
+        best_sqs = {}
+        sqs_merged = 0
+        rows_raw = pc.fetchall()
+        # Incumbents first, then colliders, so setdefault gives the incumbent.
+        for is_collider in (False, True):
+            for pan_tvk, sqs in rows_raw:
+                if (pan_tvk in colliders) != is_collider:
+                    continue
+                uksi_tvk = bridge.get(pan_tvk, pan_tvk)
+                if not is_collider and uksi_tvk != pan_tvk:
+                    sqs_rekeyed += 1
+                if uksi_tvk not in invert_tvks:
+                    if not is_collider:
+                        sqs_dropped_noninvert += 1
+                    continue
+                if uksi_tvk in best_sqs:
+                    sqs_merged += 1
+                else:
+                    best_sqs[uksi_tvk] = sqs
+        sqs_rows = [(t, s, "pantheon") for t, s in best_sqs.items()]
 
         # Also count what we filtered as zero-SQS in Pantheon
         sqs_dropped_zero = pc.execute(
@@ -727,6 +808,9 @@ def build_codex():
         c.executemany("INSERT OR REPLACE INTO sqs_scores VALUES (?,?,?)", sqs_rows)
         sqs_count = len(sqs_rows)
         print(f"  {sqs_count:,} SQS scores ({sqs_rekeyed:,} re-keyed via bridge)")
+        if sqs_merged:
+            print(f"  {sqs_merged:,} merged onto an existing species "
+                  f"(incumbent's score kept)")
         if sqs_dropped_zero or sqs_dropped_noninvert:
             print(f"  Filtered: {sqs_dropped_zero:,} zero-SQS, "
                   f"{sqs_dropped_noninvert:,} non-invertebrate TVK collisions")

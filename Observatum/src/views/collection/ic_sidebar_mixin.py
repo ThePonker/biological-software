@@ -194,14 +194,21 @@ class ICSidebarMixin:
             uksi_path = db.get_uksi_path() if hasattr(db, 'get_uksi_path') else str(db._uksi_db_path)
             conn = sqlite3.connect(main_path)
             conn.execute(f"ATTACH DATABASE '{uksi_path}' AS uksi")
+            # subfamily is stored as NULL on some rows and '' on others for the
+            # same species; grouping on the raw column splits them in two and
+            # the tree then keeps only one. Normalise both to NULL so they
+            # group together. 94 specimens were being lost to this.
             cursor = conn.execute("""
-                SELECT s.order_name, u.superfamily, s.family, s.subfamily,
+                SELECT s.order_name, u.superfamily, s.family,
+                       NULLIF(TRIM(COALESCE(s.subfamily, '')), '') AS subfamily,
                        s.species_name, s.species_tvk,
                        s.taxonomic_sort_key, COUNT(*) as specimen_count
                 FROM specimens s
                 LEFT JOIN uksi.taxa u ON s.species_tvk = u.tvk
                 WHERE s.taxonomic_sort_key IS NOT NULL
-                GROUP BY s.order_name, u.superfamily, s.family, s.subfamily, s.species_name
+                GROUP BY s.order_name, u.superfamily, s.family,
+                         NULLIF(TRIM(COALESCE(s.subfamily, '')), ''),
+                         s.species_name
                 ORDER BY s.taxonomic_sort_key
             """)
             specimens = [dict(zip(
@@ -209,6 +216,32 @@ class ICSidebarMixin:
                  'species_tvk', 'taxonomic_sort_key', 'specimen_count'],
                 row
             )) for row in cursor.fetchall()]
+
+            # Sex breakdown per species, classified in Python rather than SQL:
+            # the rule for what counts as male or female lives in
+            # shared/sex_summary.py and is imported, not restated, so the
+            # sidebar and the Data Entry pill cannot come to disagree.
+            try:
+                from shared.sex_summary import classify_sex
+                sexes = {}
+                for name, sex, n in conn.execute(
+                        """SELECT species_name, sex, COUNT(*) FROM specimens
+                           WHERE taxonomic_sort_key IS NOT NULL
+                           GROUP BY species_name, sex"""):
+                    m, f, o = sexes.get(name, (0, 0, 0))
+                    k = classify_sex(sex)
+                    if k == "m":
+                        m += n
+                    elif k == "f":
+                        f += n
+                    else:
+                        o += n
+                    sexes[name] = (m, f, o)
+                for sp in specimens:
+                    m, f, o = sexes.get(sp.get('species_name'), (0, 0, 0))
+                    sp['male_count'], sp['female_count'], sp['other_count'] = m, f, o
+            except Exception as e:
+                print(f"[SIDEBAR] sex breakdown unavailable: {e}")
             try:
                 conn.execute("DETACH DATABASE uksi")
             except Exception:

@@ -169,17 +169,31 @@ def main():
         if tvk not in by_species or sqs > by_species[tvk][1]:
             by_species[tvk] = (tvk, sqs, (track, value))
 
+    # DERIVED SCORES ARE NO LONGER STORED (Session 32).
+    #
+    # SQS_DEFAULTS below is not Pantheon's published rule -- it scores RDB3 at
+    # 16 "per Fowles original SQI", a different index, and takes the maximum of
+    # single (track, value) pairs where the rule is a function of rarity AND
+    # threat together. 525 of the 816 scores it produced disagreed with the
+    # published rule.
+    #
+    # CodexRepository.get_sqs_scores now derives on demand via
+    # shared/sqs_derivation.py, so sqs_scores holds only what Pantheon
+    # published (plus manual entries). The candidate count below is reported
+    # for information; nothing is written.
     filled = 0
     track_counts = {}
-    for tvk, (tvk_, sqs, winning) in by_species.items():
-        c.execute("""INSERT OR IGNORE INTO sqs_scores (tvk, sqs, source)
-                     VALUES (?, ?, 'derived')""", (tvk, sqs))
-        if c.rowcount > 0:
-            filled += 1
-            track_counts[winning[0]] = track_counts.get(winning[0], 0) + 1
+    if False:  # retained for reference; see patch_sqs_derive_live.py
+        for tvk, (tvk_, sqs, winning) in by_species.items():
+            c.execute("""INSERT OR IGNORE INTO sqs_scores (tvk, sqs, source)
+                         VALUES (?, ?, 'derived')""", (tvk, sqs))
+            if c.rowcount > 0:
+                filled += 1
+                track_counts[winning[0]] = track_counts.get(winning[0], 0) + 1
 
     print(f"  Candidate invertebrate species: {len(by_species):,}")
-    print(f"  SQS scores derived:             {filled:,}")
+    print(f"  SQS scores STORED:              {filled:,}  "
+          f"(derivation is now live -- see shared/sqs_derivation.py)")
     if track_counts:
         print(f"\n  Breakdown by winning track:")
         for track, cnt in sorted(track_counts.items(), key=lambda x: -x[1]):

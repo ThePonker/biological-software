@@ -33,13 +33,36 @@ RED_STATUS = "#a63d40"
 AMBER = "#c2956e"
 
 TRACK_LABELS = {
-    "gb_red_list": "GB Red List", "gb_red_list_legacy": "GB Red List (legacy)",
-    "gb_rarity": "GB Rarity", "gb_rarity_legacy": "GB Rarity (legacy)",
-    "section_41": "Section 41", "bap": "UK BAP",
-    "legal_protection": "Legal protection", "global_red_list": "Global Red List",
+    "threat_iucn_2001": "GB Red List (2001 IUCN)",
+    "threat_iucn_2001_breeding": "GB Red List (breeding)",
+    "threat_iucn_2001_nonbreeding": "GB Red List (non-breeding)",
+    "threat_iucn_legacy": "GB Red List (pre-2001)",
+    "threat_global_iucn": "Global Red List",
+    "rarity_modern": "GB Rarity",
+    "rarity_legacy": "GB Rarity (legacy)",
+    "bocc": "Birds of Conservation Concern",
+    "specialist_panel": "Specialist panel",
+    "red_list_england": "England Red List",
+    "red_list_wales": "Wales Red List",
+    "legal_protection": "Legal protection",
+    "priority": "Priority listing",
 }
-SEVERE = {"CR", "EN", "VU", "NR", "RDB1", "RDB2"}
-MODERATE = {"NT", "NS", "Na", "Nb", "RDB3", "RDBK", "Notable"}
+
+# Single-entry tracks, in display order.
+SINGLE_TRACKS = [
+    "threat_iucn_2001", "threat_iucn_2001_breeding", "threat_iucn_2001_nonbreeding",
+    "threat_iucn_legacy", "threat_global_iucn",
+    "rarity_modern", "rarity_legacy",
+    "bocc", "specialist_panel",
+    "red_list_england", "red_list_wales",
+]
+
+# Tracks carrying a list of entries -- a species can hold several.
+LIST_TRACKS = ["legal_protection", "priority"]
+
+SEVERE = {"CR", "EN", "VU", "NR", "RDB1", "RDB2", "RE", "EX", "EW"}
+MODERATE = {"NT", "NS", "Na", "Nb", "RDB3", "RDBK", "Notable", "DD", "Amber"}
+
 
 
 class SpeciesDatabaseView(QWidget):
@@ -223,26 +246,42 @@ class SpeciesDatabaseView(QWidget):
             self.status_group.hide(); self.sqs_label.setText(""); return
         try: status = self._codex.get_status_summary(tvk)
         except FileNotFoundError: self.status_group.hide(); self.sqs_label.setText(""); return
+
+        # Build (track, value, detail, source) rows from the 11-track model.
+        # Single-entry tracks hold an Optional[StatusEntry]; list tracks hold
+        # a list of them, so a species can show several priority listings.
         rows = []
-        for track, attr, src in [
-                ("gb_red_list","gb_red_list","gb_red_list_source"),("gb_red_list_legacy","gb_red_list_legacy","gb_red_list_legacy_source"),
-                ("gb_rarity","gb_rarity","gb_rarity_source"),("gb_rarity_legacy","gb_rarity_legacy","gb_rarity_legacy_source"),
-                ("section_41","section_41",None),("bap","bap",None),("legal_protection","legal_protection",None),("global_red_list","global_red_list",None)]:
-            v = getattr(status, attr, "")
-            if v: rows.append((track, v, getattr(status, src, "") if src else ""))
+        for track in SINGLE_TRACKS:
+            entry = getattr(status, track, None)
+            if entry is not None and getattr(entry, "value", ""):
+                rows.append((track, entry.value,
+                             getattr(entry, "detail", "") or "",
+                             getattr(entry, "source", "") or ""))
+        for track in LIST_TRACKS:
+            for entry in getattr(status, track, None) or []:
+                if getattr(entry, "value", ""):
+                    rows.append((track, entry.value,
+                                 getattr(entry, "detail", "") or "",
+                                 getattr(entry, "source", "") or ""))
+
         if rows:
             self.status_group.show()
-            for i, (track, val, source) in enumerate(rows):
+            for i, (track, val, detail, source) in enumerate(rows):
                 tl = QLabel(TRACK_LABELS.get(track, track))
                 tl.setStyleSheet("color: " + TEXT_SECONDARY + "; font-size: 11px; border: none;")
                 self.status_grid.addWidget(tl, i, 0)
-                vl = QLabel(val)
+                # Detail carries the instrument or jurisdiction, which is the
+                # useful part for legal_protection and priority.
+                shown = f"{val} \u2014 {detail}" if detail and detail != val else val
+                vl = QLabel(shown)
                 vl.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
                 c = RED_STATUS if val in SEVERE else (AMBER if val in MODERATE else ACCENT_DARK)
                 vl.setStyleSheet("color: " + c + "; border: none;")
+                vl.setWordWrap(True)
                 self.status_grid.addWidget(vl, i, 1)
                 sl = QLabel(source)
                 sl.setStyleSheet("color: " + TEXT_MUTED + "; font-size: 10px; border: none;")
+                sl.setWordWrap(True)
                 self.status_grid.addWidget(sl, i, 2)
         else: self.status_group.hide()
         if status.sqs:

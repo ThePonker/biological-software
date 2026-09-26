@@ -67,6 +67,7 @@ class RecordDetailDialog(QDialog):
         # Get counts for both observations and specimens
         self._observation_count = 0
         self._specimen_count = 0
+        self._specimen_sexes = (0, 0, 0)   # male, female, not-yet-sexed
         self._load_counts()
         
         # Set tab colors based on record type or use provided colors
@@ -133,7 +134,25 @@ class RecordDetailDialog(QDialog):
                     (species_name,)
                 )
             self._specimen_count = result[0][0] if result else 0
-            
+
+            # Sex breakdown across the held specimens of this species, for the
+            # Collection row. Classification is imported from
+            # shared/sex_summary.py so this cannot disagree with the tree, the
+            # detail panel or the Data Entry pill.
+            try:
+                from shared.sex_summary import count_sexes
+                if species_tvk:
+                    rows = db.execute_main(
+                        "SELECT sex FROM specimens WHERE species_tvk = ?",
+                        (species_tvk,))
+                else:
+                    rows = db.execute_main(
+                        "SELECT sex FROM specimens WHERE species_name = ?",
+                        (species_name,))
+                self._specimen_sexes = count_sexes(r[0] for r in (rows or []))
+            except Exception:
+                self._specimen_sexes = (0, 0, 0)
+
         except Exception as e:
             print(f"[RecordDetailDialog] Error loading counts: {e}")
     
@@ -383,7 +402,26 @@ class RecordDetailDialog(QDialog):
             collection_row.addWidget(collection_link)
             
             collection_row.addStretch()
-            
+
+            # Sex breakdown beside the count, smaller and muted, so the large
+            # figure stays the thing the eye lands on.
+            try:
+                from shared.sex_summary import format_sex_summary
+                summary = format_sex_summary(*self._specimen_sexes)
+            except ImportError:
+                summary = ""
+            if summary:
+                sex_label = QLabel(summary)
+                sex_label.setStyleSheet(
+                    f"font-size: 12px; color: {t.get('text_secondary')};"
+                    " padding-right: 6px;")
+                sex_label.setToolTip(
+                    f"{self._specimen_sexes[0]} male, {self._specimen_sexes[1]} "
+                    f"female"
+                    + (f", {self._specimen_sexes[2]} not yet sexed"
+                       if self._specimen_sexes[2] else ""))
+                collection_row.addWidget(sex_label)
+
             collection_count = QLabel(str(self._specimen_count))
             collection_count.setStyleSheet(f"""
                 font-size: 16px;
@@ -437,6 +475,32 @@ class RecordDetailDialog(QDialog):
         if vc or vc_num:
             vc_display = f"{vc} (VC{vc_num})" if vc and vc_num else vc or f"VC{vc_num}"
             self._add_label_value_row(layout, "Vice County", vc_display)
+
+        if self.record_type == 'specimen':
+            self._add_specimen_fields(layout)
+
+    def _add_specimen_fields(self, layout):
+        """Fields belonging to the specimen itself.
+
+        These were absent entirely: the dialog showed date, grid ref, location
+        and vice county, while sex, collector, determiner and all four
+        curatorial fields went unshown -- including the ones added in August
+        specifically so they could be recorded.
+
+        Only fields the record actually holds are displayed, so a specimen with
+        no curatorial data looks as it did before.
+        """
+        for label, key in (("Sex", "sex"),
+                           ("Collector", "collector"),
+                           ("Determiner", "determiner"),
+                           ("Preparation", "preparation_type"),
+                           ("Condition", "condition"),
+                           ("Storage", "storage_location"),
+                           ("Drawer", "drawer_unit")):
+            raw = self.record.get(key)
+            value = raw.strip() if isinstance(raw, str) else raw
+            if value:
+                self._add_label_value_row(layout, label, str(value))
     
     def _add_observation_fields(self, layout):
         """Add observation-specific fields."""
