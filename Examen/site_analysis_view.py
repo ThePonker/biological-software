@@ -201,8 +201,9 @@ class SiteAnalysisView(QWidget):
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self.table.setAlternatingRowColors(True); self.table.setStyleSheet(TABLE_STYLE)
-        self.table.setMaximumHeight(180)
-        self.table.cellClicked.connect(self._on_project_clicked); splitter.addWidget(self.table)
+        # A floor, not a cap: ~5 rows always visible, draggable taller.
+        self.table.setMinimumHeight(260)
+        splitter.addWidget(self.table)
 
         detail_container = QWidget()
         dl = QVBoxLayout(detail_container); dl.setContentsMargins(0, 0, 0, 0); dl.setSpacing(4)
@@ -219,8 +220,28 @@ class SiteAnalysisView(QWidget):
         self.detail_tabs.addTab(self.species_tab, "Species")
         self.detail_tabs.addTab(self.conservation_tab, "Conservation")
         self.detail_tabs.hide(); dl.addWidget(self.detail_tabs, 1)
+        detail_container.setMinimumHeight(200)   # explicit: the splitter stops following content
         splitter.addWidget(detail_container)
         splitter.setStretchFactor(0, 0); splitter.setStretchFactor(1, 1)
+        # Neither pane may collapse: the table keeps its minimum, the detail its own.
+        splitter.setChildrenCollapsible(False)
+        # Clicking a project must not move the divider: record the split, load,
+        # restore -- now and again once Qt has finished laying out.
+        def _keep_split(row, col):
+            sizes = self._splitter.sizes()
+            self._on_project_clicked(row, col)
+            self._splitter.setSizes(sizes)
+            from PySide6.QtCore import QTimer
+            QTimer.singleShot(0, lambda: self._splitter.setSizes(sizes))
+        self.table.cellClicked.connect(_keep_split)
+        self._splitter = splitter
+        from PySide6.QtCore import QSettings
+        _st = QSettings("Flauna", "Examen").value("site_analysis/splitter")
+        if _st is None or not splitter.restoreState(_st):
+            splitter.setSizes([340, 660])          # table ~1/4 on first run
+        splitter.splitterMoved.connect(
+            lambda *_: QSettings("Flauna", "Examen").setValue(
+                "site_analysis/splitter", self._splitter.saveState()))
         layout.addWidget(splitter, 1)
         self.summary_label = QLabel(""); self.summary_label.setStyleSheet("color: " + TEXT_MUTED + "; font-size: 11px;")
         layout.addWidget(self.summary_label)
