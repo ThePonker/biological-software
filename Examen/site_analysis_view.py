@@ -102,7 +102,7 @@ class SiteAnalysisView(QWidget):
         try:
             conn = sqlite3.connect(f"file:{paths.OBSERVATUM_DB}?mode=ro", uri=True)
             rows = conn.execute(
-                f"""SELECT vc_number, COUNT(1) FROM observations
+                f"""SELECT vc_number, COUNT(1) FROM assessment_records
                     WHERE {where} AND vc_number IS NOT NULL AND vc_number != ''
                     GROUP BY 1 ORDER BY 2 DESC""", params).fetchall()
             conn.close()

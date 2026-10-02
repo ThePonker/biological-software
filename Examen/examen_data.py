@@ -163,7 +163,7 @@ def survey_years():
     conn = _connect()
     try:
         return [r[0] for r in conn.execute(
-            """SELECT DISTINCT substr(date,1,4) FROM observations
+            """SELECT DISTINCT substr(date,1,4) FROM assessment_records
                WHERE record_type = 'Commercial' AND date IS NOT NULL
                  AND date != '' ORDER BY 1 DESC""") if r[0]]
     finally:
@@ -178,7 +178,7 @@ def date_range_available():
     conn.execute("PRAGMA query_only = ON")
     try:
         row = conn.execute(
-            "SELECT MIN(date), MAX(date) FROM observations "
+            "SELECT MIN(date), MAX(date) FROM assessment_records "
             "WHERE record_type = 'Commercial' AND date IS NOT NULL").fetchone()
         return (row[0] or "", row[1] or "")
     finally:
@@ -324,7 +324,7 @@ def _accumulation(conn, where, params):
     """Species-accumulation curve by date."""
     seen, by_date = set(), {}
     for date, sp in conn.execute(
-            f"""SELECT date, species_name FROM observations
+            f"""SELECT date, species_name FROM assessment_records
                 WHERE {where} AND date IS NOT NULL AND species_name IS NOT NULL
                 ORDER BY date""", params):
         seen.add(sp)
@@ -350,7 +350,7 @@ def load_all_sites(mode=AnalysisMode.CODEX_FULL, date_from=None, date_to=None,
             SELECT site_name, project_name, client,
                    COUNT(*), COUNT(DISTINCT species_name),
                    COUNT(DISTINCT date), MIN(date), MAX(date)
-            FROM observations
+            FROM assessment_records
             WHERE record_type = 'Commercial'
               AND site_name IS NOT NULL AND site_name != ''{sc}
             GROUP BY site_name, project_name ORDER BY site_name""", sp).fetchall()
@@ -385,7 +385,7 @@ def load_site_detail(site_name, project_name="", mode=AnalysisMode.CODEX_FULL,
             f"""SELECT site_name, project_name, client,
                        COUNT(*), COUNT(DISTINCT species_name),
                        COUNT(DISTINCT date), MIN(date), MAX(date)
-                FROM observations WHERE {where}""", params).fetchone()
+                FROM assessment_records WHERE {where}""", params).fetchone()
         if not row or not row[0]:
             return None
         site = SiteRecord(
@@ -395,7 +395,7 @@ def load_site_detail(site_name, project_name="", mode=AnalysisMode.CODEX_FULL,
             survey_year=str(survey_year or POOLED))
 
         species_rows = conn.execute(
-            f"""SELECT species_name, species_tvk, COUNT(*) FROM observations
+            f"""SELECT species_name, species_tvk, COUNT(*) FROM assessment_records
                 WHERE {where} AND species_name IS NOT NULL
                 GROUP BY species_name, species_tvk ORDER BY species_name""",
             params).fetchall()
@@ -421,7 +421,7 @@ def _enrich_sites(sites, mode, date_from=None, date_to=None, survey_year=None):
                 where += " AND project_name = ?"
                 params.append(site.project_name)
             tvks = [r[0] for r in conn.execute(
-                f"""SELECT DISTINCT species_tvk FROM observations WHERE {where}{sc}
+                f"""SELECT DISTINCT species_tvk FROM assessment_records WHERE {where}{sc}
                     AND species_tvk IS NOT NULL AND species_tvk != ''""",
                 params + sp)]
             if not tvks:
@@ -466,7 +466,7 @@ def load_all_projects(mode=AnalysisMode.CODEX_FULL, date_from=None, date_to=None
                    COUNT(DISTINCT species_name), COUNT(DISTINCT date),
                    MIN(date), MAX(date),
                    GROUP_CONCAT(DISTINCT site_name)
-            FROM observations
+            FROM assessment_records
             WHERE record_type = 'Commercial'
               AND project_name IS NOT NULL AND project_name != ''{sc}
             GROUP BY project_name, client{year_grp}
@@ -504,7 +504,7 @@ def load_project_detail(project_name, client="", mode=AnalysisMode.CODEX_FULL,
             f"""SELECT project_name, client, COUNT(*),
                        COUNT(DISTINCT species_name), COUNT(DISTINCT date),
                        MIN(date), MAX(date), COUNT(DISTINCT site_name)
-                FROM observations WHERE {where}""", params).fetchone()
+                FROM assessment_records WHERE {where}""", params).fetchone()
         if not row or not row[0]:
             return None
         # SiteRecord doubles as the project summary -- the views expect it.
@@ -515,7 +515,7 @@ def load_project_detail(project_name, client="", mode=AnalysisMode.CODEX_FULL,
             survey_year=str(survey_year or POOLED))
 
         species_rows = conn.execute(
-            f"""SELECT species_name, species_tvk, COUNT(*) FROM observations
+            f"""SELECT species_name, species_tvk, COUNT(*) FROM assessment_records
                 WHERE {where} AND species_name IS NOT NULL
                 GROUP BY species_name, species_tvk ORDER BY species_name""",
             params).fetchall()
@@ -542,7 +542,7 @@ def _enrich_projects(projects, mode, date_from=None, date_to=None):
                 where += " AND client = ?"
                 params.append(proj.client)
             tvks = [r[0] for r in conn.execute(
-                f"""SELECT DISTINCT species_tvk FROM observations WHERE {where}{sc}
+                f"""SELECT DISTINCT species_tvk FROM assessment_records WHERE {where}{sc}
                     AND species_tvk IS NOT NULL AND species_tvk != ''""",
                 params + sp)]
             if not tvks:

@@ -114,6 +114,12 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
                 (row.get("sub_location") or None, row.get("trap_number") or None,
                  row.get("visit_number") or None, batch, new_id),
             )
+        if new_id and kwargs.get("embargo_until"):
+            # The iRecord export excludes a record only when embargo_status is
+            # 'Active' AND embargo_until is in the future. Setting the date alone
+            # left the first committed batch uploadable (found 2 October 2026).
+            db.execute_main_write(
+                "UPDATE observations SET embargo_status='Active' WHERE id=?", (new_id,))
         repo.delete_row(conn, row["id"])
         committed += 1
 

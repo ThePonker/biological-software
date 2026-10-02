@@ -387,7 +387,7 @@ def _occurrences(tvks, project_name, client="", survey_year=None):
             params.append(str(survey_year))
         rows = c.execute(
             f"""SELECT species_tvk, site_name, sub_location, date, quantity
-                FROM observations WHERE {where} AND species_tvk IS NOT NULL""",
+                FROM assessment_records WHERE {where} AND species_tvk IS NOT NULL""",
             params).fetchall()
         c.close()
     except sqlite3.Error:

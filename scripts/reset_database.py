@@ -473,7 +473,63 @@ CREATE TABLE IF NOT EXISTS specimen_notifications (
 
 
 
+CREATE_CONTRIBUTED_OBSERVATIONS = """
+-- Records other people collected. Never read by stats, mapping or the
+-- iRecord export, which all read `observations`. Examen reads the
+-- assessment_records view, which combines the two.
+CREATE TABLE IF NOT EXISTS contributed_observations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    -- the record
+    species_name TEXT NOT NULL,
+    species_tvk TEXT,
+    common_name TEXT,
+    order_name TEXT,
+    family TEXT,
+    taxon_rank TEXT,
+    date TEXT NOT NULL,
+    date_type TEXT DEFAULT 'D',
+    grid_ref TEXT,
+    grid_precision INTEGER,
+    vice_county TEXT,
+    vc_number INTEGER,
+    site_name TEXT,
+    sub_location TEXT,
+    trap_number TEXT,
+    visit_number TEXT,
+    recorder TEXT,
+    determiner TEXT,
+    sex TEXT,
+    stage TEXT,
+    quantity INTEGER DEFAULT 1,
+    method TEXT,
+    comment TEXT,
+    record_type TEXT DEFAULT 'Commercial',
+    project_name TEXT,
+    client TEXT,
+    -- whose it is and on what terms
+    contributor TEXT NOT NULL,
+    source_file TEXT,
+    received_date TEXT,
+    permission TEXT,
+    import_batch TEXT,
+    import_notes TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
 CREATE_INDEXES = """
+-- contributed records, and the view Examen reads (see CREATE_CONTRIBUTED_OBSERVATIONS)
+CREATE INDEX IF NOT EXISTS idx_contrib_project ON contributed_observations(project_name);
+CREATE INDEX IF NOT EXISTS idx_contrib_tvk ON contributed_observations(species_tvk);
+CREATE INDEX IF NOT EXISTS idx_contrib_contributor ON contributed_observations(contributor);
+CREATE INDEX IF NOT EXISTS idx_contrib_batch ON contributed_observations(import_batch);
+CREATE VIEW IF NOT EXISTS assessment_records AS
+    SELECT 'own' AS origin, NULL AS contributor, id, record_type, project_name, client, site_name, sub_location, trap_number, visit_number, date, species_name, species_tvk, common_name, order_name, family, quantity, sex, stage, method, recorder, determiner, grid_ref, vice_county, vc_number
+    FROM observations
+    UNION ALL
+    SELECT 'contributed' AS origin, contributor, id, record_type, project_name, client, site_name, sub_location, trap_number, visit_number, date, species_name, species_tvk, common_name, order_name, family, quantity, sex, stage, method, recorder, determiner, grid_ref, vice_county, vc_number
+    FROM contributed_observations;
 -- Observations indexes
 CREATE INDEX IF NOT EXISTS idx_obs_species ON observations(species_name);
 CREATE INDEX IF NOT EXISTS idx_obs_tvk ON observations(species_tvk);
@@ -594,6 +650,7 @@ def create_tables(cursor):
         ('specimen_notifications', CREATE_SPECIMEN_NOTIFICATIONS),
         ('entry_jobs', CREATE_ENTRY_JOBS),
         ('entry_staging', CREATE_ENTRY_STAGING),
+        ('contributed_observations', CREATE_CONTRIBUTED_OBSERVATIONS),
     ]
     
     for name, sql in tables:
