@@ -1,0 +1,95 @@
+﻿No-Pantheon check -- Birmingham - Wheels Park 2026   READ ONLY
+==============================================================================
+  pantheon.species columns: ['tvk', 'species_name', 'preferred_name', 'preferred_tvk', 'family']  (name=species_name, tvk=tvk)
+  species in project: 195   with no Pantheon data through the bridge: 13
+
+  Amblyteles armatorius  [NBNSYS0000031641]  x1
+    UKSI: current -- Amblyteles armatorius, Species
+    bridge: no entry targets this TVK
+    Pantheon species by name: none
+    => absent from Pantheon
+
+  Anthomyia procellaris  [NBNSYS0000030506]  x1
+    UKSI: current -- Anthomyia procellaris, Species
+    bridge: no entry targets this TVK
+    Pantheon species by name: none
+    => absent from Pantheon
+
+  Cistogaster globosa  [NBNSYS0000030028]  x2
+    UKSI: current -- Cistogaster globosa, Species
+    bridge: no entry targets this TVK
+    Pantheon species by name: none
+    => absent from Pantheon
+
+  Delia platura  [NBNSYS0000030557]  x1
+    UKSI: current -- Delia platura, Species
+    bridge: no entry targets this TVK
+    Pantheon species by name: none
+    => absent from Pantheon
+
+  Eriothrix rufomaculata  [NBNSYS0000030074]  x1
+    UKSI: current -- Eriothrix rufomaculata, Species
+    bridge: no entry targets this TVK
+    Pantheon species by name: none
+    => absent from Pantheon
+
+  Gastrolepta anthracina  [NBNSYS0000030172]  x1
+    UKSI: current -- Gastrolepta anthracina, Species
+    bridge: no entry targets this TVK
+    Pantheon species by name: none
+    => absent from Pantheon
+
+  Harmonia axyridis  [NHMSYS0000712592]  x3
+    UKSI: current -- Harmonia axyridis, Species
+    bridge: no entry targets this TVK
+    Pantheon species by name: none
+    => absent from Pantheon
+
+  Homoeosoma sinuella  [NHMSYS0000502872]  x1
+    UKSI: current -- Homoeosoma sinuella, Species
+    UKSI other TVKs for this name: taxa []  synonyms -> ['NHMSYS0000502872']
+    bridge: ['NHMSYS0000502872']
+    Pantheon species by name: [('NHMSYS0000502872', 'Homoeosoma sinuella')]
+      NHMSYS0000502872: sqs=False biotope=False  bridge -> [('NHMSYS0000502872', 'direct')]
+    => IN PANTHEON, bridged to a different TVK than the records use
+
+  Meligethes aeneus  [NHMSYS0020152557]  x1
+    UKSI: current -- Meligethes aeneus, Species
+    UKSI other TVKs for this name: taxa []  synonyms -> ['NHMSYS0020152557']
+    bridge: no entry targets this TVK
+    Pantheon species by name: none
+    => absent from Pantheon
+
+  Mesembrina meridiana  [NBNSYS0000030713]  x1
+    UKSI: current -- Mesembrina meridiana, Species
+    bridge: ['NBNSYS0000030713']
+    Pantheon species by name: [('NBNSYS0000030713', 'Mesembrina meridiana')]
+      NBNSYS0000030713: sqs=False biotope=False  bridge -> [('NBNSYS0000030713', 'direct')]
+    => IN PANTHEON, bridged to a different TVK than the records use
+
+  Nomada panzeri  [NHMSYS0021195757]  x1
+    UKSI: current -- Nomada panzeri, Species sensu lato
+    UKSI other TVKs for this name: taxa ['NHMSYS0021195763']  synonyms -> ['NHMSYS0021195757']
+    bridge: no entry targets this TVK
+    Pantheon species by name: [('NBNSYS0000009812', 'Nomada panzeri')]
+      NBNSYS0000009812: sqs=True biotope=True  bridge -> [('NHMSYS0021195763', 'name')]
+    => IN PANTHEON, bridged to a different TVK than the records use
+
+  Olibrus corticalis  [NBNSYS0000024679]  x1
+    UKSI: current -- Olibrus corticalis, Species
+    bridge: no entry targets this TVK
+    Pantheon species by name: none
+    => absent from Pantheon
+
+  Paregle audacula  [NBNSYS0100004477]  x1
+    UKSI: current -- Paregle audacula, Species
+    UKSI other TVKs for this name: taxa []  synonyms -> ['NBNSYS0100004477']
+    bridge: no entry targets this TVK
+    Pantheon species by name: none
+    => absent from Pantheon
+
+Summary:
+   10  absent from Pantheon
+    3  IN PANTHEON, bridged to a different TVK than the records use
+
+READ ONLY -- nothing has been changed.

@@ -51,6 +51,28 @@ TAB_STYLE = (
 AUTO_JURISDICTION = "Auto (vice-county)"
 
 
+# ---- project table: display one thing, sort on another --------------------
+_PROJ_ROLE = int(Qt.ItemDataRole.UserRole)        # column 0: index into self._projects
+_SORT_ROLE = int(Qt.ItemDataRole.UserRole) + 1    # every column: the value to sort on
+
+
+class _SortItem(QTableWidgetItem):
+    """Shows its text; sorts on _SORT_ROLE -- numbers as numbers, dates as ISO."""
+    def __lt__(self, other):
+        a, b = self.data(_SORT_ROLE), other.data(_SORT_ROLE)
+        if a is None or b is None or type(a) is not type(b):
+            return super().__lt__(other)
+        return a < b
+
+
+def _dmy(iso):
+    """'2026-05-05' -> '05/05/2026'; anything else unchanged."""
+    s = str(iso or "")
+    if len(s) >= 10 and s[4] == "-" and s[7] == "-":
+        return f"{s[8:10]}/{s[5:7]}/{s[:4]}"
+    return s
+
+
 class SiteAnalysisView(QWidget):
 
     def __init__(self, analysis_service, snapshot_mgr):
@@ -249,40 +271,54 @@ class SiteAnalysisView(QWidget):
     def _load_projects(self):
         self._projects = load_all_projects(self._mode,
                                            by_year=not self._pool_years)
+        # Sorting off while filling: with it on, setItem can re-sort mid-fill.
+        self.table.setSortingEnabled(False)
         self.table.setRowCount(len(self._projects))
         self.freeze_btn.setEnabled(False); self.appendix_btn.setEnabled(False)
         self._current_detail = None; self._current_result = None; self.detail_tabs.hide()
+
+        def put(r, c, text, key, centre=True, colour=None, tip=None):
+            it = _SortItem(text)
+            it.setData(_SORT_ROLE, key)
+            if centre: it.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            if colour: it.setForeground(QColor(colour))
+            if tip: it.setToolTip(tip)
+            self.table.setItem(r, c, it)
+            return it
+
         for i, p in enumerate(self._projects):
-            self.table.setItem(i, 0, QTableWidgetItem(p.project_name))
-            yr = QTableWidgetItem(p.survey_year or "all")
-            yr.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            if not p.survey_year:
-                yr.setForeground(QColor(TEXT_MUTED))
-            self.table.setItem(i, 1, yr)
-            self.table.setItem(i, 2, QTableWidgetItem(p.client))
-            st = QTableWidgetItem(str(p.site_count)); st.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            st.setToolTip(", ".join(p.site_names) if p.site_names else ""); self.table.setItem(i, 3, st)
-            for col, val in [(4, p.visit_count), (5, p.species_count), (6, p.key_species_count)]:
-                it = QTableWidgetItem(str(val)); it.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                if col == 6 and val > 0: it.setForeground(QColor(RED_STATUS))
-                self.table.setItem(i, col, it)
-            pct = QTableWidgetItem(f"{p.key_species_pct}%"); pct.setTextAlignment(Qt.AlignmentFlag.AlignCenter); self.table.setItem(i, 7, pct)
+            name = put(i, 0, p.project_name, (p.project_name or "").lower(), centre=False)
+            name.setData(_PROJ_ROLE, i)          # travels with the row when it sorts
+            yr = str(p.survey_year or "")
+            put(i, 1, yr or "all", int(yr) if yr.isdigit() else 0,
+                colour=None if yr else TEXT_MUTED)
+            put(i, 2, p.client or "", (p.client or "").lower(), centre=False)
+            put(i, 3, str(p.site_count), int(p.site_count or 0),
+                tip=", ".join(p.site_names) if p.site_names else None)
+            put(i, 4, str(p.visit_count), int(p.visit_count or 0))
+            put(i, 5, str(p.species_count), int(p.species_count or 0))
+            put(i, 6, str(p.key_species_count), int(p.key_species_count or 0),
+                colour=RED_STATUS if (p.key_species_count or 0) > 0 else None)
+            put(i, 7, f"{p.key_species_pct}%", float(p.key_species_pct or 0))
             sq = (str(int(p.sqi)) if p.sqi > 0 else "-") + ("*" if p.sqi > 0 and not p.sqi_reliable else "")
-            si = QTableWidgetItem(sq); si.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            if p.sqi >= 150: si.setForeground(QColor(MOSS_GREEN))
-            elif p.sqi >= 125: si.setForeground(QColor(AMBER))
-            self.table.setItem(i, 8, si)
-            self.table.setItem(i, 9, QTableWidgetItem(f"{p.first_date} \u2013 {p.last_date}" if p.first_date else ""))
+            put(i, 8, sq, float(p.sqi or 0),
+                colour=MOSS_GREEN if p.sqi >= 150 else (AMBER if p.sqi >= 125 else None))
+            put(i, 9, f"{_dmy(p.first_date)} \u2013 {_dmy(p.last_date)}" if p.first_date else "",
+                p.first_date or "", centre=False)
         self.table.resizeColumnsToContents()
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.table.setSortingEnabled(True)
         mode_t = "Codex Full" if self._mode == AnalysisMode.CODEX_FULL else "Pantheon Only"
         grouping = "pooled across years" if self._pool_years else "by survey year"
         self.summary_label.setText(f"{len(self._projects)} rows ({grouping})  |  "
                                    f"Mode: {mode_t}")
 
     def _on_project_clicked(self, row, col):
-        if row >= len(self._projects): return
-        proj = self._projects[row]
+        # The row carries its project: after sorting, row N is not self._projects[N].
+        _it = self.table.item(row, 0)
+        _idx = _it.data(_PROJ_ROLE) if _it is not None else None
+        if _idx is None or _idx >= len(self._projects): return
+        proj = self._projects[_idx]
         detail = load_project_detail(proj.project_name, proj.client, self._mode,
                                      survey_year=proj.survey_year or None)
         if not detail: return
@@ -323,13 +359,9 @@ class SiteAnalysisView(QWidget):
         self.conservation_tab.set_result(result, self._current_detail)
 
     def _load_taxonomy(self, tvks):
-        if not tvks or not paths.UKSI_DB.exists(): return {}
-        conn = sqlite3.connect(str(paths.UKSI_DB)); c = conn.cursor(); result = {}
-        for i in range(0, len(tvks), 500):
-            batch = tvks[i:i+500]; ph = ",".join("?" * len(batch))
-            c.execute(f'SELECT t.tvk, COALESCE(cn.common_name,"") as common, COALESCE(t.family,"") as family, COALESCE(t."order","") as "order" FROM taxa t LEFT JOIN common_names cn ON t.tvk = cn.tvk AND cn.preferred = 1 WHERE t.tvk IN ({ph})', batch)
-            for r in c.fetchall(): result[r[0]] = {"common": r[1], "family": r[2], "order": r[3]}
-        conn.close(); return result
+        """Delegates to examen_data.load_taxonomy -- one lookup for tab and exports."""
+        from .examen_data import load_taxonomy
+        return load_taxonomy(tvks)
 
     def _load_fidelity(self, tvks):
         if not tvks: return {}

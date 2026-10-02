@@ -184,7 +184,9 @@ class ConservationTab(QWidget):
             if not applies:
                 any_na = True
                 colour, bar_colour = NA_TEXT, NA_BAR
-                label = f"{label} \u2014 not applicable in {self._juris}"
+                label = (f"{label} \u2014 research only, not a Key Species status"
+                         if "research" in label.lower() else
+                         f"{label} \u2014 not applicable in {self._juris}")
             row = QHBoxLayout(); row.setSpacing(8)
 
             code_lbl = QLabel(code)

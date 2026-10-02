@@ -24,6 +24,41 @@ except ImportError:
         PANTHEON_ONLY = "pantheon_only"
 
 
+_HAB_BIO = None
+
+
+def _habitat_biotopes():
+    """{habitat: {biotope, ...}} from Pantheon's own hierarchy.
+
+    habitat_traits holds the tree: each habitat row's parent_trait_id is its
+    broad biotope. Wet woodland sits under both tree-associated and wetland.
+    Cached. Empty if pantheon.db cannot be read -- pairing then falls back to
+    every combination rather than failing.
+    """
+    global _HAB_BIO
+    if _HAB_BIO is not None:
+        return _HAB_BIO
+    out = {}
+    try:
+        import sqlite3
+        import paths
+        c = sqlite3.connect(f"file:{paths.PANTHEON_DB}?mode=ro", uri=True)
+        bio_names = {str(tid): str(name).strip().lower() for tid, name in c.execute(
+            "SELECT DISTINCT trait_id, trait_name FROM habitat_traits "
+            "WHERE trait_type = 'broad biotope'")}
+        for name, parent in c.execute(
+                "SELECT DISTINCT trait_name, parent_trait_id FROM habitat_traits "
+                "WHERE trait_type = 'habitat'"):
+            bio = bio_names.get(str(parent))
+            if bio:
+                out.setdefault(str(name).strip().lower(), set()).add(bio)
+        c.close()
+    except Exception:
+        out = {}
+    _HAB_BIO = out
+    return out
+
+
 @dataclass
 class SQIResult:
     label: str
@@ -32,10 +67,14 @@ class SQIResult:
     sqs_sum: int = 0
     sqi: float = 0.0
     reliable: bool = True
+    species_analysed: int = 0     # Pantheon's denominator
 
     def calculate(self):
         if self.species_with_sqs > 0:
-            self.sqi = round(self.sqs_sum / self.species_with_sqs * 100)
+            # Pantheon's definition: divide by every species analysed, scored
+            # or not (Glory Park: 144 / 123 = 117, the issued report).
+            _denom = self.species_analysed or self.species_with_sqs
+            self.sqi = round(self.sqs_sum / _denom * 100)
         self.reliable = self.species_with_sqs >= 15
 
 
@@ -96,6 +135,12 @@ class AnalysisResult:
     biotope_habitat_sqi: dict = field(default_factory=dict)
     larval_guild_counts: dict = field(default_factory=dict)
     adult_guild_counts: dict = field(default_factory=dict)
+    # SQS basis (patch_sqs_basis.py): which scores were derived from the rule
+    # rather than published by Pantheon, the SQI on Pantheon's scores alone, and
+    # species Pantheon holds no data for at all.
+    derived_sqs_tvks: set = field(default_factory=set)
+    overall_sqi_published: object = None
+    no_pantheon_tvks: set = field(default_factory=set)
 
 
 @dataclass
@@ -157,6 +202,25 @@ class PantheonAnalysisService:
         )
         result.species_with_sqs = len(sqs_scores)
 
+        # Which scores Pantheon published, which were derived from the rule (Codex
+        # Full gap-fill). Both bases are reported; neither is hidden. (Decision 7.)
+        derived = set()
+        if self._codex is not None and hasattr(self._codex, "get_stored_sqs_tvks") \
+                and mode != AnalysisMode.PANTHEON_ONLY:
+            derived = set(sqs_scores) - self._codex.get_stored_sqs_tvks(unique_tvks)
+        result.derived_sqs_tvks = derived
+        # SQI denominator (Pantheon's definition): every species analysed --
+        # scored, or in Pantheon with ecology but no score (counts 0).
+        self._sqi_pool = set(sqs_scores) | set(biotopes) | set(habitats)
+        result.overall_sqi_published = self._calc_sqi(
+            "Overall (Pantheon scores)", unique_tvks,
+            {t: s for t, s in sqs_scores.items() if t not in derived},
+            pool=(set(sqs_scores) - derived) | set(biotopes) | set(habitats))
+        # A derived score is not Pantheon data: such a species is not "in Pantheon".
+        result.species_in_pantheon = len((set(sqs_scores) - derived) | set(biotopes.keys()))
+        result.no_pantheon_tvks = set(unique_tvks) - (
+            (set(sqs_scores) - derived) | set(biotopes) | set(habitats))
+
         # SQI
         result.overall_sqi = self._calc_sqi("Overall", unique_tvks, sqs_scores)
 
@@ -174,6 +238,11 @@ class PantheonAnalysisService:
         for tvk in unique_tvks:
             for bio in biotopes.get(tvk, []):
                 for hab in habitats.get(tvk, []):
+                    # Pantheon places each habitat under its own biotope(s): decaying wood is
+                    # tree-associated, never open habitats. Skip pairings Pantheon does not make.
+                    _home = _habitat_biotopes().get(str(hab).lower())
+                    if _home and str(bio).lower() not in _home:
+                        continue
                     pairs.setdefault(bio, {}).setdefault(hab, set()).add(tvk)
         result.biotope_habitat_counts = {
             bio: {hab: len(tvks_) for hab, tvks_ in habs.items()}
@@ -287,10 +356,13 @@ class PantheonAnalysisService:
         return {site: self.analyse(tvks, mode=mode)
                 for site, tvks in site_species.items()}
 
-    def _calc_sqi(self, label, tvks_or_set, sqs_scores):
+    def _calc_sqi(self, label, tvks_or_set, sqs_scores, pool=None):
         tvk_set = tvks_or_set if isinstance(tvks_or_set, set) else set(tvks_or_set)
         sqi = SQIResult(label=label)
         sqi.species_total = len(tvk_set)
+        pool = pool if pool is not None else getattr(self, "_sqi_pool", None)
+        if pool is not None:
+            sqi.species_analysed = len({t for t in tvk_set if t in pool or t in sqs_scores})
         for tvk in tvk_set:
             if tvk in sqs_scores:
                 sqi.species_with_sqs += 1

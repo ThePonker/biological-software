@@ -775,6 +775,22 @@ def build_codex():
             SELECT DISTINCT tvk FROM designations WHERE category = 'Invertebrate'
         """)
         invert_tvks = {r[0] for r in c.fetchall()}
+        # Designations alone miss every common species (no designation, so not
+        # "invertebrate"), and their Pantheon SQS 1 was dropped -- 4,085 scores,
+        # inflating every SQI. Add UKSI's own taxonomy: Animalia outside Chordata.
+        # Genuine collisions (a historic TVK now naming a plant/bird/fungus) still fail.
+        _n_desig = len(invert_tvks)
+        try:
+            import paths as _paths
+            _u = sqlite3.connect(f"file:{_paths.UKSI_DB}?mode=ro", uri=True)
+            invert_tvks |= {r[0] for r in _u.execute(
+                "SELECT tvk FROM taxa WHERE LOWER(COALESCE(kingdom,'')) = 'animalia' "
+                "AND LOWER(COALESCE(phylum,'')) != 'chordata'")}
+            _u.close()
+        except Exception as _e:
+            print(f"  WARNING: UKSI taxonomy unavailable ({_e}); invertebrate set from designations only")
+        print(f"  Invertebrate TVKs: {_n_desig:,} from designations, "
+              f"{len(invert_tvks):,} with UKSI taxonomy")
 
         pan = sqlite3.connect(PANTHEON_PATH)
         pc = pan.cursor()

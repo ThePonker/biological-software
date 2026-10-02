@@ -49,23 +49,9 @@ def _get_sort_keys(tvks: list[str]) -> dict[str, int]:
 
 
 def _get_taxonomy(tvks: list[str]) -> dict[str, dict]:
-    """Look up common_name, family, order for each TVK."""
-    if not tvks or not paths.UKSI_DB.exists():
-        return {}
-    conn = sqlite3.connect(str(paths.UKSI_DB))
-    c = conn.cursor()
-    result = {}
-    for i in range(0, len(tvks), 500):
-        batch = tvks[i:i+500]
-        ph = ",".join("?" * len(batch))
-        c.execute(f"""SELECT t.tvk, COALESCE(cn.common_name, '') as common,
-                             COALESCE(t.family, '') as family, COALESCE(t."order", '') as "order"
-                      FROM taxa t LEFT JOIN common_names cn ON t.tvk = cn.tvk AND cn.preferred = 1
-                      WHERE t.tvk IN ({ph})""", batch)
-        for row in c.fetchall():
-            result[row[0]] = {"common": row[1], "family": row[2], "order": row[3]}
-    conn.close()
-    return result
+    """Look up common_name, family, order for each TVK -- via examen_data.load_taxonomy."""
+    from .examen_data import load_taxonomy
+    return load_taxonomy(list(tvks or []))
 
 
 def export_appendix(parent_widget, site_name: str, result, detail=None):
@@ -169,7 +155,7 @@ def export_appendix(parent_widget, site_name: str, result, detail=None):
     # Non-key species
     for sp in non_key_sorted:
         tax = taxonomy.get(sp.tvk, {})
-        values = [sp.name, tax.get("common", ""), sp.status or "", sp.sqs if sp.sqs else "",
+        values = [sp.name, tax.get("common", ""), getattr(sp, "status_full", "") or sp.status or "", sp.sqs if sp.sqs else "",
                   "", sp.broad_biotope or "", sp.habitat or "",
                   tax.get("family", ""), tax.get("order", "")]
         for col, val in enumerate(values, 1):

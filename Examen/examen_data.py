@@ -93,6 +93,10 @@ class SiteSpecies:
     tier: str = ""
     broad_biotope: str = ""
     habitat: str = ""
+    order_name: str = ""
+    family: str = ""
+    common_name: str = ""
+    status_full: str = ""          # jurisdiction-named, for exports
 
 
 @dataclass
@@ -200,6 +204,26 @@ def _has_record_type(conn):
 # Enrichment -- one path, both modes
 # ============================================================
 
+def _full_status(st):
+    """Codex's display_status, with "Legal (n)" expanded to the instruments.
+
+    For exports: the workbook greys each instrument that does not apply in the
+    assessment's jurisdiction, and a bare count cannot be greyed. Codex's own
+    displays keep the count.
+    """
+    if not st:
+        return ""
+    s = getattr(st, "display_status", "") or ""
+    legal = list(getattr(st, "legal_protection", None) or [])
+    if not legal:
+        return s
+    names = [((getattr(e, "detail", None) or getattr(e, "value", "")) or "").strip()
+             for e in legal]
+    parts = [p.strip() for p in s.split(",")
+             if p.strip() and not p.strip().startswith("Legal (")]
+    return ", ".join(parts + [f"Legal: {n}" for n in names if n])
+
+
 def _load_status_data(tvks, mode=AnalysisMode.CODEX_FULL):
     """Conservation status + SQS per TVK, via CodexRepository.
 
@@ -227,6 +251,7 @@ def _load_status_data(tvks, mode=AnalysisMode.CODEX_FULL):
         result[tvk] = {
             "sqs": scores.get(tvk, 0) or 0,
             "short_status": (getattr(st, "short_status", "") or "") if st else "",
+            "display_status": _full_status(st),
             "tier": "" if tier_s.lower() in ("none", "") else tier_s,
         }
     return result
@@ -290,22 +315,52 @@ def _apply_metrics(record, tvks, species_list, mode):
         record.key_species_pct = round(len(key) / record.species_count * 100, 1)
 
 
+def load_taxonomy(tvks):
+    """{tvk: {'common', 'family', 'order'}} from UKSI.
+
+    The one lookup: the species list, the Species tab and every export use it.
+    """
+    import paths
+    tvks = [t for t in dict.fromkeys(tvks) if t]
+    if not tvks or not paths.UKSI_DB.exists():
+        return {}
+    out = {}
+    conn = sqlite3.connect(f"file:{paths.UKSI_DB}?mode=ro", uri=True)
+    try:
+        for i in range(0, len(tvks), 500):
+            batch = tvks[i:i + 500]
+            ph = ",".join("?" * len(batch))
+            for t, cn, fam, order in conn.execute(
+                    "SELECT t.tvk, COALESCE(cn.common_name, ''), COALESCE(t.family, ''), "
+                    'COALESCE(t."order", \'\') FROM taxa t LEFT JOIN common_names cn '
+                    f"ON t.tvk = cn.tvk AND cn.preferred = 1 WHERE t.tvk IN ({ph})", batch):
+                out[t] = {"common": cn, "family": fam, "order": order}
+    finally:
+        conn.close()
+    return out
+
+
 def _build_species_list(species_rows, mode):
     """(species_list, biotope_counts, habitat_counts, tvks) from grouped rows."""
     tvk_map = {r[1]: (r[0], r[2]) for r in species_rows if r[1]}
     tvks = list(tvk_map)
     enrichment = _load_status_data(tvks, mode)
     ecology = _load_pantheon_ecology(tvks)
+    taxonomy = load_taxonomy(tvks)
 
     species_list, biotope_counts, habitat_counts = [], {}, {}
     for tvk in tvks:
         name, count = tvk_map[tvk]
         cd = enrichment.get(tvk, {})
         pd = ecology.get(tvk, {})
+        tx = taxonomy.get(tvk, {})
         species_list.append(SiteSpecies(
             name=name, tvk=tvk, count=count, sqs=cd.get("sqs", 0),
-            status=cd.get("short_status", ""), tier=cd.get("tier", ""),
-            broad_biotope=pd.get("biotope", ""), habitat=pd.get("habitat", "")))
+            status=cd.get("short_status", ""), status_full=cd.get("display_status", ""),
+            tier=cd.get("tier", ""),
+            broad_biotope=pd.get("biotope", ""), habitat=pd.get("habitat", ""),
+            order_name=tx.get("order", ""), family=tx.get("family", ""),
+            common_name=tx.get("common", "")))
         for b in pd.get("biotopes", []):
             biotope_counts[b] = biotope_counts.get(b, 0) + 1
         for h in pd.get("habitats", []):

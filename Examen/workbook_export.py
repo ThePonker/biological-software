@@ -117,6 +117,21 @@ SQI_MIN_SPECIES = 15
 OCCURRENCE_PLACEHOLDER = "[write occurrence]"
 
 
+_TAX_CACHE = {}
+
+
+def _taxon(k):
+    """Order/family/common for a key-species entry, from examen_data.load_taxonomy."""
+    tvk = getattr(k, "tvk", "") or ""
+    if tvk and tvk not in _TAX_CACHE:
+        try:
+            from Examen.examen_data import load_taxonomy
+        except ImportError:
+            from examen_data import load_taxonomy
+        _TAX_CACHE.update(load_taxonomy([tvk]))
+    return _TAX_CACHE.get(tvk, {})
+
+
 def _sqi_value(s):
     """SQI number from an SQIResult, tolerating field-name differences."""
     if s is None:
@@ -235,7 +250,7 @@ NA_GREY = "9CA3AF"
 
 # Appendix labels (CodexRepository._priority_label output) back to a substring
 # _priority_applies recognises. "SBL" in particular carries no "scottish".
-_LABEL_KEYS = (("S41", "s41"), ("Wales S7", "wales"), ("SBL", "scottish"),
+_LABEL_KEYS = (("S41 (research", "research"), ("UK BAP (research", "research"), ("S41", "s41"), ("Wales S7", "wales"), ("SBL", "scottish"),
                ("NI Priority", "ni priority"), ("UK BAP", "bap"))
 
 
@@ -252,6 +267,8 @@ def _legal_ok(text, jurisdiction):
 
 
 def _label_ok(token, jurisdiction):
+    if token.startswith("Legal:"):
+        return _legal_ok(token[len("Legal:"):].strip(), jurisdiction)
     for prefix, key in _LABEL_KEYS:
         if token.startswith(prefix):
             return _priority_ok(key, jurisdiction)
@@ -504,6 +521,18 @@ def _title(ws, text, sub=None):
 # Sheets
 # ============================================================
 
+def _sqi_arith(s):
+    """The SQI's own arithmetic, so a reader can check it from the sheet."""
+    if s is None:
+        return ""
+    n = getattr(s, "species_analysed", 0) or s.species_with_sqs
+    unscored = n - s.species_with_sqs
+    tail = (f"; {unscored} Pantheon species without a score count as 0"
+            if unscored > 0 else "")
+    return (f"{s.sqs_sum} \u00f7 {n} species analysed \u00d7 100 "
+            f"({s.species_with_sqs} scoring{tail})")
+
+
 def _sheet_summary(wb, result, detail, project, stamp):
     ws = wb.create_sheet("Summary")
     r = _title(ws, stamp["title"],
@@ -541,12 +570,27 @@ def _sheet_summary(wb, result, detail, project, stamp):
         ("Codex tiers — Priority", result.priority_count, ""),
         (None, None, None),
         ("Species Quality Index (SQI)", _sqi_cell(result.overall_sqi),
-         f"From {_sqi_n(result.overall_sqi)} scoring species. "
+         f"{_sqi_arith(result.overall_sqi)}. "
          f"Pantheon does not trust an SQI below {SQI_MIN_SPECIES}."),
         ("Stenotopic species (in SATs)", sum(result.sat_counts.values())
          if result.sat_counts else 0,
          "Species restricted to specific assemblage types."),
     ]
+
+    # Both SQS bases, when any score was derived (patch_sqs_basis.py).
+    _der = getattr(result, "derived_sqs_tvks", set()) or set()
+    _pub = getattr(result, "overall_sqi_published", None)
+    if _der and _pub is not None:
+        _nm = {s.tvk: s.name for s in (getattr(detail, "species_list", None) or []) if s.tvk}
+        _names = ", ".join(sorted(_nm.get(t, t) for t in _der))
+        _i = next(n for n, row in enumerate(rows) if row[0] == "Species Quality Index (SQI)")
+        rows[_i] = ("Species Quality Index (SQI)", _sqi_cell(result.overall_sqi),
+                    f"{_sqi_arith(result.overall_sqi)}, including "
+                    f"{len(_der)} scored from current status by Pantheon's published "
+                    f"rule because Pantheon holds no score ({_names}).")
+        rows.insert(_i + 1, ("SQI on Pantheon scores only", _sqi_cell(_pub),
+                    f"{_sqi_arith(_pub)}, on Pantheon's published scores only. "
+                    "Comparable with the Pantheon website and the literature."))
 
     for label, value, note in rows:
         if label is None:
@@ -565,6 +609,8 @@ def _sheet_summary(wb, result, detail, project, stamp):
     ws.cell(row=r, column=1, value="Basis of assessment").font = TITLE_FONT
     r += 1
     for label, value in stamp["basis"]:
+        if label == "SQS basis" and _der:
+            value = f"Pantheon published, plus {len(_der)} derived (both SQIs above)"
         ws.cell(row=r, column=1, value=label).font = BOLD
         ws.cell(row=r, column=2, value=value)
         r += 1
@@ -604,10 +650,10 @@ def _sheet_key_species(wb, result, project, stamp):
         if prof and origin == "review" and source:
             prof = f"[From {source}] {prof}"
         ws.append([tier,
-                   getattr(k, "order_name", "") or "",
-                   k.family or "",
+                   getattr(k, "order_name", "") or _taxon(k).get("order", ""),
+                   k.family or _taxon(k).get("family", ""),
                    k.species_name,
-                   getattr(k, "common_name", "") or "",
+                   getattr(k, "common_name", "") or _taxon(k).get("common", ""),
                    status_cell(status_parts(k, stamp["jurisdiction"]),
                                stamp["jurisdiction"]),
                    k.sqs or "",
@@ -654,7 +700,7 @@ def _sheet_appendix(wb, detail, result, stamp):
         k = key_by_tvk.get(sp.tvk)
         juris = stamp["jurisdiction"]
         status = status_cell(status_parts(k, juris) if k
-                             else _parts_from_string(sp.status, juris), juris)
+                             else _parts_from_string(getattr(sp, "status_full", "") or sp.status, juris), juris)
         if sp.sqs:
             scoring += 1
             sqs_total += sp.sqs
@@ -837,10 +883,14 @@ STATUS_DEFINITIONS = [
     ("[square brackets]",
      "Pantheon flags the status as unreliable pending formal reassessment."),
     ("p prefix (pNS, pNT)", "A provisional status from an unpublished review."),
+    ("(derived)",
+     "A Species Quality Score Pantheon does not hold, derived from the species' "
+     "current status by Pantheon's published rule. Included in the SQI; the "
+     "Summary also gives the SQI on Pantheon's own scores alone."),
     ("Grey italic",
-     "A designation that applies in another jurisdiction. Shown for "
-     "completeness; it does not count towards Key Species under the "
-     "jurisdiction this assessment was made for (see Summary)."),
+     "A designation that does not count towards Key Species for this "
+     "assessment: it applies in another jurisdiction (see Summary), or "
+     "is listed for research only. Shown for completeness."),
 ]
 
 
@@ -867,6 +917,39 @@ def _sheet_status(wb):
 # ============================================================
 # Entry point
 # ============================================================
+
+def _mark_derived(wb, result, detail):
+    """On the species sheets: "16 (derived)" for a score derived from the rule,
+    and "no Pantheon data" where Pantheon holds nothing for the species."""
+    derived = getattr(result, "derived_sqs_tvks", set()) or set()
+    nopan = getattr(result, "no_pantheon_tvks", set()) or set()
+    if not (derived or nopan) or detail is None:
+        return
+    by_name = {s.name: s.tvk for s in (getattr(detail, "species_list", None) or []) if s.tvk}
+    for title in ("Key species", "Species appendix"):
+        if title not in wb.sheetnames:
+            continue
+        ws = wb[title]
+        head = None
+        for row in ws.iter_rows(min_row=1, max_row=12):
+            vals = [c.value for c in row]
+            if "Species" in vals and "SQS" in vals:
+                head = (row[0].row, vals.index("Species") + 1, vals.index("SQS") + 1,
+                        vals.index("Broad biotope") + 1 if "Broad biotope" in vals else None)
+                break
+        if not head:
+            continue
+        hr, c_sp, c_sqs, c_bio = head
+        for r in range(hr + 1, ws.max_row + 1):
+            tvk = by_name.get(ws.cell(r, c_sp).value)
+            if not tvk:
+                continue
+            cell = ws.cell(r, c_sqs)
+            if tvk in derived and cell.value not in (None, ""):
+                cell.value = f"{cell.value} (derived)"
+            if c_bio and tvk in nopan and not ws.cell(r, c_bio).value:
+                ws.cell(r, c_bio).value = "no Pantheon data"
+
 
 def export_workbook(result, detail, project, path,
                     jurisdiction="England", sqs_basis="Pantheon published",
@@ -921,5 +1004,6 @@ def export_workbook(result, detail, project, path,
     _sheet_guilds(wb, result)
     _sheet_status(wb)
 
+    _mark_derived(wb, result, detail)
     wb.save(path)
     return path

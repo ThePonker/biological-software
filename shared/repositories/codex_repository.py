@@ -110,6 +110,10 @@ _NI_ONLY_LEGAL = ("ni wildlife order", "ni conservation regs")
 
 
 def _priority_applies(value, jurisdiction):
+    # S41 "research only" flags research needs, not site conservation: it never
+    # confers Key Species status, in any jurisdiction (Pantheon; 02_Current_State).
+    if "research" in (value or "").lower():
+        return False
     keys = _PRIORITY_BY_JURISDICTION.get(jurisdiction)
     if keys is None or keys == ():
         return True          # unknown or UK-wide: do not filter
@@ -152,6 +156,8 @@ def _priority_label(value: str) -> str:
     rather than guessed at.
     """
     v = (value or "").lower()
+    if "research" in v:
+        return "UK BAP (research only)" if "bap" in v else "S41 (research only)"
     if "s.41" in v or "s41" in v or "section 41" in v:
         return "S41"
     if "wales" in v or "s7" in v:
@@ -418,6 +424,19 @@ class CodexRepository:
         if missing:
             result.update(self._derive_sqs_batch(missing))
         return result
+
+    def get_stored_sqs_tvks(self, tvks):
+        """TVKs whose SQS is STORED -- Pantheon's published score or a manual entry --
+        as opposed to derived live from the rule by get_sqs_scores."""
+        out = set()
+        if not tvks:
+            return out
+        c = self._get_conn().cursor()
+        for batch in _chunked(list(tvks), 500):
+            ph = ",".join("?" * len(batch))
+            c.execute(f"SELECT tvk FROM sqs_scores WHERE tvk IN ({ph}) AND source != 'derived'", batch)
+            out.update(r[0] for r in c.fetchall())
+        return out
 
     def _derive_sqs_batch(self, tvks):
         """Apply Pantheon's published rule to current Codex statuses.
@@ -801,6 +820,31 @@ class CodexRepository:
             result[tvk] = status
         return result
 
+    def _get_research_only_tvks(self):
+        """Current UKSI TVKs that Pantheon lists as S41 'research only'.
+
+        Pantheon is keyed on 2017 TVKs, so the list goes through the TVK bridge.
+        Cached for the life of the repository.
+        """
+        if getattr(self, "_research_only", None) is not None:
+            return self._research_only
+        out = set()
+        try:
+            pan = self._get_pantheon_conn()
+            if pan is not None:
+                pan_tvks = [r[0] for r in pan.execute(
+                    "SELECT DISTINCT tvk FROM conservation_status WHERE reporting_category = ?",
+                    ("Section 41 Priority Species - research only",))]
+                c = self._get_conn()
+                for batch in _chunked(pan_tvks, 500):
+                    ph = ",".join("?" * len(batch))
+                    out.update(r[0] for r in c.execute(
+                        f"SELECT uksi_tvk FROM tvk_bridge WHERE pantheon_tvk IN ({ph})", batch))
+        except Exception:
+            pass
+        self._research_only = out
+        return out
+
     def _apply_pantheon_row(self, status, cat, abbr):
         """Route a Pantheon conservation_status row to the correct new track."""
         if cat == "GB Status":
@@ -871,6 +915,11 @@ class CodexRepository:
         elif track == "legal_protection":
             status.legal_protection.append(entry)
         elif track == "priority":
+            # JNCC lists research-only species as plain S41; Pantheon distinguishes them.
+            if status.tvk in self._get_research_only_tvks() and \
+                    any(k in (value or "").lower() for k in ("s.41", "s41", "section 41", "bap")):
+                entry.value = ("UK BAP (research)" if "bap" in (value or "").lower()
+                               else "NERC S.41 England (research)")
             status.priority.append(entry)
 
 
