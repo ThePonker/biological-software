@@ -25,3 +25,8 @@ Observatum/test data/
 *bak_*
 
 _dump/
+
+# Check outputs and exports written to the project root
+/*.txt
+/*.xlsx
+/*.csv
