@@ -74,30 +74,38 @@ def restore(msg):
     sys.exit(f"  x {msg} -- everything restored from git")
 
 
-for p in DEAD_FILES:
-    os.remove(p)
-lines = sd.split("\n")
-c = cls[0]
-start = c.lineno - 1 - len(c.decorator_list)
-end = c.end_lineno
-while end < len(lines) and not lines[end].strip():
-    end += 1
-new_sd = "\n".join(lines[:start] + lines[end:])
-io.open(SD, "w", encoding="utf-8", newline="").write(new_sd)
-new_si = si.replace(imp, "from .scheme_dialogs import SaveFilterDialog")
-new_si = re.sub(r"""\s*['"]SchemeRecordDetailDialog['"],?""", "", new_si) if "__all__" in new_si else new_si
-io.open(SI, "w", encoding="utf-8", newline="").write(new_si)
 try:
+    for p in DEAD_FILES:
+        os.remove(p)
+    lines = sd.split("\n")
+    c = cls[0]
+    start = c.lineno - 1 - len(c.decorator_list)
+    end = c.end_lineno
+    while end < len(lines) and not lines[end].strip():
+        end += 1
+    io.open(SD, "w", encoding="utf-8", newline="").write("\n".join(lines[:start] + lines[end:]))
+    new_si = si.replace(imp, "from .scheme_dialogs import SaveFilterDialog")
+    if "__all__" in new_si:
+        new_si = re.sub(r"""\s*['"]SchemeRecordDetailDialog['"],?""", "", new_si)
+    io.open(SI, "w", encoding="utf-8", newline="").write(new_si)
     py_compile.compile(SD, doraise=True)
     py_compile.compile(SI, doraise=True)
-except py_compile.PyCompileError as e:
-    restore(f"compile failed: {e}")
-env = dict(os.environ, PYTHONPATH=os.pathsep.join([ROOT, os.path.join(ROOT, "Observatum")]),
-           QT_QPA_PLATFORM="offscreen")
-r = subprocess.run([sys.executable, "-c", "import src.views.dialogs, src.views.scheme, src.views.observations; print('imports ok')"],
-                   cwd=ROOT, env=env, capture_output=True, text=True)
-print("  " + (r.stdout.strip() or r.stderr.strip()[-600:]))
-if r.returncode:
-    restore("view packages no longer import")
+    # PYTHONIOENCODING: modules print characters like a tick at import; through a
+    # captured Windows pipe (cp1252) that crashes the PRINT, not the import.
+    env = dict(os.environ, PYTHONPATH=os.pathsep.join([ROOT, os.path.join(ROOT, "Observatum")]),
+               QT_QPA_PLATFORM="offscreen", PYTHONIOENCODING="utf-8")
+    r = subprocess.run([sys.executable, "-c",
+                        "import src.views.dialogs, src.views.scheme, src.views.observations; print('IMPORTS_OK')"],
+                       cwd=ROOT, env=env, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    ok = r.returncode == 0 and "IMPORTS_OK" in r.stdout
+    tail = (r.stderr or "").strip().splitlines()[-4:]
+    print("  imports ok" if ok else "  import failed:\n    " +
+          "\n    ".join(l.encode("ascii", "replace").decode() for l in tail))
+    if not ok:
+        restore("view packages no longer import")
+except SystemExit:
+    raise
+except BaseException as e:            # anything at all after deleting: put it back
+    restore(f"{type(e).__name__}: {e}")
 print("\n  removed: 2 files, 1 class, 1 re-export. Launch Observatum and open a record")
 print("  from Observations and from Recording Scheme to confirm, then commit.")
