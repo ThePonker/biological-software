@@ -68,13 +68,14 @@ if c.execute("SELECT 1 FROM reviews WHERE review_name=?", (review["review_name"]
 # rarity assessment) must not clear rarity statuses held from other sources:
 # blank rarity there means "not assessed", not "assessed as none".
 assessed = {s.strip() for s in (review.get("tracks_assessed") or "threat,rarity").split(",")}
+accounts_only = assessed == {"accounts"}   # statuses already in Codex (e.g. via JNCC)
 threat_only = "rarity" not in assessed
-tracks = ["threat_iucn_2001"] + ([] if threat_only else ["rarity_modern"])
-if not a.keep_legacy:
+tracks = [] if accounts_only else ["threat_iucn_2001"] + ([] if threat_only else ["rarity_modern"])
+if not a.keep_legacy and not accounts_only:
     tracks += ["threat_iucn_legacy"] + ([] if threat_only else ["rarity_legacy"])
-print(f"  assesses: {', '.join(sorted(assessed))}   tracks written: {', '.join(tracks)}")
+print(f"  assesses: {', '.join(sorted(assessed))}   tracks written: {', '.join(tracks) or 'none -- accounts only'}")
 plan, unresolved, not_assessed, odd = [], [], [], []
-for r in statuses:
+for r in ([] if accounts_only else statuses):
     raw = (r["iucn_status"] or "").strip().upper()
     note = ""
     if raw.startswith("CR") and "PE" in raw:
