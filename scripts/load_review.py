@@ -41,6 +41,8 @@ ap = argparse.ArgumentParser()
 ap.add_argument("folder")
 ap.add_argument("--apply", action="store_true")
 ap.add_argument("--keep-legacy", action="store_true")
+ap.add_argument("--add-statuses", action="store_true",
+                help="add statuses to a review already loaded (e.g. as accounts only); accounts untouched")
 a = ap.parse_args()
 
 ex = os.path.join(a.folder, "extracted")
@@ -61,8 +63,17 @@ print(f"  statuses.csv {len(statuses)} rows   accounts.csv {len(accounts)} rows"
 uksi = sqlite3.connect(f"file:{paths.UKSI_DB}?mode=ro", uri=True)
 codex = sqlite3.connect(str(paths.CODEX_DB))
 c = codex.cursor()
-if c.execute("SELECT 1 FROM reviews WHERE review_name=?", (review["review_name"],)).fetchone():
-    sys.exit(f"\n  x already imported: {review['review_name']} -- nothing written")
+existing = c.execute("SELECT id FROM reviews WHERE review_name=?", (review["review_name"],)).fetchone()
+if existing and not a.add_statuses:
+    sys.exit(f"\n  x already imported: {review['review_name']} -- nothing written "
+             "(use --add-statuses to add statuses to it)")
+if a.add_statuses:
+    if not existing:
+        sys.exit(f"\n  x --add-statuses: no review named {review['review_name']!r} -- nothing written")
+    if c.execute("SELECT 1 FROM manual_entries WHERE review_id=? AND COALESCE(added_by,'')!='review-withdrawal'",
+                 (existing[0],)).fetchone():
+        sys.exit(f"\n  x review #{existing[0]} already has statuses -- nothing written")
+    print(f"  adding statuses to existing review #{existing[0]}; its accounts are left as they are")
 
 # What the review assessed. A threat-only review (e.g. a Red List with no
 # rarity assessment) must not clear rarity statuses held from other sources:
@@ -80,9 +91,10 @@ for r in ([] if accounts_only else statuses):
     note = ""
     if raw.startswith("CR") and "PE" in raw:
         raw, note = "CR", "CR(PE) -- Possibly Extinct"
-    if raw in ("", "NE"):
+    rar_only = raw in ("", "NE") and (r.get("rarity") or "").strip() and not threat_only and not accounts_only
+    if raw in ("", "NE") and not rar_only:
         not_assessed.append(r["species_name"]);  continue
-    if raw not in IUCN:
+    if not rar_only and raw not in IUCN:
         odd.append((r["species_name"], r["iucn_status"]));  continue
     hit = resolve(uksi, r["species_name"].strip(), (r["tvk"] or "").strip() or None)
     if not hit:
@@ -91,7 +103,9 @@ for r in ([] if accounts_only else statuses):
     current = {tr: v for tr, v in c.execute(
         "SELECT status_track, status_value FROM status_summary WHERE tvk=? "
         "AND COALESCE(status_detail,'')=''", (tvk,))}
-    new = {"threat_iucn_2001": raw}
+    # a rarity-only row (e.g. provisional Nationally Scarce) was assessed and judged
+    # not threatened: its Red List track is cleared, not left holding an older value
+    new = {"threat_iucn_2001": CLEAR if rar_only else raw}
     if not threat_only:
         new["rarity_modern"] = (r.get("rarity") or "").strip() or CLEAR
     for tr in tracks:
@@ -169,7 +183,7 @@ for p, n, s in sorted(hits, key=lambda h: -(h[1] + h[2]))[:20]:
 # Accounts resolve against UKSI exactly as statuses do -- never written under
 # an unchecked spreadsheet TVK.
 acc_plan, acc_skip = [], []
-for r in accounts:
+for r in ([] if a.add_statuses else accounts):
     if not r["account_text"].strip():
         continue
     hit = resolve(uksi, r["species_name"].strip(), (r.get("tvk") or "").strip() or None)
@@ -190,14 +204,17 @@ if not a.apply:
 
 print(f"\n  backup: {backup(paths.CODEX_DB, 'codex')}")
 try:
-    c.execute("""INSERT INTO reviews (review_name, author, taxon_group, status_track, date_published,
-                 date_imported, source_file, species_count, supersedes_id, notes, licence)
-                 VALUES (?,?,?,?,?,?,?,?,NULL,?,?)""",
-              (review["review_name"], review["author"], review.get("taxon_group") or ("Hymenoptera: Symphyta"
-               if "sawfl" in review["review_name"].lower() else ""),
-               ",".join(tracks), date, now, os.path.basename(os.path.normpath(a.folder)),
-               len(plan), "Loaded from extracted CSVs by load_review.py", review["licence"]))
-    rid = c.lastrowid
+    if a.add_statuses:
+        rid = existing[0]
+    else:
+        c.execute("""INSERT INTO reviews (review_name, author, taxon_group, status_track, date_published,
+                     date_imported, source_file, species_count, supersedes_id, notes, licence)
+                     VALUES (?,?,?,?,?,?,?,?,NULL,?,?)""",
+                  (review["review_name"], review["author"], review.get("taxon_group") or ("Hymenoptera: Symphyta"
+                   if "sawfl" in review["review_name"].lower() else ""),
+                   ",".join(tracks), date, now, os.path.basename(os.path.normpath(a.folder)),
+                   len(plan), "Loaded from extracted CSVs by load_review.py", review["licence"]))
+        rid = c.lastrowid
     for p in plan:
         for tr, v in p["new"].items():
             c.execute("""INSERT INTO manual_entries (tvk, species_name, status_track, status_value,

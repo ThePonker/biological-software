@@ -31,9 +31,12 @@ if not any(isinstance(n, ast.If) and "__main__" in ast.dump(n.test) for n in ast
 from import_status_review import resolve, apply_status, key_tiers, backup, CLEAR
 
 REVIEW_ID = 21
-SPECIES = ["Phaonia siebecki", "Phaonia atriceps", "Thricops innocuus", "Sarcophaga africa"]
-REASON = ("Excluded by NECR234 (Falk & Pont 2017) as 'neither scarce nor threatened enough "
-          "to be included'; earlier Shirt 1987 / Falk 1991 status withdrawn")
+_NOT_SCARCE = ("Excluded by NECR234 (Falk & Pont 2017) as 'neither scarce nor threatened enough "
+               "to be included'; earlier Shirt 1987 / Falk 1991 status withdrawn")
+SPECIES = {"Phaonia siebecki": _NOT_SCARCE, "Phaonia atriceps": _NOT_SCARCE,
+           "Thricops innocuus": _NOT_SCARCE, "Sarcophaga africa": _NOT_SCARCE,
+           "Lispe hydromyzina": ("Excluded by NECR234 (Falk & Pont 2017) as 'Not British'; "
+                                 "Falk 1991 status (Extinct) withdrawn")}
 TRACKS = ("threat_iucn_2001", "threat_iucn_legacy", "rarity_modern", "rarity_legacy")
 APPLY = "--apply" in sys.argv
 
@@ -48,10 +51,10 @@ date = str(rv[2])
 
 print("Withdraw statuses -- " + ("APPLY" if APPLY else "DRY RUN"))
 print("=" * 78)
-print(f"  review #{REVIEW_ID}: {rv[0]}\n  reason: {REASON}\n")
+print(f"  review #{REVIEW_ID}: {rv[0]}\n")
 obs = sqlite3.connect(f"file:{paths.OBSERVATUM_DB}?mode=ro", uri=True)
 plan = []
-for name in SPECIES:
+for name, REASON in SPECIES.items():
     hit = resolve(uksi, name, None)
     if not hit:
         print(f"  x {name}: no UKSI match -- skipped");  continue
@@ -76,7 +79,7 @@ for name in SPECIES:
     if not cur:
         print("      nothing to clear");  continue
     print(f"      after: no threat/rarity status   key: no")
-    plan.append((tvk, sci, list(cur)))
+    plan.append((tvk, sci, list(cur), REASON))
 uksi.close(); obs.close()
 
 print(f"\n  {len(plan)} species to clear, {sum(len(p[2]) for p in plan)} status entries")
@@ -88,18 +91,18 @@ if not plan:
 print(f"  backup: {backup(paths.CODEX_DB, 'codex')}")
 now = datetime.now().isoformat()
 try:
-    for tvk, sci, tracks in plan:
+    for tvk, sci, tracks, reason in plan:
         for tr in tracks:
             c.execute("""INSERT INTO manual_entries (tvk, species_name, status_track, status_value, status_detail,
                          source_review, date_added, added_by, notes, review_id)
                          VALUES (?,?,?,?,NULL,?,?,?,?,?)""",
-                      (tvk, sci, tr, CLEAR, source, date, "review-withdrawal", REASON, REVIEW_ID))
+                      (tvk, sci, tr, CLEAR, source, date, "review-withdrawal", reason, REVIEW_ID))
             apply_status(c, tvk, tr, CLEAR, None, source, date)
     codex.commit()
 except Exception as e:
     codex.rollback()
     sys.exit(f"  x FAILED, rolled back: {type(e).__name__}: {e}")
-left = [sci for tvk, sci, _ in plan if c.execute(
+left = [sci for tvk, sci, _, _r in plan if c.execute(
     f"SELECT 1 FROM status_summary WHERE tvk=? AND status_track IN ({','.join('?' * len(TRACKS))})",
     (tvk,) + TRACKS).fetchone()]
 dup = c.execute("""SELECT COUNT(1) FROM (SELECT tvk, status_track, COALESCE(status_detail,'')
