@@ -1,0 +1,140 @@
+﻿Pantheon-only statuses, explained   READ ONLY
+======================================================================================
+  MISSING       422
+  SUPERSEDED    190
+  DROPPED       274
+  OTHER          23
+
+--------------------------------------------------------------------------------------
+DROPPED: 274 species, by order / family
+    50  Diptera / Syrphidae: Anasimyia interpuncta (NS); Anasimyia lunulata (NS); Brachyopa bicolor (NS)
+    41  Diptera / Dolichopodidae: Aphrosylus mitis (NS); Argyra auricollis (NR); Campsicnemus pumilio (NS)
+    37  Diptera / Empididae: Chelifera angusta ((LR)/(NS)); Chelifera aperticauda ((LR)/(NS)); Chelifera concinnicauda 
+    36  Diptera / Hybotidae: Bicellaria halterata ((LR)/(NS)); Bicellaria mera ((LR)/(NS)); Chersodromia alata ((LR)/(N
+    24  Coleoptera / Dytiscidae: Acilius canaliculatus (NS); Agabus biguttatus (NS); Agabus conspersus (NS)
+    14  Diptera / Pipunculidae: Cephalops carinatus ((LR)/(NS)); Cephalops pannonicus ((LR)/(NS)); Cephalops straminipes (
+    11  Coleoptera / Hydrophilidae: Cercyon bifenestratus (NS); Cercyon depressus (NS); Cercyon granarius (NR)
+     9  Coleoptera / Hydraenidae: Ochthebius exsculptus (NS); Hydraena rufipes (NS); Ochthebius auriculatus (NS)
+     8  Coleoptera / Helophoridae: Helophorus nubilus (NS); Helophorus dorsalis (NS); Helophorus fulgidicollis (NS)
+     6  Coleoptera / Scirtidae: Contacyphon kongsbergensis (NS); Contacyphon pubescens (NS); Contacyphon punctipennis (NS)
+     6  Diptera / Mycetophilidae: Dynatosoma cochleare ((LR)/(NS)); Dynatosoma nigromaculatum ((LR)/(NS)); Mycomya parva ((L
+     5  Coleoptera / Gyrinidae: Gyrinus aeratus (NS); Gyrinus distinctus (NS); Gyrinus minutus (NS)
+     5  Coleoptera / Elmidae: Oulimnius major (NS); Oulimnius rivularis (NS); Oulimnius troglodytes (NS)
+     4  Coleoptera / Heteroceridae: Heterocerus flexuosus (NS); Heterocerus fossor (NR); Heterocerus marginatus (NS)
+     3  Diptera / Dixidae: Dixa maculata ((LR)/(NS)); Dixella filicornis ((LR)/(NS)); Dixella obscura ((LR)/(NS))
+     3  Coleoptera / Haliplidae: Haliplus apicalis (NS); Haliplus mucronatus (NS); Peltodytes caesus (NS)
+     2  Hymenoptera / Formicidae: Anergates atratulus (RDB K); Myrmica hirsuta (RDB K)
+     2  Coleoptera / Dryopidae: Dryops similaris (NS); Dryops striatellus (NS)
+     1  Diptera / Atelestidae: Atelestus dissonans ((LR)/(NS))
+     1  Diptera / Ditomyiidae: Ditomyia fasciata ((LR)/(NS))
+     1  Coleoptera / Georissidae: Georissus crenulatus (NS)
+     1  Coleoptera / Hydrochidae: Hydrochus angustatus (NS)
+     1  Coleoptera / Limnichidae: Limnichus pygmaeus (NR)
+     1  Coleoptera / Noteridae: Noterus crassicornis (NS)
+     1  Diptera / Ptychopteridae: Ptychoptera longicauda ((LR)/(NS))
+
+  Designation codes these species carry (none reaches a track):
+      272  NS-excludes
+       23  Scottish_Biodiversity_List
+        9  NI_Priority
+        2  RedList_Global_post94-VU
+        1  England_NERC_S.41
+        1  BAP-2007
+  From sources:
+      115  Falk, S.J. & Crossley, R. 2005.  A review of the scarce and threatened
+       81  A review of the scarce and threatened Coleoptera of Great Britain Part
+       50  A review of the scarce and threatened flies of Great Britain. Part 6: 
+       26  Falk, S.J. & Chandler, P.J. 2005.  A review of the scarce and threaten
+       23  Scottish Biodiversity List (incorporating 2007 updates and 2012 catego
+        9  Northern Ireland Priority Species List, March 2010
+        2  The IUCN Red List of Threatened Species (2010)
+        1  Natural Environment and Rural Communities Act 2006 - Species of Princi
+        1  UK list of Priority Habitats and Species
+
+--------------------------------------------------------------------------------------
+MISSING: 422 species, by order / family
+   148  Diptera / Dolichopodidae: Achalcus bimaculatus (NS); Achalcus britannicus (NR); Achalcus cinereus (NS)
+    52  Lepidoptera / Tortricidae: Acleris lipsiana (pRDB 3); Acleris lorquiniana (pRDB 3); Acleris permutana (pRDB 2)
+    26  ? / ?:  ((DD)/(LR)/(NR)/(NS)/(NT)/(RE)/(VU)/CR/CR(PE)/DD/EN/Extinct/NR/NR (marine)/NS/NS (marine)
+    21  Lepidoptera / Coleophoridae: Augasma aeratella (Extinct); Coleophora adjectella (pRDB 2); Coleophora aestuariella (pRDB
+    18  Lepidoptera / Nepticulidae: Ectoedemia agrimoniae (pRDB 3); Zimmermannia amani (pRDB 1); Ectoedemia hannoverella (pRDB
+    16  Lepidoptera / Tineidae: Cephimallota crassiflavella (Extinct); Dryadaula pactolia (pRDB 1); Infurcitinea albicomel
+     9  Lepidoptera / Psychidae: Acanthopsyche atra (pRDB 3); Bacotia claustrella (pRDB 3); Bankesia conspurcatella (pRDB 1
+     9  Lepidoptera / Elachistidae: Elachista dispunctella (pRDB 2); Elachista cingillella (pRDB 1); Elachista collitella (pRD
+     8  Lepidoptera / Depressariidae: Agonopterix astrantiae (pRDB 2); Agonopterix curvipunctosa (pRDB 3); Agonopterix kuznetzov
+     8  Lepidoptera / Gracillariidae: Caloptilia hemidactylella (pRDB 1); Dialectica imperialella (pRDB 1); Parornix alpicola (p
+     7  Lepidoptera / Gelechiidae: Athrips rancidella (pRDB 2); Bryotropha dryadella (pRDB 1); Caryocolum blandelloides (pRDB
+     7  Lepidoptera / Oecophoridae: Batia internella (pRDB 1); Promalactis procerella (pRDB 2); Borkhausenia minutella (pRDB 1
+     7  Lepidoptera / Scythrididae: Scythris cicadella (pRDB 1); Scythris empetrella (pRDB 2); Scythris fallacella (pRDB 1)
+     5  Coleoptera / Staphylinidae: Atheta liliputana (Notable); Atheta nigra (Notable); Euplectus bonvouloiri (Notable)
+     5  Lepidoptera / Pterophoridae: Emmelina argoteles (pRDB 1); Hellinsia chrysocomae (pRDB 1); Merrifieldia tridactyla (pRDB
+     4  Hemiptera / Miridae: Dichrooscytus rufipennis (NS); Globiceps (Kelidocoris) fulvicollis (Nb); Globiceps flavoma
+     4  Hymenoptera / Crabronidae: Ectemnius rubicola (Nb); Lindenius pygmaeus (RDB K); Pemphredon lethifer (RDB 3)
+     4  Lepidoptera / Yponomeutidae: Euhyponomeuta stannella (pRDB 1); Kessleria fasciapennella (Extinct); Kessleria saxifragae
+     3  Lepidoptera / Glyphipterigidae: Acrolepiopsis betulella (pRDB 2); Acrolepiopsis marcidella (pRDB 3); Glyphipterix equitell
+     3  Lepidoptera / Argyresthiidae: Argyresthia abdominalis (pRDB 2); Argyresthia aurulentella (pRDB 3); Argyresthia praecocel
+     3  Lepidoptera / Cosmopterigidae: Cosmopterix schmidiella (Extinct); Euclemensia woodiella (Extinct); Pancalia schwarzella (
+     3  Diptera / Limoniidae: Dicranomyia consimilis (RDB 3); Ormosia ruficauda (New to Britain); Rhabdomastix laeta (RD
+     3  Lepidoptera / Lyonetiidae: Leucoptera lathyrifoliella (pRDB 2); Leucoptera orobi (pRDB 1); Lyonetia prunifoliella (pR
+     2  Hemiptera / Lygaeidae: Emblethis griseus (RDB 3); Sphragisticus nebulosus (New to Britain)
+     2  Lepidoptera / Epermeniidae: Epermenia farreni (pRDB 1); Epermenia profugella (pRDB 2)
+
+--------------------------------------------------------------------------------------
+SUPERSEDED: 190 species, by order / family
+    14  Diptera / Chloropidae: Calamoncosis aspistylina (RDB K); Cetema transversum (RDB K); Chlorops scutellaris (RDB K)
+    12  Coleoptera / Carabidae: Amara anthobia (Not native); Bembidion clarkii (Not native); Bembidion gilvipes (Not nativ
+    11  Diptera / Hybotidae: Crossopalpus setiger ((DD)/(NR)); Drapetis convergens ((DD)/(NR)); Drapetis infitialis ((D
+    10  Diptera / Muscidae: Coenosia brevisquama (RDB K); Coenosia dubiosa (RDB K); Helina cilipes (RDB 1)
+     9  Coleoptera / Chrysomelidae: Agelastica alni (DD/NR); Cassida nobilis (NS); Cassida prasina (NS)
+     8  Diptera / Dolichopodidae: Acropsilus niger (DD/NR); Diaphorus winthemi (DD/NR); Lamprochromus semiflavus (DD/NR)
+     8  Diptera / Empididae: Chelifera astigma ((DD)/(NR)); Hemerodromia melangyna ((DD)/(NR)); Hilara aeronetha ((DD)/
+     8  Diptera / Fanniidae: Fannia collini (RDB K); Fannia hirticeps (RDB K); Fannia hirundinis (RDB K)
+     7  Diptera / Culicidae: Ochlerotatus communis ((DD)/(NR)); Ochlerotatus dorsalis ((DD)/(NR)); Ochlerotatus flavesc
+     6  Diptera / Syrphidae: Cheilosia psilophthalma (DD/NS); Cheilosia uviformis (DD/NR); Epistrophe ochrostoma (DD/NR
+     6  Diptera / Pipunculidae: Clistoabdominalis ruralis ((DD)/(NR)); Dorylomorpha haemorrhoidalis ((DD)/(NR)); Eudorylas
+     5  Diptera / Heleomyzidae: Morpholeria dudai (RDB 3); Oldenbergiella brumalis (RDB 1); Schroederella iners (RDB K)
+     4  Coleoptera / Buprestidae: Agrilus sulcicollis (Not native); Agrilus cuprescens (Not native); Agrilus cyanescens (Not
+     4  Coleoptera / Ptinidae: Anobium inexspectatum (Nb); Caenocara affinis (RDB I); Ptinomorphus imperialis (Nb)
+     4  Coleoptera / Cerambycidae: Lepturobosca virens (Extinct); Pyrrhidium sanguineum (RDB 2); Strangalia attenuata (Extinc
+     3  Diptera / Sarcophagidae: Agria affinis (RDB 1); Angiometopa falleni (RDB 1); Sarcophaga jacobsoni (RDB 1)
+     3  Coleoptera / Dermestidae: Anthrenus pimpinellae (Extinct); Anthrenus scrophulariae (Extinct); Ctesias serra (Nb)
+     3  Araneae / Philodromidae: Philodromus albidus (pLC); Philodromus collinus (pLC); Philodromus praedatus (pLC)
+     2  Araneae / Araneidae: Argiope bruennichi (pLC); Zilla diodia (pLC)
+     2  Coleoptera / Zopheridae: Aulonium trisulcus (Not native); Synchita undata (Not native)
+     2  Araneae / Linyphiidae: Islandiana falsifica (pDD); Megalepthyphantes (pNA)
+     2  Coleoptera / Lampyridae: Lamprohiza splendidula (Not native); Phosphaenus hemipterus (Not native)
+     2  Araneae / Theridiidae: Parasteatoda simulans (pLC); Theridion hemerobium (NS/pNA)
+     2  Diptera / Ephydridae: Scatella crassicosta (RDB 2); Scatella obsoleta (RDB 2)
+     2  Diptera / Sepsidae: Sepsis nigripes (RDB 3); Themira biloba (RDB K)
+
+  Codex's current assessment, and its source:
+       33  DD  A Provisional Assessment of the Status of Acalyptratae flies
+       28  DD  Falk, S.J. & Crossley, R. 2005.  A review of the scarce and 
+       21  DD  A Provisional Assessment of the Status of Calypterate flies 
+       15  DD  Falk, S.J. & Chandler, P.J. 2005.  A review of the scarce an
+       10  LC  A Review of the scarce and threatened spiders (Araneae) of G
+        9  LC  A Review of the Status of the Leaf Beetles and allies of Gre
+        7  NA  A review of the beetles of Great Britain: The Soldier Beetle
+        7  LC  A review of the beetles of Great Britain: Ground Beetles (Ca
+        6  LC  A review of the status of the beetles of Great Britain: The 
+        6  DD  A review of the scarce and threatened flies of Great Britain
+        5  NA  A review of the beetles of Great Britain: Ground Beetles (Ca
+        4  NE  A review of the beetles of Great Britain: The Darkling Beetl
+
+--------------------------------------------------------------------------------------
+OTHER: 23 species, by order / family
+     4  Lepidoptera / Tortricidae: Aethes rutilana (pRDB 1); Apotomis infida (pRDB 1); Grapholita pallifrontana (pRDB 3)
+     4  Lepidoptera / Coleophoridae: Coleophora hydrolapathella (pRDB 1); Coleophora tricolor (pRDB 2); Coleophora vibicella (p
+     3  Lepidoptera / Tineidae: Archinemapogon yildizae (pRDB 1); Eudarcia richardsoni (pRDB 1); Nemapogon picarella (pRDB
+     3  Lepidoptera / Gracillariidae: Callisto coffeella (pRDB 1); Phyllonorycter sagitella (pRDB 2); Phyllonorycter scabiosella
+     1  Lepidoptera / Depressariidae: Agonopterix capreolella (pRDB 1)
+     1  Lepidoptera / Noctuidae: Dicycla oo (RDB 3)
+     1  Lepidoptera / Epermeniidae: Epermenia insecurella (pRDB 2)
+     1  Lepidoptera / Prodoxidae: Lampronia capitella (pRDB 3)
+     1  Lepidoptera / Adelidae: Nematopogon magna (pRDB 2)
+     1  Lepidoptera / Pterophoridae: Platyptilia tesseradactyla (Extinct)
+     1  Lepidoptera / Scythrididae: Scythris siccella (pRDB 1)
+     1  Lepidoptera / Nepticulidae: Stigmella zelleriella (pRDB 1)
+     1  Lepidoptera / Yponomeutidae: Swammerdamia passerella (pRDB 2)
+
+READ ONLY -- nothing has been changed.

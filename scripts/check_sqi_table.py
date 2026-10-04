@@ -26,21 +26,25 @@ for p in ed.load_all_projects():
     o = r.overall_sqi
     pub = getattr(r, "overall_sqi_published", None) or o
     rows[f"{p.project_name} {p.survey_year}"] = [
-        len(tvks), o.species_with_sqs, o.sqi, pub.species_with_sqs, pub.sqi]
+        len(tvks), o.species_with_sqs, o.sqi, pub.species_with_sqs, pub.sqi,
+        p.key_species_count]
 
 old = {}
 if "--compare" in sys.argv:
     with open(sys.argv[sys.argv.index("--compare") + 1]) as f:
         old = json.load(f)
 
-print(f"{'Survey':34} {'spp':>4}  {'scoring':>7} {'SQI':>4}  {'Pantheon-only':>13}"
-      + ("   <- before: scoring  SQI  Pan-only" if old else ""))
+print(f"{'Survey':34} {'spp':>4} {'key':>4}  {'scoring':>7} {'SQI':>4}  {'Pantheon-only':>13}"
+      + ("   <- before: key scoring  SQI  Pan-only" if old else ""))
 for k in sorted(rows):
-    n, ns, sqi, np_, ps = rows[k]
-    line = f"{k[:34]:34} {n:>4}  {ns:>7} {sqi:>4}  {np_:>7} {ps:>5}"
+    n, ns, sqi, np_, ps, key = rows[k]
+    line = f"{k[:34]:34} {n:>4} {key:>4}  {ns:>7} {sqi:>4}  {np_:>7} {ps:>5}"
     if k in old:
-        _, ons, osqi, onp, ops = old[k]
-        line += f"   <- {ons:>7} {osqi:>4}  {ops:>5}"
+        o = old[k]
+        okey = o[5] if len(o) > 5 else "-"
+        line += f"   <- {okey:>3} {o[1]:>7} {o[2]:>4}  {o[4]:>5}"
+        if okey != "-" and okey != key:
+            line += "   KEY CHANGED"
     print(line)
 
 if "--save" in sys.argv:

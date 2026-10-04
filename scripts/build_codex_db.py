@@ -17,7 +17,7 @@ v5 changes (per Codex Strategy doc, 16 April 2026):
   - Category column added to designations (populated from JNCC Category)
   - species_profiles table added (populated via review imports; survives rebuilds)
   - status_detail used consistently to carry instrument/jurisdiction specifics
-  - NR/NS-excludes variants dropped (redundant with -includes)
+  - NR/NS-excludes routed as NR/NS (some reviews publish only -excludes)
 
 Usage:
     python scripts/build_codex_db.py              # Build/rebuild
@@ -173,7 +173,7 @@ SCHEMA = """
 # proliferate tracks. None means "no extra detail".
 #
 # Abbreviations not in this dict are silently dropped -- they are either
-# duplicates we've chosen to ignore (e.g. -excludes rarity variants) or
+# duplicates we've chosen to ignore (e.g. WL, some global and bird codes) or
 # codes we've decided aren't useful to surface in status_summary.
 # ============================================================
 DESIG_TO_TRACK = {
@@ -243,12 +243,16 @@ DESIG_TO_TRACK = {
 
     # -----------------------------------------------------------------
     # RARITY -- rarity_modern (IUCN-compatible hectad-based)
-    # Only the "-includes" variants are routed. "-excludes" duplicates
-    # are silently dropped (they list same species minus Red Listed taxa,
-    # which is derivable from the full list + threat_iucn_2001).
-    # -----------------------------------------------------------------
+    # Both forms of the modern rarity codes are routed. JNCC: -includes = NS/NR
+    # including Red Listed taxa; -excludes = NS/NR excluding them. Both mean the
+    # species is Nationally Scarce/Rare, and some reviews publish only -excludes.
     "NR-includes":                  ("rarity_modern", "NR", None),
     "NS-includes":                  ("rarity_modern", "NS", None),
+    # -excludes is routed too: for 272 species (Falk & Crossley 2005, water
+    # beetles 2010, hoverflies 2014 ...) it is the ONLY NS/NR code. Ranked
+    # one below -includes in ABBR_PRIORITY, so a species with both keeps one.
+    "NR-excludes":                  ("rarity_modern", "NR", None),
+    "NS-excludes":                  ("rarity_modern", "NS", None),
     # Marine variants - kept distinct via status_detail
     "Marine-NR":                    ("rarity_modern", "NR", "Marine"),
     "Marine-NS":                    ("rarity_modern", "NS", "Marine"),
@@ -404,6 +408,8 @@ ABBR_PRIORITY = {
     # Rarity (modern)
     "NR-includes":            90,
     "NS-includes":            90,
+    "NR-excludes":            89,
+    "NS-excludes":            89,
     "Marine-NR":              90,
     "Marine-NS":              90,
 
