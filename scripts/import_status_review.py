@@ -236,10 +236,12 @@ def apply_status(c, tvk, track, value, detail, source, date):
 
 
 def backup(db_path, label):
-    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     dest = os.path.join(r"C:\BiologicalSoftware_Backups", "reference",
                         f"{label}_pre_review_{stamp}.db")
     os.makedirs(os.path.dirname(dest), exist_ok=True)
+    if os.path.exists(dest):   # never overwrite an earlier backup
+        raise FileExistsError(f"backup already exists: {dest}")
     src = sqlite3.connect(str(db_path))
     d = sqlite3.connect(dest)
     src.backup(d)
