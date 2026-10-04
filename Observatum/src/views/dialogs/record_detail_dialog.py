@@ -85,7 +85,7 @@ class RecordDetailDialog(QDialog):
         t = theme()
         
         self.setWindowTitle("Record Detail")
-        self.setMinimumWidth(600)
+        self.setMinimumWidth(1000)
         self.setModal(True)
         self.setStyleSheet(f"QDialog {{ background-color: {t.get('surface')}; }}")
         
@@ -95,7 +95,7 @@ class RecordDetailDialog(QDialog):
         
         # Set a comfortable default height
         self.setMinimumHeight(600)
-        self.resize(700, 700)
+        self.resize(1200, 760)
     
     def _load_counts(self):
         """Load observation and specimen counts for this species."""
@@ -245,7 +245,13 @@ class RecordDetailDialog(QDialog):
         layout.addStretch()
         
         scroll.setWidget(content)
-        main_layout.addWidget(scroll, 1)
+        from PySide6.QtWidgets import QSplitter
+        body = QSplitter(Qt.Orientation.Horizontal)
+        body.setChildrenCollapsible(False)
+        body.addWidget(scroll)
+        body.addWidget(self._accounts_panel)
+        body.setSizes([520, 680])
+        main_layout.addWidget(body, 1)
         
         # Action buttons (fixed at bottom)
         self._add_action_buttons(main_layout)
@@ -627,70 +633,18 @@ class RecordDetailDialog(QDialog):
             layout.addWidget(import_label)
     
     def _add_profile_section(self, layout):
-        """Add species profile section."""
-        t = theme()
-        self._add_separator(layout)
-        
-        # Header row with button
-        header_row = QHBoxLayout()
-        
-        header = QLabel("Species Profile")
-        header.setStyleSheet(f"""
-            font-size: 13px;
-            font-weight: 600;
-            color: {t.get('text_primary')};
-        """)
-        header_row.addWidget(header)
-        
-        header_row.addStretch()
-        
-        # View/Create button (tab accent - navigation action)
-        btn_text = "View" if self.profile_text else "Create"
-        self._profile_btn = QPushButton(btn_text)
-        self._profile_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {self._accent};
-                color: white;
-                border: none;
-                border-radius: {t.get('radius_sm')};
-                padding: 4px 12px;
-                font-size: 11px;
-                font-weight: 600;
-            }}
-            QPushButton:hover {{
-                background-color: {self._accent_dark};
-            }}
-        """)
-        self._profile_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._profile_btn.clicked.connect(lambda: self.profile_requested.emit(self.record))
-        header_row.addWidget(self._profile_btn)
-        
-        layout.addLayout(header_row)
-        
-        # Profile preview (styled like Species Info panel)
-        if self.profile_text:
-            display_text = self.profile_text[:300] + "..." if len(self.profile_text) > 300 else self.profile_text
-        else:
-            display_text = ""
-        
-        self._profile_preview = QTextEdit()
-        self._profile_preview.setReadOnly(True)
-        self._profile_preview.setPlaceholderText("No profile notes yet")
-        if display_text:
-            self._profile_preview.setText(display_text)
-        self._profile_preview.setStyleSheet(f"""
-            QTextEdit {{
-                color: {t.get('text_primary')};
-                font-size: 12px;
-                background-color: {t.get('surface_alt')};
-                padding: 8px;
-                border: 1px solid {t.get('border')};
-                border-radius: {t.get('radius_md')};
-            }}
-        """)
-        self._profile_preview.setMinimumHeight(60)
-        self._profile_preview.setMaximumHeight(100)
-        layout.addWidget(self._profile_preview)
+        """Species accounts live in the right-hand column (SpeciesAccountsPanel):
+        built here in the tab's colours, placed beside the record by _setup_ui."""
+        from ..components.species_accounts_panel import SpeciesAccountsPanel
+        r = self.record or {}
+        self._accounts_panel = SpeciesAccountsPanel(
+            r.get('species_tvk') or r.get('tvk') or r.get('taxon_version_key'),
+            r.get('species_name') or r.get('scientific_name') or r.get('species'),
+            self._accent, self._accent_light, self._accent_dark, self)
+        self._accounts_panel.edit_requested.connect(
+            lambda: self.profile_requested.emit(self.record))
+        self._profile_preview = None
+        self._profile_btn = None
     
     def _add_action_buttons(self, layout):
         """Add Edit and Delete buttons."""
@@ -797,20 +751,10 @@ class RecordDetailDialog(QDialog):
         layout.addLayout(row)
     
     def update_profile(self, profile_text: str):
-        """Update the profile preview after saving."""
+        """Called by the host after the editor saves: reload the accounts panel."""
         self.profile_text = profile_text
-        
-        # Update preview text
-        if hasattr(self, '_profile_preview') and self._profile_preview:
-            if profile_text:
-                display_text = profile_text[:300] + "..." if len(profile_text) > 300 else profile_text
-                self._profile_preview.setText(display_text)
-            else:
-                self._profile_preview.clear()
-        
-        # Update button text
-        if hasattr(self, '_profile_btn') and self._profile_btn:
-            self._profile_btn.setText("View" if profile_text else "Create")
+        if getattr(self, '_accounts_panel', None):
+            self._accounts_panel.refresh()
 
     def _on_view_records(self):
         """Handle View all Records click - navigate to Observation Data tab."""
