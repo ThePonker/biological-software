@@ -23,6 +23,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 R = os.path.join(ROOT, "data", "reviews")
 DL = os.path.join(os.path.expanduser("~"), "Downloads")
 APPLY = "--apply" in sys.argv
+ONLY = sys.argv[sys.argv.index("--only") + 1].split(",") if "--only" in sys.argv else None
 
 # necr: (folder, taxon group, PDF filename pattern, table filename pattern, extract accounts?)
 PLAN = {
@@ -30,7 +31,7 @@ PLAN = {
     "148": ("coleoptera_darkling_beetles_necr148_2014", "Coleoptera: darkling beetles and allies", r"^NECR148_edition_2\.pdf$", r"^NECR148 data table", True),
     "161": ("coleoptera_chrysomelidae_necr161_2014", "Coleoptera: leaf beetles (superseded by NECR702)", r"^NECR161_edition_1\.pdf$", r"^Copy of Data table 2nd version", False),
     "174": ("plecoptera_stoneflies_necr174_2015", "Plecoptera", r"^NECR174_edition_1\.pdf$", r"^NECR174 data table", True),
-    "186": ("myriapoda_isopoda_necr186_2015", "Millipedes, centipedes and woodlice", None, r"^NECR186 data table", False),
+    "186": ("myriapoda_isopoda_necr186_2015", "Millipedes, centipedes and woodlice", None, r"^NECR186 data table", True),
     "187": ("orthoptera_necr187_2015", "Orthoptera and allied", r"^NECR187_edition_1\.pdf$", None, False),
     "188": ("hemiptera_aquatic_necr188_2015", "Hemiptera: aquatic and semi-aquatic bugs", r"^NECR188_edition_1\.pdf$", r"^NECR188 data table", True),
     "189": ("coleoptera_carabidae_necr189_2016", "Coleoptera: ground beetles", r"^NECR189_edition_1\.pdf$", r"^NECR189 data table", False),
@@ -54,6 +55,8 @@ PLAN = {
 # supplied -- confirmed from publication records (Pantheon bibliography,
 # Natural England's catalogue and citing papers), 4 October 2026.
 KNOWN_CITATIONS = {
+    "186": ("Lee, P. 2015. A review of the millipedes (Diplopoda), centipedes (Chilopoda) and woodlice (Isopoda) "
+            "of Great Britain. Species Status No.23. Natural England Commissioned Reports, Number 186"),
     "134": ("Alexander, K.N.A. 2014. A review of the beetles of Great Britain: The Soldier Beetles and their allies. "
             "Species Status No.16. Natural England Commissioned Reports, Number 134"),
     "148": ("Alexander, K.N.A., Dodd, S. & Denton, J.S. 2014. A review of the beetles of Great Britain: The Darkling "
@@ -208,6 +211,8 @@ print("Natural England Species Status reviews -- " + ("APPLY" if APPLY else "DRY
 print("=" * 90)
 moves, writes, pdf_only, problems = [], [], [], []
 for necr, (folder, group, ppat, tpat, do_acc) in PLAN.items():
+    if ONLY and necr not in ONLY:
+        continue
     src_dir = os.path.join(R, folder, "source")
     files = []
     for pat in (ppat, tpat):
