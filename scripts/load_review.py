@@ -64,8 +64,15 @@ c = codex.cursor()
 if c.execute("SELECT 1 FROM reviews WHERE review_name=?", (review["review_name"],)).fetchone():
     sys.exit(f"\n  x already imported: {review['review_name']} -- nothing written")
 
-tracks = ["threat_iucn_2001", "rarity_modern"] + ([] if a.keep_legacy else
-                                                  ["rarity_legacy", "threat_iucn_legacy"])
+# What the review assessed. A threat-only review (e.g. a Red List with no
+# rarity assessment) must not clear rarity statuses held from other sources:
+# blank rarity there means "not assessed", not "assessed as none".
+assessed = {s.strip() for s in (review.get("tracks_assessed") or "threat,rarity").split(",")}
+threat_only = "rarity" not in assessed
+tracks = ["threat_iucn_2001"] + ([] if threat_only else ["rarity_modern"])
+if not a.keep_legacy:
+    tracks += ["threat_iucn_legacy"] + ([] if threat_only else ["rarity_legacy"])
+print(f"  assesses: {', '.join(sorted(assessed))}   tracks written: {', '.join(tracks)}")
 plan, unresolved, not_assessed, odd = [], [], [], []
 for r in statuses:
     raw = (r["iucn_status"] or "").strip().upper()
@@ -83,10 +90,12 @@ for r in statuses:
     current = {tr: v for tr, v in c.execute(
         "SELECT status_track, status_value FROM status_summary WHERE tvk=? "
         "AND COALESCE(status_detail,'')=''", (tvk,))}
-    new = {"threat_iucn_2001": raw, "rarity_modern": (r["rarity"] or "").strip() or CLEAR}
-    if not a.keep_legacy:
-        new["rarity_legacy"] = CLEAR
-        new["threat_iucn_legacy"] = CLEAR
+    new = {"threat_iucn_2001": raw}
+    if not threat_only:
+        new["rarity_modern"] = (r.get("rarity") or "").strip() or CLEAR
+    for tr in tracks:
+        if tr.endswith("_legacy"):
+            new[tr] = CLEAR
     plan.append({"row": r, "tvk": tvk, "name": sci, "how": how, "current": current, "new": new,
                  "note": "; ".join(x for x in (note, r.get("qualifying_criteria", "")) if x)})
 
@@ -183,8 +192,8 @@ try:
     c.execute("""INSERT INTO reviews (review_name, author, taxon_group, status_track, date_published,
                  date_imported, source_file, species_count, supersedes_id, notes, licence)
                  VALUES (?,?,?,?,?,?,?,?,NULL,?,?)""",
-              (review["review_name"], review["author"], "Hymenoptera: Symphyta"
-               if "sawfl" in review["review_name"].lower() else "",
+              (review["review_name"], review["author"], review.get("taxon_group") or ("Hymenoptera: Symphyta"
+               if "sawfl" in review["review_name"].lower() else ""),
                ",".join(tracks), date, now, os.path.basename(os.path.normpath(a.folder)),
                len(plan), "Loaded from extracted CSVs by load_review.py", review["licence"]))
     rid = c.lastrowid
