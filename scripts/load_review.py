@@ -41,6 +41,8 @@ ap = argparse.ArgumentParser()
 ap.add_argument("folder")
 ap.add_argument("--apply", action="store_true")
 ap.add_argument("--keep-legacy", action="store_true")
+ap.add_argument("--add-accounts", action="store_true",
+                help="add accounts missing from a review already loaded; statuses untouched")
 ap.add_argument("--add-statuses", action="store_true",
                 help="add statuses to a review already loaded (e.g. as accounts only); accounts untouched")
 a = ap.parse_args()
@@ -64,7 +66,12 @@ uksi = sqlite3.connect(f"file:{paths.UKSI_DB}?mode=ro", uri=True)
 codex = sqlite3.connect(str(paths.CODEX_DB))
 c = codex.cursor()
 existing = c.execute("SELECT id FROM reviews WHERE review_name=?", (review["review_name"],)).fetchone()
-if existing and not a.add_statuses:
+if a.add_accounts:
+    if not existing:
+        sys.exit(f"\n  x --add-accounts: no review named {review['review_name']!r} -- nothing written")
+    have = {t for (t,) in c.execute("SELECT tvk FROM species_profiles WHERE review_id=?", (existing[0],))}
+    print(f"  adding missing accounts to existing review #{existing[0]} ({len(have)} already held); statuses untouched")
+if existing and not (a.add_statuses or a.add_accounts):
     sys.exit(f"\n  x already imported: {review['review_name']} -- nothing written "
              "(use --add-statuses to add statuses to it)")
 if a.add_statuses:
@@ -86,7 +93,7 @@ if not a.keep_legacy and not accounts_only:
     tracks += ["threat_iucn_legacy"] + ([] if threat_only else ["rarity_legacy"])
 print(f"  assesses: {', '.join(sorted(assessed))}   tracks written: {', '.join(tracks) or 'none -- accounts only'}")
 plan, unresolved, not_assessed, odd = [], [], [], []
-for r in ([] if accounts_only else statuses):
+for r in ([] if accounts_only or a.add_accounts else statuses):
     raw = (r["iucn_status"] or "").strip().upper()
     note = ""
     if raw.startswith("CR") and "PE" in raw:
@@ -187,6 +194,8 @@ for r in ([] if a.add_statuses else accounts):
     if not r["account_text"].strip():
         continue
     hit = resolve(uksi, r["species_name"].strip(), (r.get("tvk") or "").strip() or None)
+    if hit and a.add_accounts and hit[0] in have:
+        continue                                  # already held under this review
     if hit:
         acc_plan.append((hit[0], hit[1], r["account_text"]))
     else:
@@ -204,7 +213,7 @@ if not a.apply:
 
 print(f"\n  backup: {backup(paths.CODEX_DB, 'codex')}")
 try:
-    if a.add_statuses:
+    if a.add_statuses or a.add_accounts:
         rid = existing[0]
     else:
         c.execute("""INSERT INTO reviews (review_name, author, taxon_group, status_track, date_published,

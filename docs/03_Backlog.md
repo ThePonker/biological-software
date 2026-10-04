@@ -1,6 +1,6 @@
 # Backlog
 
-## Updated 2 October 2026
+## Updated 4 October 2026
 ## Check this before starting a session.
 
 ---
@@ -9,15 +9,15 @@
 
 | | Item | Size |
 |---|---|---|
-| 1 | **G5** — species account editor (review text above, yours below) | ~30 min |
-| 2 | **E16** — decide the SQI verdict wording | decision |
-| 3 | **A1** — bulk curatorial editor | 0.5–1 day |
-| 4 | **E3** — PDF renderer | 1–1.5 days |
+| 1 | **G7** — Acalyptratae (NECR217): accounts **and** statuses, like NECR234 | ~30 min |
+| 2 | **G8** — remaining PDF reviews: Orthoptera (187), caddis (191), shieldbugs (190, PDF to download) | ~20 min each |
+| 3 | **G9** — spiders 2017, hoverflies 2014 (to download) | ~20 min each |
+| 4 | **E16** — decide the SQI verdict wording | decision |
 | 5 | **D3** — merge `main` → `stable` | 15 minutes |
 
-Examen now reproduces an issued report's SQI exactly (Glory Park, 117). The
-verdict sentence (E16) matters more than before: every SQI fell on 2 October, so
-its unsourced bands now attach to different sites.
+Codex holds 21 reviews and 2,263 accounts; every status is the newest review's
+and survives a rebuild (`02` §2). Each review: inspect, extract verbatim, verify,
+dry run, load, then run the three status checks (`05_Rules.md`).
 
 *Sizes are focused time. Estimate in exchanges: ~2–3 minutes each once the code
 has been read (`05_Rules.md`).*
@@ -303,14 +303,30 @@ Your accounts: `observatum.db.species_profiles`, one per species, keyed on TVK.
 Every display reads both through `shared/species_accounts.py`. *Supersedes G1's
 September decision to keep review text in `observatum.db`.*
 
-**G5. The editor — NEXT.** ~30 min. `species_profile_dialog.py`: review text
-read-only with its citation above, your account editable below, wider window.
-Key on TVK; never write without one; never touch review text. Until it is done
-the editor opens blank for leaf beetles — correct, since that box is yours.
+**G5, G6 — done 4 October.** Editor (review accounts read-only above, yours
+below); Record Detail shows all accounts in a right-hand column in the tab's
+colours; the workbook quotes open-licence accounts with citation, points to the
+rest, and marks the source in an Account source column.
 
-**G6. Workbook account column.** ~15 min. Your account where written, else the
-review text marked as quoted and cited, with a column saying which. The workbook
-still reads only `observatum.db`.
+**G7. Acalyptratae (NECR217) — NEXT.** 263 pp, provisional (2016). Accounts from
+data sheets **and** statuses (JNCC carried only part, as with NECR234; ~130
+species in `check_newest_review.py` list (1) wait on it). Read its excluded list.
+
+**G8. Remaining PDF reviews.** Orthoptera (187), caddis (191) -- accounts in PDF;
+shieldbugs (190) -- table has no accounts, PDF not yet downloaded.
+
+**G9. Not yet downloaded.** Spiders 2017 (149 of your species), hoverflies 2014.
+
+**G10. Old JNCC reviews** (Hyman 1992/94, Falk 1991 aculeates and flies, Kirby
+1992): fill 89 key species; likely scans with short, dated accounts. Inspect one
+before deciding; writing your own may be better.
+
+**G11. Supersession links.** When two loaded reviews cover the same group, set
+`reviews.supersedes_id` so the older account shows as superseded. Not yet needed.
+
+**G12. Loose names.** *Cantharis nigra* (NECR134) does not match UKSI -- check
+name; *Macronychia dolini* absent from NECR234 -- check; Staphylinidae (265 in
+the newest-review list) are scope, correctly left.
 
 **G3. Extract ~100 existing profiles from Word.** 0.5–1 day. Roughly 10 `.docx`
 files.

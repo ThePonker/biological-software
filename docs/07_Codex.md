@@ -1,7 +1,7 @@
 # Codex
 
 ## The conservation authority
-## Updated 2 October 2026 — supersedes `07_Codex_Design_Spec.md` (16 Apr 2026),
+## Updated 4 October 2026 — supersedes `07_Codex_Design_Spec.md` (16 Apr 2026),
 ## whose schema and priority-track descriptions no longer match the build.
 
 ---
@@ -223,19 +223,32 @@ schema changes need no migration.
 
 ### Importing a published review
 
-**`scripts/import_status_review.py` is the one importer** (dry run by default,
-`--apply` to write, `--profiles-only` to refresh accounts under an
-already-registered review). Statuses go to `manual_entries`; accounts go to
-`species_profiles` under the review's id; both in one transaction. Species
-accounts never touch `observatum.db`, which holds Wil's own accounts only.
+Reviews live in `data\reviews\<order_group_author_year>\` with `source\` (as
+published, never edited) and `extracted\` (`review.csv`, `statuses.csv`,
+`accounts.csv`). Extraction is per layout (spreadsheet column or PDF data
+sheets) and verbatim-checked; **`scripts/load_review.py` is the one loader**:
 
-Codex Manager's Import Review tab still exists but writes accounts the old way,
-keyed on TVK alone — **do not use it** until it is retired (backlog F9).
+- dry run by default, `--apply` to write; backup first; one transaction
+- `review.csv` `tracks_assessed`: `threat,rarity` (default) | `threat` (Red List
+  only; rarity untouched) | `accounts` (statuses already in Codex via JNCC)
+- legacy tracks cleared for every species the review assessed (newest wins)
+- rarity-only rows (e.g. provisional NS) clear the Red List track
+- `--add-statuses` / `--add-accounts`: extend a review already loaded
+- matching, `apply_status`, `key_tiers`, `backup` imported from
+  `import_status_review.py`, so every review obeys the same rules
 
-Record each review's licence in `reviews.licence` (NECR702: pending, F8).
+Record each review's licence; OGL accounts are quoted in reports, others are
+internal reference. Codex Manager's Import Review tab writes the old way -- **do
+not use it** (backlog F9).
 
-Imports are additive. Where a review supersedes an older one, `supersedes_id`
-links them; superseded data is retained so old reports stay reproducible.
+### Keeping every status the newest review's
+
+JNCC's spreadsheet does not enforce it. After any review load or JNCC update run
+`check_legacy_conflicts.py`, `check_newest_review.py`, `check_old_names.py`.
+Corrections are manual entries with value `'none'` (status removed), naming the
+review that superseded or withdrew the status -- they survive rebuilds (proven
+4 Oct): `clear_stale_legacy.py [--all]`, `withdraw_statuses.py`,
+`check_old_names.py --apply`.
 
 ### Checking for stale TVKs after a UKSI update
 

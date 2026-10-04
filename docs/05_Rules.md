@@ -1,6 +1,6 @@
 # Rules
 
-## Updated 2 October 2026
+## Updated 4 October 2026
 ## Every rule here was paid for. Read this before a long session.
 
 ---
@@ -74,6 +74,55 @@ true.
 
 ---
 
+## Conservation statuses: which one stands
+
+**Each species takes its status from the newest review that assessed it.** A
+newer review supersedes an older one for every species it assessed: changed
+statuses replace the old, removed statuses are cleared. Where only a pre-IUCN
+review exists (Falk 1991 aculeates, Hyman 1992/94 beetles), its RDB / Na / Nb /
+Notable statuses stand and count as Key under Telfer.
+
+**Exclusion by judgement is an assessment; exclusion by scope is not.** A newer
+review that leaves a species out *because it judged it not scarce or threatened*
+withdraws the old status (NECR234: *Phaonia siebecki*, "neither scarce nor
+threatened enough"). One that leaves a group out of its *scope* does not
+(NECR234 left the Tachinidae for a later volume, so *Cistogaster globosa*'s RDB1
+stands; NECR265 covered only the Tachyporinae, so other rove beetles keep
+Hyman's statuses). Read every review's front matter for an excluded-species list.
+
+**JNCC's spreadsheet does not enforce this.** It kept old designations beside
+newer ones (71 species) and carried only part of the provisional fly reviews.
+After loading any review, run `check_legacy_conflicts.py`,
+`check_newest_review.py` and `check_old_names.py`.
+
+**Where a report contradicts itself, the data sheet wins over the summary
+table.** The sheet is where the assessment and its reasoning are made (NECR234:
+4 of 300 disagreed).
+
+**Old names carry old statuses.** A species assessed under its current name
+leaves its old name's status behind (*Hercostomus nigrocoerulea* -> *Ortochile*).
+UKSI's synonym table finds them.
+
+## Species accounts from reviews
+
+**Take a review's account verbatim, or not at all.** Extract with code, never
+retype or summarise; check every sentence against an independent extraction of
+the same file (`pdftotext` raw mode). Only rationale/justification columns are
+not accounts and are not loaded.
+
+**Licence decides publication, not storage.** OGL accounts are quoted in the
+workbook with their citation; others (the sawfly reports) are stored as internal
+reference and the workbook shows a pointer instead.
+
+**Where JNCC already holds a review's statuses, load its accounts only.**
+Reloading statuses duplicates JNCC and the loader's legacy-clearing could undo
+its precedence. Load statuses only where Codex lacks them (Dolichopodidae, the
+provisional fly reviews).
+
+**When a PDF's citation page is an image, confirm the citation from publication
+records** (Pantheon's bibliography, Natural England's catalogue) -- never from
+memory.
+
 ## Patching
 
 **Anchors must be unique, and a substring of a longer identifier is not.** A
@@ -93,6 +142,18 @@ before the function that used them — at the bottom of the file — while metho
 default arguments referencing them sit in the class above. Default arguments are
 evaluated when the class body runs. It compiled cleanly and raised `NameError` on
 import. **Patch scripts must import the module afterwards.**
+
+**Once a script has started changing files, any failure must restore** -- not
+only the failures it anticipated. Wrap everything after the first change.
+
+**Close what you read before you move it.** openpyxl's read-only workbooks hold
+the file open on Windows until `wb.close()`; the move then fails.
+
+**A child Python with captured output needs `PYTHONIOENCODING=utf-8`** and
+decoding as UTF-8, or a ✓ printed at import crashes the print (cp1252 pipe).
+
+**Test against the real constant, not a guessed one.** A mock's invented CLEAR
+marker failed where the real `'none'` would not -- read the real value first.
 
 **Unique within the function, not just the file.** A line that occurs once in
 the function you mean may occur again elsewhere: `repo.delete_row(conn, row["id"])`
@@ -199,6 +260,9 @@ instead.
 
 **`chr()` is Python; `char()` is SQLite.** Dodging one quoting problem created
 another. Twice.
+
+**Inline Python with nested quotes is fragile in PowerShell.** A `python -c`
+with escaped double quotes silently arrived broken. Ship a small script instead.
 
 **Never put `<placeholder>` in a command.** PowerShell reads `<` as a redirect and
 stops before Python starts. Give the real values, or a word like `TVK_HERE` that

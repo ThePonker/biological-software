@@ -1,6 +1,6 @@
 # Current State
 
-## 2 October 2026
+## 4 October 2026
 ## The only home for these figures. If a number appears elsewhere, it is a copy
 ## and it will drift.
 
@@ -24,17 +24,39 @@
 
 ## 2. Database figures
 
-### codex.db — 46.0 MB, rebuilt 2 October
+### codex.db — 49.2 MB, rebuilt 4 October (rebuild test passed)
 
 | Table | Rows |
 |---|---:|
 | designations | 27,062 |
-| status_summary | 25,426 (+ manual entries applied) |
+| status_summary | 27,927 (JNCC 26,822 + manual entries applied) |
 | sqs_scores | **9,611**, all Pantheon-sourced; 0 stored derived |
 | tvk_bridge | 14,161 |
-| manual_entries | 1,148 (NECR702) |
-| reviews | 1 — NECR702, id 1, licence not yet recorded |
-| species_profiles | 287 — NECR702 review accounts, keyed `(tvk, review_id)` |
+| manual_entries | 5,900 -- review statuses, withdrawals, superseded and old-name clearances |
+| reviews | **21** |
+| species_profiles | **2,263** review accounts, keyed `(tvk, review_id)` |
+
+**Reviews loaded** (id: what, accounts; *S* = statuses written too):
+
+| id | Review | Accounts |
+|---|---|---:|
+| 1 | Leaf beetles, NECR702 (Lane 2026) *S* | 287 |
+| 2–4 | Sawflies Phases 1–3 (Musgrove 2022–24) *S*, internal reference only | 540 |
+| 5 | Butterflies Red List (Fox et al. 2022) *S*, threat only | 0 |
+| 6–15 | NE Species Status: darkling, soldier, wood-boring, clown, longhorn, scarab, Tachyporinae beetles; stoneflies; aquatic bugs; mayflies | 1,000 |
+| 16 | Millipedes, centipedes, woodlice (Lee 2015) | 179 |
+| 17 | Ground beetles (Telfer 2016), PDF | 51 |
+| 18 | Larger Brachycera (Drake 2017), PDF | 33 |
+| 19 | Dolichopodidae (Drake 2018) *S*, PDF | 59 |
+| 20 | Lonchopteridae, Platypezidae, Opetiidae (Chandler 2017), PDF | 9 |
+| 21 | Calyptratae, provisional (Falk & Pont 2017) *S* from data sheets, PDF | 300 |
+
+**Status corrections (4 Oct), all surviving a rebuild:** 272 NS-excludes routed;
+71 old statuses superseded by newer reviews; 9 withdrawn by review (judgement,
+"not British", misapplied names); 3 old names; NECR234's 300 provisional statuses.
+Rarity_modern 3,107 → 4,503. `check_legacy_conflicts.py` 0 / 0;
+`check_old_names.py` 0; `check_newest_review.py` (2) 0, (1) 419 -- 265
+Staphylinidae (scope, correct), ~130 acalyptrates (NECR217 next), ~20 loose.
 
 **SQS import, before and after the 2 October fix:**
 
@@ -45,8 +67,8 @@
 | Dropped as "non-invertebrate collision" | 4,085 | 59 |
 | Dropped as zero-SQS | 109 | 109 |
 
-Status tracks and bridge passes unchanged from September (threat_iucn_2001 9,455;
-priority 5,231; rarity_modern 3,107; legal 2,579; red_list_england 1,819;
+JNCC status tracks (threat_iucn_2001 9,455;
+priority 5,231; rarity_modern 4,503; legal 2,579; red_list_england 1,819;
 threat_iucn_legacy 1,499; rarity_legacy 1,249; global 271; bocc 173; specialist
 43 — bridge 8,648 direct / 2,513 name / 3,000 synonym / 68 unmatched; 1,847
 merged).
@@ -104,7 +126,7 @@ likely a score differing between Pantheon 3.7.4 here and 3.7.6 on the website.
 **Until 2 October Examen gave Glory Park 134.** The September "validation" matched
 key species and never compared the SQI. See `06_Faults.md`.
 
-### Every survey, 2 October
+### Every survey, 4 October
 
 SQI on current scoring (Pantheon's scores plus any derived) and on Pantheon's
 published scores alone. Key species after the jurisdiction and research-only
@@ -115,12 +137,12 @@ rules.
 | BAM Glory Park 2024 | 128 | 8 | 117 | 117 | 134 |
 | Badshot Lea 2023 | 167 | 8 | 111 | 111 | 121 |
 | Bicester Graven Hill 2023 | 367 | 17 | 108 | 107 | 123 |
-| Bicester Graven Hill 2025 | 254 | 19 | 127 | 126 | 155 |
-| Birmingham – Wheels Park 2026 | 195 | 7 | 118 | 105 | 146 |
+| Bicester Graven Hill 2025 | 254 | 20 | 127 | 126 | 155 |
+| Birmingham – Wheels Park 2026 | 195 | 6 | 116 | 105 | 146 |
 | Derby 2025 | 230 | 4 | 101 | 100 | 119 |
 | Fermyn Hall Wood Deadwood 2024 | 49 | 8 | 157 | 154 | 197 |
-| Kent Deadwood 2024 | 393 | 76 | 181 | 175 | 247 |
-| Long Hanborough 2025 | 118 | 10 | 112 | 111 | 122 |
+| Kent Deadwood 2024 | 393 | 77 | 181 | 175 | 247 |
+| Long Hanborough 2025 | 118 | 11 | 112 | 111 | 122 |
 | Machen 2024 (Wales) | 321 | 17 | 121 | 115 | 144 |
 | Tilbury 2025 | 238 | 4 | 101 | 100 | 106 |
 
@@ -134,10 +156,11 @@ the issued 10 to 8 (jurisdiction, then research-only).
 
 ### Birmingham – Wheels Park 2026 — the first joint survey
 
-195 species: 130 Wil, 121 J. Moore, 56 shared. 7 key species (3.6%), 1 Rare Key
-(*Cistogaster globosa*, RDB1). SQI **118** (217 ÷ 184), **105** on Pantheon's scores
-(192 ÷ 182). Four derived scores: *Cistogaster globosa* 16, *Phaonia mediterranea*
-4, *P. siebecki* 4, *Olibrus corticalis* 1.
+195 species: 130 Wil, 121 J. Moore, 56 shared. **6 key species**, 1 Rare Key
+(*Cistogaster globosa*, RDB1 -- tachinids are outside NECR234's scope). SQI **116**
+(213 ÷ 184), **105** on Pantheon's scores (192 ÷ 182). *Phaonia siebecki* lost its
+1991 Notable (withdrawn by NECR234, 4 Oct); *P. mediterranea* and *Blaesoxipha
+plumicornis* now hold NECR234's provisional statuses.
 
 ### Key Species vs Codex tiers — two vocabularies, deliberately
 
@@ -172,6 +195,27 @@ A species' habitats are nested only under the biotope Pantheon places them in
 ---
 
 ## 5. Recent history
+
+### Session 37 — 4 October 2026
+
+**Species accounts from the status reviews, and every status the newest one.**
+Tie-ups first (off-site copy, licence). A coverage check against Pantheon found
+**272 species' Nationally Scarce status discarded** by the build (NS-excludes)
+-- hoverflies, water beetles, Empidoidea -- fixed. Sawflies (Musgrove, 3 phases)
+extracted and loaded with a new generic `load_review.py`; butterflies 2022
+(threat only); then 15 Natural England Species Status reviews -- ten from
+spreadsheet columns, five from PDFs (ground beetles, Larger Brachycera,
+Dolichopodidae with statuses, Lonchopteridae, Calyptratae) -- every account
+verified sentence by sentence against an independent extraction. **2,263 review
+accounts.** The accounts editor and a Record Detail accounts column (tab colours)
+built; the workbook quotes open-licence accounts with citation.
+
+Then the rule: **each species takes its status from the newest review that
+assessed it**, judgement-exclusions included, scope-exclusions not. JNCC had not
+enforced it: 71 old statuses beside newer ones, 9 withdrawn by later reviews, 7
+old names, and the calyptrate review's 300 provisional statuses never imported.
+All corrected; a full Codex rebuild then reproduced every figure. Birmingham 7 → 6
+key, Kent 78 → 77. Backups pruned 2.8 GB; off-site copy 4–5× faster.
 
 ### Session 36 — 2 October 2026
 

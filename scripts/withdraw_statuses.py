@@ -30,37 +30,90 @@ if not any(isinstance(n, ast.If) and "__main__" in ast.dump(n.test) for n in ast
     sys.exit("  x import_status_review.py has no __main__ guard -- not importing it")
 from import_status_review import resolve, apply_status, key_tiers, backup, CLEAR
 
-REVIEW_ID = 21
 _NOT_SCARCE = ("Excluded by NECR234 (Falk & Pont 2017) as 'neither scarce nor threatened enough "
                "to be included'; earlier Shirt 1987 / Falk 1991 status withdrawn")
-SPECIES = {"Phaonia siebecki": _NOT_SCARCE, "Phaonia atriceps": _NOT_SCARCE,
-           "Thricops innocuus": _NOT_SCARCE, "Sarcophaga africa": _NOT_SCARCE,
-           "Lispe hydromyzina": ("Excluded by NECR234 (Falk & Pont 2017) as 'Not British'; "
-                                 "Falk 1991 status (Extinct) withdrawn")}
+# name -> (review id whose verdict applies, reason)
+SPECIES = {"Phaonia siebecki": (21, _NOT_SCARCE), "Phaonia atriceps": (21, _NOT_SCARCE),
+           "Thricops innocuus": (21, _NOT_SCARCE), "Sarcophaga africa": (21, _NOT_SCARCE),
+           "Lispe hydromyzina": (21, "Excluded by NECR234 (Falk & Pont 2017) as 'Not British'; "
+                                     "Falk 1991 status (Extinct) withdrawn"),
+           "Phaonia lugubris": (21, "NECR234: 'the Phaonia lugubris of d'Assis-Fonseca (1968)' is "
+                                    "Phaonia meigeni, assessed there (pNS); old name's status superseded"),
+           "Sarcophaga exuberans": (21, "NECR234: 'the Sarcophaga exuberans of van Emden (1954)' is "
+                                        "Sarcophaga jacobsoni, assessed there (DD); old name's status superseded"),
+           "Oxycera varipes": (18, "NECR192 (Drake 2017): Falk 1991 listed it 'in error'; status withdrawn"),
+           "Hercostomus nigrocoerulea": (19, "Now Ortochile nigrocoerulea, assessed by NECR195 (Drake 2018, CR); "
+                                             "old name's status superseded")}
+# NECR217 section 6 -- excluded by judgement
+SPECIES.update({
+    "Dasiops spatiosus": ("NECR217", "Excluded by NECR217 (Falk, Ismay & Chandler 2016) as '15 Vice-counties' (too widespread to qualify); earlier status withdrawn"),
+    "Lonchaea collini": ("NECR217", "Excluded by NECR217 (Falk, Ismay & Chandler 2016) as 'Occurs widely' (too widespread to qualify); earlier status withdrawn"),
+    "Lonchaea palposa": ("NECR217", "Excluded by NECR217 (Falk, Ismay & Chandler 2016) as '12 Vice-counties' (too widespread to qualify); earlier status withdrawn"),
+    "Lonchaea peregrina": ("NECR217", "Excluded by NECR217 (Falk, Ismay & Chandler 2016) as '17 Vice-counties' (too widespread to qualify); earlier status withdrawn"),
+    "Sapromyza basalis": ("NECR217", "Excluded by NECR217 (Falk, Ismay & Chandler 2016) as 'Occurs widely' (too widespread to qualify); earlier status withdrawn"),
+    "Sapromyza zetterstedti": ("NECR217", "Excluded by NECR217 (Falk, Ismay & Chandler 2016) as '27 Vice-counties' (too widespread to qualify); earlier status withdrawn"),
+    "Anagnota bicolor": ("NECR217", "Excluded by NECR217 (Falk, Ismay & Chandler 2016) as '28 Vice-counties' (too widespread to qualify); earlier status withdrawn"),
+    "Periscelis annulipes": ("NECR217", "Excluded by NECR217 (Falk, Ismay & Chandler 2016) as 'Not British'; earlier status withdrawn"),
+    "Epichlorops puncticollis": ("NECR217", "Excluded by NECR217 (Falk, Ismay & Chandler 2016) as '26 Vice-counties' (too widespread to qualify); earlier status withdrawn"),
+    "Eutropha fulvifrons": ("NECR217", "Excluded by NECR217 (Falk, Ismay & Chandler 2016) as 'Occurs widely' (too widespread to qualify); earlier status withdrawn"),
+    "Lasiochaeta pubescens": ("NECR217", "Excluded by NECR217 (Falk, Ismay & Chandler 2016) as 'Occurs widely' (too widespread to qualify); earlier status withdrawn"),
+    "Lipara rufitarsis": ("NECR217", "Excluded by NECR217 (Falk, Ismay & Chandler 2016) as 'Occurs widely' (too widespread to qualify); earlier status withdrawn"),
+    "Pseudopachychaeta ruficeps": ("NECR217", "Excluded by NECR217 (Falk, Ismay & Chandler 2016) as 'Occurs widely' (too widespread to qualify); earlier status withdrawn"),
+    "Trachysiphonella scutellata": ("NECR217", "Excluded by NECR217 (Falk, Ismay & Chandler 2016) as 'Occurs widely' (too widespread to qualify); earlier status withdrawn"),
+    "Stegana coleoptrata": ("NECR217", "Excluded by NECR217 (Falk, Ismay & Chandler 2016) as '25 Vice-counties' (too widespread to qualify); earlier status withdrawn"),
+})
+# NECR217 data-sheet notes
+SPECIES.update({
+    "Homoneura interstincta": ("NECR217", "NECR217: Falk 1991's material was re-identified as Homoneura mediospinosa "
+                                          "(assessed, pNS); true interstincta not yet assessed -- old status withdrawn"),
+})
+# NECR217 section 6 -- excluded for 'Taxonomy': withdrawn only with --include-taxonomy
+TAXONOMY = {
+    "Lonchaea iona": ("NECR217", "NECR217: 'Given the taxonomic confusion surrounding L. iona and L. fraxina, these "
+                                 "species are not given a status in this Review' -- earlier status withdrawn"),
+    "Lonchaea britteni": ("NECR217", "Excluded by NECR217 (Falk, Ismay & Chandler 2016) as 'Taxonomy' (species concept too uncertain to assess); earlier status withdrawn"),
+    "Lonchaea hirticeps": ("NECR217", "Excluded by NECR217 (Falk, Ismay & Chandler 2016) as 'Taxonomy' (species concept too uncertain to assess); earlier status withdrawn"),
+    "Chlorops citrinellus": ("NECR217", "Excluded by NECR217 (Falk, Ismay & Chandler 2016) as 'Taxonomy' (species concept too uncertain to assess); earlier status withdrawn"),
+    "Chlorops triangularis": ("NECR217", "Excluded by NECR217 (Falk, Ismay & Chandler 2016) as 'Taxonomy' (species concept too uncertain to assess); earlier status withdrawn"),
+    "Dicraeus vallaris": ("NECR217", "Excluded by NECR217 (Falk, Ismay & Chandler 2016) as 'Taxonomy' (species concept too uncertain to assess); earlier status withdrawn"),
+    "Heleomyza captiosa": ("NECR217", "Excluded by NECR217 (Falk, Ismay & Chandler 2016) as 'Taxonomy' (species concept too uncertain to assess); earlier status withdrawn"),
+}
+if "--include-taxonomy" in sys.argv:
+    SPECIES.update(TAXONOMY)
 TRACKS = ("threat_iucn_2001", "threat_iucn_legacy", "rarity_modern", "rarity_legacy")
 APPLY = "--apply" in sys.argv
 
 uksi = sqlite3.connect(f"file:{paths.UKSI_DB}?mode=ro", uri=True)
 codex = sqlite3.connect(str(paths.CODEX_DB))
 c = codex.cursor()
-rv = c.execute("SELECT review_name, author, date_published FROM reviews WHERE id=?", (REVIEW_ID,)).fetchone()
-if not rv:
-    sys.exit(f"  x review #{REVIEW_ID} not found")
-source = f"{rv[0]} ({rv[1]}, {str(rv[2])[:4]})"
-date = str(rv[2])
+def review(rid):
+    if isinstance(rid, str):                       # a report number, e.g. "NECR217"
+        r = c.execute("SELECT id FROM reviews WHERE review_name LIKE ?", (f"%({rid})%",)).fetchone()
+        if not r:
+            sys.exit(f"  x no review loaded for {rid} -- load it first")
+        rid = r[0]
+    rv = c.execute("SELECT review_name, author, date_published FROM reviews WHERE id=?", (rid,)).fetchone()
+    if not rv:
+        sys.exit(f"  x review #{rid} not found")
+    return f"{rv[0]} ({rv[1]}, {str(rv[2])[:4]})", str(rv[2])
 
 print("Withdraw statuses -- " + ("APPLY" if APPLY else "DRY RUN"))
 print("=" * 78)
-print(f"  review #{REVIEW_ID}: {rv[0]}\n")
+print()
 obs = sqlite3.connect(f"file:{paths.OBSERVATUM_DB}?mode=ro", uri=True)
 plan = []
-for name, REASON in SPECIES.items():
+for name, (REVIEW_ID, REASON) in SPECIES.items():
     hit = resolve(uksi, name, None)
     if not hit:
         print(f"  x {name}: no UKSI match -- skipped");  continue
     tvk, sci = hit[0], hit[1]
-    done = c.execute("""SELECT 1 FROM manual_entries WHERE tvk=? AND review_id=? AND added_by='review-withdrawal'""",
-                     (tvk, REVIEW_ID)).fetchone()
+    if sci.split()[:2] != name.split()[:2]:
+        # a withdrawal must hit the exact name the report excluded -- never a synonym's
+        # current species, which the same review may have assessed (NECR217, 4 Oct)
+        print(f"  ! {name}: resolves to a different species ({sci}) -- NOT withdrawn")
+        continue
+    done = c.execute("""SELECT 1 FROM manual_entries WHERE tvk=? AND added_by='review-withdrawal'""",
+                     (tvk,)).fetchone()
     cur = {tr: v for tr, v in c.execute(
         f"SELECT status_track, status_value FROM status_summary WHERE tvk=? AND COALESCE(status_detail,'')='' "
         f"AND status_track IN ({','.join('?' * len(TRACKS))})", (tvk,) + TRACKS)}
@@ -79,7 +132,8 @@ for name, REASON in SPECIES.items():
     if not cur:
         print("      nothing to clear");  continue
     print(f"      after: no threat/rarity status   key: no")
-    plan.append((tvk, sci, list(cur), REASON))
+    print(f"      review {REVIEW_ID}: {REASON}")
+    plan.append((tvk, sci, list(cur), REASON, REVIEW_ID))
 uksi.close(); obs.close()
 
 print(f"\n  {len(plan)} species to clear, {sum(len(p[2]) for p in plan)} status entries")
@@ -91,18 +145,21 @@ if not plan:
 print(f"  backup: {backup(paths.CODEX_DB, 'codex')}")
 now = datetime.now().isoformat()
 try:
-    for tvk, sci, tracks, reason in plan:
+    for tvk, sci, tracks, reason, rid in plan:
+        source, date = review(rid)
+        rid = c.execute("SELECT id FROM reviews WHERE review_name || ' (' || author || ', ' || substr(date_published,1,4) || ')' = ?",
+                        (source,)).fetchone()[0]
         for tr in tracks:
             c.execute("""INSERT INTO manual_entries (tvk, species_name, status_track, status_value, status_detail,
                          source_review, date_added, added_by, notes, review_id)
                          VALUES (?,?,?,?,NULL,?,?,?,?,?)""",
-                      (tvk, sci, tr, CLEAR, source, date, "review-withdrawal", reason, REVIEW_ID))
+                      (tvk, sci, tr, CLEAR, source, date, "review-withdrawal", reason, rid))
             apply_status(c, tvk, tr, CLEAR, None, source, date)
     codex.commit()
 except Exception as e:
     codex.rollback()
     sys.exit(f"  x FAILED, rolled back: {type(e).__name__}: {e}")
-left = [sci for tvk, sci, _, _r in plan if c.execute(
+left = [sci for tvk, sci, _, _r, _i in plan if c.execute(
     f"SELECT 1 FROM status_summary WHERE tvk=? AND status_track IN ({','.join('?' * len(TRACKS))})",
     (tvk,) + TRACKS).fetchone()]
 dup = c.execute("""SELECT COUNT(1) FROM (SELECT tvk, status_track, COALESCE(status_detail,'')

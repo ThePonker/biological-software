@@ -1,6 +1,6 @@
 # Faults
 
-## Updated 2 October 2026
+## Updated 4 October 2026
 ## Open faults carry an action. Closed ones are kept in brief, because knowing
 ## what has already gone wrong is how the rules in `05` were earned.
 
@@ -127,6 +127,48 @@ normalises; the data does not. **Action:** backlog A7.
 ---
 
 ## Closed — the ones worth remembering
+
+### Old statuses shown instead of the newest review's
+*Fixed 4 October 2026.* Codex's statuses mostly arrive via JNCC's spreadsheet,
+which does not enforce "newest review wins". Four forms, all fixed and proven
+to survive a rebuild:
+- **Old beside new** (71 species): a 1987–94 Nb / Notable / RDB kept beside a
+  later review's status. 9 changed key standing -- *Anaglyptus mysticus* was Key
+  at Kent Deadwood on a 1992 Nb the 2019 longhorn review reassessed as LC.
+  `clear_stale_legacy.py`.
+- **Excluded by judgement** (NECR234, 5 species incl. *Phaonia siebecki*, Key at
+  Birmingham on a withdrawn 1991 Notable). `withdraw_statuses.py`.
+- **Provisional reviews only part-imported by JNCC**: NECR234's 300 statuses
+  (158 pNS, 77 pNT…) never reached Codex; 1991 Notables stood in their place.
+  Loaded from the data sheets with `load_review.py --add-statuses`.
+- **Old names** (7): the newer review assessed the current name; the old name
+  kept its status (*Hercostomus nigrocoerulea*, *Phaonia lugubris*…).
+  `withdraw_statuses.py`, `check_old_names.py --apply`.
+
+Birmingham 7 → 6 key species (SQI 118 → 116); Kent Deadwood 78 → 77.
+Checks: `check_legacy_conflicts.py`, `check_newest_review.py`, `check_old_names.py`.
+
+### NS-excludes discarded -- 272 species lost their Nationally Scarce status
+*Fixed 4 October 2026.* JNCC's "NS-excludes"/"NR-excludes" (Nationally Scarce/Rare
+excluding Red-Listed taxa) were dropped as duplicates of "-includes". For 272
+species -- Empidoidea 2005, water beetles 2010, **hoverflies 2014** -- they were the
+only rarity code. Routed (ranked below -includes). Unrouted 1,519 → 121; Glory
+Park still 8 key (it matches its report).
+
+### Two backups in one second overwrote each other
+*Fixed 4 October 2026.* `backup()` named files to the second; sawfly Phases 2 and 3
+shared a name. Microseconds added; refuses to overwrite.
+
+### Review import left files locked; resume path untested
+*Fixed 4 October 2026.* openpyxl read-only workbooks were never closed, so
+removing the originals from Downloads failed after extraction. Now closed; a
+locked original no longer stops a verified copy.
+
+### A dead-code removal crashed on a ✓
+*Fixed 4 October 2026.* The import check ran Python with captured output; a
+module printing ✓ at import crashed the cp1252 pipe -- and a failure after
+deletion was not restored. UTF-8 forced; any failure after the first change
+restores from git.
 
 ### 4,026 Pantheon scores discarded — every SQI inflated since April
 *Fixed 2 October 2026. The most consequential fault found this year.*
