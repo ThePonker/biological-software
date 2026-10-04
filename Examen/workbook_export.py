@@ -360,26 +360,36 @@ def _ROOT_DIR():
 
 
 def _profiles(tvks):
-    """{tvk: (profile_text, origin, source_review)} from observatum.db."""
-    if not tvks:
-        return {}
+    """{tvk: (account_text, source_label)} -- your account, else an open-licence
+    review account quoted and cited, else a pointer to the review. Read through
+    shared/species_accounts.py, the reader the panel and editor use."""
     out = {}
+    if not tvks:
+        return out
     try:
-        c = sqlite3.connect(f"file:{paths.OBSERVATUM_DB}?mode=ro", uri=True)
-        cols = [r[1] for r in c.execute("PRAGMA table_info(species_profiles)")]
-        if "profile_text" not in cols:
-            return {}
-        has_origin = "origin" in cols
-        sel = ("species_tvk, profile_text"
-               + (", origin, source_review" if has_origin else ""))
-        for row in c.execute(f"SELECT {sel} FROM species_profiles"):
-            if row[0] in tvks and row[1]:
-                out[row[0]] = (row[1],
-                               row[2] if has_origin else "own",
-                               row[3] if has_origin else None)
-        c.close()
-    except sqlite3.Error:
-        pass
+        from shared.species_accounts import get_species_accounts
+    except Exception:
+        return out
+    for tvk in tvks:
+        try:
+            acc = get_species_accounts(tvk)
+        except Exception:
+            continue
+        if acc.own:
+            out[tvk] = (acc.own, "Your account")
+            continue
+        r = acc.current_review
+        if not (r and r.text):
+            continue
+        year = (r.date_published or "")[:4]
+        cite = r.author or r.cite
+        if year and year not in cite:
+            cite = f"{cite} {year}"
+        lic = (r.licence or "").lower()
+        if any(k in lic for k in ("open government licence", "creative commons", "cc by", "ogl")):
+            out[tvk] = (f"[Quoted from {cite}] {r.text}", f"Quoted - {cite}")
+        else:
+            out[tvk] = (f"See {cite}.", f"Not quoted (licence) - see {cite}")
     return out
 
 
@@ -632,8 +642,9 @@ def _sheet_key_species(wb, result, project, stamp):
     r = _header(ws, r,
                 ["Tier", "Order", "Family", "Species", "Common name",
                  "Conservation status", "SQS", "Broad biotope", "Habitat",
-                 "Species account", "Occurrence — to write (evidence follows)"],
-                [12, 16, 20, 26, 20, 26, 6, 22, 24, 70, 44])
+                 "Species account", "Account source",
+                 "Occurrence — to write (evidence follows)"],
+                [12, 16, 20, 26, 20, 26, 6, 22, 24, 70, 26, 44])
 
     keys = list(result.key_species)
     tvks = {k.tvk for k in keys if k.tvk}
@@ -646,9 +657,7 @@ def _sheet_key_species(wb, result, project, stamp):
 
     for k in ordered:
         tier = "Rare Key" if telfer_tier(k) == "rare" else "Scarce Key"
-        prof, origin, source = profiles.get(k.tvk, ("", "", None))
-        if prof and origin == "review" and source:
-            prof = f"[From {source}] {prof}"
+        prof, prof_source = profiles.get(k.tvk, ("", ""))
         ws.append([tier,
                    getattr(k, "order_name", "") or _taxon(k).get("order", ""),
                    k.family or _taxon(k).get("family", ""),
@@ -660,8 +669,9 @@ def _sheet_key_species(wb, result, project, stamp):
                    k.broad_biotope or "",
                    k.habitat or "",
                    prof,
+                   prof_source,
                    occurrences.get(k.tvk, "")])
-        for col in (10, 11):
+        for col in (10, 12):
             ws.cell(row=ws.max_row, column=col).alignment = Alignment(
                 wrap_text=True, vertical="top")
         if tier == "Rare Key":
@@ -669,11 +679,13 @@ def _sheet_key_species(wb, result, project, stamp):
 
     r = ws.max_row + 2
     ws.cell(row=r, column=1,
-            value="Species accounts are drawn from the species profile store. "
+            value="Species account: yours where written; otherwise the current published "
+                  "review account, quoted and cited where its licence is open, or a "
+                  "pointer to the review where it is not (see Account source). "
                   "The occurrence sentence is written by the author; the "
                   "column gives the evidence from this survey — count, places "
                   "and months — after the marker. Blank account cells have no "
-                  "profile written yet.").font = NOTE_FONT
+                  "account yet.").font = NOTE_FONT
     return ws
 
 
