@@ -1,7 +1,7 @@
 # Codex
 
 ## The conservation authority
-## Updated 6 September 2026 — supersedes `07_Codex_Design_Spec.md` (16 Apr 2026),
+## Updated 2 October 2026 — supersedes `07_Codex_Design_Spec.md` (16 Apr 2026),
 ## whose schema and priority-track descriptions no longer match the build.
 
 ---
@@ -114,7 +114,12 @@ status_summary (
 
 sqs_scores (tvk PRIMARY KEY, sqs, source)              -- 'pantheon' or 'manual'
 tvk_bridge (pantheon_tvk PRIMARY KEY, uksi_tvk, species_name, match_method)
-manual_entries · reviews · species_profiles · metadata · build_log
+manual_entries (... review_id)
+reviews (id, review_name, ..., supersedes_id, notes, licence)
+species_profiles (tvk, review_id NOT NULL DEFAULT 0, species_name, profile_text,
+                  source, date_added, date_updated, added_by,
+                  PRIMARY KEY (tvk, review_id))       -- one account per review
+metadata · build_log
 ```
 
 `status_summary`'s three-column primary key is what allows several legal
@@ -122,7 +127,19 @@ instruments and several priority jurisdictions per species.
 
 `sqs_scores` holds **only what Pantheon published**. Gap-filled scores were
 removed on 5 September; `CodexRepository` derives them on demand from
-`shared/sqs_derivation.py`.
+`shared/sqs_derivation.py`, and `get_stored_sqs_tvks()` tells the two apart so
+every SQI can state its basis.
+
+**Which Pantheon scores are imported.** A score is kept if its (bridged) TVK is an
+invertebrate. Until 2 October "invertebrate" meant *holds a designation with
+category 'Invertebrate'*, which excluded every common species: 4,085 scores
+dropped, 4,026 of them wrongly. It now means that set **or** UKSI kingdom Animalia
+outside Chordata — 66,322 TVKs. 9,611 scores imported; 59 genuine collisions
+filtered.
+
+**Rebuilds preserve** `manual_entries`, `reviews` (**including `id`**, since
+`manual_entries.review_id`, `supersedes_id` and `species_profiles.review_id` all
+point at it) and `species_profiles` with their review link.
 
 ---
 
@@ -206,17 +223,16 @@ schema changes need no migration.
 
 ### Importing a published review
 
-Via Codex Manager's Import Review tab: CSV with at minimum `species_name` and
-`status_value`, ideally `tvk` and `profile_text`; fill the metadata; preview and
-check the UKSI match rate (aim for ≥95%); import.
+**`scripts/import_status_review.py` is the one importer** (dry run by default,
+`--apply` to write, `--profiles-only` to refresh accounts under an
+already-registered review). Statuses go to `manual_entries`; accounts go to
+`species_profiles` under the review's id; both in one transaction. Species
+accounts never touch `observatum.db`, which holds Wil's own accounts only.
 
-Or by CLI:
+Codex Manager's Import Review tab still exists but writes accounts the old way,
+keyed on TVK alone — **do not use it** until it is retired (backlog F9).
 
-```
-python scripts/import_codex_review.py review.csv \
-    --name "GB Macro-moth Red List" --author "Fox et al." \
-    --date 2019-05-01 --group Lepidoptera --track threat_iucn_2001
-```
+Record each review's licence in `reviews.licence` (NECR702: pending, F8).
 
 Imports are additive. Where a review supersedes an older one, `supersedes_id`
 links them; superseded data is retained so old reports stay reproducible.
@@ -250,8 +266,13 @@ saccharinum** → *L. saccharina* (2). Too few to justify a standing script.
 
 ## 9. Known gaps
 
-**Species profiles are empty.** Intentional — they accumulate through review
-imports. Any review CSV with a profile-text column populates them.
+**Species profiles: 287** (NECR702, leaf beetles). They accumulate through review
+imports; superseded accounts are kept so old reports stay reproducible.
+
+**Research-only.** Pantheon's 72 "S41 research only" species are applied in both
+modes, to the S41 and UK BAP entries, and never confer key status. 62 reach
+current TVKs; 10 do not (backlog F5). Whether Welsh S7 carries the same
+qualification is open (F6).
 
 **1,519 designation rows reach no track.** Mostly deliberate. See `06_Faults.md`
 F8.

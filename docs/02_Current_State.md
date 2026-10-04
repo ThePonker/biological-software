@@ -1,6 +1,6 @@
 # Current State
 
-## 26 September 2026
+## 2 October 2026
 ## The only home for these figures. If a number appears elsewhere, it is a copy
 ## and it will drift.
 
@@ -10,309 +10,232 @@
 
 | Component | State |
 |---|---|
-| **Observatum** | Active. Stats audited, iRecord sync verified, mapping functional, embargo, filter wizard. Delete Selected on the Observations tab. Add Specimen rebuilt two-column with a map and curatorial fields. **Insect Collection sidebar corrected** — it had been omitting 338 specimens. Specimen sex shown in five places. |
-| **Data Entry** | **In production.** 13 jobs, 12 active, ~2,373 staged rows. Nothing committed to `observations` yet. |
-| **Examen** | **Runs, validated, and exports.** Site Analysis and Species Database working, survey-year scoping, Excel workbook export on a button, **jurisdiction derived from vice-county** with an override. Remaining: PDF, Word, presentation, and a decision on the SQI verdict wording. |
-| **Codex** | Correct and reproducible as of today. 11 tracks, biodiversity-wide for status, invertebrate-only for SQS. |
-| **Curator** | Working. Suborder support, Hemiptera sort override, label preview. Does not write curatorial fields. |
-| **Tabella** | **Paused** August 2026. Workbooks migrated into Data Entry staging. |
-| **Munia** | Capacity planner. Unchanged since June. |
+| **Observatum** | Active. Stats audited, iRecord sync verified, mapping functional, embargo, filter wizard. Insect Collection sidebar corrected; specimen sex shown in five places. Profile displays read both account layers through `shared/species_accounts.py`. |
+| **Data Entry** | **In production, first real commit made 2 October** (Birmingham – Wheels Park, 172 records). Commit now sets `embargo_status`. |
+| **Examen** | **Runs, and reproduces an issued report's SQI exactly** (Glory Park, 117). Reads `assessment_records`, so contributed records count. Workbook export carries both SQS bases, jurisdiction-greyed statuses and Pantheon's habitat nesting. Remaining: PDF, Word, presentation, the SQI verdict. |
+| **Codex** | Rebuilt 2 October with the invertebrate filter corrected: **9,611 Pantheon SQS** (was 5,568). Review accounts stored per species per review. |
+| **Contributed records** | **New, 2 October.** `contributed_observations` + `assessment_records` view + `scripts/import_contributed.py`. One collaborator so far (J. Moore). No browsing tab yet. |
+| **Curator** | Working. Does not write curatorial fields. |
+| **Tabella** | **Paused** August 2026. |
+| **Munia** | Unchanged since June. |
 | **Atrium** | Launcher — 4 app icons, 2 tool buttons. |
 
 ---
 
 ## 2. Database figures
 
-### codex.db — 45.1 MB, rebuilt 5 September
+### codex.db — 46.0 MB, rebuilt 2 October
 
 | Table | Rows |
 |---|---:|
 | designations | 27,062 |
-| status_summary | 25,426 |
-| sqs_scores | 5,568 (all Pantheon-sourced; **0 derived**) |
+| status_summary | 25,426 (+ manual entries applied) |
+| sqs_scores | **9,611**, all Pantheon-sourced; 0 stored derived |
 | tvk_bridge | 14,161 |
-| manual_entries / reviews / species_profiles | 0 |
+| manual_entries | 1,148 (NECR702) |
+| reviews | 1 — NECR702, id 1, licence not yet recorded |
+| species_profiles | 287 — NECR702 review accounts, keyed `(tvk, review_id)` |
 
-`metadata` carries the provenance the report stamp needs: `version` 5.0,
-`build_date` 2026-09-05, `jncc_date` 2023-12-06. `build_log.notes` gives
-"JNCC Dec 2023, Pantheon v3.7.4, 11-track scheme".
+**SQS import, before and after the 2 October fix:**
 
-Status tracks:
+| | Before | After |
+|---|---:|---:|
+| Invertebrate TVKs recognised | 7,076 (designations only) | 66,322 (UKSI: Animalia outside Chordata) |
+| Pantheon scores kept | 5,568 | **9,611** |
+| Dropped as "non-invertebrate collision" | 4,085 | 59 |
+| Dropped as zero-SQS | 109 | 109 |
 
-| Track | Rows |
-|---|---:|
-| threat_iucn_2001 | 9,455 |
-| priority | 5,231 |
-| rarity_modern | 3,107 |
-| legal_protection | 2,579 |
-| red_list_england | 1,819 |
-| threat_iucn_legacy | 1,499 |
-| rarity_legacy | 1,249 |
-| threat_global_iucn | 271 |
-| bocc | 173 |
-| specialist_panel | 43 |
+Status tracks and bridge passes unchanged from September (threat_iucn_2001 9,455;
+priority 5,231; rarity_modern 3,107; legal 2,579; red_list_england 1,819;
+threat_iucn_legacy 1,499; rarity_legacy 1,249; global 271; bocc 173; specialist
+43 — bridge 8,648 direct / 2,513 name / 3,000 synonym / 68 unmatched; 1,847
+merged).
 
-Bridge: 8,648 direct · 2,513 name · 3,000 synonym · 1,847 of those merged onto a
-species another taxon already claimed · **68 unmatched** (mostly Odonata stored
-under vernacular names in Pantheon — backlog F1).
-
-1,519 designation rows reach no track. Most is deliberate (`NR-excludes` 732,
-`NS-excludes` 666, `WL` 76); the rest is backlog F2.
+**Research-only:** Pantheon lists 72 species as S41 research only; **62** reach
+current TVKs through the bridge. The other 10 are treated as ordinary S41
+(backlog F5).
 
 ### observatum.db — ~114 MB, WAL, `synchronous=FULL`
 
 | | |
 |---|---:|
-| Observations | 24,034 (Commercial 4,511 / Personal 19,414) |
-| With `irecord_id` | 1,178 / 18,758 |
-| Specimens | 2,549, all ISO dates |
-| Recording scheme | ~110,510 |
-| Staging rows | ~2,373 across 13 jobs *(as of 6 September; not re-measured)* |
-| Species profiles | 0 — table carries `origin`, `source_review`, `source_year` |
+| Observations | ~24,206 (24,034 + 172 committed 2 October) — *not re-measured* |
+| Contributed observations | 162 (J. Moore, Birmingham – Wheels Park) |
+| Vice-county filled | 4,169 backfilled 26 September; 0 missing where a grid ref exists |
+| species_profiles (your own) | 0 — keyed on TVK; review accounts now live in Codex |
 
 ### Specimens — measured 26 September
 
 | | |
 |---|---:|
-| Specimens | **2,745** (184 added 13–26 September) |
-| With a taxonomic sort key | 2,743 — all but the two longhorns without a TVK |
-| Sex recorded | **602** (22%) — up from 35 on 12 September |
-| Preparation | 204 (7%) — the order-based default on new specimens |
-| Condition / Storage / Drawer | 8 / 2 / 0 |
-
-Sex is being worked through by hand under the microscope. Condition, storage and
-drawer are properties of a tray rather than a specimen, which is what makes them
-bulk-settable — backlog A1.
+| Specimens | **2,745** |
+| With a taxonomic sort key | 2,743 |
+| Sex recorded | **602** (22%) |
+| Preparation / condition / storage / drawer | 204 / 8 / 2 / 0 |
 
 ### The rest
 
 | Database | |
 |---|---|
-| uksi.db | ~122k taxa. `common_names` 20,897 rows over 16,351 TVKs, one `preferred=1` each. English-only at extraction. |
-| pantheon.db | 14,229 species, ecology only, frozen at 2017 v3.7.4. **11,311 SQS scores on five values — 0, 1, 4, 8, 16, 32. No score of 2 exists anywhere.** |
-| vc_lookup.db | Functional; drives VC derivation in Data Entry |
-| examen.db | Historical frozen assessments; orphaned; backed up on close |
-| munia.db | Project allocations, day logs |
-| gamification.db | Achievements |
+| uksi.db | ~122k taxa. `common_names` 20,897 rows over 16,351 TVKs. |
+| pantheon.db | 14,229 species, frozen at 2017 v3.7.4. 11,311 SQS scores on 0, 1, 4, 8, 16, 32. Holds Pantheon's biotope→habitat tree in `habitat_traits`. |
+| vc_lookup.db, examen.db, munia.db, gamification.db | unchanged |
 
 ---
 
-## 3. Examen — validated
+## 3. Examen — validated against an independent figure
 
-Glory Park 2024 reports **8 key species of 128**, SQI 134 from 61 scoring species, which is exactly what the
-issued report says: *"a total of 128 species were identified, eight of which had
-a Nature Conservation Status and are considered Key Species."* Same eight
-species, same tiers.
+**Glory Park 2024 reproduces its issued report**, whose figures came from the
+Pantheon website:
 
-Bicester could not be compared directly. Examen scoped to 2025 gives 254 species;
-the 2025 report says 433. The difference was traced: the file submitted to
-Pantheon (`For_Pantheon_2025.xlsx`) holds 1,163 records **all dated 2025**
-covering 440 species, of which **181 are not in the 2025 iRecord template and 166
-are known 2023 species**. The report's headline is the cumulative 2023+2025 list,
-submitted with every date restamped into the 2025 window because the tool needed
-a single date range. **Examen's 254 is correct for the 2025 fieldwork.**
+| | Report | Examen |
+|---|---:|---:|
+| Species recorded | 128 | 128 |
+| Analysed by Pantheon | 123 | 123 |
+| Key species | 8 | 8 |
+| **SQI** | **117** | **117** (144 ÷ 123) |
+| Tall sward & scrub — species / SQI | 53 / 123 | 53 / 123 |
+| Short sward & bare ground — species / SQI | 41 / 129 | 41 / 129 |
+| Open habitats — species / SQI | 96 / 123 | 96 / **125** |
 
-Survey-year grouping now removes the reason for that restamping.
+The one residual (open habitats, +2 in the sum over the same 96 species) is most
+likely a score differing between Pantheon 3.7.4 here and 3.7.6 on the website.
 
-### Key species by survey, after jurisdiction filtering
+**Until 2 October Examen gave Glory Park 134.** The September "validation" matched
+key species and never compared the SQI. See `06_Faults.md`.
 
-| Site | Year | Species | Key | SQI |
-|---|---|---:|---:|---:|
-| BAM Glory Park | 2024 | 128 | 8 | 134 |
-| Badshot Lea | 2023 | 167 | 10 | 121 |
-| Bicester Graven Hill | 2025 | 254 | 19 | 155 |
-| Bicester Graven Hill | 2023 | 367 | 18 | 123 |
-| Derby | 2025 | 230 | 5 | 119 |
+### Every survey, 2 October
 
-Bicester pooled across years gives 519 species / 31 key / SQI 145 — a list that
-corresponds to no report, which is why pooling is now an explicit choice.
+SQI on current scoring (Pantheon's scores plus any derived) and on Pantheon's
+published scores alone. Key species after the jurisdiction and research-only
+rules.
 
-**SQI figures moved on 5 and 6 September** through the ecology bridge fix, the
-removal of derived SQS, the collision merges and the DD/NT correction. Anything
-computed earlier will not reproduce. Issued reports are not being revised; what
-matters is that every figure produced from now on carries a stamp saying what it
-was computed against.
+| Survey | Species | Key | SQI | SQI (Pantheon only) | SQI before 2 Oct |
+|---|---:|---:|---:|---:|---:|
+| BAM Glory Park 2024 | 128 | 8 | 117 | 117 | 134 |
+| Badshot Lea 2023 | 167 | 8 | 111 | 111 | 121 |
+| Bicester Graven Hill 2023 | 367 | 17 | 108 | 107 | 123 |
+| Bicester Graven Hill 2025 | 254 | 19 | 127 | 126 | 155 |
+| Birmingham – Wheels Park 2026 | 195 | 7 | 118 | 105 | 146 |
+| Derby 2025 | 230 | 4 | 101 | 100 | 119 |
+| Fermyn Hall Wood Deadwood 2024 | 49 | 8 | 157 | 154 | 197 |
+| Kent Deadwood 2024 | 393 | 76 | 181 | 175 | 247 |
+| Long Hanborough 2025 | 118 | 10 | 112 | 111 | 122 |
+| Machen 2024 (Wales) | 321 | 17 | 121 | 115 | 144 |
+| Tilbury 2025 | 238 | 4 | 101 | 100 | 106 |
+
+Saved as `sqi_after_denominator.txt` (and `sqi_before.txt`) for comparison by
+`scripts/check_sqi_table.py`.
+
+**Issued reports are not being revised** — they were built on the Pantheon
+website and are unaffected. Any SQI taken from **Examen** between April and
+2 October was inflated by 3–66 points. Badshot Lea's key species have moved from
+the issued 10 to 8 (jurisdiction, then research-only).
+
+### Birmingham – Wheels Park 2026 — the first joint survey
+
+195 species: 130 Wil, 121 J. Moore, 56 shared. 7 key species (3.6%), 1 Rare Key
+(*Cistogaster globosa*, RDB1). SQI **118** (217 ÷ 184), **105** on Pantheon's scores
+(192 ÷ 182). Four derived scores: *Cistogaster globosa* 16, *Phaonia mediterranea*
+4, *P. siebecki* 4, *Olibrus corticalis* 1.
 
 ### Key Species vs Codex tiers — two vocabularies, deliberately
 
-Codex's `_classify` gives Rare / Scarce / Priority and drives Examen's on-screen
-tiers. **Telfer's Key Species / Rare Key Species is the published evaluation
-framework** the profession cites, and it splits RDB differently: all Red Data
-Book categories are Rare Key, where Codex puts RDB3 and RDBK in Scarce.
-
-The workbook computes Key / Rare Key **in the report layer**, following Telfer
-exactly, and leaves Codex's tiers untouched. Changing `_classify` would shift
-every tier shown in the UI for no benefit.
-
-Glory Park: 8 Key Species, **0 Rare Key** — none is RDB, IUCN Threatened, Data
-Deficient or Nationally Rare. The site meets neither the 10% nor the 1%
-threshold, consistent with the issued report's assessment of its value.
+Unchanged: the workbook computes Telfer's Key / Rare Key in the report layer and
+leaves Codex's Rare / Scarce / Priority tiers alone.
 
 ---
 
-## 4. Where the numbers come from — jurisdiction
+## 4. Where the numbers come from
 
-Key-species classification is **jurisdiction-aware, defaulting to England**.
+### Jurisdiction
+Derived from the vice-county; England by default. For an English site, S41 and
+UK BAP confer key status; SBL, NI Priority and Env (Wales) Act S7 do not. Legal
+protection counts except the Northern-Ireland-only instruments. Rarity and threat
+are GB-wide. **Research-only S41 and UK BAP listings confer key status nowhere.**
+Every designation is still stored and shown — greyed where it does not count.
 
-Section 41 of the NERC Act requires a list of species of principal importance
-*in England*, and the section 40 duty points public bodies at that list.
-Reviewed English EcIAs scope S41 and never cite the Scottish Biodiversity List.
-JNCC's own UK BAP invertebrate list is published with per-country Y/N columns.
+### SQI
+**Sum of scores ÷ every species Pantheon analysed × 100** — scored species plus
+those Pantheon holds ecology for but never scored, which count 0. This is
+Pantheon's definition, and the issued reports' method sections say the same.
 
-So for an English site: **S41 and UK BAP confer key status; SBL, NI Priority and
-Env (Wales) Act S7 do not.** Legal protection counts except the
-Northern-Ireland-only instruments. Rarity and threat are GB-wide and unfiltered.
+**Two bases are always reported.** *Pantheon only* uses the scores Pantheon
+published (comparable with the website and the literature). *Current scoring*
+adds scores derived by Pantheon's published rule from current Codex status, for
+species Pantheon lacks or never scored — marked "(derived)" on every sheet.
 
-Every designation is still stored and displayed — an SBL listing recorded in
-England remains visible in the appendix and worth a sentence. It simply does not
-make the species a key species there.
-
-**Derived from the vice-county** since 26 September. Watsonian VCs 1–34, 36–40
-and 53–70 are England; 35 and 41–52 Wales; 71 the Isle of Man; 72–112 Scotland.
-A Jurisdiction combo defaults to *Auto (vice-county)* and the header states what
-it found — *"assessed under England (from vice-county)"* — or *"(default)"*
-where the records carry no usable VC. Explicit settings remain for cross-border
-projects. Northern Ireland has no Watsonian VC and must be chosen.
+### Habitats
+A species' habitats are nested only under the biotope Pantheon places them in
+(`habitat_traits`). Wet woodland sits under both tree-associated and wetland.
 
 ---
 
 ## 5. Recent history
 
+### Session 36 — 2 October 2026
+
+Started as a way to include a collaborator's records in an assessment; ended by
+making Examen reproduce a Pantheon-website SQI exactly, which it had never done.
+
+**Contributed records.** J. Moore's 162 records for Birmingham – Wheels Park went
+into a new `contributed_observations` table, kept apart from `observations` so
+stats and iRecord cannot see them by construction. Examen reads an
+`assessment_records` view of both — 13 queries changed one word. Built in about
+ten minutes on existing pieces. **The first real Data Entry commit** followed,
+and found that commit set the embargo date but not `embargo_status`, so the batch
+would have uploaded to iRecord. Fixed in code and data.
+
+**The Birmingham workbook, reviewed line by line, exposed six faults in turn.**
+Order/family/common blank in exports (one UKSI lookup now serves all). Cinnabar
+and Latticed Heath counted as key though S41 research only — and then still key
+through **UK BAP**, where the research-only category originated. A bare "Priority"
+and "Legal (1)" that were really SBL, NI Priority and the NI Wildlife Order —
+now named and greyed. Habitats nested under every biotope a species had — now
+Pantheon's own tree. A derived SQS of 16 included silently while the stamp said
+"Pantheon published".
+
+**Then the big one.** "No Pantheon data" on the 7-spot Ladybird led to the Codex
+build's invertebrate filter, which recognised a species as an invertebrate only
+if it held a conservation designation. **4,026 Pantheon scores of common species
+had been discarded since April**, inflating every SQI. Fixed from UKSI taxonomy.
+Glory Park went 134 → 120 against its report's 117; the last 3 points were
+Pantheon dividing by every species analysed, not just scored ones. With that,
+**117 exactly.**
+
+Also: the Site Analysis splitter no longer swallows the project table; the table
+sorts by any column with numbers and dates sorted properly; dates dd/mm/yyyy;
+7 Kent Deadwood records moved 2025 → 2024; `scripts/show_funcs.py` for reading
+code without dumping files.
+
+### Session 35 (continued) — 26 September evening
+
+**Vice-county backfill**: 4,169 records filled from grid references; Machen now
+assessed under Wales. Eight grid-ref/date errors corrected first (SV→SU,
+dropped digits, a date in the grid-ref column). **Jurisdiction grey-out** on the
+Conservation tab and workbook. **NECR702** (leaf beetles, Lane 2026) imported:
+1,148 statuses, 287 accounts. **Species accounts split into two layers** — review
+text in Codex keyed `(tvk, review_id)`, your own in `observatum.db` keyed on TVK —
+with review ids now preserved across rebuilds, the importer writing to Codex, and
+one shared reader behind every Observatum display. Editor and workbook column
+still to do.
+
 ### Session 35 — 26 September 2026
-
-Loose ends, all closed. **Two days of patches committed to git** (5995e85 and
-after), with scratch files removed and `_dump/` ignored. **An off-site copy on
-an external drive**, 3.8 GB, verified by `PRAGMA integrity_check` on the copied
-database rather than assumed — the largest open risk since June.
-
-**The jurisdiction patch had never applied.** It had been run and reported as
-done; it had refused because `QComboBox` was not imported, and written nothing.
-Found only by opening Examen and looking. Now applied and seen working.
-
-`reset_database.py` brought into line with the live database for the profile
-provenance columns. The Overview sentence's punctuation and its mislabelled
-percentage fixed. One question left open deliberately: the SQI verdict bands in
-that sentence have no published source (`06_Faults.md` F14).
+Loose ends closed; two days of patches committed; off-site copy made and verified;
+the jurisdiction patch found never to have applied, then applied.
 
 ### Session 34 — 12–13 September 2026
-
-A request to show specimen sex found a fault that had been hiding a sixth of the
-collection's recent additions.
-
-**Sex is now shown in five places** — the Data Entry specimen pill, four levels
-of the Insect Collection tree, the taxon detail panel, the record detail dialog
-and the table — all through one formatter, `shared/sex_summary.py`. Format:
-`Specimens 7 (♂3 ♀4)`, `(♂2 ♀1 +4)` where some are unsexed, plain
-`Specimens 7` where none are.
-
-Putting a second, independently-derived number beside the existing counts
-exposed that they were wrong:
-
-- **244 specimens were invisible to the sidebar**, which filters on
-  `taxonomic_sort_key IS NOT NULL` and every specimen added since March lacked
-  one — including all 35 then sexed. Coleoptera read 1,550 against a true 1,613.
-- **94 more were lost** to `subfamily` stored as NULL on some rows and `''` on
-  others: the tree query split them, and `build_tree` *assigned* rather than
-  accumulated, so one count overwrote the other.
-- **The root cause was two layers down.** `AddSpecimenDialog` never computed the
-  sort key — and when it was patched to, the next specimen still came out
-  without one, because `SpecimenRepository`'s write whitelists had never
-  included `taxonomic_sort_key` or `superfamily`. They were silently dropped.
-
-Also: the record detail dialog showed four fields of a specimen out of a dozen —
-collector and determiner, recorded on all 2,568 specimens, had never been
-displayed.
+Specimen sex shown in five places; 338 specimens found missing from the Insect
+Collection tree and restored; `SpecimenRepository` whitelists fixed.
 
 ### Session 33 — 6 September 2026
-
-**Eleven published reports read in full** to establish what a report actually
-contains — table formats, threshold conventions, status vocabulary, account
-structure. Written up as `38_Report_Survey.md`, the specification for the report
-layer. The authors include Telfer, who defined the Key Species framework, and
-Alexander, who revised the IEC, both in their own words.
-
-**The Excel renderer was built** (E2). Seven sheets, generated from a real
-assessment, stamped with Codex version and build date, JNCC designation date and
-Pantheon version. Validated against Glory Park.
-
-**DD and NT were inflating 200 derived SQS scores.** `sqs_derivation.py` treated
-Data Deficient as conferring Nationally Rare status and gave Near Threatened its
-own score of 2, both documented as "Pantheon's practice". Neither is: no species
-in `pantheon.db` scores 2, and Pantheon's published criteria list DD and NT only
-as things a rare or scarce species *may also be*. 156 species were scoring 8 for
-a DD alone — eight times the correct value. All corrected downward.
-
-**Four quick checks, two of which came back clean.** `pantheon.db` correctly
-distinguishes Wall and Small Heath from the research-only group, and carries no
-bracketed unreliable-status flag — that is a website rendering, not stored data.
-
-**Species profile provenance** added: `origin`, `source_review`, `source_year`,
-so an account seeded from a published review stays distinguishable from Wil's own
-writing.
+Eleven reports surveyed (`38_Report_Survey.md`); Excel renderer built; DD/NT
+derivation corrected; profile provenance added.
 
 ### Session 32 — 5 September 2026
+Sixteen patches, five Codex rebuilds: priority collapse, collapse tiebreak, bridge
+synonyms, bridge-aware ecology, the invented Section 41, habitat cross-product.
 
-Started with a question about the S41 research-only moths. Ended with sixteen
-patches, five Codex rebuilds and a validated assessment tool.
-
-**Codex.** The priority track collapsed five jurisdictions into one slot per
-species, losing 2,303 facts — UK BAP was at 12% of true coverage. Collapse ties
-were broken by row order rather than by date, resolving 12 contests wrongly. The
-TVK bridge had never consulted `uksi.synonyms`, dropping 3,000 species. All three
-fixed; the bridge then took the 1,847 merged taxa too, with the incumbent's SQS.
-Gap-filled SQS is now derived live from the published rule rather than stored —
-525 of the 816 stored values did not follow it.
-
-**Examen.** The revival premise was wrong: `examen_data.py` had already been
-fixed, and the tool ran first time. The stale 8-track mirror was in
-`species_database_view.py`, where it had left the status panel blank since April
-and crashed for any legally protected species.
-
-The worst find: `conservation_tab` inferred "Section 41" from the key-species
-tier, so Glory Park — in Northamptonshire — reported four Species of Principal
-Importance in England, **none of which is on Section 41**. Every other fault this
-year lost or mis-chose facts; that one manufactured them.
-
-Also: guild counts split by Pantheon's inconsistent casing; the appendix
-labelling every priority listing "S41/BAP"; the habitat tree built from a global
-join so every habitat appeared under every biotope with site-wide counts; and
-3,666 species with no ecology because `PantheonRepository` never used the bridge.
-
-**Three mistakes of mine worth recording**, all in `05_Rules.md`: a patch anchor
-that was not unique, module constants placed after the class that used them as
-defaults, and a diagnostic that imported the gap-fill table as though it were
-Pantheon's published rule and produced a confidently wrong result.
-
-### Sessions 30–31 — 2 and 4 September 2026
-
-Backup system rebuilt around `shared/backup_service.py`; every `.db` copy now
-uses SQLite's online backup API. **A restore was tested end to end for the first
-time.** The Restore button was found never to have worked (`Path + str`). 568 MB
-of obsolete databases cleared, including a July dev copy the standalone Data
-Entry launcher would have opened by default. `uksi_extractor.py` found missing.
-Examen researched across six documents.
-
-### Session 29 — 28–29 August 2026
-
-CSV safety net; pre-live snapshots pruned from 3.9 GB to two; grid sorting, row
-insert/delete, Traps card, VC derivation; Add Specimen rebuilt with a map and
-curatorial fields.
-
-### Session 28 — 27 August 2026
-
-Delete Selected; two latent crashes; 9 BOMs stripped. **The common-name filter
-bug** — a GLOB class ending `...ŵŷwy` whose bare `w` and `y` excluded 7,997 of
-20,897 names. 11 Tabella workbooks / 1,787 records migrated to staging.
-
-### Session 27 — July–August 2026
-
-The Data Entry View built, out of sequence, driven by the field season. Not
-logged at the time; `09_Data_Entry.md` is reconstructed from the code.
-
-### Sessions 22–26 — March to June 2026
-
-Restructure into the Latin-named folders with `paths.py`. Codex widened to 11
-tracks, biodiversity-wide. Field-season fixes including the species-search
-rewrite and ISO date migration. iRecord recovery, 180 IDs preserved. Phase 0
-hygiene: git, WAL checkpoint, backup coverage. Desktop Examen retired (a
-decision later reversed).
+### Earlier
+Sessions 22–31: restructure, 11-track Codex, field-season fixes, iRecord recovery,
+Data Entry built, backup system rebuilt, restore tested.

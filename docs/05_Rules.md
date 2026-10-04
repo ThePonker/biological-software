@@ -1,6 +1,6 @@
 # Rules
 
-## Updated 26 September 2026
+## Updated 2 October 2026
 ## Every rule here was paid for. Read this before a long session.
 
 ---
@@ -45,6 +45,33 @@ counts were not.
 Nothing else would have found it. Worth doing deliberately: wherever a figure
 matters, show how it was arrived at alongside it.
 
+### Validate against an independent figure — every figure
+
+**A validation that compares some numbers proves only those numbers.** Glory Park
+was "validated" in September: same 128 species, same eight key species as the
+issued report. The SQI was never compared. Examen said 134; the report, from the
+Pantheon website, said 117 — and had said so the whole time. Two faults
+(4,026 dropped scores, the wrong divisor) sat behind that gap for six months.
+
+When an independent figure exists — an issued report, the Pantheon website, a
+published table — compare **every** figure it gives, and write down which ones
+matched. Glory Park now matches on species analysed, key species, SQI and two
+habitat SQIs; the one residual is recorded rather than smoothed over.
+
+### A figure should carry its own arithmetic
+
+**If a reader cannot recompute a number from the sheet, they cannot trust it, and
+neither can you.** The workbook said "SQI 118 — from 174 scoring species";
+217 ÷ 174 is 125. The real divisor was 184. Show the sum and the divisor beside
+the result.
+
+### A blank should say why
+
+An empty cell reads as missing data. "No Pantheon data", "(derived)", "research
+only" — a few words turn a hole into a fact, and **the labels are what exposed the
+4,026 dropped scores**: "no Pantheon data" against the 7-spot Ladybird could not be
+true.
+
 ---
 
 ## Patching
@@ -66,6 +93,17 @@ before the function that used them — at the bottom of the file — while metho
 default arguments referencing them sit in the class above. Default arguments are
 evaluated when the class body runs. It compiled cleanly and raised `NameError` on
 import. **Patch scripts must import the module afterwards.**
+
+**Unique within the function, not just the file.** A line that occurs once in
+the function you mean may occur again elsewhere: `repo.delete_row(conn, row["id"])`
+appeared twice in `commit_service.py`, once where `new_id` and `kwargs` do not
+exist. The guard refused. Locate the function by parsing (`ast`) and search only
+inside it.
+
+**A re-run guard must look for what the patch actually writes.** One guard
+checked for "Animalia"; the inserted code said `'animalia'`. A second run would
+have inserted the block again. Guard on a distinctive token from the inserted
+text itself.
 
 **Write nothing if any anchor fails.** All-or-nothing beats a half-applied patch
 every time. This has saved us twice.
@@ -107,6 +145,11 @@ was `shared/sqs_derivation.py`. Re-run: 85% and 8%.
 **Check the schema before writing the query.** Two diagnostics in one session
 guessed column names and failed. `pantheon.db.conservation_status` has
 `reporting_category`, not `category`. `PRAGMA table_info` first.
+
+**Read the column order before indexing a row.** A check compared `r[1]` with a
+TVK in Pantheon's `sqs_scores`; the table is `(tvk, sqs)`, so it compared scores
+with TVKs and returned empty whatever the data held. Name columns, or `PRAGMA
+table_info` first — the existing rule, broken again.
 
 **Run the thing before writing that it cannot be run.** A finding written from
 reading is a hypothesis. One such finding was carried through five documents and
@@ -156,6 +199,13 @@ instead.
 
 **`chr()` is Python; `char()` is SQLite.** Dodging one quoting problem created
 another. Twice.
+
+**Never put `<placeholder>` in a command.** PowerShell reads `<` as a redirect and
+stops before Python starts. Give the real values, or a word like `TVK_HERE` that
+the script will reject.
+
+**`Out-File` from `>` writes UTF-16.** Use `| Out-File -Encoding utf8` when the
+output is going to be read by anything else.
 
 **Don't paste illustrative Python into the shell.** Code shown to explain a fix
 is not a command. Mark it clearly or put it in a file.
@@ -208,6 +258,17 @@ would have been correct regardless of what the query returned.
 **NULL and `''` are different groups to SQL.** Normalise with
 `NULLIF(TRIM(COALESCE(col,'')),'')` before grouping on any column that might
 hold either.
+
+**A filter keyed on a proxy silently deletes data.** The Codex build decided
+"invertebrate" by "has a conservation designation". Common species have none, so
+4,026 Pantheon scores were thrown away as "non-invertebrate collisions" — and the
+log line reported it every build, with a plausible name. Decide a category from
+the authority for that category (UKSI taxonomy), and treat a large "filtered"
+count as a question, not a statistic.
+
+**Two kinds of value in one field must be marked.** Pantheon-published and
+derived SQS shared one dict; the SQI mixed them while the stamp claimed one basis.
+When a value can come from two sources, carry the source with it.
 
 **Derive, don't copy, anything with a spatial dependency.** Vice-county always
 comes from the grid reference, never carried down from the row above — a
@@ -291,6 +352,11 @@ destructive.
 deliveries:** a complete file, backed up first, rather than fifteen anchors.
 
 **One file at a time for sensitive operations.**
+
+**Estimate in exchanges, not effort.** When the code involved has been read, a
+clean step is two or three minutes; each unfamiliar file adds one exchange. A
+single readback up front (`scripts/show_funcs.py`) turned a two-hour estimate
+into ten minutes.
 
 **Diagnostic queries before and after every change.** The numbers are the proof;
 "it still launches" is not.

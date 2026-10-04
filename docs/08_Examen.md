@@ -1,7 +1,7 @@
 # Examen
 
 ## Invertebrate assemblage assessment
-## Updated 26 September 2026
+## Updated 2 October 2026
 ## Supersedes `29_Examen_Revival_Assessment.md`, whose central finding was wrong,
 ## and the desktop portion of `08_Examen_Web_Design_Spec.md`.
 
@@ -19,10 +19,11 @@ Examen uses **Pantheon's ecology** — which has no alternative source — with
 **Codex's conservation status**, which is JNCC December 2023 plus Wil's own
 review imports.
 
-**It works, and it exports.** Site Analysis and Species Database both run, the
-Excel workbook exports from a button, and the jurisdiction is derived from the
-data. What remains is PDF, Word, presentation — and one decision about the
-summary sentence (§9).
+**It works, it exports, and it reproduces the Pantheon website.** Glory Park's
+SQI, species analysed, key species and two habitat SQIs match the issued report
+exactly (§6). It reads your records and contributed records together (§12). What
+remains is PDF, Word, presentation — and one decision about the summary sentence
+(§9).
 
 ---
 
@@ -48,7 +49,8 @@ hypothesis until the thing is run.** Ten minutes would have disproved it.
 ```
 Examen/
 ├── examen_ui.py                 Three-view shell
-├── examen_data.py               observatum.db queries; survey-year scoping
+├── examen_data.py               assessment_records queries; survey-year scoping;
+│                                load_taxonomy() -- the one UKSI lookup
 ├── site_analysis_view.py        Project table + five detail tabs
 ├── overview_tab.py              SQI, key species, tier split, biotopes
 ├── habitat_tab.py               Biotope → habitat tree, fidelity indices
@@ -130,10 +132,21 @@ The workbook stamp records the jurisdiction actually used.
 
 ## 6. Validation
 
-**Glory Park 2024 matches the issued report exactly.** Examen: 128 species, 8
-key. The report: *"a total of 128 species were identified, eight of which had a
-Nature Conservation Status and are considered Key Species."* Same eight species,
-same tiers.
+**Glory Park 2024 reproduces the issued report** (Pantheon website, v3.7.6):
+
+| | Report | Examen |
+|---|---:|---:|
+| Species / analysed by Pantheon | 128 / 123 | 128 / 123 |
+| Key species | 8 | 8 — the same eight |
+| SQI | 117 | 117 |
+| Tall sward & scrub | 53 spp / 123 | 53 / 123 |
+| Short sward & bare ground | 41 spp / 129 | 41 / 129 |
+| Open habitats | 96 spp / 123 | 96 / 125 |
+
+**This was not true until 2 October.** The September comparison stopped at key
+species; Examen's SQI was 134. Two faults lay behind the gap — 4,026 Pantheon
+scores dropped by the Codex build, and the wrong divisor. See `06_Faults.md`. The
+open-habitats residual is most likely a 3.7.4 / 3.7.6 score difference.
 
 The comparison also found three status disagreements **within the report** — the
 prose accounts give *Hypera meles*, *Larinus carlinae* and *Hippodamia variegata*
@@ -199,6 +212,19 @@ Everything below was found and fixed on 5 September. Full detail in
 | **`_classify_tier` duplicated and drifted** | Removed; both modes now classify identically |
 | **Per-TVK ecology loops** | Batched; over 1,500 round trips for a large project |
 
+Found and fixed 2 October:
+
+| | |
+|---|---|
+| **4,026 Pantheon scores dropped** | Codex build's invertebrate filter keyed on designations. Every SQI inflated |
+| **SQI divisor** | Divided by scoring species; Pantheon divides by species analysed |
+| **Derived scores unmarked** | Mixed into the SQI while the stamp said "Pantheon published" |
+| **Research-only S41 / UK BAP counted as key** | Cinnabar, Latticed Heath — now never key |
+| **Habitats under every biotope a species had** | Now Pantheon's own tree (`habitat_traits`) |
+| **"Priority" / "Legal (1)" unexplained in exports** | Now jurisdiction- and instrument-named, greyed |
+| **Order, family, common name blank in the workbook** | One `load_taxonomy()` for tab and exports |
+| **Project table squeezed away** | Splitter floor, pinned across clicks; table sortable, dd/mm/yyyy |
+
 ---
 
 ## 9. Remaining work
@@ -227,6 +253,10 @@ a stated source. See `06_Faults.md` F14.
 
 **Then the PDF** — the document that actually gets attached to a report.
 
+Also open: E17–E22 in `03_Backlog.md` (Appendix export to match the workbook,
+Summary dates, the "taxonomic order" claim, second SQI on screen, contributed
+credit, cosmetics).
+
 ---
 
 ## 10. The Excel workbook
@@ -253,6 +283,17 @@ Four principles, drawn from practice:
 **Withhold what cannot be supported.** Below 15 scoring species the SQI is not
 shown; the count appears instead.
 
+**Show the arithmetic.** Each SQI note gives sum ÷ species analysed, how many
+scored, and how many unscored Pantheon species counted 0.
+
+**State the basis — both of them.** The Summary gives the SQI on current scoring
+and on Pantheon's published scores alone; derived scores read "16 (derived)";
+species Pantheon lacks read "no Pantheon data".
+
+**Grey what does not count.** Designations from another jurisdiction, research-only
+listings and Northern-Ireland-only legal instruments are shown, named, in grey
+italic.
+
 **Report the percentages, not a verdict.** Two conventions are in circulation —
 Telfer (~10% Key and >1% Rare Key) and Kirby-Lambert (5–10% high, >10%
 exceptional). The author cites whichever they use.
@@ -270,8 +311,8 @@ closing sentence is **written**, with the workbook supplying the evidence after 
 
 - **The Codex version, build date, JNCC designation date and Pantheon version**
   — from `codex.db.metadata` and `build_log`
-- **Which SQS basis** — Pantheon's published scores, or the published rule
-  applied to current statuses
+- **Which SQS basis** — both are now always given: Pantheon's published scores,
+  and current scoring including derived scores, with the derived species named
 - **Which jurisdiction** the key-species filter used
 - **Whether years were pooled**, and which
 - **Attribution:** taxonomy from the UK Species Inventory (C. Raper, NHM),
@@ -284,3 +325,22 @@ saproxylic index both are material. CIEEM gives survey data a two-year validity.
 
 The first items are what make a figure reproducible in 2029. The attribution is a
 licence condition.
+
+---
+
+## 12. Contributed records
+
+Built 2 October 2026 for a joint survey (Birmingham – Wheels Park, with J. Moore).
+
+A collaborator's records go into `observatum.db.contributed_observations`, never
+into `observations`, so stats, mapping and the iRecord export cannot see them —
+by construction, not by a filter every query must remember. Examen reads the
+`assessment_records` view: `observations` UNION ALL `contributed_observations`,
+with an `origin` column. All 13 of Examen's record queries read the view.
+
+`scripts/import_contributed.py` takes a collaborator's spreadsheet: columns by
+heading, UKSI matching via the review importer's `resolve()`, a site-centre grid
+reference where none is given, VC derived, stage and method mapped, provenance on
+every row, `--replace` for a corrected file. Apply refuses on any unmatched name.
+
+Not yet built: a browsing tab (K1) and credit in the workbook stamp (E21).

@@ -1,6 +1,6 @@
 # Faults
 
-## Updated 26 September 2026
+## Updated 2 October 2026
 ## Open faults carry an action. Closed ones are kept in brief, because knowing
 ## what has already gone wrong is how the rules in `05` were earned.
 
@@ -63,9 +63,33 @@ and some Global pre-94 codes fall through unmapped. **Action:** backlog F2.
 `threat_iucn_2001` rather than `red_list_england`. JNCC's labelling, not a fault
 here. Vascular plants only. **Action:** backlog F3.
 
-### F10. Future-dated commercial record
-One row dated `2026-07-10`. Typo, or a scheduled survey. **Action:** eyeball —
-backlog D9. Open since July.
+### F17. Research-only species that do not reach the bridge
+Pantheon lists 72 species as S41 research only; **62** map to current TVKs. The
+other 10 are among the Pantheon names that resolve by no route, and so are treated
+as ordinary S41 — able to confer key status. **Action:** backlog F5.
+
+### F18. Does Env (Wales) Act S7 carry the research-only qualification?
+At a Welsh site, Cinnabar and Latticed Heath still count as key through S7.
+Whether S7 inherited the UK BAP research-only category needs the Welsh source
+documents, not an assumption. Machen's key species did not move. **Action:**
+backlog F6.
+
+### F19. Taxa split since 2017 lose their Pantheon data
+*Nomada panzeri*: records carry the sensu lato TVK; the bridge maps Pantheon's
+2017 *N. panzeri* (which has a score and a biotope) to the sensu stricto TVK. The
+record gets nothing. Pantheon's concept predates the split, so s.l. is arguably
+the better match. **Action:** read-layer fallback by name when a record's TVK is
+unbridged — backlog F7.
+
+### F20. Open habitats SQI 2 points above the Pantheon website at Glory Park
+125 against the report's 123, same 96 species. Every other figure matches
+exactly. Most likely one score differing between Pantheon 3.7.4 (held) and 3.7.6
+(website). **Action:** none unless it recurs; note only.
+
+### F21. The Appendix export still reports one SQI
+`appendix_export.py`'s totals line gives a single SQI and does not mark derived
+scores. The workbook is the document that goes out; this should still match it.
+**Action:** backlog E17.
 
 ### F11. Mixed line endings
 Some files LF, some CRLF. `.gitattributes` added, but existing files are
@@ -86,6 +110,10 @@ contested — Alexander thinks even Fowles's are too high.
 
 The same class as the invented Section 41: plausible, confident, unsourced, in
 prose written to be lifted into a report. Left unchanged pending a decision.
+
+*2 October:* every SQI has since fallen 3–66 points (see the closed entries
+below), so the bands now attach to different sites than when they were written —
+another reason they cannot stand unsourced.
 **Action:** backlog E16.
 
 ### F15. Two specimens without a TVK
@@ -99,6 +127,96 @@ normalises; the data does not. **Action:** backlog A7.
 ---
 
 ## Closed — the ones worth remembering
+
+### 4,026 Pantheon scores discarded — every SQI inflated since April
+*Fixed 2 October 2026. The most consequential fault found this year.*
+
+`build_codex_db.py` imported a Pantheon SQS only if the species was in
+`invert_tvks` — built from **designations with category 'Invertebrate'**. Common
+species hold no designation, so their Pantheon scores (almost all SQS 1) were
+discarded as "non-invertebrate TVK collisions": **4,085**, of which 59 were real
+collisions. Species that arrived with Pantheon ecology still appeared in Examen;
+those with a score but no biotope coding — 7-spot Ladybird, Common Greenbottle,
+Marmalade Hoverfly — vanished from the SQI entirely.
+
+Effect: fewer than half of each list scoring, the common SQS-1 species missing,
+**every SQI too high** — Glory Park 134, Kent Deadwood 247, Birmingham 146.
+
+Found from a label: "no Pantheon data" against the 7-spot Ladybird, which Pantheon
+certainly contains. Fixed by deciding "invertebrate" from **UKSI taxonomy**
+(Animalia outside Chordata; 66,322 TVKs) unioned with the designations set.
+Pantheon scores kept: 5,568 → 9,611.
+
+**The September validation never compared the SQI.** It matched Glory Park's key
+species to the report and stopped. The report's SQI was 117 throughout.
+
+### SQI divided by scoring species, not species analysed
+*Fixed 2 October 2026.* `SQIResult.calculate` divided by `species_with_sqs`.
+Pantheon divides by every species it analysed, an unscored one counting 0 — the
+issued reports' method sections say so. Glory Park after the score fix: 144 ÷ 120
+= 120; Pantheon: 144 ÷ 123 = **117, the report exactly.** Every SQI now reports
+both counts, and the workbook notes give the sum and divisor.
+
+### Derived scores included silently
+*Fixed 2 October 2026.* `get_sqs_scores` returns Pantheon's score, else one
+derived from the rule, in one dict with nothing marking which. The SQI mixed them
+while the stamp said "SQS basis: Pantheon published"; "Analysed by Pantheon"
+counted derived-only species. Birmingham: four derived scores, *Cistogaster
+globosa* 16 among them. Now `get_stored_sqs_tvks()` separates them; both SQIs are
+reported; derived scores read "16 (derived)"; species Pantheon lacks read "no
+Pantheon data".
+
+### Research-only moths counted as Key Species
+*Fixed 2 October 2026.* Pantheon distinguishes 72 "S41 research only" species;
+JNCC lists them as plain S41, so Codex Full counted Cinnabar and Latticed Heath as
+key. The workbook's own definitions sheet said they were not. First fix
+relabelled the S41 entry — and they **stayed key through UK BAP**, where the
+category came from. Both entries are now labelled research-only, and
+`_priority_applies` rejects them everywhere. Birmingham 9 → 7, Badshot Lea 9 → 8,
+Bicester 2023 18 → 17; Glory Park unchanged.
+
+### Habitats nested under every biotope a species had
+*Fixed 2 October 2026.* `pantheon.db` stores a species' biotopes and habitats as
+unlinked lists, so a species both open-habitat and tree-associated put "decaying
+wood" under open habitats. The September fix removed the site-wide cross-product
+but not this per-species one. Pantheon's own tree is in `habitat_traits`
+(`parent_trait_id`); pairings it does not make are now skipped. Totals unchanged.
+
+### Exports said "Priority" and "Legal (1)" without saying where
+*Fixed 2 October 2026.* Non-key species exported Codex's short status. Six
+Birmingham species read "Priority" — they were SBL or NI Priority; Holly Blue read
+"Legal (1)" — the NI Wildlife Order. A reader takes both as English. Exports now
+carry the jurisdiction-named label and each legal instrument by name, greyed by
+the classifier's own rules.
+
+### Data Entry commit set the embargo date but not the status
+*Fixed 2 October 2026.* The iRecord export excludes a record only when
+`embargo_status == 'Active'` **and** the date is in the future. The first real
+commit (Birmingham, 172 records) set only the date, so the batch was uploadable.
+Found by checking the first commit's rows, before any export. `commit_job` now
+sets the status; the 172 corrected. The other 3,332 embargoed records were fine.
+
+### Order, family and common name blank in the workbook
+*Fixed 2 October 2026.* `SiteSpecies` had no such fields; the Species tab looked
+them up separately and the Appendix export did so a third time. One
+`load_taxonomy()` in `examen_data` now serves all three.
+
+### The project table vanished when a project was selected
+*Fixed 2 October 2026.* A maximum height and no minimum on the table, in a
+collapsible splitter. Now a floor, non-collapsible, remembered, and pinned across
+clicks.
+
+### Future-dated and mis-dated Kent Deadwood records
+*Fixed 26 September and 2 October 2026.* One *Melanotus* dated 2026-07-10 and
+seven Ashenbank Wood records dated 2025-07-10 — all the 10 July 2024 visit
+(evidence: matching grid refs among 57 records that day). Kent Deadwood is now a
+single 2024 survey of 1,021 records. Was F10.
+
+### Rebuilds renumbered reviews
+*Fixed 26 September 2026.* Preservation saved every review column except `id`;
+the restore let AUTOINCREMENT assign new ones. With one review it was harmless;
+after any deletion, every `manual_entries.review_id` and `supersedes_id` would
+have pointed at the wrong review. Ids now preserved explicitly.
 
 ### 338 specimens missing from the Insect Collection tree
 *Fixed 12–13 September 2026.*
