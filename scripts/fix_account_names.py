@@ -13,6 +13,12 @@ from datetime import date
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FIXES = {
+    "hymenoptera_aculeata_falk_1991": {"Myrmica speciodes": "Myrmica specioides",
+                                       "Sapya clavicornis": "Sapyga clavicornis",
+                                       "Cerceris quadrincincta": "Cerceris quadricincta",
+                                       "Andena lathyri": "Andrena lathyri",
+                                       "Lasioglossum quadri": "Lasioglossum quadrinotatum",
+                                       "Lasioglossum sex": "Lasioglossum sexnotatum"},
     "coleoptera_staphylinidae_necr390_2022": {"Dropephylla heerii": "Dropephylla heeri"},
     "coleoptera_cerambycidae_necr272_2019": {"Hylotrupes bajalus": "Hylotrupes bajulus",
                                              "Pachytodes cerambycifornmis": "Pachytodes cerambyciformis",
