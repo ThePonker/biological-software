@@ -1,6 +1,6 @@
 # Faults
 
-## Updated 4 October 2026
+## Updated 5 October 2026
 ## Open faults carry an action. Closed ones are kept in brief, because knowing
 ## what has already gone wrong is how the rules in `05` were earned.
 
@@ -127,6 +127,18 @@ normalises; the data does not. **Action:** backlog A7.
 ---
 
 ## Closed — the ones worth remembering
+
+### Withdrawals hit the wrong species through synonyms
+*Fixed 5 October 2026.* NECR217's 'Taxonomy' exclusions (*Chlorops citrinellus*…)
+resolved through UKSI synonyms to valid current species the same review had
+assessed (*Chlorops rufinus*…), and cleared their new NS. Restored by
+`restore_wrong_withdrawals.py`; withdrawals now require an exact name.
+
+### Legacy statuses with a detail escaped every check
+*Fixed 5 October 2026.* 63 old statuses (RDBK / Insufficiently Known, 1994 IUCN)
+stored with a status_detail survived review loads and clearances, which looked
+only at empty-detail rows; 19 fly species were Rare Key on them. Cleared with the
+detail recorded; verified gone. Rebuild survival still to confirm (D11).
 
 ### Old statuses shown instead of the newest review's
 *Fixed 4 October 2026.* Codex's statuses mostly arrive via JNCC's spreadsheet,

@@ -1,6 +1,6 @@
 # Current State
 
-## 4 October 2026
+## 5 October 2026
 ## The only home for these figures. If a number appears elsewhere, it is a copy
 ## and it will drift.
 
@@ -33,8 +33,8 @@
 | sqs_scores | **9,611**, all Pantheon-sourced; 0 stored derived |
 | tvk_bridge | 14,161 |
 | manual_entries | 5,900 -- review statuses, withdrawals, superseded and old-name clearances |
-| reviews | **21** |
-| species_profiles | **2,263** review accounts, keyed `(tvk, review_id)` |
+| reviews | **26** |
+| species_profiles | **2,700** review accounts, keyed `(tvk, review_id)` |
 
 **Reviews loaded** (id: what, accounts; *S* = statuses written too):
 
@@ -50,8 +50,19 @@
 | 19 | Dolichopodidae (Drake 2018) *S*, PDF | 59 |
 | 20 | Lonchopteridae, Platypezidae, Opetiidae (Chandler 2017), PDF | 9 |
 | 21 | Calyptratae, provisional (Falk & Pont 2017) *S* from data sheets, PDF | 300 |
+| 22 | Acalyptratae, provisional (Falk, Ismay & Chandler 2016) *S* from data sheets, PDF | 244 |
+| 23 | Orthoptera and allies (Sutton 2015), PDF | 7 |
+| 24 | Caddis flies (Wallace 2016), PDF | 36 |
+| 25 | Shieldbugs and allies (Bantock 2016), table | 69 |
+| 26 | Hoverflies (Ball & Morris 2014, Species Status 9), PDF | 81 |
 
-**Status corrections (4 Oct), all surviving a rebuild:** 272 NS-excludes routed;
+Not loaded: spiders 2017 (Harvey et al.) -- status rationales only, no accounts,
+"all rights reserved"; statuses already via JNCC. Hyman 1992/94 -- print only.
+
+**Status corrections (4–5 Oct):** NECR217 and NECR234 statuses from data sheets;
+withdrawals now 31 across NECR234, NECR217, NECR192, NECR195 and Species Status 9;
+63 legacy statuses stored with a detail cleared. Earlier (4 Oct), all surviving a
+rebuild: 272 NS-excludes routed;
 71 old statuses superseded by newer reviews; 9 withdrawn by review (judgement,
 "not British", misapplied names); 3 old names; NECR234's 300 provisional statuses.
 Rarity_modern 3,107 → 4,503. `check_legacy_conflicts.py` 0 / 0;
@@ -195,6 +206,18 @@ A species' habitats are nested only under the biotope Pantheon places them in
 ---
 
 ## 5. Recent history
+
+### Session 38 — 5 October 2026
+
+Acalyptratae (NECR217) loaded with statuses from its data sheets and its 21
+excluded species withdrawn -- whereupon four 'Taxonomy' exclusions turned out to
+resolve, through UKSI synonyms, to valid species the same review had assessed;
+their new NS was cleared and restored, and withdrawals now match exact names
+only. Then a hidden class: 63 legacy statuses stored with a detail (RDBK /
+Insufficiently Known, '1994 IUCN') had escaped every check; cleared, verified.
+Orthoptera, caddis, shieldbug and hoverfly accounts added (26 reviews, ~2,700
+accounts). Spiders 2017 has no accounts; Hyman 1992/94 is print-only, so key
+beetles from it are yours to write.
 
 ### Session 37 — 4 October 2026
 

@@ -1,7 +1,7 @@
 # Codex
 
 ## The conservation authority
-## Updated 4 October 2026 — supersedes `07_Codex_Design_Spec.md` (16 Apr 2026),
+## Updated 5 October 2026 — supersedes `07_Codex_Design_Spec.md` (16 Apr 2026),
 ## whose schema and priority-track descriptions no longer match the build.
 
 ---
@@ -248,7 +248,9 @@ JNCC's spreadsheet does not enforce it. After any review load or JNCC update run
 Corrections are manual entries with value `'none'` (status removed), naming the
 review that superseded or withdrew the status -- they survive rebuilds (proven
 4 Oct): `clear_stale_legacy.py [--all]`, `withdraw_statuses.py`,
-`check_old_names.py --apply`.
+`check_old_names.py --apply`, `clear_legacy_detail.py` (rows stored with a
+status_detail). Withdrawals match exact names only; `restore_wrong_withdrawals.py`
+undoes any that hit a different species.
 
 ### Checking for stale TVKs after a UKSI update
 

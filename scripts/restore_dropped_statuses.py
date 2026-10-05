@@ -1,0 +1,101 @@
+"""Restore invertebrate statuses that JNCC's June 2026 bulk update DROPPED with no
+newer review replacing them.
+
+Rule: a species keeps its status until a newer review assesses it. JNCC's 2026
+spreadsheet omits some invertebrates entirely (spiders, Orthoptera, crane flies,
+Scathophaga...) -- a loss in the update, not a reassessment. This restores
+their 2023 status rows from the pre-rebuild backup as manual entries
+(added_by 'restored-jncc2023'), so they survive future rebuilds.
+
+Skipped:
+  * RENAMED -- the old name resolves (UKSI synonyms), or the same epithet under
+    another genus appears, in the 2026 spreadsheet: re-keyed, not lost
+  * values NE / NA (non-native or not evaluated) and infraspecific entries
+
+DRY RUN by default; --apply to write.
+"""
+import glob, os, re, sqlite3, sys
+from collections import defaultdict
+from datetime import date
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path[:0] = [ROOT, os.path.join(ROOT, "scripts")]
+import paths
+from import_status_review import apply_status, backup
+
+APPLY = "--apply" in sys.argv
+# --include-renamed: also restore species JNCC 2026 lists under a new name/TVK. Their status
+# comes from the same review; restoring it on the OLD TVK keeps it visible to records keyed
+# with our (older) UKSI until the UKSI update brings the names into line.
+WITH_RENAMED = "--include-renamed" in sys.argv
+TR = ("threat_iucn_2001", "threat_iucn_legacy", "rarity_modern", "rarity_legacy")
+bk = sorted(glob.glob(r"C:\BiologicalSoftware_Backups\reference\codex_pre_jncc2026_*.db"))[-1]
+a = sqlite3.connect(f"file:{bk}?mode=ro", uri=True)
+codex = sqlite3.connect(str(paths.CODEX_DB)); c = codex.cursor()
+u = sqlite3.connect(f"file:{paths.UKSI_DB}?mode=ro", uri=True)
+
+rows_a = defaultdict(list)
+for t, tr, v, d, s, dd in a.execute(f"""SELECT tvk, status_track, status_value, status_detail, source, date_designated
+                                        FROM status_summary WHERE status_track IN ({','.join('?'*4)})""", TR):
+    rows_a[t].append((tr, v, d, s, dd))
+cat_a = dict(a.execute("SELECT tvk, MAX(category) FROM designations GROUP BY tvk"))
+name_a = dict(a.execute("SELECT tvk, MAX(species_name) FROM designations GROUP BY tvk"))
+now_tvks = {t for (t,) in c.execute("SELECT DISTINCT tvk FROM designations")}
+now_names = {(n or "").strip(): t for t, n in c.execute("SELECT tvk, species_name FROM designations")}
+epithet_now = defaultdict(set)
+for n in now_names:
+    p = n.split()
+    if len(p) >= 2:
+        epithet_now[p[1]].add(n)
+has_now = {t for (t,) in c.execute(f"SELECT DISTINCT tvk FROM status_summary WHERE status_track IN ({','.join('?'*4)})", TR)}
+
+plan, renamed, skipped = [], [], []
+for t, rs in rows_a.items():
+    if cat_a.get(t) != "Invertebrate" or t in has_now or t in now_tvks:
+        continue
+    nm = (name_a.get(t) or "").strip()
+    if re.search(r"\b(ssp|subsp|var|agg)\b\.?", nm):
+        skipped.append((nm, "infraspecific/aggregate")); continue
+    keep = [r for r in rs if r[1] not in ("NE", "NA")]
+    if not keep:
+        skipped.append((nm, "NE/NA only")); continue
+    syn = {x for (x,) in u.execute("SELECT tvk FROM synonyms WHERE synonym=?", (nm,))} & now_tvks
+    ep = nm.split()[1] if len(nm.split()) > 1 else ""
+    moved = sorted(n for n in epithet_now.get(ep, ()) if n.split()[0] != nm.split()[0])
+    if (syn or moved) and not WITH_RENAMED:
+        renamed.append((nm, sorted(syn), moved[:2])); continue
+    plan.append((t, nm, keep))
+
+print("Restore statuses dropped by JNCC 2026 -- " + ("APPLY" if APPLY else "DRY RUN"))
+print("=" * 96)
+print(f"  to restore: {len(plan)} species   renamed (skipped): {len(renamed)}   other skipped: {len(skipped)}")
+print("\n  RESTORE")
+for t, nm, keep in plan:
+    print(f"    {nm[:32]:32} " + "; ".join(f"{tr.replace('threat_iucn_','').replace('rarity_','r-')}={v}"
+                                          + (f"/{d}" if d else "") for tr, v, d, s, dd in keep)[:60]
+          + f"   [{keep[0][3][:30]}]")
+print("\n  RENAMED -- check by eye; not restored")
+for nm, syn, moved in renamed:
+    print(f"    {nm[:32]:32} synonym TVKs in 2026: {syn or '-'}   same epithet now: {moved or '-'}")
+print("\n  SKIPPED")
+for nm, why in skipped:
+    print(f"    {nm[:32]:32} {why}")
+if not APPLY or not plan:
+    sys.exit("\n  DRY RUN -- nothing changed. Re-run with --apply.\n" if not APPLY else "  nothing to do")
+
+print(f"\n  backup: {backup(paths.CODEX_DB, 'codex')}")
+try:
+    for t, nm, keep in plan:
+        for tr, v, d, s, dd in keep:
+            c.execute("""INSERT INTO manual_entries (tvk, species_name, status_track, status_value, status_detail,
+                         source_review, date_added, added_by, notes, review_id)
+                         VALUES (?,?,?,?,?,?,?,?,?,NULL)""",
+                      (t, nm, tr, v, d, s, date.today().isoformat(), "restored-jncc2023",
+                       "Dropped or re-keyed in JNCC June 2026 spreadsheet with no newer review; restored on this TVK from Dec 2023"))
+            apply_status(c, t, tr, v, d, s, str(dd or ""))
+    codex.commit()
+except Exception as e:
+    codex.rollback(); sys.exit(f"  x FAILED, rolled back: {type(e).__name__}: {e}")
+left = [nm for t, nm, keep in plan if not c.execute(
+    f"SELECT 1 FROM status_summary WHERE tvk=? AND status_track IN ({','.join('?'*4)})", (t,) + TR).fetchone()]
+print(f"  restored {sum(len(k) for _, _, k in plan)} statuses on {len(plan)} species; not visible after: {left or 'none'}\n")

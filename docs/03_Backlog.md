@@ -1,6 +1,6 @@
 # Backlog
 
-## Updated 4 October 2026
+## Updated 5 October 2026
 ## Check this before starting a session.
 
 ---
@@ -9,18 +9,11 @@
 
 | | Item | Size |
 |---|---|---|
-| 1 | **G7** — Acalyptratae (NECR217): accounts **and** statuses, like NECR234 | ~30 min |
-| 2 | **G8** — remaining PDF reviews: Orthoptera (187), caddis (191), shieldbugs (190, PDF to download) | ~20 min each |
-| 3 | **G9** — spiders 2017, hoverflies 2014 (to download) | ~20 min each |
+| 1 | **G13** — write your own accounts for key species with none (Hyman beetles first; the workbook's Account source column lists them) | ongoing |
+| 2 | **G10** — Falk 1991 aculeates (ResearchGate, internal reference; likely a scan) — inspect first | ~30 min |
+| 3 | **D11** — after the next Codex rebuild, run `clear_legacy_detail.py` (dry): 0 means the detail clearances survived | 2 min |
 | 4 | **E16** — decide the SQI verdict wording | decision |
 | 5 | **D3** — merge `main` → `stable` | 15 minutes |
-
-Codex holds 21 reviews and 2,263 accounts; every status is the newest review's
-and survives a rebuild (`02` §2). Each review: inspect, extract verbatim, verify,
-dry run, load, then run the three status checks (`05_Rules.md`).
-
-*Sizes are focused time. Estimate in exchanges: ~2–3 minutes each once the code
-has been read (`05_Rules.md`).*
 
 ---
 
@@ -308,7 +301,11 @@ below); Record Detail shows all accounts in a right-hand column in the tab's
 colours; the workbook quotes open-licence accounts with citation, points to the
 rest, and marks the source in an Account source column.
 
-**G7. Acalyptratae (NECR217) — NEXT.** 263 pp, provisional (2016). Accounts from
+**G7, G8, G9 — done 4–5 October.** Acalyptratae (with statuses), Orthoptera,
+caddis, shieldbugs, hoverflies loaded. Spiders: nothing to load (rationales
+only, all rights reserved).
+
+**G7 (was). Acalyptratae (NECR217).** 263 pp, provisional (2016). Accounts from
 data sheets **and** statuses (JNCC carried only part, as with NECR234; ~130
 species in `check_newest_review.py` list (1) wait on it). Read its excluded list.
 

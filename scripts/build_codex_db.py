@@ -38,7 +38,9 @@ import paths
 # ============================================================
 CODEX_PATH = str(paths.CODEX_DB)
 JNCC_DIR = str(paths.JNCC_DIR)
-JNCC_XLSX = os.path.join(JNCC_DIR, "Taxon-designations-20231206.xlsx")
+import glob as _glob   # the newest designations workbook in JNCC_DIR, whatever its capitalisation
+_found = sorted(_glob.glob(os.path.join(JNCC_DIR, "*esignations-*.xlsx")))
+JNCC_XLSX = _found[-1] if _found else os.path.join(JNCC_DIR, "taxon-designations.xlsx")
 PANTHEON_PATH = str(paths.PANTHEON_DB)
 UKSI_PATH = str(paths.UKSI_DB)
 
@@ -932,7 +934,7 @@ def build_codex():
                  VALUES (?, ?, ?, ?, ?, ?, ?)""",
               (now, jncc_count, sqs_count, len(manual_statuses),
                bridge_count, profiles_count,
-               f"JNCC Dec 2023, Pantheon v3.7.4, 11-track scheme"))
+               f"JNCC {os.path.basename(JNCC_XLSX)}, Pantheon v3.7.4, 11-track scheme"))
 
     conn.commit()
 

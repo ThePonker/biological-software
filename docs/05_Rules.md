@@ -1,6 +1,6 @@
 # Rules
 
-## Updated 4 October 2026
+## Updated 5 October 2026
 ## Every rule here was paid for. Read this before a long session.
 
 ---
@@ -99,6 +99,19 @@ After loading any review, run `check_legacy_conflicts.py`,
 table.** The sheet is where the assessment and its reasoning are made (NECR234:
 4 of 300 disagreed).
 
+**Withdraw by exact name only.** Matching through UKSI synonyms is right when
+*adding* a review's statuses (it finds the current name); when *removing*, it
+can land on a current species the same review assessed. NECR217's 'Taxonomy'
+exclusions resolved to four valid species and cleared their new NS (4 Oct,
+restored). `withdraw_statuses.py` now refuses any name that resolves to a
+different species.
+
+**Old statuses hide in the detail field.** JNCC stores some legacy statuses with
+a qualifier (RDBK / 'Insufficiently Known', '1994 IUCN', 'Indeterminate',
+'Pre-1994 RDB'). Any check or clearance on threat/rarity tracks must include rows
+*with* a detail -- and a clearance must record that detail, or a rebuild restores
+it to the wrong row. `clear_legacy_detail.py`.
+
 **Old names carry old statuses.** A species assessed under its current name
 leaves its old name's status behind (*Hercostomus nigrocoerulea* -> *Ortochile*).
 UKSI's synonym table finds them.
@@ -109,6 +122,10 @@ UKSI's synonym table finds them.
 retype or summarise; check every sentence against an independent extraction of
 the same file (`pdftotext` raw mode). Only rationale/justification columns are
 not accounts and are not loaded.
+
+**Check the licence at the publisher, not only on the PDF.** "Copyright JNCC 2014"
+on the report; "Available under the Open Government Licence 3.0" on JNCC's own
+record. "All rights reserved" (NRW spiders 2017) means internal reference only.
 
 **Licence decides publication, not storage.** OGL accounts are quoted in the
 workbook with their citation; others (the sawfly reports) are stored as internal
