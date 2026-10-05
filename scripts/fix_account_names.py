@@ -13,6 +13,7 @@ from datetime import date
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FIXES = {
+    "coleoptera_staphylinidae_necr390_2022": {"Dropephylla heerii": "Dropephylla heeri"},
     "coleoptera_cerambycidae_necr272_2019": {"Hylotrupes bajalus": "Hylotrupes bajulus",
                                              "Pachytodes cerambycifornmis": "Pachytodes cerambyciformis",
                                              "Saperda carcharius": "Saperda carcharias"},
