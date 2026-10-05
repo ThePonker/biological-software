@@ -67,6 +67,46 @@ SPECIES.update({
     "Homoneura interstincta": ("NECR217", "NECR217: Falk 1991's material was re-identified as Homoneura mediospinosa "
                                           "(assessed, pNS); true interstincta not yet assessed -- old status withdrawn"),
 })
+# Hoverflies, Ball & Morris 2014 (Species Status 9), section 5: earlier statuses excluded
+# (too widespread, vagrant, or the earlier name of an excluded species)
+SPECIES.update({
+    "Brachyopa insensilis": ("Species Status 9", "Excluded by Ball & Morris 2014 (Species Status 9): 144 post-1980 hectads Larvae much more readily found than adults but still under-recorded. -- earlier status withdrawn"),
+    "Brachypalpus laphriformis": ("Species Status 9", "Excluded by Ball & Morris 2014 (Species Status 9): 122 post-1980 hectads. -- earlier status withdrawn"),
+    "Cheilosia soror": ("Species Status 9", "Excluded by Ball & Morris 2014 (Species Status 9): 217 post-1980 hectads. -- earlier status withdrawn"),
+    "Criorhina asilica": ("Species Status 9", "Excluded by Ball & Morris 2014 (Species Status 9): 168 post-1980 hectads. -- earlier status withdrawn"),
+    "Criorhina ranunculi": ("Species Status 9", "Excluded by Ball & Morris 2014 (Species Status 9): 291 post-1980 hectads. -- earlier status withdrawn"),
+    "Didea alneti": ("Species Status 9", "Excluded by Ball & Morris 2014 (Species Status 9): 1 post-1980 hectad. -- earlier status withdrawn"),
+    "Didea fasciata": ("Species Status 9", "Excluded by Ball & Morris 2014 (Species Status 9): 348 post-1980 hectads. -- earlier status withdrawn"),
+    "Epistrophe diaphana": ("Species Status 9", "Excluded by Ball & Morris 2014 (Species Status 9): 164 post-1980 hectads – range expanding northwards and westwards. -- earlier status withdrawn"),
+    "Eristalis rupium": ("Species Status 9", "Excluded by Ball & Morris 2014 (Species Status 9): 190 post-1980 hectads. -- earlier status withdrawn"),
+    "Eumerus ornatus": ("Species Status 9", "Excluded by Ball & Morris 2014 (Species Status 9): 143 post-1980 hectads. -- earlier status withdrawn"),
+    "Eupeodes bucculatus": ("Species Status 9", "Excluded by Ball & Morris 2014 (Species Status 9): 116 post-1980 records – a conifer woodland species thought to be more widespread. -- earlier status withdrawn"),
+    "Metasyrphus latilunulatus": ("Species Status 9", "Excluded by Ball & Morris 2014 (Species Status 9): Falk (2002) considers that this is a species complex. -- earlier status withdrawn"),
+    "Eupeodes lapponicus": ("Species Status 9", "Excluded by Ball & Morris 2014 (Species Status 9): 10 post-1980 hectads .We believe this to be a vagrant. -- earlier status withdrawn"),
+    "Metasyrphus lapponicus": ("Species Status 9", "Excluded by Ball & Morris 2014 (Species Status 9): localities. -- earlier status withdrawn"),
+    "Lejogaster tarsata": ("Species Status 9", "Excluded by Ball & Morris 2014 (Species Status 9): 107 post-1980 hectads. -- earlier status withdrawn"),
+    "Megasyrphus erraticus": ("Species Status 9", "Excluded by Ball & Morris 2014 (Species Status 9): 96 post-1980 hectads. -- earlier status withdrawn"),
+    "Megasyrphus annulipes": ("Species Status 9", "Excluded by Ball & Morris 2014 (Species Status 9): listed as an earlier name in the excluded table -- earlier status withdrawn"),
+    "Melanogaster aerosa": ("Species Status 9", "Excluded by Ball & Morris 2014 (Species Status 9): 123 post-1980 hectads. -- earlier status withdrawn"),
+    "Chrysogaster macquarti": ("Species Status 9", "Excluded by Ball & Morris 2014 (Species Status 9): listed as an earlier name in the excluded table -- earlier status withdrawn"),
+    "Meligramma trianguliferum": ("Species Status 9", "Excluded by Ball & Morris 2014 (Species Status 9): 159 post-1980 hectads. -- earlier status withdrawn"),
+    "Melangyna triangulifera": ("Species Status 9", "Excluded by Ball & Morris 2014 (Species Status 9): listed as an earlier name in the excluded table -- earlier status withdrawn"),
+    "Microdon myrmicae": ("Species Status 9", "Excluded by Ball & Morris 2014 (Species Status 9): 99 post-1980 hectads. -- earlier status withdrawn"),
+    "Neoascia geniculata": ("Species Status 9", "Excluded by Ball & Morris 2014 (Species Status 9): 180 post-1980 hectads. -- earlier status withdrawn"),
+    "Neoascia obliqua": ("Species Status 9", "Excluded by Ball & Morris 2014 (Species Status 9): 161 post-1980 hectads. -- earlier status withdrawn"),
+    "Orthonevra brevicornis": ("Species Status 9", "Excluded by Ball & Morris 2014 (Species Status 9): 163 post-1980 hectads. -- earlier status withdrawn"),
+    "Orthonevra geniculata": ("Species Status 9", "Excluded by Ball & Morris 2014 (Species Status 9): 118 post-1980 hectads. -- earlier status withdrawn"),
+    "Pipizella virens": ("Species Status 9", "Excluded by Ball & Morris 2014 (Species Status 9): 225 post-1980 hectads -- earlier status withdrawn"),
+    "Platycheirus podagratus": ("Species Status 9", "Excluded by Ball & Morris 2014 (Species Status 9): 128 post-1980 hectads. -- earlier status withdrawn"),
+    "Rhingia rostrata": ("Species Status 9", "Excluded by Ball & Morris 2014 (Species Status 9): 209 post-1980 hectads. -- earlier status withdrawn"),
+    "Sphegina verecunda": ("Species Status 9", "Excluded by Ball & Morris 2014 (Species Status 9): 235 post-1980 hectads. -- earlier status withdrawn"),
+    "Volucella inanis": ("Species Status 9", "Excluded by Ball & Morris 2014 (Species Status 9): 424 post-1980 hectads. -- earlier status withdrawn"),
+    "Volucella inflata": ("Species Status 9", "Excluded by Ball & Morris 2014 (Species Status 9): 313 post-1980 hectads. -- earlier status withdrawn"),
+    "Volucella zonaria": ("Species Status 9", "Excluded by Ball & Morris 2014 (Species Status 9): 386 post-1980 hectads. -- earlier status withdrawn"),
+    "Xanthandrus comtus": ("Species Status 9", "Excluded by Ball & Morris 2014 (Species Status 9): 211 post-1980 hectads. -- earlier status withdrawn"),
+    "Xylota florum": ("Species Status 9", "Excluded by Ball & Morris 2014 (Species Status 9): 165 post-1980 hectads. -- earlier status withdrawn"),
+    "Xylota jakutorum": ("Species Status 9", "Excluded by Ball & Morris 2014 (Species Status 9): 291 post-1980 hectads. -- earlier status withdrawn"),
+})
 # NECR217 section 6 -- excluded for 'Taxonomy': withdrawn only with --include-taxonomy
 TAXONOMY = {
     "Lonchaea iona": ("NECR217", "NECR217: 'Given the taxonomic confusion surrounding L. iona and L. fraxina, these "
