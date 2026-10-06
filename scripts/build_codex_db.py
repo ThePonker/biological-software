@@ -445,8 +445,46 @@ def get_desig_priority(abbreviation):
 # ============================================================
 # Build
 # ============================================================
+def _tvk_translator():
+    """old TVK -> current TVK, from the tvk_remap and name_map tables of the current uksi.db
+    (written by build_uksi_from_release.py). Without those tables nothing is translated."""
+    used = Counter()
+    if not os.path.exists(UKSI_PATH):
+        return (lambda t: t), used
+    u = sqlite3.connect(f"file:{UKSI_PATH}?mode=ro", uri=True)
+    try:
+        taxa = {r[0] for r in u.execute("SELECT tvk FROM taxa")}
+    except sqlite3.OperationalError:
+        return (lambda t: t), used
+    rem, nmap = {}, {}
+    try:
+        rem = {a: b for a, b in u.execute("SELECT old_tvk, new_tvk FROM tvk_remap WHERE new_tvk IS NOT NULL")}
+    except sqlite3.OperationalError:
+        pass
+    try:
+        nmap = {a: b for a, b in u.execute("SELECT tvk, recommended_tvk FROM name_map")}
+    except sqlite3.OperationalError:
+        pass
+    u.close()
+
+    def tr(t):
+        if not t or t in taxa:
+            return t
+        n = rem.get(t)
+        if n and n != t and n in taxa:
+            used["tvk_remap"] += 1
+            return n
+        n = nmap.get(t)
+        if n and n != t and n in taxa:
+            used["name_map"] += 1
+            return n
+        return t
+    return tr, used
+
+
 def build_codex():
     now = datetime.now().isoformat()
+    TR, TR_USED = _tvk_translator()
 
     # --------------------------------------------------------
     # 0. Preserve manual entries, reviews, and profiles
@@ -561,6 +599,7 @@ def build_codex():
             tvk = cell(row, "Recommended taxon version")
             if not tvk:
                 continue
+            tvk = TR(tvk)                    # JNCC's TVK -> current UKSI taxon (no-op without tvk_remap)
             rows_to_insert.append((
                 tvk,
                 cell(row, "Recommended taxon name"),
@@ -859,6 +898,24 @@ def build_codex():
     # --------------------------------------------------------
     # 6. Restore preserved data (manual entries, reviews, profiles)
     # --------------------------------------------------------
+    manual_statuses = [(TR(r[0]),) + tuple(r[1:]) for r in manual_statuses]
+    manual_sqs = [(TR(r[0]), r[1]) for r in manual_sqs]
+    if saved_profiles:
+        _seen, _kept, _dropped = set(), [], []
+        for r in saved_profiles:
+            r = (TR(r[0]),) + tuple(r[1:])
+            if (r[0], r[1]) in _seen:
+                _dropped.append(r)
+            else:
+                _seen.add((r[0], r[1])); _kept.append(r)
+        saved_profiles = _kept
+        if _dropped:
+            print(f"\n  ! {len(_dropped)} account(s) landed on a species that already has an account "
+                  f"from the same review -- first kept, these not restored:")
+            for r in _dropped:
+                print(f"      review #{r[1]}  {r[2] or '?'}  -> {r[0]}")
+    if TR_USED:
+        print(f"\n  TVKs translated to current UKSI taxa: {dict(TR_USED)}")
     if manual_statuses:
         # manual_statuses tuple: (tvk, species_name, track, value, detail,
         #                         source_review, date_added, added_by, notes, review_id)
