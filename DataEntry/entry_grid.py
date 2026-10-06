@@ -723,6 +723,8 @@ class EntryTableView(QTableView):
         self._clip_rows = None   # internal rich buffer (species dicts preserved)
         self._clip_text = None   # the text we put on the system clipboard at copy time
         self._clip_marker = None  # (r0, r1, c0, c1) of the copied block, for the dashed outline
+        # double-click the ROW NUMBER -> species account (a double-click on a cell still edits it)
+        self.verticalHeader().sectionDoubleClicked.connect(self._open_species_account)
 
     def keyPressEvent(self, event):
         k = event.key()
@@ -732,6 +734,8 @@ class EntryTableView(QTableView):
         if mods & Qt.KeyboardModifier.ControlModifier:
             if k == Qt.Key.Key_D:
                 self._fill_down(); return
+            if k == Qt.Key.Key_I and not editing:
+                self._open_species_account(self.currentIndex().row()); return
             if k == Qt.Key.Key_C:
                 self._copy(); return
             if k == Qt.Key.Key_V:
@@ -907,6 +911,12 @@ class EntryTableView(QTableView):
         if not real:
             return
         menu = QMenu(self)
+        if len(real) == 1:
+            p_ = m.species_payload(real[0])
+            if p_.get("scientific_name") or p_.get("tvk"):
+                menu.addAction("Species account\u2026   (Ctrl+I)").triggered.connect(
+                    lambda *_a, r_=real[0]: self._open_species_account(r_))
+                menu.addSeparator()
         ins = "Insert row above" if len(real) == 1 else f"Insert {len(real)} rows above"
         menu.addAction(ins).triggered.connect(self._insert_selected_rows)
         menu.addSeparator()
@@ -914,6 +924,48 @@ class EntryTableView(QTableView):
         act = menu.addAction(label)
         act.triggered.connect(self._delete_selected_rows)
         menu.exec(event.globalPos())
+
+    def _open_species_account(self, r=None):
+        """The same species account dialog the other tabs open: published accounts above,
+        your own account below. Uses the row's TVK; a staged name without one opens read-only."""
+        from PySide6.QtWidgets import QMessageBox
+        m = self.model()
+        if r is None or r < 0:
+            r = self.currentIndex().row()
+        if not (0 <= r < len(getattr(m, "_rows", []))):
+            return
+        p = m.species_payload(r)
+        if not (p.get("scientific_name") or p.get("tvk")):
+            QMessageBox.information(self, "Species account", "This row has no species yet.")
+            return
+        dlg_cls = None
+        import importlib
+        for modname in ("src.views.home.species_profile_dialog",
+                        "Observatum.src.views.home.species_profile_dialog"):
+            try:
+                dlg_cls = importlib.import_module(modname).SpeciesProfileDialog
+                break
+            except Exception:
+                continue
+        if dlg_cls is None:
+            QMessageBox.information(self, "Species account",
+                                    "Species accounts open when Data Entry runs inside Observatum.")
+            return
+        try:
+            from DataEntry import bootstrap
+            bootstrap.get_database_safe()          # make sure Observatum's database is initialised
+        except Exception:
+            pass
+        data = {
+            "scientific_name": p.get("scientific_name"),
+            "species_name": p.get("scientific_name"),
+            "tvk": p.get("tvk"),
+            "common_name": p.get("common_name"),
+        }
+        try:
+            dlg_cls(data, self.window()).exec()
+        except Exception as e:
+            QMessageBox.warning(self, "Species account", f"Could not open the species account:\n\n{e}")
 
     def _copy(self):
         idxs = self.selectionModel().selectedIndexes()
@@ -1559,9 +1611,6 @@ class EntryGridPage(QWidget):
         from PySide6.QtWidgets import QMenu
         hh = self._view.horizontalHeader()
         menu = QMenu(self)
-        ins = "Insert row above" if len(real) == 1 else f"Insert {len(real)} rows above"
-        menu.addAction(ins).triggered.connect(self._insert_selected_rows)
-        menu.addSeparator()
         for c, (key, header, _, _) in enumerate(COLUMNS):
             act = menu.addAction(header)
             act.setCheckable(True)
