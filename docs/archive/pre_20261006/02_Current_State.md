@@ -1,6 +1,6 @@
 # Current State
 
-## 6 October 2026
+## 5 October 2026
 ## The only home for these figures. If a number appears elsewhere, it is a copy
 ## and it will drift.
 
@@ -10,11 +10,10 @@
 
 | Component | State |
 |---|---|
-| **Observatum** | Active. Stats audited, iRecord sync verified, mapping functional, embargo, filter wizard. Insect Collection sidebar corrected; specimen sex shown in five places. Profile displays read both account layers through `shared/species_accounts.py`. **141 of your own species profiles**, from eight reports (6 Oct). |
-| **Data Entry** | **In production, first real commit made 2 October** (Birmingham – Wheels Park, 172 records). Commit now sets `embargo_status`. Species account opens from the grid (6 Oct). |
+| **Observatum** | Active. Stats audited, iRecord sync verified, mapping functional, embargo, filter wizard. Insect Collection sidebar corrected; specimen sex shown in five places. Profile displays read both account layers through `shared/species_accounts.py`. |
+| **Data Entry** | **In production, first real commit made 2 October** (Birmingham – Wheels Park, 172 records). Commit now sets `embargo_status`. |
 | **Examen** | **Runs, and reproduces an issued report's SQI exactly** (Glory Park, 117). Reads `assessment_records`, so contributed records count. Workbook export carries both SQS bases, jurisdiction-greyed statuses and Pantheon's habitat nesting. Remaining: PDF, Word, presentation, the SQI verdict. |
-| **Codex** | Rebuilt 6 October on **JNCC June 2026** and **UKSI July 2025**, translating old TVKs to current on every build. **35 reviews**, ~3,870 review accounts. |
-| **UKSI** | **Updated 6 October to the NHM July 2025 release** (`build_uksi_from_release.py`); the December 2023 file kept as `uksi_2023.db`. |
+| **Codex** | Rebuilt 2 October with the invertebrate filter corrected: **9,611 Pantheon SQS** (was 5,568). Review accounts stored per species per review. |
 | **Contributed records** | **New, 2 October.** `contributed_observations` + `assessment_records` view + `scripts/import_contributed.py`. One collaborator so far (J. Moore). No browsing tab yet. |
 | **Curator** | Working. Does not write curatorial fields. |
 | **Tabella** | **Paused** August 2026. |
@@ -25,27 +24,24 @@
 
 ## 2. Database figures
 
-### codex.db — 53.8 MB, rebuilt 6 October (JNCC June 2026, UKSI July 2025)
+### codex.db — 49.2 MB, rebuilt 4 October (rebuild test passed)
 
 | Table | Rows |
 |---|---:|
-| designations | 27,152 (JNCC `taxon-designations-20260609.xlsx`, 15,211 species) |
-| status_summary | JNCC 26,908 + manual entries applied; 15,841 species with a status |
-| sqs_scores | **9,600**, all Pantheon-sourced; 0 stored derived |
-| tvk_bridge | 14,146 (8,588 direct / 2,513 name / 3,045 synonym; 83 unmatched; 1,855 merged) |
-| manual_entries | **10,079** -- review statuses, withdrawals, superseded and old-name clearances, 52 JNCC-2023 restorations |
-| reviews | **35** |
-| species_profiles | **3,874** review accounts, keyed `(tvk, review_id)` |
+| designations | 27,062 |
+| status_summary | 27,927 (JNCC 26,822 + manual entries applied) |
+| sqs_scores | **9,611**, all Pantheon-sourced; 0 stored derived |
+| tvk_bridge | 14,161 |
+| manual_entries | 5,900 -- review statuses, withdrawals, superseded and old-name clearances |
+| reviews | **26** |
+| species_profiles | **2,700** review accounts, keyed `(tvk, review_id)` |
 
-Rebuild of 6 October: **153 rows translated** from old TVKs to current via
-`uksi.tvk_remap`; no account collisions. Unrouted designations: 119 rows, 14 codes.
-
-**Reviews loaded** (id: what, accounts; *S* = statuses written too; *IR* = internal reference only):
+**Reviews loaded** (id: what, accounts; *S* = statuses written too):
 
 | id | Review | Accounts |
 |---|---|---:|
 | 1 | Leaf beetles, NECR702 (Lane 2026) *S* | 287 |
-| 2–4 | Sawflies Phases 1–3 (Musgrove 2022–24) *S*, *IR* | 540 |
+| 2–4 | Sawflies Phases 1–3 (Musgrove 2022–24) *S*, internal reference only | 540 |
 | 5 | Butterflies Red List (Fox et al. 2022) *S*, threat only | 0 |
 | 6–15 | NE Species Status: darkling, soldier, wood-boring, clown, longhorn, scarab, Tachyporinae beetles; stoneflies; aquatic bugs; mayflies | 1,000 |
 | 16 | Millipedes, centipedes, woodlice (Lee 2015) | 179 |
@@ -59,33 +55,19 @@ Rebuild of 6 October: **153 rows translated** from old TVKs to current via
 | 24 | Caddis flies (Wallace 2016), PDF | 36 |
 | 25 | Shieldbugs and allies (Bantock 2016), table | 69 |
 | 26 | Hoverflies (Ball & Morris 2014, Species Status 9), PDF | 81 |
-| 27 | Fungus gnats, Nematocera, Aschiza (Falk & Chandler 2005, SS 2), PDF | 281 |
-| 28 | Pill beetles and allies (Lane 2021, SS 17), table | 65 |
-| 29 | Dance flies, Empidoidea (Falk & Crossley 2005, SS 3), PDF | 221 |
-| 30 | Water beetles (Foster 2010, SS 1), PDF | 77 |
-| 31 | Rove beetles, NECR390 (Boyce 2022) -- 54 data sheets + 190 table notes; *S* for *Dropephylla heeri* only | 244 |
-| 32 | Carrion beetles, NECR316 (Lane 2020), spreadsheet | 21 |
-| 33 | Bees, wasps and ants (Falk 1991, RSNC 35), *IR* | 246 |
-| 34 | Non-marine molluscs (Seddon et al. 2014, NRW), *IR* | 19 |
-| 35 | **Macro-moths (Fox et al. 2019) *S* -- 766 statuses, first time in Codex**; no accounts | 0 |
 
-Not loaded: spiders 2017 (rationales only, all rights reserved); dragonflies 2008
-(rationales and web pointers); micro-moths 2012 (status list only); Hyman 1992/94
-and Falk 1991 flies Part 1 (print only -- statuses are in Codex via JNCC).
+Not loaded: spiders 2017 (Harvey et al.) -- status rationales only, no accounts,
+"all rights reserved"; statuses already via JNCC. Hyman 1992/94 -- print only.
 
-**Status corrections:**
-- *4–5 Oct:* 272 NS-excludes routed; 71 old statuses superseded; withdrawals now
-  33 (NECR234, NECR217, NECR192, NECR195, SS 9, SS 1, SS 3); 3 old names; NECR234's
-  300 provisional statuses; 63 legacy statuses stored with a detail cleared.
-- *5 Oct, JNCC 2026 rebuild:* 52 statuses on 43 species that JNCC dropped or
-  re-keyed without a newer review restored (`added_by='restored-jncc2023'`).
-- *6 Oct, after the UKSI swap:* *Sepedophilus testaceus*'s stale Notable cleared;
-  12 legacy-detail rows cleared where translation joined a "pro parte" TVK to its
-  current species.
-- Checks after the 6 Oct rebuild: `check_legacy_conflicts.py` 0 stale;
-  `clear_legacy_detail.py` 0; `check_newest_review.py` (2) 0, (1) 173 -- 157
-  Staphylinidae outside NECR390's subfamilies (scope, correct), moth subspecies,
-  loose plants.
+**Status corrections (4–5 Oct):** NECR217 and NECR234 statuses from data sheets;
+withdrawals now 31 across NECR234, NECR217, NECR192, NECR195 and Species Status 9;
+63 legacy statuses stored with a detail cleared. Earlier (4 Oct), all surviving a
+rebuild: 272 NS-excludes routed;
+71 old statuses superseded by newer reviews; 9 withdrawn by review (judgement,
+"not British", misapplied names); 3 old names; NECR234's 300 provisional statuses.
+Rarity_modern 3,107 → 4,503. `check_legacy_conflicts.py` 0 / 0;
+`check_old_names.py` 0; `check_newest_review.py` (2) 0, (1) 419 -- 265
+Staphylinidae (scope, correct), ~130 acalyptrates (NECR217 next), ~20 loose.
 
 **SQS import, before and after the 2 October fix:**
 
@@ -96,10 +78,11 @@ and Falk 1991 flies Part 1 (print only -- statuses are in Codex via JNCC).
 | Dropped as "non-invertebrate collision" | 4,085 | 59 |
 | Dropped as zero-SQS | 109 | 109 |
 
-JNCC status tracks, 6 October, before manual entries (threat_iucn_2001 10,610;
-priority 5,228; rarity_modern 3,635; legal 2,579; red_list_england 1,831;
-threat_iucn_legacy 1,383; rarity_legacy 1,156; global 270; bocc 173;
-specialist 43).
+JNCC status tracks (threat_iucn_2001 9,455;
+priority 5,231; rarity_modern 4,503; legal 2,579; red_list_england 1,819;
+threat_iucn_legacy 1,499; rarity_legacy 1,249; global 271; bocc 173; specialist
+43 — bridge 8,648 direct / 2,513 name / 3,000 synonym / 68 unmatched; 1,847
+merged).
 
 **Research-only:** Pantheon lists 72 species as S41 research only; **62** reach
 current TVKs through the bridge. The other 10 are treated as ordinary S41
@@ -110,11 +93,9 @@ current TVKs through the bridge. The other 10 are treated as ordinary S41
 | | |
 |---|---:|
 | Observations | ~24,206 (24,034 + 172 committed 2 October) — *not re-measured* |
-| On TVKs newer than UKSI July 2025 | 42 records on 7 TVKs -- left as they are, names stored on the records |
 | Contributed observations | 162 (J. Moore, Birmingham – Wheels Park) |
 | Vice-county filled | 4,169 backfilled 26 September; 0 missing where a grid ref exists |
-| species_profiles (your own) | **141** -- 70 Kent Deadwood, 71 from seven other reports (6 Oct), keyed on TVK |
-| Remapped to current TVKs, 6 Oct | 12 observations, 1 specimen, 1 own profile (`remap_record_tvks.py`) |
+| species_profiles (your own) | 0 — keyed on TVK; review accounts now live in Codex |
 
 ### Specimens — measured 26 September
 
@@ -129,8 +110,7 @@ current TVKs through the bridge. The other 10 are treated as ordinary S41
 
 | Database | |
 |---|---|
-| uksi.db | **July 2025 release.** taxa 113,291 (113,258 current + 33 kept: 9 your data uses, 24 beetles kept at your request); synonyms 98,415; common_names 23,171; designations 40,551; plus `name_map` 335,060, `tvk_remap` 13,569, `taxon_qualifiers`. JNCC TVKs unknown to it: 66 of 15,211. |
-| uksi_2023.db | The December 2023 file, kept beside it: 122,435 taxa. |
+| uksi.db | ~122k taxa. `common_names` 20,897 rows over 16,351 TVKs. |
 | pantheon.db | 14,229 species, frozen at 2017 v3.7.4. 11,311 SQS scores on 0, 1, 4, 8, 16, 32. Holds Pantheon's biotope→habitat tree in `habitat_traits`. |
 | vc_lookup.db, examen.db, munia.db, gamification.db | unchanged |
 
@@ -157,37 +137,28 @@ likely a score differing between Pantheon 3.7.4 here and 3.7.6 on the website.
 **Until 2 October Examen gave Glory Park 134.** The September "validation" matched
 key species and never compared the SQI. See `06_Faults.md`.
 
-### Every survey, 6 October
+### Every survey, 4 October
 
 SQI on current scoring (Pantheon's scores plus any derived) and on Pantheon's
 published scores alone. Key species after the jurisdiction and research-only
-rules, on JNCC June 2026, 35 reviews and UKSI July 2025.
+rules.
 
 | Survey | Species | Key | SQI | SQI (Pantheon only) | SQI before 2 Oct |
 |---|---:|---:|---:|---:|---:|
 | BAM Glory Park 2024 | 128 | 8 | 117 | 117 | 134 |
 | Badshot Lea 2023 | 167 | 8 | 111 | 111 | 121 |
 | Bicester Graven Hill 2023 | 367 | 17 | 108 | 107 | 123 |
-| Bicester Graven Hill 2025 | 254 | 19 | 127 | 126 | 155 |
-| Birmingham – Wheels Park 2026 | 195 | 7 | 116 | 105 | 146 |
+| Bicester Graven Hill 2025 | 254 | 20 | 127 | 126 | 155 |
+| Birmingham – Wheels Park 2026 | 195 | 6 | 116 | 105 | 146 |
 | Derby 2025 | 230 | 4 | 101 | 100 | 119 |
-| Fermyn Hall Wood Deadwood 2024 | 49 | 7 | 157 | 154 | 197 |
-| Kent Deadwood 2024 | 393 | 75 | 181 | 176 | 247 |
-| Long Hanborough 2025 | 118 | 10 | 112 | 111 | 122 |
-| Machen 2024 (Wales) | 321 | 16 | 121 | 115 | 144 |
+| Fermyn Hall Wood Deadwood 2024 | 49 | 8 | 157 | 154 | 197 |
+| Kent Deadwood 2024 | 393 | 77 | 181 | 175 | 247 |
+| Long Hanborough 2025 | 118 | 11 | 112 | 111 | 122 |
+| Machen 2024 (Wales) | 321 | 17 | 121 | 115 | 144 |
 | Tilbury 2025 | 238 | 4 | 101 | 100 | 106 |
 
-Changes since 4 October: the JNCC 2026 rebuild brought the 2022 rove beetle
-statuses (Kent 77 → 75, Bicester 2025, Fermyn, Long Hanborough and Machen each
-−1, all to LC); the 2019 macro-moth Red List added *Chiasmia clathrata* as Key
-(Birmingham 6 → 7). The UKSI swap moved only Pantheon-only figures (Kent 175 → 176,
-Machen and Badshot Lea scoring counts ±1). Snapshot `before_uksi2025.txt` for
+Saved as `sqi_after_denominator.txt` (and `sqi_before.txt`) for comparison by
 `scripts/check_sqi_table.py`.
-
-**Accounts:** every key species on every survey has an account (review or your
-own) except five -- *Oligota apicata* (Kent), *Xysticus luctuosus* (Bicester 2025),
-*Liocyrtusa minuta* (Machen), *Chiasmia clathrata* (Birmingham), *Zophomyia
-temula* (Tilbury). `scripts/list_missing_accounts.py`.
 
 **Issued reports are not being revised** — they were built on the Pantheon
 website and are unaffected. Any SQI taken from **Examen** between April and
@@ -196,8 +167,7 @@ the issued 10 to 8 (jurisdiction, then research-only).
 
 ### Birmingham – Wheels Park 2026 — the first joint survey
 
-195 species: 130 Wil, 121 J. Moore, 56 shared. **7 key species** (6 until the
-macro-moth Red List made *Chiasmia clathrata* Key, 5 Oct), 1 Rare Key
+195 species: 130 Wil, 121 J. Moore, 56 shared. **6 key species**, 1 Rare Key
 (*Cistogaster globosa*, RDB1 -- tachinids are outside NECR234's scope). SQI **116**
 (213 ÷ 184), **105** on Pantheon's scores (192 ÷ 182). *Phaonia siebecki* lost its
 1991 Notable (withdrawn by NECR234, 4 Oct); *P. mediterranea* and *Blaesoxipha
@@ -236,46 +206,6 @@ A species' habitats are nested only under the biotope Pantheon places them in
 ---
 
 ## 5. Recent history
-
-### Session 40 — 6 October 2026
-
-**The UKSI updated to the July 2025 release.** The NHM portal copy turned out to
-carry the Nameserver mapping in its NAMES sheet, so a new builder
-(`build_uksi_from_release.py`) writes a `uksi.db` with the same schema from it:
-current taxa only, every other name a synonym, a `tvk_remap` for every old TVK
-the suite holds, and taxa your data uses kept even where the UKSI flags them
-redundant. A detailed review before switching found five faults in the build
-itself (cross-kingdom name matches, dead-end parents, 'species pro parte'
-refused as a species rank, uncarried English names, sort-code collisions) -- and
-an assumption that duplicate rows explained 24 valid British beetles being
-flagged redundant, which measured false: the UKSI flags them itself. Kept at your
-request. `build_codex_db.py` now translates old TVKs on every build; records and
-profiles remapped; survey figures unchanged bar Pantheon-only shifts.
-
-**Your own species profiles from eight reports** -- 70 Kent Deadwood, then 71
-from Bicester 2025, Graven Hill, Machen, Fermyn Hall Wood, Badshot Lea, BAM and
-Long Hanborough, in four layouts, verbatim, with survey-specific sentences held
-back (`import_own_profiles.py`). Five survey key species remain without an
-account. The staging grid opens the species account (row-number double-click,
-right-click, Ctrl+I).
-
-**A whole-codebase static analysis** (597 files, ~97,500 application lines):
-2 undefined names; all application code compiles on Python 3.12. It found the
-**Examen manual-entry dialog able to empty Codex's `manual_entries`** -- all
-10,079 review statuses -- from a button in the Species Database tab; disabled.
-Also fixed: both observation-filter fallbacks, a `List` import that only Python
-3.14 tolerated, and the staging grid's column-header menu. Rest queued (I7–I12).
-
-### Session 39 — 5 October 2026 (evening)
-
-**JNCC's June 2026 spreadsheet** (27,152 rows) built into Codex -- bringing the
-2022 rove beetle review (Kent 77 → 75) -- and 52 statuses JNCC had dropped or
-re-keyed without a newer review restored. Reviews 27–34 loaded (Species Status
-1, 2, 3, 17; rove and carrion beetles; Falk's 1991 aculeates; molluscs) and the
-**2019 macro-moth Red List, whose 766 statuses had never reached Codex**.
-`withdraw_statuses.py` would have let a 2005 exclusion clear Drake's 2018
-statuses; caught at the dry run, now dated. The UKSI copy found to be December
-2023, older than three public releases.
 
 ### Session 38 — 5 October 2026
 

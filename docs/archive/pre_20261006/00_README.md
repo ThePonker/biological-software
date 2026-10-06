@@ -1,6 +1,6 @@
 # Biological Software — Documentation
 
-## Set v2, updated 6 October 2026
+## Set v2, updated 26 September 2026
 ## Replaces the 01–37 series, which had drifted into three append files and
 ## several documents describing states that lasted hours.
 
@@ -28,9 +28,6 @@
 `33_Pantheon_Deep_Dive.md` · `34_Musgrove_Paper_Analysis.md` ·
 `35_SQS_Stored_vs_Derived.md` · `36_Pantheon_Screens_UX.md` ·
 `37_Code_Review_Findings.md` · `38_Report_Survey.md`
-
-`37_Code_Review_Findings.md`'s claims were checked on 6 October by a full static
-analysis -- two real, both fixed; the rest is in `03` I7–I10.
 
 `38_Report_Survey.md` is the specification for the report layer, drawn from
 eleven published reports. Read it before touching E3 or E7.

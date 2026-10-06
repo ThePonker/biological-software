@@ -1,6 +1,6 @@
 # Faults
 
-## Updated 6 October 2026
+## Updated 5 October 2026
 ## Open faults carry an action. Closed ones are kept in brief, because knowing
 ## what has already gone wrong is how the rules in `05` were earned.
 
@@ -13,23 +13,16 @@ The Data Entry build and four months of work sit on `main` only. The branching
 discipline exists precisely so `stable` can be the field-season tool.
 **Action:** merge once the staging jobs are committed and proven — backlog D3.
 
-### F22. The July 2025 UKSI flags 24 British beetles redundant
-No current replacement for *Nialus varians*, *Trichonotulus scrofa*, *Subrinus
-sturmi*, *Bolitobius formosus*, *Ochthebius difficilis*, *Cypha ovulum* and 18
-more, all of which you consider accepted British species. Kept selectable in
-`uksi.db`, marked "not current in UKSI 2025 -- kept at your request" in
-`taxon_qualifiers`; *Nialus*, *Trichonotulus* and *Subrinus* shown under the
-accepted combination. **Action:** raise with Chris Raper -- backlog F11.
+### F3. `uksi_extractor.py` missing
+Referenced by `Observatum/src/models/uksi.py` and `scripts/__init__.py` but not
+present anywhere — searched the whole C: drive, all of OneDrive, and git history.
+Most likely lost in the March 2026 restructure, the same event that lost
+`build_pantheon_db.py` and in which `paths.py` was itself accidentally deleted.
 
-### F23. Names newer than the July 2025 UKSI
-66 JNCC TVKs (statuses held in Codex but attached to no UKSI species) and 7 record
-TVKs on 42 observations; one review account (*Tetartopeus ciceronii*) unloadable.
-No survey figure affected now. **Action:** a newer UKSI -- backlog F11, F13.
-
-### F24. Reference databases opened read-write
-97 connections, 13 read-only. Nothing in the code stops a view writing to Codex
-or UKSI; the Examen manual-entry route (closed below) is where that broke.
-**Action:** backlog D9.
+**Consequence:** the documented UKSI rebuild cannot be performed. Not urgent —
+`uksi.db` works and both it and the 781 MB `UKSI.mdb` are backed up outside
+OneDrive — but a rewrite is needed before NHM's next release.
+**Action:** backlog D4. `uksi.db` is the specification.
 
 ### F4. `build_pantheon_db.py` missing
 Same event. Pantheon has not been updated since 2017 v3.7.4, so this is insurance
@@ -135,60 +128,6 @@ normalises; the data does not. **Action:** backlog A7.
 
 ## Closed — the ones worth remembering
 
-### Examen's manual-entry dialog could empty Codex
-*Fixed 6 October 2026. Found by static analysis, never triggered.* "+ Add Manual
-Entry" in the Species Database tab ran `DELETE FROM manual_entries`, then
-reloaded from `codex_manual_entries.json` -- the pre-review-load design. Since
-September the table holds every review status, withdrawal and clearance (10,079),
-none of them in that file. Button hidden, routine disabled; proven against a
-stand-in table of 10,079 rows. See `05_Rules.md` (a `DELETE` with no `WHERE`).
-
-### Observation filter fallbacks used the wrong list
-*Fixed 6 October 2026.* Both client-side fallbacks -- no repository, and after a
-repository error -- passed `observations` instead of `filtered`: a `NameError`, or
-the wrong list shown. pyflakes flagged one; the patch's match count found the
-second.
-
-### `vc_lookup_service` loaded only on Python 3.14
-*Fixed 6 October 2026.* `List` in an annotation, never imported. 3.14 defers
-annotations; 3.13 and earlier would fail to import the module, and vice-county
-lookup with it -- on a colleague's machine.
-
-### Data Entry column-header menu raised `NameError`
-*Fixed 6 October 2026.* Three lines of the row menu, pasted into `_header_menu`,
-referred to `real`, undefined there. Right-clicking a column header did nothing.
-
-### The UKSI build's first versions
-*Fixed 6 October 2026, before the switch.* A review of `build_uksi_from_release.py`
-found: same-name matching across kingdoms (*Morus*, bird → plant); parents
-pointing at redundant taxa; English names not carried over; kept taxa colliding
-on `sort_code`; then "species pro parte" refused as a species rank, which kept
-*Sepedophilus testaceus* off its current TVK. All fixed; parent links outside the
-file 0. A sixth "fix" -- for duplicate rows -- addressed a cause that measured
-absent (0 duplicates).
-
-### `uksi_extractor.py` missing -- the UKSI could not be rebuilt
-*Closed 6 October 2026.* Lost in the March 2026 restructure. Superseded rather than
-rewritten: `build_uksi_from_release.py` builds `uksi.db` from the NHM *Simplified
-Copy* spreadsheet, whose NAMES sheet carries the Nameserver mapping the Access
-extraction never had. December 2023 → July 2025. Was F3.
-
-### Withdrawals ignored dates
-*Caught 5 October 2026 at the dry run.* A 2005 exclusion list (Empidoidea) would
-have cleared 2018 Dolichopodidae statuses -- 38 species, *Chrysotus collini* NR/VU
-among them. `withdraw_statuses.py` now clears only statuses older than the
-excluding review; every earlier batch re-checked and found sound.
-
-### JNCC 2026 dropped statuses without a newer review
-*Fixed 5 October 2026.* 52 statuses on 43 species -- spiders, *Ectobius*,
-*Eloeophila* and others -- lost or moved to TVKs newer than the UKSI then held.
-Restored as manual entries (`restore_dropped_statuses.py`).
-
-### The macro-moth Red List had never reached Codex
-*Fixed 5 October 2026.* Fox et al. 2019 is not in JNCC's spreadsheet; 766 Red List
-and rarity statuses loaded from its Appendix 1, totals checked against its own
-Table 1. Moths are now Key on decline as well as rarity, as for every group.
-
 ### Withdrawals hit the wrong species through synonyms
 *Fixed 5 October 2026.* NECR217's 'Taxonomy' exclusions (*Chlorops citrinellus*…)
 resolved through UKSI synonyms to valid current species the same review had
@@ -199,8 +138,7 @@ assessed (*Chlorops rufinus*…), and cleared their new NS. Restored by
 *Fixed 5 October 2026.* 63 old statuses (RDBK / Insufficiently Known, 1994 IUCN)
 stored with a status_detail survived review loads and clearances, which looked
 only at empty-detail rows; 19 fly species were Rare Key on them. Cleared with the
-detail recorded; verified gone. Survival confirmed: 0 to clear after the 5 October
-JNCC rebuild (the 12 found on 6 October were new, created by TVK translation).
+detail recorded; verified gone. Rebuild survival still to confirm (D11).
 
 ### Old statuses shown instead of the newest review's
 *Fixed 4 October 2026.* Codex's statuses mostly arrive via JNCC's spreadsheet,

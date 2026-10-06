@@ -1,7 +1,7 @@
 # Codex
 
 ## The conservation authority
-## Updated 6 October 2026 — supersedes `07_Codex_Design_Spec.md` (16 Apr 2026),
+## Updated 5 October 2026 — supersedes `07_Codex_Design_Spec.md` (16 Apr 2026),
 ## whose schema and priority-track descriptions no longer match the build.
 
 ---
@@ -134,7 +134,8 @@ every SQI can state its basis.
 invertebrate. Until 2 October "invertebrate" meant *holds a designation with
 category 'Invertebrate'*, which excluded every common species: 4,085 scores
 dropped, 4,026 of them wrongly. It now means that set **or** UKSI kingdom Animalia
-outside Chordata (from `uksi.db`). Counts per build are in `02_Current_State.md`.
+outside Chordata — 66,322 TVKs. 9,611 scores imported; 59 genuine collisions
+filtered.
 
 **Rebuilds preserve** `manual_entries`, `reviews` (**including `id`**, since
 `manual_entries.review_id`, `supersedes_id` and `species_profiles.review_id` all
@@ -167,14 +168,12 @@ three passes:
 
 | Pass | Method | Count |
 |---|---|---:|
-| 1 | Pantheon TVK already exists in `uksi.taxa` | |
-| 2 | Name matches `uksi.taxa.scientific_name` | |
-| 3 | Name matches `uksi.synonyms` | |
-| — | Resolve by no route | |
+| 1 | Pantheon TVK already exists in `uksi.taxa` | 8,648 |
+| 2 | Name matches `uksi.taxa.scientific_name` | 2,513 |
+| 3 | Name matches `uksi.synonyms` | 3,000 |
+| — | Resolve by no route | 68 |
 
-Counts per build are in `02_Current_State.md` (6 Oct: 8,588 / 2,513 / 3,045 / 83).
-
-**Some synonym matches land on a species another taxon already claimed** —
+**1,847 of the synonym matches land on a species another taxon already claimed** —
 UKSI has merged two Pantheon taxa into one. Both are bridged; the merge happens
 at read time.
 
@@ -193,10 +192,10 @@ defect, and few enough to hand-map.
 
 | Source | Authority | Cadence | Role |
 |---|---|---|---|
-| **JNCC Conservation Designations** | Official consolidation | Irregular, ~annual | Primary. Rebuilds everything. Currently **9 June 2026** (`data/conservation-designations-20260609/`). OGL. |
+| **JNCC Conservation Designations** | Official consolidation | Irregular, ~annual | Primary. Rebuilds everything. Currently Dec 2023. OGL. |
 | **Pantheon SQS** | Pantheon-authoritative | Frozen at 2017 v3.7.4 | Imports to `sqs_scores`, re-keyed via the bridge. OGL. |
 | **Manual review imports** | Published literature | Per review | Gap-fills the 6–18 months before JNCC consolidates a new review |
-| **UKSI** | NHM / NBN | 2–3 yearly | TVK authority. CC BY 4.0. Currently the **July 2025** *Simplified Copy* (NHM Data Portal). |
+| **UKSI** | NHM / NBN | 2–3 yearly | TVK authority. CC BY 4.0. |
 | **The TVK bridge** | Computed | Per rebuild | Connects Pantheon to current taxonomy |
 
 JNCC's Master List: headers on row 2, data from row 3, TVK in the "Recommended
@@ -250,41 +249,40 @@ Corrections are manual entries with value `'none'` (status removed), naming the
 review that superseded or withdrew the status -- they survive rebuilds (proven
 4 Oct): `clear_stale_legacy.py [--all]`, `withdraw_statuses.py`,
 `check_old_names.py --apply`, `clear_legacy_detail.py` (rows stored with a
-status_detail). Withdrawals match exact names only, and clear only statuses
-**older than the excluding review**; newer ones are reported as kept.
-`restore_wrong_withdrawals.py` undoes any that hit a different species.
+status_detail). Withdrawals match exact names only; `restore_wrong_withdrawals.py`
+undoes any that hit a different species.
 
-After a **JNCC** rebuild also run `restore_dropped_statuses.py`: JNCC's own update
-can drop or re-key statuses with no newer review behind it (52 in June 2026).
+### Checking for stale TVKs after a UKSI update
 
-Reviews missing from JNCC entirely can be loaded statuses-only from their tables
-(`tracks_assessed` threat,rarity, no accounts) -- the 2019 macro-moth Red List,
-checked against the review's own category totals.
+`uksi.synonyms` is **name-based** — synonym string to current TVK, not TVK to
+TVK — so the check resolves via the stored name.
 
-### After a UKSI update
+```python
+import sqlite3, paths
+obs = sqlite3.connect(str(paths.OBSERVATUM_DB))
+obs.execute("ATTACH ? AS uksi", (str(paths.UKSI_DB),))
+for tbl in ("observations", "specimens"):
+    stale = obs.execute(
+        "SELECT COUNT(1) FROM " + tbl + " WHERE species_tvk IS NOT NULL "
+        "AND species_tvk != '' AND species_tvk NOT IN "
+        "(SELECT tvk FROM uksi.taxa)").fetchone()[0]
+    print(tbl, "stale:", stale)
+```
 
-The Codex build translates every TVK it stores -- JNCC's, and the review
-statuses, accounts and manual SQS it restores -- through `uksi.tvk_remap`
-(then `name_map`) to the current taxon, and reports how many. Records and your
-own profiles are remapped separately (`remap_record_tvks.py`). Full sequence in
-`01_Architecture.md` §5.
+Confirm each hit by eye — name matching is ambiguous around gender variants and
+aggregates. Back up before updating, and re-derive name, family, order,
+superfamily and sort order so each record stays internally consistent.
 
-Then the usual checks. Expect `clear_legacy_detail.py` / `clear_stale_legacy.py`
-to find a few rows where translation joined a JNCC "pro parte" TVK to its current
-species (6 Oct: 12 and 1). **`restore_dropped_statuses.py` compares old TVKs** and
-will list statuses that merely moved to the current TVK as dropped (*Mycetoporus
-baudueri*); check the current TVK before restoring anything (backlog D10).
-
-*June 2026, before the remap tooling: 30 records across 3 TVKs, hand-resolved.
-6 October 2026: 12 observations, 1 specimen, 1 own profile by script.*
+*June 2026: 30 records across 3 TVKs.* **Ranunculus ficaria** → *Ficaria verna*
+(26), **Australopacifica atrata** → *Kontikia atrata* (2), **Lepisma
+saccharinum** → *L. saccharina* (2). Too few to justify a standing script.
 
 ---
 
 ## 9. Known gaps
 
-**Review accounts** accumulate through review imports (35 reviews; count in
-`02`); superseded accounts are kept so old reports stay reproducible. Your own
-profiles live in `observatum.db`, not here.
+**Species profiles: 287** (NECR702, leaf beetles). They accumulate through review
+imports; superseded accounts are kept so old reports stay reproducible.
 
 **Research-only.** Pantheon's 72 "S41 research only" species are applied in both
 modes, to the S41 and UK BAP entries, and never confer key status. 62 reach

@@ -1,6 +1,6 @@
 # Architecture
 
-## Updated 6 October 2026
+## Updated 26 September 2026
 
 ---
 
@@ -82,7 +82,7 @@ implementation, and the shim is the small one.
 |---|---|---|
 | `observatum.db` | Observations, specimens, recording scheme, Data Entry staging | Observatum |
 | `codex.db` | Conservation status, SQS, TVK bridge | `build_codex_db.py`, Codex Manager |
-| `uksi.db` | Taxonomy — names, TVKs, sort codes, synonyms; `name_map`, `tvk_remap`, `taxon_qualifiers` | `build_uksi_from_release.py` (NHM *Simplified Copy*) |
+| `uksi.db` | Taxonomy — names, TVKs, sort codes, synonyms | `uksi_extractor.py` **(missing)** |
 | `pantheon.db` | Ecology — biotopes, habitats, SATs, guilds, fidelity | `build_pantheon_db.py` **(missing)** |
 | `vc_lookup.db` | Vice-county boundaries | Shapefile import |
 | `examen.db` | Frozen assessments | Examen (fate undecided) |
@@ -155,32 +155,13 @@ python -c "import sqlite3,paths,os,datetime; d=r'C:\BiologicalSoftware_Backups\r
 New spreadsheet → `data/conservation-designations-YYYYMMDD/` → update `JNCC_DIR`
 in `paths.py` → rebuild as above.
 
-### UKSI update
+### UKSI update — CANNOT CURRENTLY BE PERFORMED
 
-From the NHM Data Portal's **UK Species Inventory – Simplified Copy** (an `.xlsx`,
-~42 MB; the portal names the download by resource id). Its NAMES sheet carries
-the Nameserver mapping -- every name TVK to its recommended TVK. First done
-6 October 2026 (December 2023 → July 2025).
-
-```
-python scripts/check_uksi_simplified.py  <xlsx>   # what it resolves (read only)
-python scripts/build_uksi_from_release.py <xlsx>  # writes data/uksi_2025.db only
-python scripts/check_uksi_2025.py                 # duplicates, lost names, TVK-keyed data
-python scripts/lookup_lost_names.py               # current taxa for lost names (read only)
-```
-
-The builder keeps `uksi.db`'s schema exactly (copied from the current file),
-current taxa only (REDUNDANT_FLAG excluded), every other Latin name a synonym,
-English names (July sheet + carried from the old file), `name_map`, a
-`tvk_remap` for every old TVK the suite holds, and **kept taxa**: any taxon your
-data uses with no replacement, plus `KEEP_BY_REQUEST` (24 beetles). Names stay
-plain; qualifiers go to `taxon_qualifiers`. Read its report before switching:
-parent links outside the file must be 0; same-name rejections should be only
-cross-kingdom homonyms and subgenus/genus pairs.
-
-**Switching:** close every app; back up `uksi.db`, `codex.db`, `observatum.db`;
-check `data\*.db-wal` is empty; rename `uksi.db` → `uksi_2023.db` (or the old
-release's year) and the new file → `uksi.db`; then the steps below.
+`uksi_extractor.py` is missing (fault 52). `uksi.db` and the 781 MB `UKSI.mdb`
+are both backed up outside OneDrive, so nothing is at risk, but the extractor
+needs rewriting before NHM's next release. `uksi.db` is its own specification:
+`sort_code`/`sort_order` from `ORGANISM_MASTER`, English-only common names, one
+`preferred=1` per TVK.
 
 ### Pantheon update — CANNOT CURRENTLY BE PERFORMED
 
@@ -189,17 +170,9 @@ Pantheon has not been updated since 2017 v3.7.4, so this is not pressing.
 
 ### After a UKSI update
 
-1. **Rebuild Codex** (`build_codex_db.py`, `seed_codex.py`). It translates old
-   TVKs -- JNCC's, and the review statuses, accounts and manual SQS it restores --
-   through `uksi.tvk_remap` / `name_map`, and reports how many. Account collisions
-   are kept-first and listed.
-2. **The post-rebuild checks** in `07_Codex.md` §8, and `check_sqi_table.py
-   --compare`. Expect cleanup where translation joined a "pro parte" TVK to its
-   species (`clear_legacy_detail.py`, `clear_stale_legacy.py`).
-3. **Remap records and own profiles:** `remap_record_tvks.py` (dry run), then
-   `--apply`. Updates TVK, name and the whole taxonomy block together; refuses
-   unless the new file is the live `uksi.db`.
-4. Check the app; regenerate any Tabella workbook in use.
+Stored TVKs in `observatum.db` may go stale. There is no standing refresh
+script — the June 2026 diagnostic found only 30 records across 3 TVKs, so one was
+judged over-engineering. Re-run the diagnostic in `07_Codex.md` and hand-resolve.
 
 ---
 

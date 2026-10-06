@@ -1,7 +1,7 @@
 # Data Entry
 
 ## The recording grid
-## Updated 6 October 2026
+## Updated 26 September 2026
 ## Consolidates `26_Data_Entry_Design.md` (the design) and
 ## `27_Data_Entry_State.md` (what was built). The research behind it is in
 ## `25_Data_Entry_Research.md`, which remains worth reading.
@@ -105,15 +105,6 @@ an "Entry order" button re-reads from the database to restore. Copy-context
 auto-disables while sorted, because "the row above" means something different,
 and re-enables on restore. Nothing is written, so the blank spacer rows carrying
 date and trap structure survive.
-
-**Species account** -- the same dialog the other tabs open (published accounts
-above, yours below): double-click the **row number**, right-click → *Species
-account…*, or **Ctrl+I**. A double-click on a cell still edits it, so the
-species picker is unchanged. A row with no species says so; a staged name with
-no TVK opens read-only. Standalone, outside Observatum, a short message instead.
-
-**Column-header right-click** shows and hides columns -- broken until 6 October
-by stray row-menu lines (`NameError`).
 
 **Species entry** uses a cell-tailored `QListWidget` popup — the proven pattern
 from the Session 25 rewrite, not `QCompleter`. Picking a species expands the

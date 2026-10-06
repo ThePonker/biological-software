@@ -1,6 +1,6 @@
 # Roadmap
 
-## Updated 6 October 2026
+## Updated 26 September 2026
 
 ---
 
@@ -44,8 +44,7 @@ every figure says which it is.
 |---|---|
 | Hygiene — git, WAL, backups, paths | ✅ Complete, June 2026 |
 | Data integrity — schema, taxonomy refresh, backup audit | ✅ Complete |
-| **Codex correctness** | ✅ Complete, 5 September 2026. Kept current: JNCC June 2026, 35 reviews, UKSI July 2025 (6 Oct) |
-| **Species profiles** | ✅ Review accounts from 33 reviews; 141 of your own from eight reports. Five survey species still to write |
+| **Codex correctness** | ✅ Complete, 5 September 2026 |
 | **Examen — analysis** | ✅ Working and validated |
 | **Examen — reports** | Excel ✅ delivered, on a button. **PDF next**, then Word |
 | Examen — saproxylic framework | Not started, ~3 days |
@@ -67,9 +66,6 @@ gives a site-importance verdict on thresholds with no found source.
 
 **3. Merge `main` → `stable`** — 15 minutes, once the staging jobs are committed.
 
-**4. Code hygiene** — ~1 day, a rainy day: dead code, silent errors, read-only
-connections (backlog I7–I9, D9). From the 6 October analysis.
-
 ### Then
 
 **PDF and Word renderers** — 1.5–2.5 days together. Both render the same computed
@@ -87,9 +83,8 @@ percentage, and a stated 5% threshold.
 **Saproxylic SQI + IEC** — ~3 days. The Kent Deadwood report uses a framework the
 software has never contained. Until it exists, that class of work stays manual.
 
-**Merge the three import wizards** — 3–5 days, mostly testing against real
-imports. Species matching in one place instead of three; pays off most at the
-next UKSI release (backlog C4).
+**Species profiles** — 1–2 days after the store decision. ~100 already written
+across ~10 Word documents.
 
 **Distributable Observatum** — ~5–6 days: module registry, conditional
 dependents, first-run wizard, de-personalisation, PyInstaller, licensing screens.
@@ -115,9 +110,7 @@ needed.
 | Presentation pass | ~1 |
 | Bulk curatorial editor | 0.5–1 |
 | Saproxylic SQI + IEC | ~3 |
-| ~~Species profiles~~ | ✅ done |
-| Code hygiene (I7–I9, D9) | ~1 |
-| Merge the import wizards | 3–5 |
+| Species profiles | 1–2 |
 | Distributable Observatum | ~5–6 |
 | Web Examen | 10–15 |
 
@@ -136,11 +129,9 @@ developer.
 | **Curatorial fields empty across the collection** | Medium | Open (A1). Condition 8, storage 2, drawer 0 of 2,745. |
 | **Unsourced verdict in generated prose** | Medium | Open (E16). The Overview asserts site importance on thresholds with no found source. |
 | **Silent write whitelists** | Medium | One found and fixed (`SpecimenRepository`). The pattern — a layer that drops unknown fields without error — is worth a sweep of the other repositories. |
-| **`build_pantheon_db.py` missing** | Low | Open. Lost in the March restructure; Pantheon has not moved since 2017. (The UKSI one is closed: rebuilt from the NHM spreadsheet, 6 Oct.) |
-| **Reference databases writable from anywhere** | Medium | Open (D9). The Examen manual-entry route could have emptied Codex; fixed, but nothing enforces the rule. |
-| **UKSI disagrees with you on 24 British beetles** | Low | Kept at your request; raise with NHM (F11). |
+| **Two build scripts missing** | Medium | Open. `uksi_extractor.py` and `build_pantheon_db.py`, both lost in the March restructure. Neither database is at risk — both are backed up — but a UKSI release would find us unable to rebuild. |
 | **Never-executed code paths** | Medium | Seven found this year, all crash-on-first-use. Sweep outstanding (D6). |
-| **Duplicated rules drifting** | Medium | **The dominant failure mode.** Ten instances found. Grid-ref maths in three places is the one that could produce silently wrong data (I3); species lookup in three import wizards is the most expensive to maintain (C4). |
+| **Duplicated rules drifting** | Medium | **The dominant failure mode.** Nine instances found. Grid-ref maths in three places is the one that could produce silently wrong data (I3). |
 | Rebuild reproducibility | Low–medium | Two order-dependencies found and fixed; a build-twice-and-compare check would prove the rest (D7). |
 | Tabella bakes Codex at generation time | Low | Reduced — Tabella paused, workbooks migrated. Import wizards should still re-enrich (C1). |
 | Stale TVKs in `observatum.db` | Low, compounding | Diagnostic exists; re-run after UKSI updates. |

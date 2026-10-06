@@ -1,7 +1,7 @@
 # Examen
 
 ## Invertebrate assemblage assessment
-## Updated 6 October 2026
+## Updated 2 October 2026
 ## Supersedes `29_Examen_Revival_Assessment.md`, whose central finding was wrong,
 ## and the desktop portion of `08_Examen_Web_Design_Spec.md`.
 
@@ -16,9 +16,8 @@ composition, and a species appendix.
 It replaces the Pantheon website for the thing most people use it for. Pantheon
 is unfunded, manually operated, and its conservation data is frozen at 2017.
 Examen uses **Pantheon's ecology** — which has no alternative source — with
-**Codex's conservation status**: JNCC's June 2026 spreadsheet plus 35 published
-reviews imported directly (among them the 2019 macro-moth Red List, which JNCC
-does not carry), on the July 2025 UKSI.
+**Codex's conservation status**, which is JNCC December 2023 plus Wil's own
+review imports.
 
 **It works, it exports, and it reproduces the Pantheon website.** Glory Park's
 SQI, species analysed, key species and two habitat SQIs match the issued report
@@ -62,8 +61,7 @@ Examen/
 ├── appendix_export.py           The single-sheet species appendix
 ├── workbook_export.py           The multi-sheet assessment workbook (E2)
 ├── import_species_dialog.py     Paste / import a list
-├── manual_entry_dialog.py       DISABLED 6 Oct -- could empty Codex's
-│                                manual_entries; delete with backlog I8
+├── manual_entry_dialog.py       Add a status from a published review
 ├── snapshot_manager.py          Freeze — fate undecided
 └── sat_thresholds.json          Verified against Pantheon's own output
 ```
@@ -227,12 +225,6 @@ Found and fixed 2 October:
 | **Order, family, common name blank in the workbook** | One `load_taxonomy()` for tab and exports |
 | **Project table squeezed away** | Splitter floor, pinned across clicks; table sortable, dd/mm/yyyy |
 
-Found and fixed 6 October, by static analysis:
-
-| | |
-|---|---|
-| **"+ Add Manual Entry" could empty Codex** | The Species Database tab's dialog cleared every review status; button and routine disabled |
-
 ---
 
 ## 9. Remaining work
@@ -309,10 +301,8 @@ exceptional). The author cites whichever they use.
 **Exclusions are visible.** Species without a TVK and species Pantheon cannot
 analyse are counted in the footer rather than quietly dropped.
 
-Species accounts come from both layers: published review accounts in Codex
-(open-licence ones quoted with citation, others as a pointer) and your own in
-`observatum.db.species_profiles` -- 141, which cover every key species on the
-current surveys bar five. The site-specific closing sentence is **written**, with the workbook supplying the evidence after a
+Species accounts come from `observatum.db.species_profiles`; the site-specific
+closing sentence is **written**, with the workbook supplying the evidence after a
 `[write occurrence]` marker — count, places, months.
 
 ---

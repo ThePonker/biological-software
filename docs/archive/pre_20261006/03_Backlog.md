@@ -1,6 +1,6 @@
 # Backlog
 
-## Updated 6 October 2026
+## Updated 5 October 2026
 ## Check this before starting a session.
 
 ---
@@ -9,11 +9,11 @@
 
 | | Item | Size |
 |---|---|---|
-| 1 | **F11** — email Chris Raper (c.raper@nhm.ac.uk): the 24 British beetles the July 2025 UKSI flags redundant, and any copy newer than July 2025 | 10 min |
-| 2 | **G13** — your own accounts for the five survey key species with none: *Oligota apicata*, *Xysticus luctuosus*, *Liocyrtusa minuta*, *Chiasmia clathrata*, *Zophomyia temula* | ~1 hr |
-| 3 | **E16** — decide the SQI verdict wording | decision |
-| 4 | **D3** — merge `main` → `stable` | 15 minutes |
-| 5 | **I7–I9** — rainy-day hygiene from the 6 October analysis: dead code, silent errors, read-only connections | ~1 day |
+| 1 | **G13** — write your own accounts for key species with none (Hyman beetles first; the workbook's Account source column lists them) | ongoing |
+| 2 | **G10** — Falk 1991 aculeates (ResearchGate, internal reference; likely a scan) — inspect first | ~30 min |
+| 3 | **D11** — after the next Codex rebuild, run `clear_legacy_detail.py` (dry): 0 means the detail clearances survived | 2 min |
+| 4 | **E16** — decide the SQI verdict wording | decision |
+| 5 | **D3** — merge `main` → `stable` | 15 minutes |
 
 ---
 
@@ -73,10 +73,6 @@ Willow).
 **B5. Row insert below the new-row marker.** Small. Attempted, committed, does
 not work. There is a workaround.
 
-**B7. Species account from the grid** — ✅ **DONE** (6 October). Row-number
-double-click, right-click → Species account…, or Ctrl+I; a cell double-click
-still edits.
-
 ---
 
 ## C. Import wizards
@@ -89,13 +85,6 @@ the Session 28 fix.
 
 **C3. 175 rows with doubled import notes.** Cosmetic. A one-line UPDATE whenever
 it matters.
-
-**C4. Merge the three import wizards — WINTER.** 3–5 days, mostly testing against
-real imports. Observation, specimen and scheme wizards are near-copies: four
-mixins in up to four versions, and the species lookup three times (complexity
-54–71, the hardest code in the suite). Every change to species matching -- a UKSI
-update, kept taxa, synonyms -- must be made three times. The biggest
-maintainability gain available; pays off most at the next UKSI release.
 
 ---
 
@@ -111,10 +100,8 @@ that changes data** — re-run the two `robocopy /MIR` lines in `01_Architecture
 
 **D3. Merge `main` → `stable`.** 15 minutes. Stale since June.
 
-**D4. UKSI rebuild** — ✅ **DONE** (6 October), without the extractor:
-`build_uksi_from_release.py` builds `uksi.db` from the NHM *Simplified Copy*
-spreadsheet. Procedure in `01_Architecture.md` §5. The Access extractor is no
-longer needed.
+**D4. Rewrite `uksi_extractor.py`.** ~1 day. Needed when NHM next release UKSI.
+`uksi.db` is the specification.
 
 **D5. Reconstruct `build_pantheon_db.py`.** ~1 day. Open since March. Pantheon
 has not moved since 2017, so this is insurance rather than need.
@@ -127,17 +114,6 @@ unverified — see `37_Code_Review_Findings.md`.
 diff them; any difference means something is order-dependent. Would have caught
 the collapse tiebreak in April, and converts the version-stamping promise from an
 assumption into a tested fact.
-
-**D9. Read-only connections for reference databases.** Half a day. 97
-`sqlite3.connect()` calls across 55 files, 13 read-only. "Only Codex Manager
-writes to Codex" is a convention the code does not enforce -- the Examen
-manual-entry route (fixed 6 Oct) is where it broke. A shared helper, read-only by
-default for UKSI, Codex and Pantheon.
-
-**D10. After a UKSI swap, `restore_dropped_statuses.py` can false-positive.** It
-compares old TVKs; statuses that moved to the current TVK look dropped
-(*Mycetoporus baudueri*, 6 Oct). Check the current TVK before restoring; teach the
-script to follow `uksi.tvk_remap`. Small.
 
 **D8. Laptop / second-machine access.** Unscoped. **SQLite over a syncing folder
 from two machines risks corruption.** Options: strict one-at-a-time; export a job
@@ -309,20 +285,6 @@ the tab's import or have it call the script.
 **F10. Importer dry-run message.** Trivial. Still says "apply
 `patch_codex_manual_apply.py` first" — long since done.
 
-**F11. UKSI questions for Chris Raper.** 10 minutes. (1) The July 2025 UKSI
-flags 24 British beetles redundant with no current replacement (*Bolitobius
-formosus*, *Ochthebius difficilis*, *Cypha ovulum*, the *Aphodius* segregates...);
-kept selectable at your request, marked "not current in UKSI 2025". (2) 66 JNCC
-TVKs and 7 record TVKs (42 records) are newer than July 2025; ask for a current
-copy. Then rebuild as `01` §5.
-
-**F12. *Mycetoporus piceolus* → 'species A'.** Accepted 6 Oct as the UKSI's
-concept transfer (*erichsonanus* → current *piceolus*). Revisit if you disagree:
-the two Tachyporinae accounts moved with it.
-
-**F13. *Tetartopeus ciceronii* account.** Rove beetle review, no UKSI match until
-a release newer than July 2025. Load with `load_review.py --add-accounts` then.
-
 ---
 
 ## G. Species profiles
@@ -352,12 +314,9 @@ shieldbugs (190) -- table has no accounts, PDF not yet downloaded.
 
 **G9. Not yet downloaded.** Spiders 2017 (149 of your species), hoverflies 2014.
 
-**G10. Old JNCC reviews.** Falk 1991 aculeates ✅ loaded 5 Oct (typed text, not a
-scan; *IR*). Hyman 1992/94 and Falk 1991 flies Part 1 are print only (Hyman is
-in the Internet Archive's lending library -- read there, but do not capture
-pages). No survey figure depends on them: their statuses are in Codex via JNCC.
-Routes when wanted: your own copies scanned; ask JNCC for a digital copy (would
-also make them quotable); or write your own.
+**G10. Old JNCC reviews** (Hyman 1992/94, Falk 1991 aculeates and flies, Kirby
+1992): fill 89 key species; likely scans with short, dated accounts. Inspect one
+before deciding; writing your own may be better.
 
 **G11. Supersession links.** When two loaded reviews cover the same group, set
 `reviews.supersedes_id` so the older account shows as superseded. Not yet needed.
@@ -366,10 +325,8 @@ also make them quotable); or write your own.
 name; *Macronychia dolini* absent from NECR234 -- check; Staphylinidae (265 in
 the newest-review list) are scope, correctly left.
 
-**G3. Your profiles from your reports** — ✅ **DONE** (6 October). 141 imported
-from eight reports (four layouts: heading + paragraph, numbered paragraph,
-appendix accounts, a Word table), verbatim, survey sentences held back.
-`scripts/import_own_profiles.py` skips any species that already has one.
+**G3. Extract ~100 existing profiles from Word.** 0.5–1 day. Roughly 10 `.docx`
+files.
 
 **G4. Scope.** Profiles only for species with a conservation status, or groups of
 interest such as Cerambycidae. Disagreement with a published status goes in your
@@ -415,15 +372,13 @@ drift, which is this codebase's dominant failure mode.
 From `37_Code_Review_Findings.md`, an independent static-analysis pass.
 **Unverified** — treat each as a claim.
 
-**I1. Verify the claimed crash bugs** — ✅ **DONE** (6 October) by a full
-static analysis: two undefined names in ~97,500 lines, both fixed
-(`vc_lookup_service` `List`, the observation-filter fallbacks).
+**I1. Verify the four claimed crash bugs.** Start with `vc_lookup_service`, the
+fastest to disprove.
 
 **I2. Delete `scripts/sqs_derivation.py`** — ✅ **DONE** (26 September), along
 with the superseded `check_bridge_gap.py`. Confirmed nothing imported either.
 
-**I3. Consolidate grid-ref maths.** (`Tabella/grid_ref.py`'s `OS_GRID_LETTERS`
-table is unused and its values are wrong -- delete it with this.) Three implementations —
+**I3. Consolidate grid-ref maths.** Three implementations —
 `grid_ref_service.py`, `DataEntry/osgb.py`, `Tabella/grid_ref.py`. **The
 highest-value item here:** a subtle disagreement produces *wrong vice-counties*,
 not a crash, and VC is derived rather than typed so nothing would question it.
@@ -436,25 +391,6 @@ not a crash, and VC is derived rather than typed so nothing would question it.
 **I6. Tests for the pure functions.** Grid-ref parsing, SQS derivation, date
 utils, VC lookup — cheap to cover, and exactly where the claimed bugs live. One
 test file currently covers ~105k lines.
-
-**I7. Review silent errors.** 2–3 hours. 131 handlers that only `pass`; start
-with the import validation workers (26), where one could hide a record failing
-to import.
-
-**I8. Remove dead code.** 1–2 hours. 10 modules nothing imports (~1,900 lines:
-`conservation_override.py`, `DataEntry/entry_page.py`, `session_picker.py`,
-`column_config_dialog.py`, the two theme files, `shared/db_config.py`,
-`uksi_diagnostic.py`, `gamification_widgets.py`, `build_gb_basemap.py` -- **keep
-the last**, see `01` §2); a 52-line block pasted twice in `scheme_dashboard.py`;
-duplicated functions in Curator; 399 unused imports (automatable). Delete Examen's
-disabled `manual_entry_dialog.py` with them.
-
-**I9. Duplicated UI components.** 1–2 days. FilterChip ×6, FuzzyCompleter ×3,
-FuzzyFilterProxyModel ×3, RowStatus ×4 -- confirmed by the analysis.
-
-**I10. Split the two most complex functions** when next touched:
-`ObservationTab._apply_wizard_filters` (99) and
-`ObservationStatsService._refresh` (92). Half a day each.
 
 ---
 

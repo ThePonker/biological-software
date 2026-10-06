@@ -1,13 +1,13 @@
 # Rules
 
-## Updated 6 October 2026
+## Updated 5 October 2026
 ## Every rule here was paid for. Read this before a long session.
 
 ---
 
 ## The dominant failure mode
 
-**When the same rule is written down twice, it drifts.** Ten instances found:
+**When the same rule is written down twice, it drifts.** Nine instances found:
 
 | Duplication | What it cost |
 |---|---|
@@ -20,7 +20,6 @@
 | **Three grid-ref implementations** | **Not yet cost anything. Would produce wrong vice-counties, silently.** |
 | The SQI arithmetic in four places | Now one call to `compute_sqi` |
 | `status_detail` applied to `legal_protection` but not `priority` | 2,303 conservation facts lost |
-| **Species lookup in three import wizards** | Not yet a wrong result -- but every matching change (a UKSI update, kept taxa) must be made three times. Backlog C4 |
 
 That last one is a variant worth naming separately: **written once, applied to
 one case, forgotten for the other, in the same dictionary in the same file.**
@@ -100,18 +99,6 @@ After loading any review, run `check_legacy_conflicts.py`,
 table.** The sheet is where the assessment and its reasoning are made (NECR234:
 4 of 300 disagreed).
 
-**Withdraw only what is older than the withdrawal.** "Newest review wins" has a
-date half as well as an identity half. Falk & Crossley's 2005 Empidoidea review
-excluded dolichopodids that Drake's 2018 review later assessed (NS, NR, VU); a
-withdrawal ignoring dates would have cleared 2018 statuses with a 2005 exclusion.
-Caught at the dry run (5 Oct); `withdraw_statuses.py` now clears only statuses
-dated before the excluding review and reports the rest as kept.
-
-**JNCC's own updates drop and re-key statuses.** The June 2026 spreadsheet lost or
-moved 52 statuses on 43 species with no newer review behind it. After every JNCC
-rebuild run `restore_dropped_statuses.py`; after a UKSI swap, check the current
-TVK first -- statuses that moved there look dropped from the old one.
-
 **Withdraw by exact name only.** Matching through UKSI synonyms is right when
 *adding* a review's statuses (it finds the current name); when *removing*, it
 can land on a current species the same review assessed. NECR217's 'Taxonomy'
@@ -152,18 +139,6 @@ provisional fly reviews).
 **When a PDF's citation page is an image, confirm the citation from publication
 records** (Pantheon's bibliography, Natural England's catalogue) -- never from
 memory.
-
-**Your own report text, not just reviews, can become a profile -- but split it.**
-Report accounts mix the species (ecology, distribution, history) with the survey
-("a single male from Area 1 in May", "noted in Compartments 2 and 3", "first
-vice-county record"). A profile is reused in every later report, so the survey
-sentences are held back and shown for checking. National history is profile
-text even when it contains "collected" and a date (*Tephritis* arrivals).
-
-**Strip a heading, never more.** Where the heading sits on its own line, take the
-line below it as the account. Where it runs into the text, remove at most one
-sentence, and only if it carries a status. A rule that removed short sentences
-starting "A …" deleted real profile text (*Cassida prasina*).
 
 ## Patching
 
@@ -229,10 +204,6 @@ reported as done, and sat unapplied for weeks — it had refused on a missing
 import and written nothing. Read the output every time; "I ran it" is not "it
 worked". The only proof is seeing the change in the running application.
 
-**Count every occurrence before trusting a fix to one.** The filter-fallback bug
-existed twice in one file; pyflakes flagged one, because the name happened to be
-defined in the other function. The patch's match count found the second.
-
 **Don't import a view module to test a static method.** It drags in the whole
 application's import chain — Observatum's config expects `src/` on the path —
 and fails for reasons unrelated to the change. Compile the file and exercise the
@@ -282,12 +253,6 @@ reports would have given a plausible answer — NT is a Key Species, so score it
 notable — that the actual rule contradicts. When several sources cite one
 authority, read the authority.
 
-**Test the explanation before building on it.** Twenty-four valid British
-beetles flagged redundant in the July 2025 UKSI looked like a duplicate-row
-artefact of the build; a fix was written. The build's own count said 0 duplicate
-rows: the UKSI flags them itself. Have the fix report the number that proves
-or disproves the reason, and read it before anything else.
-
 **A module's docstring is evidence.** `sqs_derivation.py` documented the correct
 rule — "there is no score of 2 in the published rule", "returns 0, 1, 4, 8, 16 or
 32" — and implemented a different one. Where code and its own documentation
@@ -315,10 +280,6 @@ another. Twice.
 
 **Inline Python with nested quotes is fragile in PowerShell.** A `python -c`
 with escaped double quotes silently arrived broken. Ship a small script instead.
-
-**Variables do not survive a new PowerShell window.** `$u` set in one session is
-empty in the next, and a path built from it silently becomes a different path.
-Give full paths in any command that may be run later.
 
 **Never put `<placeholder>` in a command.** PowerShell reads `<` as a redirect and
 stops before Python starts. Give the real values, or a word like `TVK_HERE` that
@@ -399,44 +360,10 @@ different reference can mean a different county.
 once reported "ALL OK" when `superfamily` was present in one definition and
 missing from two others.
 
-**A `DELETE` with no `WHERE` on a shared table is a review item.** Examen's old
-manual-entry dialog cleared all of Codex's `manual_entries` and reloaded it from a
-JSON file the review loads had never written to -- 10,079 statuses one button
-away from deletion (fixed 6 Oct). Anything that empties and refills a table must
-own every row in it.
-
-**A remap can land two keys on one.** When old TVKs map to current ones, two old
-taxa can become one species, and a primary key on `(tvk, review_id)` then
-collides -- a plain `INSERT` aborts the whole rebuild. Handle it explicitly: keep
-one, report the other.
-
 **Prune by filename, not mtime, inside OneDrive.** Sync rewrites modification
 times, so timestamps there are not a record of when a file was made.
 
 ---
-
-## Taxonomy (UKSI)
-
-**`REDUNDANT_FLAG` means not current for British recording** -- old-checklist
-concepts, non-British species, obsolete higher taxa. NBN excludes them when
-loading UKSI into Indicia. They go out of the pick-list; their names stay
-findable as synonyms where a current taxon exists.
-
-**Keep what your data uses; never rename on a guess.** Where a TVK your records,
-review statuses or accounts use has no current replacement, keep the taxon as it
-is (marked "not current in UKSI 2025") rather than pick a plausible new name.
-Matching an epithet within a family looked principled and paired *Bolitobius
-formosus* with *Tachyporus formosus*.
-
-**Name matching across UKSI needs rank and kingdom.** A same-name fallback
-without them can send a redundant bird genus to a plant genus (*Morus*). Treat
-species-level ranks -- species, *species pro parte*, aggregate, *sensu lato* --
-as one group, or valid species stored as "pro parte" are refused
-(*Sepedophilus testaceus*).
-
-**Scientific names stay plain.** The import wizards, review loads and Tabella
-match on `taxa.scientific_name`. Shared names (s. str. / s. lat., 303 of them)
-are told apart in `taxon_qualifiers`, never by editing the name.
 
 ## Reading code
 
@@ -445,11 +372,6 @@ working off a grep hit rather than the surrounding code.
 
 **Check imports before using a name.** A fix referencing `QSettings` in a file
 that did not import it would have crashed on first use.
-
-**Python 3.14 hides one class of missing import.** It no longer evaluates
-annotations at import, so `List` used only in an annotation, never imported,
-loads on 3.14 and fails on 3.13 and earlier. Check distributable code on an
-older Python (`vc_lookup_service`, 6 Oct).
 
 **A filename search returns the shim and the implementation.** The shim is the
 small one — three lines, re-exporting from `shared/`.
