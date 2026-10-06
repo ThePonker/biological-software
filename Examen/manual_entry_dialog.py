@@ -59,7 +59,10 @@ def _save_json(entries: list[dict]):
 
 
 def _apply_to_codex(entries: list[dict]):
-    """Write manual entries to codex.db manual_entries + rebuild status_summary rows."""
+    """DISABLED (Oct 2026). This replaced EVERY row of codex.db manual_entries with the old
+    codex_manual_entries.json -- which would wipe all review statuses, withdrawals and
+    clearances loaded since. Codex is written only by Codex Manager and the review scripts."""
+    return
     if not paths.CODEX_DB.exists():
         return
     conn = sqlite3.connect(str(paths.CODEX_DB))

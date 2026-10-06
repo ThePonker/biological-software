@@ -128,7 +128,7 @@ class ObservationFilterMixin:
         else:
             # Fallback to client-side filtering
             filtered = self._apply_filters(self._all_observations, filters)
-            self.table_model.set_observations_fast(observations)
+            self.table_model.set_observations_fast(filtered)
             if hasattr(self, '_connect_proxy_after_load'):
                 self._connect_proxy_after_load()
             species_count = self._count_species_with_exclusion(filtered)
@@ -184,7 +184,7 @@ class ObservationFilterMixin:
             traceback.print_exc()
             # Fallback to client-side
             filtered = self._apply_filters(self._all_observations, filters)
-            self.table_model.set_observations_fast(observations)
+            self.table_model.set_observations_fast(filtered)
             if hasattr(self, '_connect_proxy_after_load'):
                 self._connect_proxy_after_load()
 

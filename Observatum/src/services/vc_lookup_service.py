@@ -17,7 +17,7 @@ import re
 import sqlite3
 import paths
 from pathlib import Path
-from typing import Optional, Tuple, Dict, Any
+from typing import Optional, Tuple, Dict, Any, List
 
 
 class VCLookupService:

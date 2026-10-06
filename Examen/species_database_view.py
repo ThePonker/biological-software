@@ -157,8 +157,10 @@ class SpeciesDatabaseView(QWidget):
             "QPushButton { color: " + ACCENT + "; border: 1px solid " + ACCENT + "; "
             "padding: 4px 12px; border-radius: 3px; font-size: 11px; background: none; }"
             "QPushButton:hover { background: " + ACCENT_LIGHT + "; }")
-        self.manual_btn.clicked.connect(self._on_manual_entry)
-        self.status_group.layout().addWidget(self.manual_btn)
+        # "+ Add Manual Entry" removed (Oct 2026): its dialog emptied codex.db manual_entries,
+        # which now holds every review status. Statuses come from review loads and the
+        # withdraw / clear tools (scripts/), never from here.
+        self.manual_btn.hide()
         self.pl.addWidget(self.status_group)
         self.status_group.hide()
 
