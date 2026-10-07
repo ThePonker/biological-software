@@ -164,7 +164,13 @@ class SpeciesSearch(QWidget):
             svc = get_search_service()
         if not svc:
             return
-        results = svc.search_species(search_term=text, limit=15, boost_recorded=True)
+        results = svc.search_species(search_term=text, limit=40, boost_recorded=True)
+        try:   # the Data Entry grid's ranking: "rut mac" -> Rutpela maculata first
+            from shared.species_rank import rank_matches
+            results = rank_matches(text, results or [])[:15]
+        except Exception as e:
+            print(f"[SpeciesSearch] ranking unavailable: {e}")
+            results = (results or [])[:15]
         if results:
             self._results = results
             self._show_popup(results)
