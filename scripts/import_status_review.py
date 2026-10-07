@@ -32,8 +32,8 @@ For every species the review assessed, under ONE review record:
     threat_iucn_legacy  cleared  }
 
 Every write, including every clear, goes into manual_entries, so a Codex
-rebuild re-applies the lot. build_codex_db.py must carry the matching fix
-(patch_codex_manual_apply.py) or a rebuild would reintroduce duplicates.
+rebuild re-applies the lot. build_codex_db.py carries the matching fix
+(patch_codex_manual_apply.py, already applied), so a rebuild does not duplicate them.
 
 Species accounts go to codex.db.species_profiles, one per species per review,
 keyed (tvk, review_id), with the review's citation. An import never touches
@@ -481,8 +481,7 @@ def main():
     if not a.apply:
         print("")
         print("  DRY RUN -- nothing has been changed.")
-        print("  Re-run with --apply to write. Apply patch_codex_manual_apply.py")
-        print("  first, or the next Codex rebuild would duplicate these statuses.")
+        print("  Re-run with --apply to write.")
         print("")
         codex.close()
         ob.close()
