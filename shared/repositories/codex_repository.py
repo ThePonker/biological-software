@@ -41,6 +41,15 @@ DB_PATH = paths.CODEX_DB
 PANTHEON_PATH = paths.PANTHEON_DB
 
 
+# species linked to a review by status or account -- the stored reviews.species_count
+# is only set by Codex Manager's import screen, so it reads 0 for most reviews
+_LIVE_SPECIES_COUNT = """(SELECT COUNT(*) FROM (
+        SELECT tvk FROM manual_entries m WHERE m.review_id = reviews.id
+        UNION
+        SELECT COALESCE(tvk, species_name) FROM species_profiles p
+        WHERE p.review_id = reviews.id))"""
+
+
 class AnalysisMode(Enum):
     CODEX_FULL = "codex_full"
     PANTHEON_ONLY = "pantheon_only"
@@ -676,7 +685,14 @@ class CodexRepository:
         """List all loaded reviews with metadata."""
         c = self._get_conn().cursor()
         try:
-            c.execute("""SELECT id, review_name, author, taxon_group,
+            try:
+                c.execute(f"""SELECT id, review_name, author, taxon_group,
+                                status_track, date_published, date_imported,
+                                source_file, {_LIVE_SPECIES_COUNT} AS species_count,
+                                supersedes_id, notes
+                         FROM reviews ORDER BY id""")
+            except sqlite3.OperationalError:      # old codex.db: stored count
+                c.execute("""SELECT id, review_name, author, taxon_group,
                                 status_track, date_published, date_imported,
                                 source_file, species_count, supersedes_id, notes
                          FROM reviews ORDER BY id""")
@@ -687,7 +703,14 @@ class CodexRepository:
     def get_review(self, review_id):
         c = self._get_conn().cursor()
         try:
-            c.execute("""SELECT id, review_name, author, taxon_group,
+            try:
+                c.execute(f"""SELECT id, review_name, author, taxon_group,
+                                status_track, date_published, date_imported,
+                                source_file, {_LIVE_SPECIES_COUNT} AS species_count,
+                                supersedes_id, notes
+                         FROM reviews WHERE id = ?""", (review_id,))
+            except sqlite3.OperationalError:      # old codex.db: stored count
+                c.execute("""SELECT id, review_name, author, taxon_group,
                                 status_track, date_published, date_imported,
                                 source_file, species_count, supersedes_id, notes
                          FROM reviews WHERE id = ?""", (review_id,))
