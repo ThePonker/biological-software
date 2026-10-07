@@ -1,6 +1,6 @@
 # Faults
 
-## Updated 6 October 2026
+## Updated 7 October 2026
 ## Open faults carry an action. Closed ones are kept in brief, because knowing
 ## what has already gone wrong is how the rules in `05` were earned.
 
@@ -30,6 +30,32 @@ No survey figure affected now. **Action:** a newer UKSI -- backlog F11, F13.
 97 connections, 13 read-only. Nothing in the code stops a view writing to Codex
 or UKSI; the Examen manual-entry route (closed below) is where that broke.
 **Action:** backlog D9.
+
+### F25. `uksi.synonyms` maps other species' old names to the wrong taxon — INVESTIGATE
+*Found 7 October 2026 by Lector testing (Lamia textor).* *Lamia sartor*, *Lamia
+sutor*, *Lamia titillator* and *Lamia rosenmulleri* all point at *Lamia textor*
+(NBNSYS0000011050). The first two are *Monochamus sartor* / *sutor*, which UKSI holds
+as their own taxa (NHMSYS0020704740 / …741). The genuine synonym *Cerambyx textor* is
+missing. It looks like old combinations were resolved at genus level rather than
+by each name's own recommended TVK. So far this is one example, not an audit.
+
+**Where the rows came from matters.** The live `uksi.db` (since 6 Oct) was built by
+`build_uksi_from_release.py`. Its `synonyms` table is the July 2025 NAMES sheet
+**plus every synonym carried over from the old extractor-built file**, remapped to
+current. So errors in the old table were inherited, and the same name may now
+point at two TVKs: the right one from NAMES and the wrong one carried over.
+
+**Who reads it:** the Codex TVK bridge (name route) and so `PantheonRepository` /
+Examen ecology; the stale-TVK refresh (`remap_record_tvks.py`, rebuild procedure);
+Lector `--synonyms`; the species search (finding a species by an old name). The
+NECR217 withdrawal fault below (closed) was the same failure through a different
+door.
+
+**Action:** backlog F14. Read-only diagnostics first (epithet mismatch, names
+mapping to more than one TVK, bridge and record exposure, NAMES sheet vs carried
+rows), counts before any change. The likely fix is a small change to the build
+script: carried rows yield to NAMES, and conflicts are reported. Then rebuild
+UKSI → Codex.
 
 ### F4. `build_pantheon_db.py` missing
 Same event. Pantheon has not been updated since 2017 v3.7.4, so this is insurance

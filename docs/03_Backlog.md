@@ -1,6 +1,6 @@
 # Backlog
 
-## Updated 6 October 2026
+## Updated 7 October 2026
 ## Check this before starting a session.
 
 ---
@@ -10,10 +10,11 @@
 | | Item | Size |
 |---|---|---|
 | 1 | **F11** — email Chris Raper (c.raper@nhm.ac.uk): the 24 British beetles the July 2025 UKSI flags redundant, and any copy newer than July 2025 | 10 min |
-| 2 | **G13** — your own accounts for the five survey key species with none: *Oligota apicata*, *Xysticus luctuosus*, *Liocyrtusa minuta*, *Chiasmia clathrata*, *Zophomyia temula* | ~1 hr |
-| 3 | **E16** — decide the SQI verdict wording | decision |
-| 4 | **D3** — merge `main` → `stable` | 15 minutes |
-| 5 | **I7–I9** — rainy-day hygiene from the 6 October analysis: dead code, silent errors, read-only connections | ~1 day |
+| 2 | **F14** — investigate `uksi.synonyms` mapping other species' old names to the wrong taxon (*Lamia sartor* → *L. textor*); read-only counts first — fault F25 | ~1 hr |
+| 3 | **G13** — your own accounts for the five survey key species with none: *Oligota apicata*, *Xysticus luctuosus*, *Liocyrtusa minuta*, *Chiasmia clathrata*, *Zophomyia temula* | ~1 hr |
+| 4 | **E16** — decide the SQI verdict wording | decision |
+| 5 | **D3** — merge `main` → `stable` | 15 minutes |
+| 6 | **I7–I9** — rainy-day hygiene from the 6 October analysis: dead code, silent errors, read-only connections | ~1 day |
 
 ---
 
@@ -322,6 +323,19 @@ the two Tachyporinae accounts moved with it.
 
 **F13. *Tetartopeus ciceronii* account.** Rove beetle review, no UKSI match until
 a release newer than July 2025. Load with `load_review.py --add-accounts` then.
+
+**F14. Wrong targets in `uksi.synonyms`** (fault F25). ~1 hr to diagnose, read-only:
+(1) every synonym whose epithet differs from its target's epithet *and* matches another
+current taxon in the same family (a differing epithet alone is not proof, e.g.
+*Ranunculus ficaria* → *Ficaria verna*); (2) synonym names mapped to more than one TVK;
+(3) of those, which came from the July NAMES sheet and which were carried over from
+the old file; (4) exposure: `codex.tvk_bridge` rows with `match_method = 'name'`
+using a flagged name, and any record re-keyed through one; (5) is *Cerambyx textor*
+in the NAMES sheet? Report counts, then choose: (A) fix `build_uksi_from_release.py`
+so carried rows yield to NAMES and conflicts are reported, then rebuild UKSI → Codex
+(preferred); (B) consumers filter flagged rows (Lector's stopgap, built in its own
+chat); (C) a `synonym_exclusions` list applied at build. Handover:
+project doc `claude/27_UKSI_Synonyms_Handover.md`.
 
 ---
 
