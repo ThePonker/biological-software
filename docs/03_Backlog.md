@@ -50,6 +50,47 @@ your place, which may annoy more than a periodic restart.
 and `''` on others for the same species. The sidebar now copes; the data is
 still inconsistent and any other query grouping on it would split the same way.
 
+
+**A8. Species photos linked to species and specimens — POTENTIAL, fact-finding
+only (7 October).** Nothing decided or built. Library: `OneDrive\Documents\Media`,
+44.3 GB (7,391 jpg/jpeg, plus 192 videos). Two trees carry species:
+- `Photos\Life\<taxonomic folders>\Genus species\Genus species - Common name N.jpg`
+  (field photos; very consistent; the species folder gives the name).
+- `Photos\Microscope Photos\<Order>\…\<Family>\…\Genus species D.month.YY.jpg`
+  (specimen photos; the date, e.g. `6.vi.21`, could link a photo to the one
+  specimen of that species and date, with ambiguous cases going to review).
+`All Other Photos` and `Originals` are not species photos. Seen in a 30-file sample:
+typos (`Perostichus`), annotations (`(1a)`), mixed `.JPG`/`.jpg`.
+
+Approach discussed: **no renaming and no TVKs in filenames** (TVKs change; see the
+6 Oct remap). Instead, a `photos` table in `observatum.db`: path relative to a
+photos root in `paths.py`, a content fingerprint so moved or renamed files
+re-link, a link to a specimen / observation / TVK, plus type, view, sex, date,
+credit and licence. TVKs are kept current by `remap_record_tvks.py`. A scanner
+registers files in place; uncertain matches go to a review list (lesson of F25).
+Shown in the species account, record detail, specimen dialog and Data Entry info
+panel, and later in Examen reports. The folder taxonomy no longer needs keeping
+current (e.g. Lymantriidae → Erebidae).
+
+**Open questions before any build:** where the library lives long term; backup
+(44 GB, currently OneDrive only, not on the `D:\` copy); stacked vs original
+microscope images; whether videos are in scope. **Estimate if built:** ~2 days
+(table, scanner, review list, viewer, Add photo button). After A1.
+
+**A8b. Photo intake ("inbox") — POTENTIAL, fact-finding only (7 October).** The
+safeguard for A8's naming dependence: names chosen from the UKSI pick list, not
+typed. Drop a day's camera files (birding trip, plants) into an Inbox folder; a
+screen shows thumbnails with each photo's date (and GPS, if the camera or phone
+records it); select one or several, pick the species with the same ranked search
+as Data Entry; the tool renames to the house convention, files into the `Life`
+tree and writes the photo card. Optional: create the observation record at the
+same time (date from the photo; grid ref and VC from GPS, or one site set for the
+batch), linking photo to record. Would also clear the unsorted `Originals` /
+"Photos To Do" folders over time. Never deletes: originals moved, not removed.
+**Estimate if built:** ~2–3 days on top of A8. Sources (7 Oct): the microscope
+camera (no location; photos link to specimens) and a Google Pixel 10 Pro (stores
+GPS in the photo when location saving is on). Location is a low priority: use it
+when present, never require it.
 ---
 
 ## B. Data Entry
