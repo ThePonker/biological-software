@@ -39,10 +39,6 @@ APPS = [
            "Codex", "#2d5016", "#e8f0e2"),
     AppDef("Curator", "Collection organiser", "mushroom.png",
            "Curator", "#4a7c59", "#e6f0ea"),
-    AppDef("Tabella", "Field entry workbook", "acorn.png",
-           "", "#b8860b", "#fdf4e3", special="tabella_workbook"),
-    AppDef("Generate Tabella", "Create new workbook", "acorn.png",
-           "", "#b8860b", "#fdf4e3", special="generate_workbook"),
     AppDef("Munia", "Capacity planner", "bat.png",
            "Munia", "#4a6580", "#e4ecf2"),
 ]

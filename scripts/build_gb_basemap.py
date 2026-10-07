@@ -1,10 +1,10 @@
 """Optional one-off: pre-build the GB OS-tile basemap so the Data Entry distribution map is
 instant on first use. Safe to run anytime; re-run after adding tiles by deleting the old PNG.
 
-    python build_gb_basemap.py
+    py -3.14 scripts\build_gb_basemap.py
 """
 import os, sys
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 try:
     import paths
     maps_dir = str(paths.MAPS_DIR)

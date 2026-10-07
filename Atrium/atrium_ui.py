@@ -273,7 +273,7 @@ class AtriumPanel(QWidget):
         al.addWidget(section)
 
         # Only the 5 main apps (exclude Generate Tabella and Codex from main list)
-        main_app_names = {"Observatum", "Curator", "Tabella", "Munia"}
+        main_app_names = {"Observatum", "Curator", "Munia"}   # Tabella retired 2026-10-07
         self._buttons = []
         for app in APPS:
             if app.name in main_app_names:
@@ -314,10 +314,6 @@ class AtriumPanel(QWidget):
         codex_btn.clicked.connect(self._on_codex)
         util_row.addWidget(codex_btn)
 
-        # Generate Workbook button
-        gen_btn = UtilityButton("Generate Workbook", TEXT_PRIMARY)
-        gen_btn.clicked.connect(self._on_generate)
-        util_row.addWidget(gen_btn)
 
         util_row.addStretch()
         ul.addLayout(util_row)
