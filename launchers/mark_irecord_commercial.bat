@@ -7,5 +7,5 @@ echo ========================================
 echo OBSERVATUM V2 - MARK iRECORD COMMERCIAL
 echo ========================================
 echo.
-python scripts/mark_irecord_commercial.py %*
+py -3.14 scripts/mark_irecord_commercial.py %*
 pause

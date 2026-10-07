@@ -6,5 +6,5 @@ echo ========================================
 echo BIOLOGICAL SOFTWARE - RESET INSECT COLLECTION
 echo ========================================
 echo.
-python scripts/reset_insect_collection.py %*
+py -3.14 scripts/reset_insect_collection.py %*
 pause

@@ -8,4 +8,4 @@ if not exist "paths.py" (
     exit /b 1
 )
 set "PYTHONPATH=%CD%;%CD%\Observatum"
-python -m src.main
+py -3.14 -m src.main

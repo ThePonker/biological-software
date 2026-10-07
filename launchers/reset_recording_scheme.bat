@@ -6,5 +6,5 @@ echo ========================================
 echo BIOLOGICAL SOFTWARE - RESET RECORDING SCHEME
 echo ========================================
 echo.
-python scripts/reset_recording_scheme.py %*
+py -3.14 scripts/reset_recording_scheme.py %*
 pause

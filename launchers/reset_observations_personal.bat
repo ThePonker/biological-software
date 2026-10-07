@@ -6,5 +6,5 @@ echo ========================================
 echo BIOLOGICAL SOFTWARE - RESET PERSONAL OBSERVATIONS
 echo ========================================
 echo.
-python scripts/reset_observations_personal.py %*
+py -3.14 scripts/reset_observations_personal.py %*
 pause

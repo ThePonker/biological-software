@@ -8,5 +8,5 @@ echo ========================================
 echo.
 echo This will DELETE all data and create empty tables.
 echo.
-python scripts/reset_database.py %*
+py -3.14 scripts/reset_database.py %*
 pause

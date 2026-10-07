@@ -6,5 +6,5 @@ echo ========================================
 echo TABELLA - CREATE FIELD ENTRY WORKBOOK
 echo ========================================
 echo.
-python -m Tabella.create_data_entry_workbook %*
+py -3.14 -m Tabella.create_data_entry_workbook %*
 pause
