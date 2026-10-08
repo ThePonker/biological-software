@@ -14,7 +14,7 @@
 | 3 | **G13** — your own accounts for the five survey key species with none: *Oligota apicata*, *Xysticus luctuosus*, *Liocyrtusa minuta*, *Chiasmia clathrata*, *Zophomyia temula* | ~1 hr |
 | 4 | **E16** — decide the SQI verdict wording | decision |
 | 5 | **D3** — merge `main` → `stable` | 15 minutes |
-| 5b | **B8** — warn in Data Entry before commit: blank site, grid ref or TVK, likely double entries (fault F28) | 0.5 day |
+| 5b | **B8** — built 8 Oct; test on the next restart: commit a job with a blank site and a doubled row, expect "Check before commit" | 5 min test |
 | 6 | **I7–I9** — rainy-day hygiene from the 6 October analysis: dead code, silent errors, read-only connections | ~1 day |
 
 ---
@@ -123,7 +123,10 @@ taxa, so matching on common names is not a fix (it would have found Cricket-Bat
 Willow). *8 Oct:* it went on to be **committed** (Bristol, "Cricket bat spid", no
 TVK); set by hand to *Mangora acalypha*. B8 would have stopped it.
 
-**B8. Warn before commit.** 0.5 day. Commit flags only a missing TVK or a future date. On 8 Oct five
+**B8. Warn before commit** — built 8 October, **awaiting a test** after restart.
+`commit_service.precommit_issues()` (pure; tested on the 8 Oct Alsager rows: 17 no site,
+31 no grid ref, 5 doubles) and a "Check before commit" box in `entry_grid._do_commit`,
+default "Go back and fix". Original note: 0.5 day. Commit flags only a missing TVK or a future date. On 8 Oct five
 commits carried 59 blank site names, 31 records with no trap or grid ref, a common
 name as a species and three doubled entries (fault F28). Show the same counts as
 `scripts\check_data_entry_batches.py` in the commit dialog, with the rows, before

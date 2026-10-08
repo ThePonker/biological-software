@@ -38,7 +38,7 @@ CHECKS = [   # label, SQL condition
                    "AND COALESCE(embargo_until,'') > date('now'))"),
     ("no project", "record_type='Commercial' AND " + BLANK("project_name")),
 ]
-DUP_KEY = ("species_name", "date", "grid_ref", "method", "trap_number", "sex", "stage")
+from DataEntry.commit_service import DOUBLE_KEY as DUP_KEY  # noqa: E402 -- one definition, shared with the pre-commit warning
 
 
 def main():

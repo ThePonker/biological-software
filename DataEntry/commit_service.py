@@ -77,6 +77,41 @@ def _eligibility(row: Dict) -> Optional[str]:
     return None
 
 
+# What makes two records "the same entry twice": every field below equal. Usually a
+# sex split typed with the sex left "Not recorded", or a block of sheet re-entered.
+# One definition, used here before commit and by scripts/check_data_entry_batches.py
+# after it (fault F28, 8 Oct 2026).
+DOUBLE_KEY = ("species_name", "date", "grid_ref", "method", "trap_number", "sex", "stage")
+
+
+def precommit_issues(rows) -> Dict[str, list]:
+    """What a commit would write with gaps or doubles in it (pure; backlog B8).
+
+    rows: staging rows in grid order (repo.fetch_rows). Only rows commit would write
+    (species and date present) are checked. Returns {issue: [grid row numbers]} for
+    'no site', 'no grid ref', 'no TVK', and 'double' (each later copy of a repeated
+    entry, with the row it repeats), leaving out issues with no rows.
+    """
+    issues = {"no site": [], "no grid ref": [], "no TVK": [], "double": []}
+    seen = {}
+    for n, row in enumerate(rows, start=1):
+        if _eligibility(row) is not None:
+            continue
+        blank = lambda k: not str(row.get(k) or "").strip()  # noqa: E731
+        if blank("site_name"):
+            issues["no site"].append(n)
+        if blank("grid_ref"):
+            issues["no grid ref"].append(n)
+        if blank("species_tvk"):
+            issues["no TVK"].append(n)
+        key = tuple(str(row.get(k) or "").strip().lower() for k in DOUBLE_KEY)
+        if key in seen:
+            issues["double"].append((n, seen[key]))
+        else:
+            seen[key] = n
+    return {k: v for k, v in issues.items() if v}
+
+
 def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
                observation_cls=None) -> Dict:
     """Write eligible staging rows into observations; delete the committed ones.

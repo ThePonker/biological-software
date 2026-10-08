@@ -110,8 +110,10 @@ none added since 6 Oct, so the tree is consistent today, but the next specimen
 added would sort out of place.
 **Re-keyed 8 Oct:** all 2,743 keys on the July 2025 numbering, 1752 included; 0 of
 2,742 changed tree position (`observatum_pre_rekey_*` in `reference\`).
-**Action still open:** fix `remap_record_tvks.py` to use the specimens' formula, not a
-guess, before the next UKSI update -- or the next update repeats both problems.
+**`remap_record_tvks.py` fixed 8 Oct:** specimens get the formula (imported); other
+tables get a key only where the row already had one and the table's format is
+unambiguous. 42 observations still hold a 50-character key from the 6 Oct remap in a
+table otherwise without keys -- harmless, left as they are.
 
 ### F28. Data Entry commits carried gaps
 *Found 8 October 2026* in the morning's five commits (1,136 records): 59 with no site
@@ -122,8 +124,9 @@ Commit flags only a missing TVK or a future date. All of those fixed the same mo
 Slade Green re-entries were deleted (Run 2); Elmley's ladybirds, *Philanthus*, *Tephritis*
 and *Odynerus* confirmed as genuine; three pairs with different quantities (*Kalama*,
 *Melanogaster*, *Margarinotus*) left as separate lines.
-**Action:** run `scripts\check_data_entry_batches.py` after every commit; a warning
-in Data Entry before commit -- backlog B8.
+**Action:** a warning before commit (B8, built 8 Oct -- to test on the next Observatum
+restart); `scripts\check_data_entry_batches.py` after commit. Both use one definition
+of a double entry, `DataEntry/commit_service.DOUBLE_KEY`.
 
 ### F4. `build_pantheon_db.py` missing
 Same event. Pantheon has not been updated since 2017 v3.7.4, so this is insurance

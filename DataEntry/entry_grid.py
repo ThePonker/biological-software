@@ -1476,6 +1476,8 @@ class EntryGridPage(QWidget):
         if self._model.real_count() == 0:
             QMessageBox.information(self, "Commit", "Nothing to commit yet.")
             return
+        if not self._confirm_precommit_issues(cs):
+            return
         embargo = None
         if self._is_commercial():
             dlg = EmbargoDialog(self)
@@ -1515,6 +1517,43 @@ class EntryGridPage(QWidget):
         if summary.get("committed"):
             self.committed.emit(int(summary["committed"]))
         self.finished.emit()
+
+    def _confirm_precommit_issues(self, cs) -> bool:
+        """Show gaps and doubles before commit (backlog B8). True = go ahead."""
+        try:
+            found = cs.precommit_issues(repo.fetch_rows(self._conn, self._job_id))
+        except Exception as e:  # a failed check must not block a commit silently
+            print(f"[DataEntry] pre-commit check skipped: {e}")
+            return True
+        if not found:
+            return True
+
+        def rows_text(v, limit=15):
+            shown = ", ".join(str(x) for x in v[:limit])
+            return shown + (f" \u2026 (+{len(v) - limit} more)" if len(v) > limit else "")
+
+        labels = {"no site": "no site name", "no grid ref": "no grid reference",
+                  "no TVK": "species not matched (no TVK)"}
+        lines = []
+        for key in ("no site", "no grid ref", "no TVK"):
+            if key in found:
+                v = found[key]
+                lines.append(f"\u2022 {len(v)} with {labels[key]}: rows {rows_text(v)}")
+        if "double" in found:
+            pairs = [f"{a} (= {b})" for a, b in found["double"]]
+            lines.append(f"\u2022 {len(pairs)} possible double entr{'y' if len(pairs) == 1 else 'ies'} "
+                         f"(same species, date, grid ref, method, trap, sex and stage): rows {rows_text(pairs, 10)}")
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setWindowTitle("Check before commit")
+        box.setText("Some rows would be committed with gaps or as doubles:")
+        box.setInformativeText("\n".join(lines) + "\n\nRow numbers are the grid's. Doubles can be genuine "
+                               "(separate lines on the sheet); gaps are easier to fix now than after commit.")
+        back = box.addButton("Go back and fix", QMessageBox.ButtonRole.RejectRole)
+        anyway = box.addButton("Commit anyway", QMessageBox.ButtonRole.AcceptRole)
+        box.setDefaultButton(back)
+        box.exec()
+        return box.clickedButton() is anyway
 
     def _do_export(self):
         from DataEntry import commit_service as cs

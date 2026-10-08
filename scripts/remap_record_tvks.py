@@ -22,6 +22,11 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 import paths
 
+try:   # the specimens' sort-key formula (backfill_sort_keys.py); imported, not restated
+    from Observatum.src.utils.constants import INSECT_ORDER_POSITION as ORDER_POSITION
+except ImportError:
+    ORDER_POSITION = None
+
 APPLY = "--apply" in sys.argv
 D = os.path.dirname(str(paths.UKSI_DB))
 
@@ -85,16 +90,36 @@ for tbl in ("observations", "specimens", "recording_scheme", "species_profiles")
     cols = [r[1] for r in o.execute(f"PRAGMA table_info({tbl})")]
     if "species_tvk" not in cols:
         continue
-    # sort key format in this table: the long sort_order code, or the sort_code number
+    # Sort key -- never guessed (fault F27, 8 Oct 2026). The old test ("every sampled
+    # key at most 7 digits -> sort_code, else sort_order") wrote UKSI's 50-character
+    # sort_order into specimen 1752 (specimen keys are 8 digits) and into 42
+    # observations (a table with no keys at all, so nothing to sample).
+    #   specimens     the specimens' own formula, imported, not restated:
+    #                 INSECT_ORDER_POSITION[order] * 1,000,000 + sort_code
+    #   other tables  only rows that already carry a key, and only when every sampled
+    #                 key is clearly one format; otherwise the key is left alone
     sk = None
     if "taxonomic_sort_key" in cols:
-        vals = [v for (v,) in o.execute(f"SELECT taxonomic_sort_key FROM {tbl} WHERE COALESCE(taxonomic_sort_key,'')!='' LIMIT 200")]
-        sk = "sort_code" if vals and all(re.fullmatch(r"\d{1,7}", str(v)) for v in vals) else "sort_order"
+        if tbl == "specimens":
+            sk = "specimen_formula" if ORDER_POSITION is not None else None
+            if sk is None:
+                print("  ! specimens: INSECT_ORDER_POSITION not importable -- sort keys left unchanged")
+        else:
+            vals = [str(v) for (v,) in o.execute(f"SELECT taxonomic_sort_key FROM {tbl} "
+                                                 "WHERE COALESCE(taxonomic_sort_key,'')!='' LIMIT 500")]
+            if vals and all(re.fullmatch(r"\d{1,7}", v) for v in vals):
+                sk = "sort_code"
+            elif vals and all(len(v) >= 20 and not v.isdigit() for v in vals):
+                sk = "sort_order"
+            elif vals:
+                print(f"  ! {tbl}: sort keys of mixed format -- left unchanged on remapped rows")
+    key_x = "taxonomic_sort_key" if "taxonomic_sort_key" in cols else "NULL"
     rows = list(o.execute(f"SELECT id, species_tvk, {'common_name' if 'common_name' in cols else 'NULL'}, "
-                          f"{'irecord_id' if 'irecord_id' in cols else 'NULL'} FROM {tbl} WHERE species_tvk IN "
+                          f"{'irecord_id' if 'irecord_id' in cols else 'NULL'}, {key_x}, "
+                          f"{'order_name' if 'order_name' in cols else 'NULL'} FROM {tbl} WHERE species_tvk IN "
                           f"({','.join('?' * len(remap))})", list(remap)))
     upd, skipped, by_pair, irec = [], [], Counter(), 0
-    for rid, old_t, cn, irid in rows:
+    for rid, old_t, cn, irid, old_key, old_order in rows:
         new_t = remap[old_t]; tx = taxa.get(new_t)
         if not tx:
             skipped.append((rid, old_t, "replacement not in taxa")); continue
@@ -104,7 +129,10 @@ for tbl in ("observations", "specimens", "recording_scheme", "species_profiles")
                 v[c] = tx.get(src) or ""
         if "subfamily" in cols:
             v["subfamily"] = subfamily(new_t)
-        if sk:
+        if sk == "specimen_formula" and tx.get("sort_code") is not None:
+            order = v.get("order_name") or old_order or tx.get("order")
+            v["taxonomic_sort_key"] = ORDER_POSITION.get(order, 99) * 1000000 + int(tx["sort_code"])
+        elif sk in ("sort_code", "sort_order") and old_key not in (None, "") and tx.get(sk) is not None:
             v["taxonomic_sort_key"] = tx.get(sk)
         if "common_name" in cols and (not cn or cn == oldpref.get(old_t)) and pref.get(new_t):
             v["common_name"] = pref[new_t]
