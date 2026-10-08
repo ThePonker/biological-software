@@ -69,6 +69,7 @@ class AssemblageTab(QWidget):
 
         self.summary = QLabel("")
         self.summary.setStyleSheet("color: " + TEXT_MUTED + "; font-size: 11px;")
+        self.summary.setWordWrap(True)
         layout.addWidget(self.summary)
 
     def set_result(self, result, ref_counts=None):
@@ -90,7 +91,7 @@ class AssemblageTab(QWidget):
 
         rows.sort(key=lambda x: -x[1])
         self.table.setRowCount(len(rows))
-        fc_count = 0
+        favourable = []      # (name, species, required) -- the verdict with its evidence (E10)
 
         for i, (name, count, sqi_r, pct_pool, threshold, ptt) in enumerate(rows):
             self.table.setItem(i, 0, QTableWidgetItem(name))
@@ -101,9 +102,14 @@ class AssemblageTab(QWidget):
                 sc = QTableWidgetItem(str(sqi_r.species_with_sqs)); sc.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.table.setItem(i, 2, sc)
                 sqi_text = str(int(sqi_r.sqi)) if sqi_r.sqi else "-"
-                if not sqi_r.reliable: sqi_text += "*"
                 si = QTableWidgetItem(sqi_text); si.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                if sqi_r.sqi >= 150: si.setForeground(QColor(MOSS_GREEN))
+                if sqi_r.sqi and not sqi_r.reliable:
+                    # Pantheon's red triangle: shown, and flagged (backlog E9)
+                    si.setText(sqi_text + " \u25b2")
+                    si.setForeground(QColor(RED_STATUS))
+                    si.setToolTip(f"Fewer than 15 scoring species ({sqi_r.species_with_sqs}): "
+                                  "Pantheon flags this SQI as unreliable")
+                elif sqi_r.sqi >= 150: si.setForeground(QColor(MOSS_GREEN))
                 elif sqi_r.sqi >= 125: si.setForeground(QColor(AMBER))
                 self.table.setItem(i, 3, si)
 
@@ -117,11 +123,14 @@ class AssemblageTab(QWidget):
                 ti = QTableWidgetItem(str(threshold)); ti.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.table.setItem(i, 5, ti)
                 ptt_item = QTableWidgetItem(f"{ptt}%"); ptt_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                if ptt >= 100:
+                if count >= threshold:
                     ptt_item.setForeground(QColor(MOSS_GREEN))
                     ptt_item.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
-                    fc_count += 1
-                elif ptt >= 75: ptt_item.setForeground(QColor(AMBER))
+                    favourable.append((name, count, threshold))
+                    ptt_item.setToolTip(f"Favourable ({count} species, {threshold} required)")
+                else:
+                    if ptt >= 75: ptt_item.setForeground(QColor(AMBER))
+                    ptt_item.setToolTip(f"Below Favourable ({count} species, {threshold} required)")
                 self.table.setItem(i, 6, ptt_item)
             else:
                 self.table.setItem(i, 5, QTableWidgetItem("-"))
@@ -130,5 +139,8 @@ class AssemblageTab(QWidget):
         self.table.resizeColumnsToContents()
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         summary = f"{len(rows)} SATs represented"
-        if fc_count: summary += f"  |  {fc_count} at Favourable Condition"
+        if favourable:
+            summary += (f"  |  {len(favourable)} at Favourable Condition: "
+                        + "; ".join(f"{n} ({c} species, {t} required)"
+                                    for n, c, t in favourable))
         self.summary.setText(summary)

@@ -274,12 +274,13 @@ fallback ("A spider"); explicit SQI scale labelling.
 status | % with status, including "all saproxylic beetles" as a row. Standard
 practice (EMG2 Table 2) and it shows where the interest sits.
 
-**E9. Low-sample warning on the figure.** Small. Pantheon's red triangle — show
-the SQI and flag it where the species count is under 15. Partly done: the habitat
-tree now withholds the index below threshold and shows the scoring count instead.
+**E9. Low-sample warning on the figure.** ✅ Done 8 Oct. A red ▲ with a tooltip on
+the Overview SQI card, the project table and the assemblage table (was an
+unexplained `*`); the habitat tree still withholds the index below threshold.
 
-**E10. "Favourable (97 species, 19 required)".** Small. State the verdict with
-its evidence, as Pantheon does.
+**E10. "Favourable (97 species, 19 required)".** ✅ Done 8 Oct. Assemblage tab: the
+verdict with its evidence on each PtT cell and in the summary line. Favourable now
+means species ≥ threshold; it was a rounded PtT ≥ 100%, which let 199 of 200 pass.
 
 **E11. Overview sentence punctuation** — ✅ **DONE** (26 September). Also the
 key-species card label, which read "of Pantheon species" when the figure is out
@@ -307,25 +308,29 @@ thresholds are contested. Options: remove the verdict; replace it with Telfer's
 sourced test (~10% Key, >1% Rare Key); or keep the bands with a stated source.
 Leaning to Telfer. See `06_Faults.md` F14.
 
-**E17. Appendix export to match the workbook.** Small. Both SQIs in the totals
-line; "(derived)" on derived scores; jurisdiction-named, legal-named status.
+**E17. Appendix export to match the workbook.** ✅ Done 8 Oct. Statuses through the
+workbook's `status_parts`/`status_cell` (other jurisdictions greyed), "(derived)",
+both SQIs, the SQI withheld below 15 scoring species. It no longer opens UKSI
+writable (it had its own sort query).
 
 **E18. Summary sheet presentation** — ✅ **DONE** (8 October). Survey and run
 dates dd/mm/yyyy, "Analysis mode" reads "Codex Full". Dates and mode labels now come
 from one place, `shared/display_format.py`, used by the workbook, the Site Analysis
 table and Examen's status bar (three copies before).
 
-**E19. "Taxonomic order" claimed but not delivered.** Small. The key species sheet
-says taxonomic order within each tier but sorts by SQS; the workbook appendix is
-key species then alphabetical. `appendix_export.py` already sorts taxonomically —
-reuse that rule.
+**E19. "Taxonomic order" claimed but not delivered.** ✅ Done 8 Oct. One rule,
+`examen_data.in_taxonomic_order`: insect order position × 1,000,000 + UKSI sort_code
+(Observatum's `compute_taxonomic_sort_key`, imported), other orders after the
+insects, no-TVK last. Key species sheet (within each tier), workbook appendix and
+the appendix export all use it. The on-screen Species tab is unchanged.
 
-**E20. Second SQI on the Overview.** Small. The screen shows one figure; the
-workbook shows both bases.
+**E20. Second SQI on the Overview.** ✅ Done 8 Oct. When any score was derived, the
+SQI card and the summary sentence give the Pantheon-scores-only figure too.
 
-**E21. Contributed records credited in the workbook.** ~10–15 min. A stamp line
-("includes 162 records contributed by J. Moore") and recorders named in the
-occurrence evidence.
+**E21. Contributed records credited in the workbook.** ✅ Done 8 Oct. Summary stamp:
+"Contributed records — 162 records contributed by Moore, J.; included in every
+figure". Occurrence evidence: "contributed by Moore, J." on species with
+contributed records.
 
 **E22. Cosmetic display items.** Parked 26 September: Conservation tab layout;
 record-detail profile preview width; the Project column's share of the table.
@@ -377,8 +382,8 @@ OGL v3.0) and set `reviews.licence` — survives rebuilds.
 TVK alone, the old way. `import_status_review.py` is now the one importer. Remove
 the tab's import or have it call the script.
 
-**F10. Importer dry-run message.** Trivial. Still says "apply
-`patch_codex_manual_apply.py` first" — long since done.
+**F10. Importer dry-run message.** ✅ Done — checked 8 Oct: the importer now
+says the patch is "already applied"; nothing left to change.
 
 **F11. UKSI questions for Chris Raper.** 10 minutes. (1) The July 2025 UKSI
 flags 24 British beetles redundant with no current replacement (*Bolitobius
@@ -480,7 +485,7 @@ Stats, mapping and iRecord never see contributed data.
 **K1. Contributed tab in Observatum.** ~20–30 min. Read-only browse by
 collaborator, project and batch.
 
-**K2. Credit in reports.** See E21.
+**K2. Credit in reports.** ✅ Done with E21 (8 Oct).
 
 ---
 
@@ -521,14 +526,35 @@ table is unused and its values are wrong -- delete it with this.) Three implemen
 highest-value item here:** a subtle disagreement produces *wrong vice-counties*,
 not a crash, and VC is derived rather than typed so nothing would question it.
 
+*I3 measured 8 Oct* (pyproj and the OS spec as oracle, on all 3,250 distinct grid refs
+in your records): `vc_lookup_service.parse_grid_ref` agrees with the spec on every one,
+and its letter table is right (only offshore squares missing). `Tabella/grid_ref.py` is
+archived. `grid_ref_service.to_coordinates()` is an unimplemented stub with no callers --
+delete. The real problems are VC in boundary squares (F29) and lat/long without the
+datum shift (F30):
+
+**I3b. VC by point-in-polygon at boundaries** (fault F29). ~0.5 day. Use the VC
+boundaries (`data/maps/vc_brc_wgs84.geojson`) for refs finer than 1 km whose 1 km square
+straddles a boundary; report "on a boundary" for a ref too coarse to decide. Then a
+read-only list of records whose stored VC disagrees, for your judgement.
+
+**I3c. One lat/long converter, and recompute the 3,332** (fault F30). ~1 hr + a dry
+run. The import wizard and `DataEntry/osgb.py` call `grid_converter_service` (or a
+shared function with the Helmert shift) instead of their own maths.
+
 **I4. Remove the stale wizard set.** Five files, ~1,700 lines. Only
 `species_match_report_dialog.py:398` still imports `RowStatus` from it.
 
 **I5. `ruff.toml` + pre-commit hook.** So the lint counts stop growing.
 
-**I6. Tests for the pure functions.** Grid-ref parsing, SQS derivation, date
-utils, VC lookup — cheap to cover, and exactly where the claimed bugs live. One
-test file currently covers ~105k lines.
+**I6. Tests for the pure functions.** ✅ Done 8 Oct — `tests/test_pure_functions.py`,
+102 tests, no database touched, under a second: date utils, SQS derivation (every
+rarity × threat × legacy combination stays on the 0/1/4/8/16/32 ladder), species
+ranking, sex summary, display format, Examen's taxonomic order, `precommit_issues` and `build_kwargs_from_row`,
+grid-ref parsing and the 1 km square, the specimen sort key. Run
+`py -3.14 -m pytest tests` (`pip install pytest` once) after touching any of them.
+Next candidates as they are touched: `grid_converter_service`, the import wizards'
+species matching (C4).
 
 **I7. Review silent errors.** 2–3 hours. 131 handlers that only `pass`; start
 with the import validation workers (26), where one could hide a record failing

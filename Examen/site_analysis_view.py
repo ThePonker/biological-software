@@ -296,9 +296,14 @@ class SiteAnalysisView(QWidget):
             put(i, 6, str(p.key_species_count), int(p.key_species_count or 0),
                 colour=RED_STATUS if (p.key_species_count or 0) > 0 else None)
             put(i, 7, f"{p.key_species_pct}%", float(p.key_species_pct or 0))
-            sq = (str(int(p.sqi)) if p.sqi > 0 else "-") + ("*" if p.sqi > 0 and not p.sqi_reliable else "")
+            # Pantheon's red triangle below 15 scoring species (backlog E9)
+            weak = p.sqi > 0 and not p.sqi_reliable
+            sq = (str(int(p.sqi)) if p.sqi > 0 else "-") + (" \u25b2" if weak else "")
             put(i, 8, sq, float(p.sqi or 0),
-                colour=MOSS_GREEN if p.sqi >= 150 else (AMBER if p.sqi >= 125 else None))
+                colour=RED_STATUS if weak else
+                MOSS_GREEN if p.sqi >= 150 else (AMBER if p.sqi >= 125 else None),
+                tip=(f"Fewer than 15 scoring species ({p.species_with_sqs}): "
+                     "Pantheon flags this SQI as unreliable") if weak else None)
             put(i, 9, f"{_dmy(p.first_date)} \u2013 {_dmy(p.last_date)}" if p.first_date else "",
                 p.first_date or "", centre=False)
         self.table.resizeColumnsToContents()
@@ -385,7 +390,8 @@ class SiteAnalysisView(QWidget):
     def _on_export_appendix(self):
         if not self._current_result: return
         from .appendix_export import export_appendix
-        export_appendix(self, self._current_site_name or "Site", self._current_result, self._current_detail)
+        export_appendix(self, self._current_site_name or "Site", self._current_result, self._current_detail,
+                        jurisdiction=getattr(self, "_jurisdiction", "England"))
 
     def _on_export_workbook(self):
         """Write the full assessment workbook.

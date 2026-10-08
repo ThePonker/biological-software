@@ -13,6 +13,7 @@ Tabella/output/
 # Python cruft
 __pycache__/
 *.pyc
+.pytest_cache/
 
 # Windows/OneDrive noise
 desktop.ini

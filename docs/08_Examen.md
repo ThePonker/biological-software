@@ -1,7 +1,7 @@
 # Examen
 
 ## Invertebrate assemblage assessment
-## Updated 6 October 2026
+## Updated 8 October 2026
 ## Supersedes `29_Examen_Revival_Assessment.md`, whose central finding was wrong,
 ## and the desktop portion of `08_Examen_Web_Design_Spec.md`.
 
@@ -261,9 +261,12 @@ a stated source. See `06_Faults.md` F14.
 
 **Then the PDF** — the document that actually gets attached to a report.
 
-Also open: E17–E22 in `03_Backlog.md` (Appendix export to match the workbook,
-Summary dates, the "taxonomic order" claim, second SQI on screen, contributed
-credit, cosmetics).
+Done 8 October: E9 (red ▲ on an SQI from under 15 scoring species, on the
+Overview, the project table and the assemblage table), E10 (Favourable Condition
+stated with its evidence), E17 (the appendix export matches the workbook), E18
+(dates and mode labels), E19 (taxonomic order, one rule: `examen_data.in_taxonomic_order`,
+the specimen collection's order × 1,000,000 + UKSI sort_code), E20 (both SQIs on the
+Overview), E21 (contributed records credited). Still open: E22 cosmetics.
 
 ---
 
@@ -353,4 +356,6 @@ heading, UKSI matching via the review importer's `resolve()`, a site-centre grid
 reference where none is given, VC derived, stage and method mapped, provenance on
 every row, `--replace` for a corrected file. Apply refuses on any unmatched name.
 
-Not yet built: a browsing tab (K1) and credit in the workbook stamp (E21).
+Credited in the workbook (E21, 8 Oct): a "Contributed records" line in the Summary
+stamp, and "contributed by …" in each species' occurrence evidence. Not yet built:
+a browsing tab (K1).

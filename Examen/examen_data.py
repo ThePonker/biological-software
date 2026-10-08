@@ -340,6 +340,48 @@ def load_taxonomy(tvks):
     return out
 
 
+# Sorts after every real key: species UKSI does not hold, and species with no TVK.
+UNSORTED = 10 ** 12
+
+
+def taxonomic_sort_keys(tvks):
+    """{tvk: key} for taxonomic order -- the specimen collection's rule (backlog E19).
+
+    Insect order in the conventional sequence, then UKSI's sort_code within the
+    order: Observatum's compute_taxonomic_sort_key, imported, not copied. Orders
+    outside the insect list (spiders, woodlice...) follow the insects, still in
+    UKSI order. TVKs UKSI does not hold are absent; sort them last with UNSORTED.
+    """
+    import paths
+    try:
+        from Observatum.src.utils.constants import compute_taxonomic_sort_key
+    except ImportError:  # pragma: no cover -- UKSI order alone
+        def compute_taxonomic_sort_key(_order, sort_code):
+            return sort_code or 0
+    tvks = [t for t in dict.fromkeys(tvks) if t]
+    if not tvks or not paths.UKSI_DB.exists():
+        return {}
+    out = {}
+    conn = sqlite3.connect(f"file:{paths.UKSI_DB}?mode=ro", uri=True)
+    try:
+        for i in range(0, len(tvks), 500):
+            batch = tvks[i:i + 500]
+            ph = ",".join("?" * len(batch))
+            for t, order, code in conn.execute(
+                    f'SELECT tvk, "order", sort_code FROM taxa WHERE tvk IN ({ph})', batch):
+                out[t] = compute_taxonomic_sort_key(order or "", code)
+    finally:
+        conn.close()
+    return out
+
+
+def in_taxonomic_order(items, tvk=lambda x: x.tvk, name=lambda x: x.name):
+    """items sorted taxonomically; anything without a key last, alphabetically."""
+    items = list(items)
+    keys = taxonomic_sort_keys([tvk(x) for x in items])
+    return sorted(items, key=lambda x: (keys.get(tvk(x), UNSORTED), (name(x) or "").lower()))
+
+
 def _build_species_list(species_rows, mode):
     """(species_list, biotope_counts, habitat_counts, tvks) from grouped rows."""
     tvk_map = {r[1]: (r[0], r[2]) for r in species_rows if r[1]}

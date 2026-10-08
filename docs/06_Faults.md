@@ -128,6 +128,30 @@ and *Odynerus* confirmed as genuine; three pairs with different quantities (*Kal
 restart); `scripts\check_data_entry_batches.py` after commit. Both use one definition
 of a double entry, `DataEntry/commit_service.DOUBLE_KEY`.
 
+### F29. Vice-county from a 1 km lookup is wrong in boundary squares
+*Found 8 October 2026 by the I3 grid-ref test.* `vc_lookup.db` gives each 1 km square
+one VC, and both Data Entry and the 26 Sep backfill derive VC through it. In a square
+that straddles a boundary, a record on the minority side gets the wrong VC. Measured:
+125 iRecord records (iRecord computes VC from the precise position) disagree with what
+the 1 km lookup would give -- 111 at 6-figure precision. Two cross the England/Wales
+line: **Highbury Wood (SO539092) and Cadora Woods (SO539069) are VC34
+Gloucestershire; the lookup says VC35 Monmouthshire** -- so a new Data Entry record
+there would be assessed under Welsh rules. Stored VCs are not touched (the backfill
+only fills blanks). **Action:** backlog I3b -- derive VC by point-in-polygon from the
+VC boundaries for references finer than 1 km in boundary squares; flag a square that
+straddles the boundary instead of choosing silently.
+
+### F30. Imported records' latitude/longitude ~110 m off
+*Found 8 October 2026 by the I3 test.* The import wizard's `_osgb36_to_wgs84` (and
+`DataEntry/osgb.lonlat_to_en`, its inverse) omit the OSGB36 → WGS84 datum shift: the
+result is OSGB36 latitude/longitude labelled WGS84. Measured against pyproj on all
+3,250 distinct grid refs: median 111 m, max 136 m. **3,332 records** imported through
+the wizard carry these coordinates; the 20,702 from iRecord are correct. No VC, SQI
+or export uses stored lat/long; maps plotted from it are ~110 m out, and Data Entry's
+VC boundary overlay is shifted the same way. `grid_converter_service` (the
+OSGridConverter library) does apply the shift. **Action:** backlog I3c -- one
+converter (import, not copy), then recompute the 3,332 (dry run first).
+
 ### F4. `build_pantheon_db.py` missing
 Same event. Pantheon has not been updated since 2017 v3.7.4, so this is insurance
 rather than need. **Action:** backlog D5.

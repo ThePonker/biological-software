@@ -135,6 +135,15 @@ def _taxon(k):
     return _TAX_CACHE.get(tvk, {})
 
 
+def _in_taxonomic_order(items, tvk=lambda x: x.tvk, name=lambda x: x.name):
+    """examen_data.in_taxonomic_order -- one sort rule for the screen and every export."""
+    try:
+        from Examen.examen_data import in_taxonomic_order
+    except ImportError:
+        from examen_data import in_taxonomic_order
+    return in_taxonomic_order(items, tvk, name)
+
+
 def _sqi_value(s):
     """SQI number from an SQIResult, tolerating field-name differences."""
     if s is None:
@@ -396,27 +405,63 @@ def _profiles(tvks):
     return out
 
 
+def _survey_where(project_name, client="", survey_year=None):
+    """WHERE clause and params for one survey's records in assessment_records."""
+    where = "record_type='Commercial' AND project_name=?"
+    params = [project_name]
+    if client:
+        where += " AND client=?"
+        params.append(client)
+    if survey_year:
+        where += " AND substr(date,1,4)=?"
+        params.append(str(survey_year))
+    return where, params
+
+
+def _contributions(project_name, client="", survey_year=None):
+    """[(contributor, records)] for the survey's contributed records (backlog E21)."""
+    if not project_name:
+        return []
+    where, params = _survey_where(project_name, client, survey_year)
+    try:
+        c = sqlite3.connect(f"file:{paths.OBSERVATUM_DB}?mode=ro", uri=True)
+        rows = c.execute(
+            f"""SELECT contributor, COUNT(1) FROM assessment_records
+                WHERE {where} AND origin='contributed'
+                GROUP BY contributor ORDER BY 2 DESC, 1""", params).fetchall()
+        c.close()
+    except sqlite3.Error:
+        return []
+    return [(who or "unnamed contributor", n) for who, n in rows]
+
+
+def _contribution_line(contributions):
+    """'162 records contributed by Moore, J.' -- or '' when there are none."""
+    if not contributions:
+        return ""
+    total = sum(n for _, n in contributions)
+    names = ", ".join(f"{who} ({n:,})" if len(contributions) > 1 else who
+                      for who, n in contributions)
+    return (f"{total:,} record{'s' if total != 1 else ''} contributed by {names}; "
+            "included in every figure")
+
+
 def _occurrences(tvks, project_name, client="", survey_year=None):
     """{tvk: 'Recorded from <sites> in <months>.'} generated from the records.
 
     The reusable profile is stored; the site-specific sentence is generated,
     because it differs per assessment. Published accounts always close with one.
+    A species with contributed records names the contributor (backlog E21).
     """
     if not tvks:
         return {}
     out = {}
+    where, params = _survey_where(project_name, client, survey_year)
     try:
         c = sqlite3.connect(f"file:{paths.OBSERVATUM_DB}?mode=ro", uri=True)
-        where = "record_type='Commercial' AND project_name=?"
-        params = [project_name]
-        if client:
-            where += " AND client=?"
-            params.append(client)
-        if survey_year:
-            where += " AND substr(date,1,4)=?"
-            params.append(str(survey_year))
         rows = c.execute(
-            f"""SELECT species_tvk, site_name, sub_location, date, quantity
+            f"""SELECT species_tvk, site_name, sub_location, date, quantity,
+                       CASE WHEN origin='contributed' THEN COALESCE(contributor, '?') END
                 FROM assessment_records WHERE {where} AND species_tvk IS NOT NULL""",
             params).fetchall()
         c.close()
@@ -426,10 +471,13 @@ def _occurrences(tvks, project_name, client="", survey_year=None):
     MONTHS = ["January", "February", "March", "April", "May", "June", "July",
               "August", "September", "October", "November", "December"]
     grouped = {}
-    for tvk, site, sub, dt, qty in rows:
+    for tvk, site, sub, dt, qty, contributor in rows:
         if tvk not in tvks:
             continue
-        g = grouped.setdefault(tvk, {"places": set(), "months": set(), "n": 0})
+        g = grouped.setdefault(tvk, {"places": set(), "months": set(), "n": 0,
+                                     "by": set()})
+        if contributor:
+            g["by"].add(contributor)
         place = (sub or site or "").strip()
         if place:
             g["places"].add(place)
@@ -452,6 +500,8 @@ def _occurrences(tvks, project_name, client="", survey_year=None):
                         + (" and elsewhere" if len(places) > 4 else ""))
         if months:
             bits.append(", ".join(months))
+        if g["by"]:
+            bits.append("contributed by " + ", ".join(sorted(g["by"])))
         out[tvk] = "  \u00b7  ".join(bits)
     return out
 
@@ -655,8 +705,10 @@ def _sheet_key_species(wb, result, project, stamp):
     occurrences = _occurrences(tvks, stamp["project_name"], stamp["client"],
                                stamp["survey_year"])
 
-    ordered = ([k for k in keys if telfer_tier(k) == "rare"]
-               + [k for k in keys if telfer_tier(k) != "rare"])
+    # Taxonomic order within each tier, as the subtitle says (backlog E19).
+    _tax = lambda ks: _in_taxonomic_order(ks, name=lambda k: k.species_name)  # noqa: E731
+    ordered = (_tax(k for k in keys if telfer_tier(k) == "rare")
+               + _tax(k for k in keys if telfer_tier(k) != "rare"))
 
     for k in ordered:
         tier = "Rare Key" if telfer_tier(k) == "rare" else "Scarce Key"
@@ -695,7 +747,8 @@ def _sheet_key_species(wb, result, project, stamp):
 def _sheet_appendix(wb, detail, result, stamp):
     ws = wb.create_sheet("Species appendix")
     r = _title(ws, "Species appendix",
-               "All species recorded. Key species carry a conservation status.")
+               "All species recorded, in taxonomic order. Key species carry a "
+               "conservation status.")
 
     r = _header(ws, r,
                 ["Order", "Family", "Species", "Common name",
@@ -704,7 +757,8 @@ def _sheet_appendix(wb, detail, result, stamp):
                 [16, 20, 28, 22, 24, 6, 22, 26, 9])
 
     key_by_tvk = {k.tvk: k for k in result.key_species if k.tvk}
-    species = list(getattr(detail, "species_list", []) or [])
+    # Taxonomic order; species without a TVK last, so the exclusion shows (E19).
+    species = _in_taxonomic_order(getattr(detail, "species_list", []) or [])
     no_tvk = 0
     scoring = 0
     sqs_total = 0
@@ -976,6 +1030,7 @@ def export_workbook(result, detail, project, path,
     client = getattr(project, "client", "") or getattr(site, "client", "")
 
     title = f"{name}{f' — {year}' if year else ''}{f' — {client}' if client else ''}"
+    contributed = _contributions(name, client, None if pooled_years else (year or None))
     stamp = {
         "title": title,
         "project_name": name,
@@ -989,6 +1044,8 @@ def export_workbook(result, detail, project, path,
             ("Visits", getattr(site, "visit_count", "")),
             ("Sites", ", ".join(getattr(project, "site_names", []) or []) or
                       getattr(site, "site_name", "")),
+        ] + ([("Contributed records", _contribution_line(contributed))]
+             if contributed else []) + [
             ("Survey scope", "all years pooled" if pooled_years
                              else f"survey year {year}" if year else "all records"),
             ("Analysis mode", mode_label(getattr(result, "mode", ""))),

@@ -92,10 +92,23 @@ class OverviewTab(QWidget):
         sqi_val = str(int(sqi.sqi)) if sqi and sqi.sqi else "-"
         sqi_reliable = sqi and sqi.reliable
 
-        # Hero cards
-        self._update_hero(self.sqi_card, sqi_val,
-                          "Reliable" if sqi_reliable else "< 15 scoring spp",
+        # The second basis (backlog E20): when any score was derived from current
+        # status, the workbook gives both SQIs -- so does the screen.
+        pub = getattr(result, "overall_sqi_published", None)
+        pub_val = (str(int(pub.sqi)) if pub is not None and pub.sqi
+                   and getattr(result, "derived_sqs_tvks", None) else "")
+
+        # Hero cards. Below 15 scoring species Pantheon flags the SQI with a red
+        # triangle; the figure is still shown, with the flag (backlog E9).
+        sub = "Reliable" if sqi_reliable else "\u25b2 fewer than 15 scoring species"
+        if pub_val:
+            sub += f"\nPantheon scores only: {pub_val}"
+        self._update_hero(self.sqi_card, sqi_val, sub,
                           self._sqi_colour(sqi.sqi if sqi else 0))
+        hs = self.sqi_card.findChild(QLabel, "hero_sub")
+        if hs:
+            hs.setStyleSheet("color: " + (TEXT_MUTED if sqi_reliable else RED_STATUS)
+                             + "; border: none; background: none;")
         self._update_hero(self.key_card,
                           str(result.key_species_count),
                           f"{result.key_species_pct}% of species recorded",
@@ -118,7 +131,8 @@ class OverviewTab(QWidget):
         ]
         sqi_text = f"SQI {sqi_val}"
         if sqi_reliable:
-            sqi_text += " (reliable)"
+            sqi_text += (f" (reliable; {pub_val} on Pantheon's published scores only)"
+                         if pub_val else " (reliable)")
         else:
             sqi_text += " (fewer than 15 scoring species \u2014 treat with caution)"
         sentences.append(sqi_text)

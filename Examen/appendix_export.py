@@ -3,16 +3,18 @@ Examen - Species Appendix Export
 
 Generates the standard invertebrate survey appendix as Excel (.xlsx).
 Columns: Species Name, Common Name, Conservation Status, SQS, Tier,
-Broad Biotope, Habitat, Family, Order. Sorted by taxonomic_sort_key.
-Key species grouped at top. Summary row at bottom.
+Broad Biotope, Habitat, Family, Order. Key species grouped at top, each group
+in taxonomic order (examen_data.in_taxonomic_order, the workbook's rule).
+Summary row at bottom.
+
+Matches the workbook (backlog E17): statuses named for the jurisdiction, other
+jurisdictions' designations greyed; "(derived)" on a score derived from current
+status; both SQIs in the totals when any score was derived.
 
 Requires openpyxl.
 """
 
-import sqlite3
-from pathlib import Path
 from PySide6.QtWidgets import QFileDialog, QMessageBox
-import paths
 
 try:
     from openpyxl import Workbook
@@ -31,30 +33,14 @@ HEADER_BG = "5A4D78"
 KEY_BG = "F0EDF5"
 
 
-def _get_sort_keys(tvks: list[str]) -> dict[str, int]:
-    """Look up taxonomic_sort_key for each TVK from UKSI."""
-    if not tvks or not paths.UKSI_DB.exists():
-        return {}
-    conn = sqlite3.connect(str(paths.UKSI_DB))
-    c = conn.cursor()
-    result = {}
-    for i in range(0, len(tvks), 500):
-        batch = tvks[i:i+500]
-        ph = ",".join("?" * len(batch))
-        c.execute(f"SELECT tvk, sort_code FROM taxa WHERE tvk IN ({ph})", batch)
-        for row in c.fetchall():
-            result[row[0]] = row[1] or 999999
-    conn.close()
-    return result
-
-
 def _get_taxonomy(tvks: list[str]) -> dict[str, dict]:
     """Look up common_name, family, order for each TVK -- via examen_data.load_taxonomy."""
     from .examen_data import load_taxonomy
     return load_taxonomy(list(tvks or []))
 
 
-def export_appendix(parent_widget, site_name: str, result, detail=None):
+def export_appendix(parent_widget, site_name: str, result, detail=None,
+                    jurisdiction="England"):
     """Export species appendix to Excel.
 
     Args:
@@ -62,7 +48,10 @@ def export_appendix(parent_widget, site_name: str, result, detail=None):
         site_name: Site name for filename default
         result: AnalysisResult from PantheonAnalysisService
         detail: Optional SiteDetail with full species list
+        jurisdiction: whose designations apply; others are greyed, as in the workbook
     """
+    from .examen_data import in_taxonomic_order
+    from .workbook_export import _parts_from_string, _sqi_cell, status_cell, status_parts
     if not HAS_OPENPYXL:
         QMessageBox.warning(parent_widget, "Examen",
                             "openpyxl required for Excel export.\npip install openpyxl")
@@ -85,13 +74,17 @@ def export_appendix(parent_widget, site_name: str, result, detail=None):
                 all_tvks.append(sp.tvk)
                 non_key_species.append(sp)
 
-    sort_keys = _get_sort_keys(all_tvks)
     taxonomy = _get_taxonomy(all_tvks)
+    derived = getattr(result, "derived_sqs_tvks", set()) or set()
 
-    # Sort key species by taxonomic order
-    key_sorted = sorted(result.key_species, key=lambda k: sort_keys.get(k.tvk, 999999))
-    # Sort non-key by taxonomic order
-    non_key_sorted = sorted(non_key_species, key=lambda s: sort_keys.get(s.tvk, 999999))
+    def sqs_cell(tvk, sqs):
+        if not sqs:
+            return ""
+        return f"{sqs} (derived)" if tvk in derived else sqs
+
+    # Taxonomic order within each group -- one rule, shared with the workbook
+    key_sorted = in_taxonomic_order(result.key_species, name=lambda k: k.species_name)
+    non_key_sorted = in_taxonomic_order(non_key_species)
 
     # Build workbook
     wb = Workbook()
@@ -133,8 +126,9 @@ def export_appendix(parent_widget, site_name: str, result, detail=None):
     if key_sorted:
         for k in key_sorted:
             tax = taxonomy.get(k.tvk, {})
-            values = [k.species_name, tax.get("common", ""), k.status_display or k.short_status,
-                      k.sqs if k.sqs else "", k.tier, k.broad_biotope, k.habitat,
+            values = [k.species_name, tax.get("common", ""),
+                      status_cell(status_parts(k, jurisdiction), jurisdiction),
+                      sqs_cell(k.tvk, k.sqs), k.tier, k.broad_biotope, k.habitat,
                       k.family or tax.get("family", ""), tax.get("order", "")]
             for col, val in enumerate(values, 1):
                 cell = ws.cell(row=row, column=col, value=val)
@@ -155,7 +149,9 @@ def export_appendix(parent_widget, site_name: str, result, detail=None):
     # Non-key species
     for sp in non_key_sorted:
         tax = taxonomy.get(sp.tvk, {})
-        values = [sp.name, tax.get("common", ""), getattr(sp, "status_full", "") or sp.status or "", sp.sqs if sp.sqs else "",
+        status = status_cell(_parts_from_string(
+            getattr(sp, "status_full", "") or sp.status or "", jurisdiction), jurisdiction)
+        values = [sp.name, tax.get("common", ""), status, sqs_cell(sp.tvk, sp.sqs),
                   "", sp.broad_biotope or "", sp.habitat or "",
                   tax.get("family", ""), tax.get("order", "")]
         for col, val in enumerate(values, 1):
@@ -175,8 +171,20 @@ def export_appendix(parent_widget, site_name: str, result, detail=None):
     ws.cell(row=row, column=5, value=f"{len(key_sorted)} key").font = summary_font
     sqi = result.overall_sqi
     if sqi and sqi.sqi:
-        ws.cell(row=row, column=4, value=f"SQI: {int(sqi.sqi)}").font = summary_font
+        ws.cell(row=row, column=4, value=f"SQI: {_sqi_cell(sqi)}").font = summary_font
     ws.cell(row=row, column=6, value=f"R:{result.rare_count} S:{result.scarce_count} P:{result.priority_count}").font = summary_font
+    pub = getattr(result, "overall_sqi_published", None)
+    if derived and pub is not None:
+        row += 1
+        ws.cell(row=row, column=4, value=f"SQI on Pantheon scores only: {_sqi_cell(pub)}").font = summary_font
+        ws.cell(row=row, column=6, value=f"{len(derived)} score(s) derived from current status "
+                                         "by Pantheon's published rule").font = Font(
+            name="Arial", size=9, italic=True)
+    if jurisdiction:
+        row += 1
+        ws.cell(row=row, column=1, value=f"Statuses as they apply in {jurisdiction}; "
+                                         "other jurisdictions' designations in grey.").font = Font(
+            name="Arial", size=9, italic=True)
 
     ws.freeze_panes = "A4"
 
