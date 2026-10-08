@@ -16,6 +16,7 @@ from PySide6.QtCore import Qt, QSortFilterProxyModel, QSettings, QThread, Signal
 from .scheme_toolbar import SchemeToolbar
 from .scheme_filter_bar import SchemeFilterBar
 from .scheme_record_model import SchemeRecordModel
+from ..components import tick_column
 from .scheme_data_worker import SchemeDataWorker
 from ..dialogs import SchemeRecordDetailDialog  # CHANGED: moved to dialogs folder
 from ..dialogs.scheme_import_wizard import SchemeImportWizard
@@ -224,6 +225,7 @@ class RecordingSchemeTab(QWidget):
         # Connect table double-click to show detail dialog
         self.table_view.doubleClicked.connect(self._on_row_double_clicked)
         self.table_view.viewport().setCursor(Qt.CursorShape.PointingHandCursor)
+        tick_column.install(self.table_view, "accent_scheme")   # one tick style, click anywhere
         self.toolbar.import_requested.connect(self._on_import_requested)
         self.toolbar.columns_requested.connect(self._on_columns_requested)
         self.toolbar.export_requested.connect(self._on_export_all)
@@ -664,22 +666,28 @@ class RecordingSchemeTab(QWidget):
         self._export_rs_records(rows, "Export Recording Scheme")
 
     def _on_export_selected(self):
-        """Export selected recording scheme records to CSV."""
-        selection = self.table_view.selectionModel().selectedRows()
-        if not selection:
-            from PySide6.QtWidgets import QMessageBox
-            QMessageBox.information(self, "No Selection", "No rows selected for export.")
-            return
+        """Export the ticked recording scheme records to CSV (or the highlighted row if none)."""
         from ..models.database import get_database
         db = get_database()
         if not db:
             return
         ids = []
+        # Ticked rows are source-model rows, so no proxy mapping is needed (9 Oct 2026:
+        # this used the single highlighted row and ignored the ticks)
+        for row in self.table_model.get_checked_rows():
+            row_data = self.table_model.get_record_at_row(row)
+            if row_data and 'id' in row_data:
+                ids.append(row_data['id'])
+        selection = [] if ids else self.table_view.selectionModel().selectedRows()
+        if not ids and not selection:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.information(self, "No Selection", "Tick at least one row to export.")
+            return
         for index in selection:
             # The view shows sort_proxy once connected; mapping through a non-existent
             # proxy_model exported the wrong rows whenever the table was sorted (8 Oct 2026)
             source_index = self.sort_proxy.mapToSource(index) if self._proxy_connected else index
-            row_data = self.table_model.get_row_data(source_index.row())
+            row_data = self.table_model.get_record_at_row(source_index.row())
             if row_data and 'id' in row_data:
                 ids.append(row_data['id'])
         if not ids:

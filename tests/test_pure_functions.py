@@ -392,8 +392,9 @@ def _spec_conn():
 def test_drawer_assign_order_tree_and_plan():
     import pytest as _pt
     from shared import drawer_assign as da
+    from shared.checklist_order import Checklist
     conn = _spec_conn()
-    specs = da.load_specimens(conn)
+    specs = da.load_specimens(conn, checklist=Checklist())           # no checklist: UKSI order
     assert [s["id"] for s in specs] == [2, 3, 1, 4]                  # taxonomic order
     assert da.tree(specs) == [("Coleoptera", [("Carabidae", [("Carabus", 2), ("Nebria", 1)])]),
                               ("Diptera", [("Syrphidae", [("Syrphus", 1)])])]
@@ -413,3 +414,40 @@ def test_drawer_assign_order_tree_and_plan():
         da.apply(conn, ch)                                               # stale plan refused
     with _pt.raises(ValueError):
         da.apply(conn, [(4, "species_name", "", "x")])                   # not curatorial
+
+
+# ---------------------------------------------------------------- shared/checklist_order
+def _cl_specs():
+    # UKSI order: genera alphabetical within Carabidae (Abax, Bembidion, Carabus, Nebria)
+    names = [("Abax parallelepipedus", "Carabidae"), ("Bembidion lampros", "Carabidae"),
+             ("Carabus violaceus", "Carabidae"), ("Carabus nemoralis", "Carabidae"),
+             ("Carabus nemoralis", "Carabidae"), ("Nebria brevicollis", "Carabidae"),
+             ("Zabrus tenebrioides", "Carabidae"),
+             ("Agapanthia villosoviridescens", "Cerambycidae"), ("Rhagium mordax", "Cerambycidae")]
+    return [{"id": i, "species_name": n, "family": f, "order_name": "Coleoptera",
+             "genus": n.split()[0]} for i, (n, f) in enumerate(names, 1)]
+
+
+def test_checklist_order_within_family_only(tmp_path):
+    from shared import checklist_order as co
+    (tmp_path / "coleoptera.csv").write_text(
+        "family,genus,species\n"
+        "Carabidae,Carabus,\n"
+        "Carabidae,Carabus,nemoralis\n"
+        "Carabidae,Carabus,Carabus violaceus\n"
+        "Carabidae,,Nebria brevicollis\n"          # genus taken from the species
+        "Carabidae,Bembidion,\n"
+        "Carabidae,Pterostichus,\n"
+        "Carabidae,Abax,\n", encoding="utf-8")
+    cl = co.load(str(tmp_path))
+    out = [s["id"] for s in co.reorder(_cl_specs(), cl)]
+    # Carabus (nemoralis x2 before violaceus), Nebria, Bembidion, Abax; Zabrus unlisted -> last;
+    # Cerambycidae has no checklist -> UKSI order kept, and family order kept
+    assert out == [4, 5, 3, 6, 2, 1, 7, 8, 9]
+
+
+def test_checklist_order_without_a_checklist_changes_nothing(tmp_path):
+    from shared import checklist_order as co
+    specs = _cl_specs()
+    assert co.reorder(specs, co.load(str(tmp_path / "missing"))) == specs
+    assert co._binomial("Bembidion (Peryphus) tetracolum  agg.") == "bembidion tetracolum"

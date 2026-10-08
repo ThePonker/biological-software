@@ -4,7 +4,7 @@ The "drawer in hand" workflow: take a drawer out, tick each specimen in it, writ
 storage location and drawer onto those specimens -- plus, optionally, condition and
 preparation type where they are empty. Curator plans layouts; this records what is.
 
-    specs = load_specimens(conn)                   # taxonomic order, genus derived
+    specs = load_specimens(conn)                   # checklist order, genus derived
     changes = plan(specs, ticked_ids, storage="Cabinet 2", drawer="Drawer 1",
                    condition="Good")               # [(id, field, before, after)]
     apply(conn, changes)                           # one transaction
@@ -33,8 +33,11 @@ def _blank(v) -> bool:
     return not str(v or "").strip()
 
 
-def load_specimens(conn: sqlite3.Connection) -> List[Dict]:
-    """Every specimen, in taxonomic order, with genus derived from the name."""
+def load_specimens(conn: sqlite3.Connection, checklist=None) -> List[Dict]:
+    """Every specimen, in taxonomic order, with genus derived from the name.
+
+    UKSI order, then re-sorted within each family a checklist covers (shared/checklists),
+    so a drawer of Carabidae runs Carabus, Cychrus, Leistus... as it is laid out."""
     cur = conn.cursor()
     cur.row_factory = sqlite3.Row          # this query only; the caller's connection is untouched
     rows = cur.execute(
@@ -49,7 +52,8 @@ def load_specimens(conn: sqlite3.Connection) -> List[Dict]:
         d = dict(r)
         d["genus"] = genus_of(d["species_name"])
         out.append(d)
-    return out
+    from shared import checklist_order
+    return checklist_order.reorder(out, checklist)
 
 
 def tree(specs: Iterable[Dict]) -> List[Tuple[str, List[Tuple[str, List[Tuple[str, int]]]]]]:

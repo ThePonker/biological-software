@@ -17,6 +17,7 @@ from .loading_dialog import LoadingDialog
 from .observation_filter_bar import ObservationFilterBar
 from ..components.filter_wizard import FilterWizard
 from .observation_table_model import ObservationTableModel
+from ..components import tick_column
 from .observation_filter_mixin import ObservationFilterMixin
 from .observation_export_mixin import ObservationExportMixin
 from .observation_detail_mixin import ObservationDetailMixin
@@ -301,6 +302,7 @@ class ObservationTab(
         # Table signals
         self.table_view.doubleClicked.connect(self._on_row_double_clicked)
         self.table_view.viewport().setCursor(Qt.CursorShape.PointingHandCursor)
+        tick_column.install(self.table_view, "accent_observations")   # one tick style, click anywhere
 
         # Import signal
         self.toolbar.import_requested.connect(self._on_import_requested)

@@ -14,6 +14,7 @@ from ...themes import theme
 from ...core.config import TabColors
 from ...utils.date_utils import format_date_display
 from ...services.vc_lookup_service import VCLookupService
+from ..components import tick_column
 
 # Custom role for sortable date values
 DATE_SORT_ROLE = Qt.ItemDataRole.UserRole + 100
@@ -328,7 +329,7 @@ class ObservationTableModel(QAbstractTableModel):
 
         if col_key == 'checkbox' and role == Qt.ItemDataRole.CheckStateRole:
             row = index.row()
-            if value == Qt.CheckState.Checked or value == Qt.CheckState.Checked.value:
+            if tick_column.is_checked(value):
                 self._checked.add(row)
             else:
                 self._checked.discard(row)
@@ -345,8 +346,8 @@ class ObservationTableModel(QAbstractTableModel):
         col_key = self._columns[index.column()][0]
         base_flags = Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
 
-        if col_key == 'checkbox':
-            return base_flags | Qt.ItemFlag.ItemIsUserCheckable
+        # Not ItemIsUserCheckable: tick_column toggles on a click anywhere in the cell,
+        # and Qt toggling it too would undo that click. The box is still drawn.
 
         return base_flags
 

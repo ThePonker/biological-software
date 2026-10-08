@@ -13,6 +13,7 @@ from PySide6.QtGui import QColor, QFont
 from ...themes import theme
 from ...utils.date_utils import format_date_display
 from ...services.vc_lookup_service import VCLookupService
+from ..components import tick_column
 
 
 class SchemeRecordModel(QAbstractTableModel):
@@ -269,7 +270,7 @@ class SchemeRecordModel(QAbstractTableModel):
 
         if col_key == 'checkbox' and role == Qt.ItemDataRole.CheckStateRole:
             row = index.row()
-            if value == Qt.CheckState.Checked:
+            if tick_column.is_checked(value):     # Qt may pass the plain int
                 self._checked.add(row)
             else:
                 self._checked.discard(row)
@@ -285,8 +286,8 @@ class SchemeRecordModel(QAbstractTableModel):
         col_key = self._columns[index.column()][0]
         base_flags = Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
 
-        if col_key == 'checkbox':
-            return base_flags | Qt.ItemFlag.ItemIsUserCheckable
+        # Not ItemIsUserCheckable: tick_column toggles on a click anywhere in the cell,
+        # and Qt toggling it too would undo that click. The box is still drawn.
 
         return base_flags
 

@@ -15,6 +15,7 @@ from PySide6.QtCore import Qt, QSettings, Signal
 from .collection_toolbar import CollectionToolbar
 from .collection_filters import CollectionFilterBar
 from .specimen_table_model import SpecimenTableModel
+from ..components import tick_column
 from .ic_sidebar_mixin import ICSidebarMixin
 from .ic_data_mixin import ICDataMixin
 from .ic_export_mixin import ICExportMixin
@@ -169,6 +170,7 @@ class InsectCollectionTab(ICSidebarMixin, ICDataMixin, ICExportMixin, QWidget):
         self.filters.filters_changed.connect(self._on_filters_changed)
         self.filters.special_view_selected.connect(self._on_special_view_selected)
         self.table_view.doubleClicked.connect(self._on_row_double_clicked)
+        tick_column.install(self.table_view, "accent_collection")   # one tick style, click anywhere
 
         # Ctrl+Enter shortcut to open Add Specimen
         shortcut = QShortcut(QKeySequence("Ctrl+Return"), self)
