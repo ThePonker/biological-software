@@ -136,22 +136,33 @@ class ObservationExportMixin:
             if embargo_excluded or never_upload_excluded:
                 excluded_msg = []
                 if embargo_excluded:
-                    excluded_msg.append(f"{embargo_excluded} embargoed")
+                    excluded_msg.append(f"{embargo_excluded} under embargo")
                 if never_upload_excluded:
                     excluded_msg.append(f"{never_upload_excluded} marked never upload")
-                from PySide6.QtWidgets import QMessageBox
+                excluded_text = ' and '.join(excluded_msg)
+
+                if not observations:
+                    # Nothing left: say so plainly and stop -- no Save dialog follows.
+                    total = embargo_excluded + never_upload_excluded
+                    QMessageBox.information(
+                        self, "Nothing to Export to iRecord",
+                        f"All {total} record(s) are excluded from iRecord export "
+                        f"({excluded_text}), so no file has been written."
+                        f"\n\nFor a client export, choose \"All columns\" instead."
+                    )
+                    return
+
                 QMessageBox.information(
                     self, "Records Excluded",
-                    f"{' and '.join(excluded_msg)} record(s) excluded from iRecord export."
-                    f"\n\n{len(observations)} records will be exported."
+                    f"{excluded_text}: excluded from iRecord export."
+                    f"\n\n{len(observations)} record(s) will be exported."
                 )
-                if not observations:
-                    return
 
         # Get default export path from settings
         settings = QSettings()
         default_path = settings.value(Settings.EXPORT_DEFAULT_PATH, "")
-        default_file = os.path.join(default_path, "observations_export.csv") if default_path else ""
+        default_name = self._export_file_name(observations, use_irecord)
+        default_file = os.path.join(default_path, default_name) if default_path else default_name
 
         file_path, _ = QFileDialog.getSaveFileName(
             self,
@@ -183,6 +194,27 @@ class ObservationExportMixin:
             )
         except Exception as e:
             QMessageBox.critical(self, "Export Error", f"Failed to export: {e}")
+
+    @staticmethod
+    def _export_file_name(observations: list, use_irecord: bool) -> str:
+        """Suggested file name: '<project or site>_<YYYY-MM-DD>[_iRecord].csv'.
+
+        Uses the project name if every exported record shares one, otherwise
+        the site name if they share one, otherwise 'observations'. The date is
+        today's, so exports of different jobs never share a name.
+        """
+        import re
+        from datetime import date
+
+        def single(key):
+            values = {str(o.get(key) or '').strip() for o in observations}
+            values.discard('')
+            return values.pop() if len(values) == 1 else ''
+
+        label = single('project_name') or single('site_name') or 'observations'
+        label = re.sub(r'[\\/:*?"<>|]+', '-', label).strip(' .') or 'observations'
+        suffix = '_iRecord' if use_irecord else ''
+        return f"{label}_{date.today().isoformat()}{suffix}.csv"
 
     def _get_observation_at_row(self, row: int):
         """Get observation data for a given row."""
