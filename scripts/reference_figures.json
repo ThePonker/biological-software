@@ -1,9 +1,9 @@
 {
- "_about": "Frozen reference figures, 6 Oct 2026: JNCC June 2026, UKSI July 2025, 35 reviews. From docs/02_Current_State.md. Change only when a figure moves on purpose, in the same commit as 02, saying why. Survey keys are check_sqi_table.py's, spacing included.",
+ "_about": "Frozen reference figures, 8 Oct 2026 (bridge by NAMES key): JNCC June 2026, UKSI July 2025, 35 reviews. From docs/02_Current_State.md. Change only when a figure moves on purpose, in the same commit as 02, saying why. Survey keys are check_sqi_table.py's, spacing included.",
  "codex_counts": {
   "designations": 27152,
-  "sqs_scores": 9600,
-  "tvk_bridge": 14146,
+  "sqs_scores": 9594,
+  "tvk_bridge": 14215,
   "manual_entries": 10092,
   "reviews": 35,
   "species_profiles": 3874
@@ -15,8 +15,8 @@
   "Bicester Graven Hill 2025":      {"species": 254, "key": 19, "sqi": 127, "sqi_pantheon": 126},
   "Birmingham - Wheels Park 2026":  {"species": 195, "key": 7,  "sqi": 116, "sqi_pantheon": 105},
   "Derby  2025":                    {"species": 230, "key": 4,  "sqi": 101, "sqi_pantheon": 100},
-  "Fermyn Hall Wood Deadwood 2024": {"species": 49,  "key": 7,  "sqi": 157, "sqi_pantheon": 154},
-  "Kent Deadwood 2024":             {"species": 393, "key": 75, "sqi": 181, "sqi_pantheon": 176},
+  "Fermyn Hall Wood Deadwood 2024": {"species": 49,  "key": 7,  "sqi": 157, "sqi_pantheon": 153},
+  "Kent Deadwood 2024":             {"species": 393, "key": 75, "sqi": 181, "sqi_pantheon": 175},
   "Long Hanborough 2025":           {"species": 118, "key": 10, "sqi": 112, "sqi_pantheon": 111},
   "Machen 2024":                    {"species": 321, "key": 16, "sqi": 121, "sqi_pantheon": 115},
   "Tilbury  2025":                  {"species": 238, "key": 4,  "sqi": 101, "sqi_pantheon": 100}

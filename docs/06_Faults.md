@@ -69,10 +69,14 @@ door.
   → *A. flagellus*). Those 26 can attach the wrong Pantheon ecology to a species.
   List: `scripts/_oneoff/f14_bridge_exposure.csv`.
 
-**Action:** backlog F14, revised: (1) the 366 CONFLICT rows -- the build fix
-(carried rows yield to NAMES) still applies, but affects search and Lector only;
-(2) the 26 multi-target bridge rows -- review, then pin by hand; (3) *Lamia* and any
-other NAMES errors -- a local exclusions list, and report to the NHM (F11).
+**Bridge part FIXED 8 Oct.** The 26 were a symptom: the bridge matched Pantheon taxa
+by name and kept the first target of a multi-target synonym. A full comparison found
+104 bridge rows disagreeing with NAMES-by-key; `build_codex_db.py` now bridges by key
+first (07_Codex.md section 6), and after the rebuild only 37 deliberate exceptions
+remain. Analyses are no longer exposed to `uksi.synonyms` errors.
+**Still open (search and Lector only):** the 366 CONFLICT carried rows -- the build
+fix (carried rows yield to NAMES); *Lamia* and any other NAMES-sheet errors -- a local
+exclusions list, and report to the NHM (F11). Backlog F14.
 
 ### F26. Pantheon species without a TVK collapsed onto one blank key
 *Found 8 October 2026, chasing F17.* Every Pantheon species that came without a TVK
@@ -175,11 +179,12 @@ documents, not an assumption. Machen's key species did not move. **Action:**
 backlog F6.
 
 ### F19. Taxa split since 2017 lose their Pantheon data
-*Nomada panzeri*: records carry the sensu lato TVK; the bridge maps Pantheon's
-2017 *N. panzeri* (which has a score and a biotope) to the sensu stricto TVK. The
-record gets nothing. Pantheon's concept predates the split, so s.l. is arguably
-the better match. **Action:** read-layer fallback by name when a record's TVK is
-unbridged — backlog F7.
+*Nomada panzeri*: records carry the sensu lato TVK; the bridge mapped Pantheon's
+2017 *N. panzeri* to the sensu stricto TVK, so the record got nothing. **Fixed for
+*N. panzeri* and the 17 other same-name cases on 8 Oct** by the NAMES-by-key bridge
+(F25): NAMES sends the 2017 key to the concept the records use (Kent Pantheon-only
+SQI 176 → 175). **Action:** F7 (read-layer fallback by name) only if another case
+turns up.
 
 ### F20. Open habitats SQI 2 points above the Pantheon website at Glory Park
 125 against the report's 123, same 96 species. Every other figure matches

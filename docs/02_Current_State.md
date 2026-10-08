@@ -32,8 +32,8 @@
 |---|---:|
 | designations | 27,152 (JNCC `taxon-designations-20260609.xlsx`, 15,211 species) |
 | status_summary | JNCC 26,908 + manual entries applied; 15,841 species with a status |
-| sqs_scores | **9,600**, all Pantheon-sourced; 0 stored derived |
-| tvk_bridge | 14,146 (8,588 direct / 2,513 name / 3,045 synonym; 83 unmatched; 1,855 merged) |
+| sqs_scores | **9,594**, all Pantheon-sourced; 0 stored derived (9,600 before the 8 Oct bridge rebuild) |
+| tvk_bridge | **14,215** (8,588 direct / 5,618 name, of which 5,575 by NAMES key / 9 synonym; 14 unmatched). Rebuilt 8 Oct: was 14,146 with 83 unmatched |
 | manual_entries | **10,092** -- review statuses, withdrawals, superseded and old-name clearances, 52 JNCC-2023 restorations, 13 clearances after the UKSI swap (6 Oct; was given as 10,079, counted before them -- corrected 8 Oct by `check_reference_figures.py`) |
 | reviews | **35** |
 | species_profiles | **3,874** review accounts, keyed `(tvk, review_id)` |
@@ -172,8 +172,8 @@ rules, on JNCC June 2026, 35 reviews and UKSI July 2025.
 | Bicester Graven Hill 2025 | 254 | 19 | 127 | 126 | 155 |
 | Birmingham – Wheels Park 2026 | 195 | 7 | 116 | 105 | 146 |
 | Derby 2025 | 230 | 4 | 101 | 100 | 119 |
-| Fermyn Hall Wood Deadwood 2024 | 49 | 7 | 157 | 154 | 197 |
-| Kent Deadwood 2024 | 393 | 75 | 181 | 176 | 247 |
+| Fermyn Hall Wood Deadwood 2024 | 49 | 7 | 157 | 153 | 197 |
+| Kent Deadwood 2024 | 393 | 75 | 181 | 175 | 247 |
 | Long Hanborough 2025 | 118 | 10 | 112 | 111 | 122 |
 | Machen 2024 (Wales) | 321 | 16 | 121 | 115 | 144 |
 | Tilbury 2025 | 238 | 4 | 101 | 100 | 106 |
@@ -263,10 +263,22 @@ Specimen 1752's sort key corrupted by the 6 Oct remap, and the specimen keys
 possibly on two UKSI numberings (F27). **Done:** B3, E18 (with one shared formatter
 for dates and mode labels). **Run 2:** four Slade Green re-entries deleted, every
 specimen re-keyed on the July 2025 UKSI (no visible change to the tree order),
-review 21's Track filled; all reference figures still match. **F14 measured:** the
-*Lamia* errors are in the NHM's NAMES sheet itself; carried-over rows reach no
-analysis; 26 Pantheon-bridge rows go through names NAMES maps to several species --
-to review (fault F25). *O. linearis* and *P. recurva* are not in the July 2025 UKSI
+review 21's Track filled; all reference figures still match.
+
+**The Pantheon bridge now follows the NAMES sheet by key** (F14 / fault F25). Each
+Pantheon TVK is a UKSI name key, and NAMES says which current species that key
+belongs to; the bridge had matched by name instead, and for a name with several
+targets kept the first met. 104 bridge rows disagreed with NAMES; after two Codex
+rebuilds 37 remain, all deliberate (species kept over an aggregate; subspecies/forms
+to their species; four kept by judgement -- *Tasgius globulifer*, *Ectemnius
+rubicola*, *Hydrobia ventrosa*, *Cimex dissimilis*). 69 more Pantheon taxa now reach
+a species (unmatched 83 → 14), including the Odonata Pantheon holds under English
+names. The first rebuild let NAMES-key merges escape the J2 rule (*Anthonomus
+pomorum* 1 → 4, Badshot Lea 111 → 113); the second applies it to every merge.
+Figures that moved: Kent Pantheon-only 176 → 175 (*Nomada panzeri* now scored -- F19),
+Fermyn Pantheon-only 154 → 153 (*Cantharis flavilabris* now scored); no
+current-scoring SQI and no key-species count moved. Backups
+`codex_pre_bridge_names_*` in `reference\`. *O. linearis* and *P. recurva* are not in the July 2025 UKSI
 and stay without a TVK.
 
 ### Session 41 — 7 October 2026 (evening)

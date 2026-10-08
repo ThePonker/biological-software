@@ -162,30 +162,39 @@ undated designation sorts last and cannot displace a dated one.
 
 ## 6. The TVK bridge
 
-`pantheon.db` is keyed on 2017 TVKs. The bridge maps them to current UKSI TVKs in
-three passes:
+`pantheon.db` is keyed on 2017 TVKs. The bridge maps them to current UKSI TVKs
+(rebuilt 8 Oct 2026, fault F25):
 
-| Pass | Method | Count |
+| Pass | Method | 8 Oct |
 |---|---|---:|
-| 1 | Pantheon TVK already exists in `uksi.taxa` | |
-| 2 | Name matches `uksi.taxa.scientific_name` | |
-| 3 | Name matches `uksi.synonyms` | |
-| — | Resolve by no route | |
+| 1 | Pantheon TVK already exists in `uksi.taxa` | 8,588 |
+| 2 | **NAMES sheet by key**: `uksi.name_map` gives the current taxon for that Pantheon TVK; else the exact name | 5,618 |
+| 3 | Name matches `uksi.synonyms` -- **single-target names only**; a name with several targets is reported, never guessed | 9 |
+| — | Resolve by no route | 14 |
 
-Counts per build are in `02_Current_State.md` (6 Oct: 8,588 / 2,513 / 3,045 / 83).
+Pass 2 decides by key, so it also handles British misapplied names (Pantheon's
+*Noctua janthina* → *N. janthe*). Exceptions, in `build_codex_db.py`: where NAMES
+gives an aggregate or "a/b" concept and the Pantheon name is a current species, the
+species is kept (records are species-level); a subspecies or form resolves to its
+species; `BRIDGE_KEEP` holds four keys kept on the old bridge by judgement.
+Rows from passes 2 and 3 are all labelled `'name'` -- `CodexRepository` reads only
+that label. `scripts/_oneoff/f14_bridge_vs_namemap_20261008.py` compares the bridge
+with NAMES; after the rebuild only the 37 deliberate exceptions differ.
 
 **Some synonym matches land on a species another taxon already claimed** —
 UKSI has merged two Pantheon taxa into one. Both are bridged; the merge happens
 at read time.
 
 **Merge rule: ecology unioned, incumbent's SQS kept.** The incumbent is the taxon
-bridged by pass 1 or 2. Not the highest score — the sunk taxon usually carries
+whose own TVK, else exact name, is the current species; every other taxon on that
+species is a collider, however it was bridged (since 8 Oct -- before, merges found
+by name escaped the rule and row order decided). Not the highest score — the sunk taxon usually carries
 the higher one because it was a scarce segregate, so taking the maximum inflates
 the merged species.
 
-The 68 unresolved include Odonata stored under **vernacular names** in Pantheon's
-scientific-name column — "Azure Damselfly", "Banded Demoiselle". A Pantheon data
-defect, and few enough to hand-map.
+Odonata stored under **vernacular names** in Pantheon's scientific-name column
+("Azure Damselfly") now resolve by key in pass 2. 14 remain unresolved, plus
+*Sphaeriestes ater* (two synonym targets, no NAMES key).
 
 ---
 

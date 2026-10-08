@@ -10,7 +10,7 @@
 | | Item | Size |
 |---|---|---|
 | 1 | **F11** — email Chris Raper (c.raper@nhm.ac.uk): the 24 British beetles the July 2025 UKSI flags redundant, and any copy newer than July 2025 | 10 min |
-| 2 | **F14** — `uksi.synonyms` (fault F25), measured 8 Oct: review the 26 multi-target Pantheon-bridge rows in `scripts\_oneoff\f14_bridge_exposure.csv` first -- those can attach the wrong ecology | ~30 min review |
+| 2 | **F14** — remaining (search and Lector only): build fix for the 366 CONFLICT carried synonyms; exclusions for NAMES errors (*Lamia*); add to the F11 email. Bridge part done 8 Oct | ~0.5 day |
 | 3 | **G13** — your own accounts for the five survey key species with none: *Oligota apicata*, *Xysticus luctuosus*, *Liocyrtusa minuta*, *Chiasmia clathrata*, *Zophomyia temula* | ~1 hr |
 | 4 | **E16** — decide the SQI verdict wording | decision |
 | 5 | **D3** — merge `main` → `stable` | 15 minutes |
@@ -363,9 +363,9 @@ then those species count as ordinary S41.
 inherit the UK BAP research-only category? If so, extend the rule; at present
 Cinnabar is key at a Welsh site.
 
-**F7. Fallback by name for unbridged record TVKs.** 0.5 day. *Nomada panzeri* s.l.
-on the records, Pantheon's data bridged to s.s. When a record's TVK has no bridge
-entry, try another current TVK of the same name. Catches every post-2017 split.
+**F7. Fallback by name for unbridged record TVKs.** 0.5 day, **probably not needed**:
+the NAMES-by-key bridge (8 Oct) fixed *Nomada panzeri* and 17 other same-name cases.
+Keep only if another split turns up with no bridge.
 
 **F8. NECR702 licence.** Minutes. Check the report's front matter (very likely
 OGL v3.0) and set `reviews.licence` — survives rebuilds.
@@ -405,9 +405,13 @@ chat); (C) a `synonym_exclusions` list applied at build. Handover:
 project doc `claude/27_UKSI_Synonyms_Handover.md`.
 
 *Measured 8 Oct (fault F25):* *Lamia* comes from the NAMES sheet itself, so (A) alone
-does not fix it. Revised order: review the 26 multi-target bridge rows and pin the
-wrong ones in the bridge; (C) exclusions for NAMES errors such as *Lamia*, reported to
-Chris Raper with F11; (A) for the 366 CONFLICT rows (search and Lector only).
+does not fix it.
+
+**Bridge part DONE 8 Oct:** the Pantheon bridge now goes by NAMES key (two Codex
+rebuilds; 104 disagreements → 37 deliberate; reference figures updated with each change
+explained in `02`). Left: (C) exclusions for NAMES errors such as *Lamia*, reported to
+Chris Raper with F11; (A) for the 366 CONFLICT rows -- both affect search and Lector,
+not analyses.
 
 ---
 

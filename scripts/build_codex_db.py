@@ -720,15 +720,69 @@ def build_codex():
 
         # Synonym index: Pantheon's names are 2017-era, so most bridge
         # failures are species since renamed or moved genus. uksi.synonyms
-        # is name-based (synonym string -> current tvk).
-        uksi_syn_tvk = {}
+        # is name-based (synonym string -> current tvk). A synonym that maps
+        # to more than one current species is NOT used: until 8 Oct 2026 the
+        # first one met was kept (setdefault), which sent Aphodius pusillus to
+        # Agrilinus ater (fault F25). Those are left to the NAMES-by-key pass
+        # below, or reported.
+        uksi_syn_targets = {}
         try:
             uc.execute("SELECT synonym, tvk FROM synonyms")
             for _syn, _tvk in uc.fetchall():
                 if _syn:
-                    uksi_syn_tvk.setdefault(_syn.lower(), _tvk)
+                    uksi_syn_targets.setdefault(_syn.lower(), set()).add(_tvk)
         except sqlite3.OperationalError:
             print("  ! uksi.synonyms unavailable -- synonym pass skipped")
+        uksi_syn_tvk = {s: next(iter(t)) for s, t in uksi_syn_targets.items() if len(t) == 1}
+        syn_ambiguous_names = {s for s, t in uksi_syn_targets.items() if len(t) > 1}
+
+        # NAMES-sheet mapping BY KEY (8 Oct 2026, fault F25 / backlog F14).
+        # Every Pantheon TVK is a UKSI name key; uksi.name_map (the July 2025
+        # NAMES sheet) says which current taxon THAT key belongs to. This is the
+        # authority, and it decides by key, not by name -- so it also catches
+        # British misapplied names that an exact-name match gets wrong (Pantheon's
+        # Noctua janthina -> N. janthe, Polistes gallicus -> P. dominula).
+        # f14_bridge_vs_namemap_20261008.py measured 104 rows where the old
+        # bridge disagreed with it.
+        nm_rec = {}
+        tv_remap = {}
+        try:
+            uc.execute("SELECT tvk, recommended_tvk FROM name_map")
+            nm_rec = {r[0]: r[1] for r in uc.fetchall()}
+            uc.execute("SELECT old_tvk, new_tvk FROM tvk_remap WHERE new_tvk IS NOT NULL")
+            tv_remap = {r[0]: r[1] for r in uc.fetchall()}
+        except sqlite3.OperationalError:
+            print("  ! uksi.name_map / tvk_remap unavailable -- NAMES-by-key pass skipped")
+        uc.execute("SELECT tvk, scientific_name, parent_tvk FROM taxa")
+        uksi_taxon = {r[0]: (r[1] or "", r[2]) for r in uc.fetchall()}
+
+        def _names_current(tvk, depth=0):
+            """Current taxon the NAMES sheet gives for this key, or None."""
+            if tvk in uksi_tvk_set:
+                return tvk
+            if tvk in tv_remap and tv_remap[tvk] in uksi_tvk_set:
+                return tv_remap[tvk]
+            if depth < 5 and nm_rec.get(tvk) and nm_rec[tvk] != tvk:
+                return _names_current(nm_rec[tvk], depth + 1)
+            return None
+
+        # Where NAMES gives a coarser concept (aggregate, "a/b", genus) and the
+        # Pantheon name is itself a current species, the species is kept: records
+        # are made at species level, so the aggregate would take the data away
+        # from them (Gammarus pulex, the Meromyza species). Where NAMES gives a
+        # finer one (subspecies, form) with no exact species, its parent is used.
+        _COARSE = ("agg.", "/")
+        _FINER = (" subsp. ", " form ", " var. ")
+
+        # Kept on the old bridge by judgement (8 Oct 2026): NAMES maps these keys
+        # to a different valid British species. Review if the UKSI changes.
+        BRIDGE_KEEP = {
+            "NHMSYS0001720332",   # Tasgius globulifer   (NAMES: T. melanarius)
+            "NBNSYS0000009514",   # Ectemnius rubicola   (NAMES: E. ruficornis)
+            "NHMSYS0001701438",   # Hydrobia ventrosa    (NAMES: H. acuta neglecta; kept: Ecrobia ventrosa)
+            "NBNSYS0000010106",   # Cimex dissimilis     (NAMES: C. columbarius; kept: C. pipistrelli)
+        }
+        _keep_old_syn = {"NHMSYS0001701438", "NBNSYS0000010106"}   # previously reached by synonym
 
         pc.execute("SELECT tvk, species_name FROM species")
         pan_species = pc.fetchall()
@@ -736,19 +790,52 @@ def build_codex():
         bridge_rows = []
         direct_match = 0
         name_match = 0
+        names_key = 0
+        names_changed = []     # (pantheon name, exact-name target, NAMES target)
+        kept_coarse = 0
+        kept_by_judgement = 0
         unmatched = 0
 
         for pan_tvk, pan_name in pan_species:
             if pan_tvk in uksi_tvk_set:
                 bridge_rows.append((pan_tvk, pan_tvk, pan_name, "direct"))
                 direct_match += 1
+                continue
+            exact = uksi_name_tvk.get((pan_name or "").lower())
+            target = None
+            if pan_tvk in BRIDGE_KEEP:
+                kept_by_judgement += 1
+                if pan_tvk in _keep_old_syn:
+                    unmatched += 1      # the synonym pass takes it back off
+                    continue            # left for the synonym pass, as before
+                target = exact
             else:
-                new_tvk = uksi_name_tvk.get(pan_name.lower())
-                if new_tvk:
-                    bridge_rows.append((pan_tvk, new_tvk, pan_name, "name"))
-                    name_match += 1
+                nmt = _names_current(pan_tvk) if nm_rec else None
+                if nmt:
+                    nm_name = uksi_taxon.get(nmt, ("", None))[0]
+                    coarse = any(x in nm_name for x in _COARSE) or " " not in nm_name.strip()
+                    finer = any(x in f" {nm_name} " for x in _FINER)
+                    if coarse and exact:
+                        target = exact
+                        kept_coarse += 1
+                    elif finer and exact:
+                        target = exact
+                        kept_coarse += 1
+                    elif finer and uksi_taxon.get(nmt, ("", None))[1] in uksi_tvk_set:
+                        target = uksi_taxon[nmt][1]
+                        names_key += 1
+                    else:
+                        target = nmt
+                        names_key += 1
+                        if exact and exact != nmt:
+                            names_changed.append((pan_name, exact, nmt))
                 else:
-                    unmatched += 1
+                    target = exact
+            if target:
+                bridge_rows.append((pan_tvk, target, pan_name, "name"))   # 'name': the label every reader uses
+                name_match += 1
+            else:
+                unmatched += 1
 
         # Third pass -- synonym resolution for what the first two missed.
         #
@@ -763,6 +850,7 @@ def build_codex():
         # exclusion was there to prevent.
         syn_match = 0
         syn_collision = 0
+        syn_skipped_ambiguous = []
         # Pantheon taxa that landed on a species another taxon already claimed.
         # Their SQS must not displace the incumbent's -- see the merge rule in
         # patch_j2_incumbent_wins.py.
@@ -772,7 +860,14 @@ def build_codex():
         for pan_tvk, pan_name in pan_species:
             if pan_tvk in resolved_pan or not pan_name:
                 continue
+            if pan_name.lower() in syn_ambiguous_names and pan_tvk not in BRIDGE_KEEP:
+                syn_skipped_ambiguous.append(pan_name)
+                continue
             new_tvk = uksi_syn_tvk.get(pan_name.lower())
+            if not new_tvk and pan_tvk in BRIDGE_KEEP:
+                # kept by judgement: the previous first-met target, made explicit
+                new_tvk = sorted(uksi_syn_targets.get(pan_name.lower(), ()))[:1]
+                new_tvk = new_tvk[0] if new_tvk else None
             if not new_tvk:
                 continue
             if new_tvk in claimed:
@@ -783,13 +878,45 @@ def build_codex():
             syn_match += 1
             unmatched -= 1
 
+        # J2 incumbent rule for EVERY merge, however it was found (8 Oct 2026).
+        # Where several Pantheon taxa land on one current species, the incumbent
+        # is the one whose own TVK -- else whose exact name -- is that species;
+        # the rest are colliders, whose SQS is used only where the incumbent has
+        # none. Before this, merges found by the NAMES-key pass escaped the rule:
+        # Anthonomus humeralis's 4 displaced A. pomorum's own 1 (Badshot Lea +2).
+        _by_target = {}
+        for _pt, _ut, _nm, _mm in bridge_rows:
+            _by_target.setdefault(_ut, []).append((_pt, (_nm or "").lower()))
+        _added = 0
+        for _ut, _members in _by_target.items():
+            if len(_members) < 2:
+                continue
+            _inc = [pt for pt, nm in _members if pt == _ut] or \
+                   [pt for pt, nm in _members if nm == uksi_taxon.get(_ut, ("", None))[0].lower()]
+            if not _inc:
+                continue                  # no clear incumbent: earlier rule stands
+            for pt, nm in _members:
+                if pt != _inc[0] and pt not in collider_pan_tvks:
+                    collider_pan_tvks.add(pt)
+                    _added += 1
+        if _added:
+            print(f"  Merges by NAMES key treated as colliders (incumbent's SQS kept): {_added:,}")
+
         c.executemany("INSERT OR REPLACE INTO tvk_bridge VALUES (?,?,?,?)", bridge_rows)
         bridge_count = len(bridge_rows)
         # Carried to the SQS import below.
         globals()["_COLLIDER_PAN_TVKS"] = collider_pan_tvks
 
         print(f"  Direct TVK match: {direct_match:,}")
-        print(f"  Name-resolved:    {name_match:,}")
+        print(f"  Name-resolved:    {name_match:,}"
+              f"  (by NAMES key {names_key:,}; species kept over a coarser NAMES concept {kept_coarse:,};"
+              f" kept by judgement {kept_by_judgement:,})")
+        print(f"  NAMES key overruled an exact-name match: {len(names_changed):,}")
+        for _a, _b, _c in sorted(names_changed)[:40]:
+            print(f"      {_a[:32]:32} -> {uksi_taxon.get(_c, (_c,))[0][:32]}  (not {uksi_taxon.get(_b, (_b,))[0][:32]})")
+        if syn_skipped_ambiguous:
+            print(f"  Not bridged -- name maps to several species and NAMES has no key: "
+                  f"{len(syn_skipped_ambiguous):,} {sorted(syn_skipped_ambiguous)[:10]}")
         print(f"  Synonym-resolved: {syn_match:,}")
         print(f"  Unmatched:        {unmatched:,}")
         if syn_collision:
