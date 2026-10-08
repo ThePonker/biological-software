@@ -30,3 +30,6 @@ _dump/
 /*.txt
 /*.xlsx
 /*.csv
+
+# One-off data-changing scripts -- kept locally, archived later
+scripts/_oneoff/
