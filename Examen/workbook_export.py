@@ -784,16 +784,21 @@ def _sheet_appendix(wb, detail, result, stamp):
                    sp.count or ""])
 
     # ---- computed footer, as Wilson's appendices do ----
+    # The SQI is the Summary's own figure: Pantheon divides by every species it
+    # analysed, scored or not (Glory Park 144 / 123 = 117, the issued report). The
+    # footer used to divide by scoring species only (144 / 120 = 120) -- two SQIs
+    # in one workbook (found 8 Oct 2026).
     r = ws.max_row + 2
-    sqi = round(sqs_total / scoring * 100) if scoring else None
+    osqi = getattr(result, "overall_sqi", None)
+    analysed = (getattr(osqi, "species_analysed", 0) or getattr(result, "species_in_pantheon", 0)
+                or scoring)
     for label, value in [
             ("Species recorded", len(species)),
             ("Without a TVK (not analysed)", no_tvk),
+            ("Analysed by Pantheon", analysed),
             ("Scoring taxa", scoring),
-            ("Species Quality Score (SQS)", sqs_total),
-            ("Species Quality Index (SQI)",
-             sqi if scoring >= SQI_MIN_SPECIES
-             else f"({scoring} sp)" if scoring == 1 else f"({scoring} spp)")]:
+            ("Species Quality Score (SQS)", getattr(osqi, "sqs_sum", None) or sqs_total),
+            ("Species Quality Index (SQI)", _sqi_cell(osqi) if osqi is not None else "-")]:
         ws.cell(row=r, column=2, value=label).font = BOLD
         ws.cell(row=r, column=3, value=value).font = BOLD
         r += 1

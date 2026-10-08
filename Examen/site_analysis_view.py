@@ -208,6 +208,19 @@ class SiteAnalysisView(QWidget):
             "recording what the figures were computed against.")
         self.workbook_btn.clicked.connect(self._on_export_workbook)
         self.workbook_btn.setEnabled(False); toolbar.addWidget(self.workbook_btn)
+        self.pdf_btn = QPushButton("Export PDF"); self.pdf_btn.setStyleSheet(BTN_PRIMARY)
+        self.pdf_btn.setToolTip(
+            "The assessment as a report: basis, figures, key species with\n"
+            "accounts, habitats, assemblages, guilds, appendices. Laid out from\n"
+            "the workbook, so every figure is the workbook's own.")
+        self.pdf_btn.clicked.connect(self._on_export_pdf)
+        self.pdf_btn.setEnabled(False); toolbar.addWidget(self.pdf_btn)
+        self.word_btn = QPushButton("Export Word"); self.word_btn.setStyleSheet(BTN_PRIMARY)
+        self.word_btn.setToolTip(
+            "The same report as the PDF, as an editable Word document for\n"
+            "copying into a report template.")
+        self.word_btn.clicked.connect(self._on_export_word)
+        self.word_btn.setEnabled(False); toolbar.addWidget(self.word_btn)
         export_btn = QPushButton("Export CSV"); export_btn.setStyleSheet(BTN_OUTLINE)
         export_btn.clicked.connect(self._export_csv); toolbar.addWidget(export_btn)
         layout.addLayout(toolbar)
@@ -271,6 +284,9 @@ class SiteAnalysisView(QWidget):
         self.table.setSortingEnabled(False)
         self.table.setRowCount(len(self._projects))
         self.freeze_btn.setEnabled(False); self.appendix_btn.setEnabled(False)
+        if hasattr(self, 'workbook_btn'): self.workbook_btn.setEnabled(False)
+        if hasattr(self, 'pdf_btn'): self.pdf_btn.setEnabled(False)
+        if hasattr(self, 'word_btn'): self.word_btn.setEnabled(False)
         self._current_detail = None; self._current_result = None; self.detail_tabs.hide()
 
         def put(r, c, text, key, centre=True, colour=None, tip=None):
@@ -349,7 +365,7 @@ class SiteAnalysisView(QWidget):
             self.detail_header.setText(f"Analysis error: {e}"); return
         self.detail_header.setText(title)
         self.freeze_btn.setEnabled(True); self.appendix_btn.setEnabled(True)
-        self.workbook_btn.setEnabled(True)
+        self.workbook_btn.setEnabled(True); self.pdf_btn.setEnabled(True); self.word_btn.setEnabled(True)
         self.detail_tabs.show()
         taxonomy = self._load_taxonomy(tvks)
         fidelity = self._load_fidelity(tvks)
@@ -392,6 +408,67 @@ class SiteAnalysisView(QWidget):
         from .appendix_export import export_appendix
         export_appendix(self, self._current_site_name or "Site", self._current_result, self._current_detail,
                         jurisdiction=getattr(self, "_jurisdiction", "England"))
+
+    def _on_export_pdf(self):
+        """Write the PDF assessment report (backlog E3) -- the workbook, laid out."""
+        if not self._current_result:
+            return
+        try:
+            from .pdf_export import export_pdf, HAS_REPORTLAB
+        except ImportError:
+            HAS_REPORTLAB = False
+        if not HAS_REPORTLAB:
+            QMessageBox.warning(self, "Export PDF",
+                                "The PDF report needs reportlab. In a terminal:\n\n"
+                                "    py -3.14 -m pip install reportlab\n\nthen restart Examen.")
+            return
+        base = (self._current_site_name or "Assessment").replace(" \u2014 ", " ")
+        base = "".join(ch if ch.isalnum() or ch in " -_" else "_" for ch in base)
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export assessment report (PDF)", f"{base.strip()} assessment.pdf", "PDF (*.pdf)")
+        if not path:
+            return
+        if not path.lower().endswith(".pdf"):
+            path += ".pdf"
+        try:
+            export_pdf(self._current_result, self._current_detail, self._current_project, path,
+                       jurisdiction=getattr(self, "_jurisdiction", "England"),
+                       pooled_years=self._pool_years)
+        except Exception as e:  # noqa: BLE001
+            QMessageBox.warning(self, "Export failed", f"The PDF could not be written.\n\n{e}")
+            return
+        QMessageBox.information(self, "PDF exported", f"Written to:\n{path}")
+
+    def _on_export_word(self):
+        """Write the Word assessment report (backlog E4) -- the PDF's sections, editable."""
+        if not self._current_result:
+            return
+        try:
+            from .word_export import export_word, HAS_DOCX
+        except ImportError:
+            HAS_DOCX = False
+        if not HAS_DOCX:
+            QMessageBox.warning(self, "Export Word",
+                                "The Word report needs python-docx. In a terminal:\n\n"
+                                "    py -3.14 -m pip install python-docx\n\nthen restart Examen.")
+            return
+        base = (self._current_site_name or "Assessment").replace(" \u2014 ", " ")
+        base = "".join(ch if ch.isalnum() or ch in " -_" else "_" for ch in base)
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export assessment report (Word)", f"{base.strip()} assessment.docx",
+            "Word document (*.docx)")
+        if not path:
+            return
+        if not path.lower().endswith(".docx"):
+            path += ".docx"
+        try:
+            export_word(self._current_result, self._current_detail, self._current_project, path,
+                        jurisdiction=getattr(self, "_jurisdiction", "England"),
+                        pooled_years=self._pool_years)
+        except Exception as e:  # noqa: BLE001
+            QMessageBox.warning(self, "Export failed", f"The Word document could not be written.\n\n{e}")
+            return
+        QMessageBox.information(self, "Word report exported", f"Written to:\n{path}")
 
     def _on_export_workbook(self):
         """Write the full assessment workbook.

@@ -229,9 +229,21 @@ only; the SQI was wrong. Now 117, matching the report — see `02` §3.*
 
 **E2b. Workbook export button** — ✅ **DONE**. Beside Export Appendix.
 
-**E3. PDF renderer.** 1–1.5 days. The flagship — the document that gets attached.
+**E3. PDF renderer.** ✅ First version 8 Oct, **awaiting Wil's review of the Glory Park
+sample**. `Examen/pdf_export.py`, an **Export PDF** button beside Export Workbook. Laid
+out FROM the workbook (built to a temp file), so every figure is the workbook's own:
+basis of assessment, summary with notes, key species table and accounts with survey
+evidence, habitats, assemblages, guilds, species list, status definitions; page header
+and footer with run date and Codex version. Needs `py -3.14 -m pip install reportlab`.
+Found on the way and fixed: the workbook's appendix footer gave a second SQI (scoring
+species as denominator: Glory Park 120 against the Summary's 117) -- it now repeats the
+Summary's figure.
 
-**E4. Word renderer.** 0.5–1 day. The editable one, for pasting into templates.
+**E4. Word renderer.** ✅ 8 Oct -- Wil's choice for now (copy and paste into reports
+until the report contents are settled over winter). `Examen/word_export.py`, **Export
+Word** in Examen: the PDF's sections as real Word headings and tables. Both renderers
+read the workbook through one module, `Examen/report_model.py`, so they cannot drift.
+Needs `py -3.14 -m pip install python-docx`.
 
 **E5. `examen_data` tidy-up.** 0.5 day. `_classify_tier` has been removed and the
 SQI arithmetic consolidated, but the **two parallel enrichment paths remain**:
