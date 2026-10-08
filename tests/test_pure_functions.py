@@ -236,6 +236,13 @@ def test_build_kwargs_commercial_and_personal():
     assert kw.get("client") is None and kw.get("embargo_until") is None   # personal: none of these
 
 
+def test_build_kwargs_keeps_the_comment():
+    # The grid's Comment column was silently dropped at commit until 8 Oct 2026
+    kw = build_kwargs_from_row(_row(comment="  under bark  "), {"mode": "Personal"})
+    assert kw["comment"] == "under bark"
+    assert build_kwargs_from_row(_row(comment=" "), {"mode": "Personal"})["comment"] is None
+
+
 # ---------------------------------------------------------------- vc_lookup_service grid refs
 from Observatum.src.services.vc_lookup_service import VCLookupService as VC  # noqa: E402
 

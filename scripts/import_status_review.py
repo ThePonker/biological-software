@@ -8,6 +8,13 @@
     Add --apply to write. Without it, nothing is changed: a dry run is the
     default, and it reports exactly what would change.
 
+    --licence "Open Government Licence v3.0" records the review's licence, which
+    decides whether the workbook may quote its species accounts. To set it on a
+    review already imported (found by its spreadsheet's file name):
+
+    python scripts/import_status_review.py REVIEW.xlsx --licence-only \
+        --licence "Open Government Licence v3.0"          (then again with --apply)
+
 What it reads
 -------------
 The supplementary spreadsheet published with each review in the series. The
@@ -250,15 +257,62 @@ def backup(db_path, label):
     return dest
 
 
+def set_licence(a):
+    """--licence-only: record the licence on a review already imported (backlog F8).
+
+    The review is found by its spreadsheet's file name (reviews.source_file), so
+    the long review name need not be retyped. reviews survives a Codex rebuild
+    (build_codex_db.py preserves the table, licence included).
+    """
+    if not a.licence:
+        print("  x --licence-only needs --licence \"...\" -- stopping")
+        return 1
+    fname = os.path.basename(a.xlsx)
+    ro = sqlite3.connect(f"file:{paths.CODEX_DB}?mode=ro", uri=True)
+    rows = ro.execute("SELECT id, review_name, COALESCE(licence, '') FROM reviews "
+                      "WHERE source_file=?", (fname,)).fetchall()
+    ro.close()
+    print("")
+    print("Review licence" + ("" if a.apply else "  --  DRY RUN"))
+    print("=" * 76)
+    if len(rows) != 1:
+        print(f"  x {len(rows)} reviews have source file {fname!r}; expected exactly one -- stopping")
+        for rid, name, lic in rows:
+            print(f"      id {rid}  {name}")
+        return 1
+    rid, name, old = rows[0]
+    print(f"  review {rid}: {name}")
+    print(f"  licence: {old or '(none)'}  ->  {a.licence}")
+    if old == a.licence:
+        print("  Already set -- nothing to do.")
+        return 0
+    if not a.apply:
+        print("\n  DRY RUN -- nothing has been changed. Re-run with --apply to write.\n")
+        return 0
+    print(f"  backup: {backup(paths.CODEX_DB, 'codex')}")
+    codex = sqlite3.connect(str(paths.CODEX_DB))
+    with codex:
+        n = codex.execute("UPDATE reviews SET licence=? WHERE id=?", (a.licence, rid)).rowcount
+    codex.close()
+    print(f"  written ({n} row).\n")
+    return 0 if n == 1 else 1
+
+
 # ---------------------------------------------------------------- main
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("xlsx")
-    ap.add_argument("--name", required=True)
-    ap.add_argument("--author", required=True)
-    ap.add_argument("--date", required=True, help="publication date YYYY-MM-DD")
-    ap.add_argument("--group", required=True)
+    ap.add_argument("--name")
+    ap.add_argument("--author")
+    ap.add_argument("--date", help="publication date YYYY-MM-DD")
+    ap.add_argument("--group")
+    ap.add_argument("--licence", default=None,
+                    help='e.g. "Open Government Licence v3.0" -- decides whether '
+                         "the workbook may quote the review's accounts")
+    ap.add_argument("--licence-only", action="store_true",
+                    help="only record --licence on the review already imported "
+                         "from this spreadsheet")
     ap.add_argument("--apply", action="store_true", help="write (default: dry run)")
     ap.add_argument("--profiles-only", action="store_true",
                     help="write only the species accounts; the review must "
@@ -266,6 +320,11 @@ def main():
     ap.add_argument("--keep-legacy", action="store_true",
                     help="do not clear legacy tracks for assessed species")
     a = ap.parse_args()
+    if a.licence_only:
+        return set_licence(a)
+    missing = [f"--{k}" for k in ("name", "author", "date", "group") if not getattr(a, k)]
+    if missing:
+        ap.error("the following arguments are required: " + ", ".join(missing))
 
     source = f"{a.name} ({a.author})"
     year = int(a.date[:4])
@@ -504,13 +563,13 @@ def main():
 def write_statuses(c, a, plan, tracks_written, source, now):
     c.execute("""INSERT INTO reviews (review_name, author, taxon_group,
                  status_track, date_published, date_imported, source_file,
-                 species_count, supersedes_id, notes)
-                 VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                 species_count, supersedes_id, notes, licence)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
               (a.name, a.author, a.group, ",".join(tracks_written), a.date,
                now, os.path.basename(a.xlsx), len(plan), None,
                "Species Status review; modern tracks written, legacy "
                + ("kept" if a.keep_legacy else "cleared")
-               + " for assessed species"))
+               + " for assessed species", a.licence))
     rid = c.lastrowid
 
     writes = 0

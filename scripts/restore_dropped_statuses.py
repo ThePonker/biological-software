@@ -8,6 +8,9 @@ their 2023 status rows from the pre-rebuild backup as manual entries
 (added_by 'restored-jncc2023'), so they survive future rebuilds.
 
 Skipped:
+  * MOVED -- after a UKSI swap the old TVK maps (uksi tvk_remap / name_map, the
+    same translation build_codex_db.py uses) to a current TVK that already holds a
+    status: not dropped, just re-keyed (Mycetoporus baudueri, 6 Oct; backlog D10)
   * RENAMED -- the old name resolves (UKSI synonyms), or the same epithet under
     another genus appears, in the 2026 spreadsheet: re-keyed, not lost
   * values NE / NA (non-native or not evaluated) and infraspecific entries
@@ -22,6 +25,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path[:0] = [ROOT, os.path.join(ROOT, "scripts")]
 import paths
 from import_status_review import apply_status, backup
+from build_codex_db import _tvk_translator          # one old->current TVK rule (D10)
 
 APPLY = "--apply" in sys.argv
 # --include-renamed: also restore species JNCC 2026 lists under a new name/TVK. Their status
@@ -33,6 +37,7 @@ bk = sorted(glob.glob(r"C:\BiologicalSoftware_Backups\reference\codex_pre_jncc20
 a = sqlite3.connect(f"file:{bk}?mode=ro", uri=True)
 codex = sqlite3.connect(str(paths.CODEX_DB)); c = codex.cursor()
 u = sqlite3.connect(f"file:{paths.UKSI_DB}?mode=ro", uri=True)
+to_current, _used = _tvk_translator()
 
 rows_a = defaultdict(list)
 for t, tr, v, d, s, dd in a.execute(f"""SELECT tvk, status_track, status_value, status_detail, source, date_designated
@@ -49,11 +54,14 @@ for n in now_names:
         epithet_now[p[1]].add(n)
 has_now = {t for (t,) in c.execute(f"SELECT DISTINCT tvk FROM status_summary WHERE status_track IN ({','.join('?'*4)})", TR)}
 
-plan, renamed, skipped = [], [], []
+plan, renamed, skipped, moved_on = [], [], [], []
 for t, rs in rows_a.items():
     if cat_a.get(t) != "Invertebrate" or t in has_now or t in now_tvks:
         continue
     nm = (name_a.get(t) or "").strip()
+    cur = to_current(t)
+    if cur != t and cur in has_now:
+        moved_on.append((nm, t, cur)); continue
     if re.search(r"\b(ssp|subsp|var|agg)\b\.?", nm):
         skipped.append((nm, "infraspecific/aggregate")); continue
     keep = [r for r in rs if r[1] not in ("NE", "NA")]
@@ -68,12 +76,16 @@ for t, rs in rows_a.items():
 
 print("Restore statuses dropped by JNCC 2026 -- " + ("APPLY" if APPLY else "DRY RUN"))
 print("=" * 96)
-print(f"  to restore: {len(plan)} species   renamed (skipped): {len(renamed)}   other skipped: {len(skipped)}")
+print(f"  to restore: {len(plan)} species   moved to current TVK (skipped): {len(moved_on)}   "
+      f"renamed (skipped): {len(renamed)}   other skipped: {len(skipped)}")
 print("\n  RESTORE")
 for t, nm, keep in plan:
     print(f"    {nm[:32]:32} " + "; ".join(f"{tr.replace('threat_iucn_','').replace('rarity_','r-')}={v}"
                                           + (f"/{d}" if d else "") for tr, v, d, s, dd in keep)[:60]
           + f"   [{keep[0][3][:30]}]")
+print("\n  MOVED -- the current TVK already holds a status; not restored")
+for nm, old, cur in moved_on:
+    print(f"    {nm[:32]:32} {old} -> {cur}")
 print("\n  RENAMED -- check by eye; not restored")
 for nm, syn, moved in renamed:
     print(f"    {nm[:32]:32} synonym TVKs in 2026: {syn or '-'}   same epithet now: {moved or '-'}")
@@ -99,3 +111,4 @@ except Exception as e:
 left = [nm for t, nm, keep in plan if not c.execute(
     f"SELECT 1 FROM status_summary WHERE tvk=? AND status_track IN ({','.join('?'*4)})", (t,) + TR).fetchone()]
 print(f"  restored {sum(len(k) for _, _, k in plan)} statuses on {len(plan)} species; not visible after: {left or 'none'}\n")
+

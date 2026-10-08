@@ -359,7 +359,8 @@ class InfoPanel(QWidget):
             self._dist = None
         if self._dist is None:
             self._chk_dist.setEnabled(False); self._btn_pop_dist.setEnabled(False)
-            self._chk_rs.setEnabled(False); self._chk_spec.setEnabled(False)
+            # (_chk_rs/_chk_spec no longer exist -- the source checkboxes are the legend's
+            # _src_chk, built only with a map; this line crashed the panel when no map loaded)
 
         maps_row.addStretch(1)
         maps_col.addLayout(maps_row)

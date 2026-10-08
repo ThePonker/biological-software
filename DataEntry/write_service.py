@@ -18,6 +18,7 @@ _ALLOWED_FIELDS = {
     "recorder_certainty", "date", "date_type", "grid_ref", "vice_county", "vc_number",
     "site_name", "recorder", "determiner", "sex", "stage", "quantity", "method",
     "record_type", "project_name", "client", "embargo_until",
+    "comment",   # the grid's Comment column -- was dropped at commit until 8 Oct 2026
 }
 
 

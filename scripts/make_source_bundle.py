@@ -11,11 +11,15 @@ Writes to your Downloads folder:
     biosoft_manifest.txt            every file, its line count, hash and part
 
   python scripts\\make_source_bundle.py
+  python scripts\\make_source_bundle.py --out _archive\\_dump_20261008
 """
 import hashlib, os, subprocess, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(os.path.expanduser("~"), "Downloads")
+if "--out" in sys.argv:          # e.g. --out _archive\_dump_20261008 (a folder Claude can read)
+    OUT = os.path.abspath(os.path.join(ROOT, sys.argv[sys.argv.index("--out") + 1]))
+os.makedirs(OUT, exist_ok=True)
 PART_BYTES = 3_000_000
 TEXT_EXT = {".py", ".md", ".txt", ".bat", ".ps1", ".json", ".toml", ".cfg", ".ini", ".sql", ".qss", ".yml", ".yaml"}
 SKIP_EXT = {".bak"}

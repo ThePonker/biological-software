@@ -250,6 +250,11 @@ The SQI list is **598 species**, not 605 — *"excluding Pseudovadonia livida
 (Cerambycidae) which was included in the published list in error"* (Telfer 2020).
 The IEC list is 180 species in three grades, scoring 3 / 2 / 1.
 
+*Groundwork 8 Oct: sources, formulae, thresholds, licence and a design sketch in
+`39_Research_Notes.md` §4.* Corrections to what follows: the rankings now hold ~241
+sites; there is no download; khepri carries no licence (derive the SQI from Codex
+statuses rather than ship its list).
+
 **Both the scoring list and the national site rankings are online at khepri.uk**
 (`khepri.uk/main` for scores, `khepri.uk/rankings/` for the 212-site league
 table). Not a PDF to transcribe. The rankings are also how every saproxylic
@@ -307,6 +312,12 @@ authors citing percentages and naming their convention, precisely because
 thresholds are contested. Options: remove the verdict; replace it with Telfer's
 sourced test (~10% Key, >1% Rare Key); or keep the bands with a stated source.
 Leaning to Telfer. See `06_Faults.md` F14.
+*Researched 8 Oct (`39_Research_Notes.md` §1):* Pantheon says benchmarks don't exist;
+no source for 200/150/125 anywhere. Telfer's definitions are confirmed but the
+10%/1% numbers were not found in his own text; NECR624/628 (2026) are the citable
+source for ">10% exceptional". Recommend removing the band sentence. Also found:
+Pantheon's small-sample rule is "15 **or less**" — the code treats exactly 15 as
+reliable (§1a, decision).
 
 **E17. Appendix export to match the workbook.** ✅ Done 8 Oct. Statuses through the
 workbook's `status_parts`/`status_cell` (other jurisdictions greyed), "(derived)",
@@ -370,13 +381,18 @@ then those species count as ordinary S41.
 **F6. Env (Wales) Act S7 and research-only.** Decision, from sources. Did S7
 inherit the UK BAP research-only category? If so, extend the rule; at present
 Cinnabar is key at a Welsh site.
+*Researched 8 Oct (`39_Research_Notes.md` §2):* no — the Welsh S42/S7 lists carry no
+research-only flag; Cinnabar is on S7. Current behaviour is correct by the letter.
+A new Welsh S7 spreadsheet (Mar/May 2026) exists — download it to compare with Codex.
 
 **F7. Fallback by name for unbridged record TVKs.** 0.5 day, **probably not needed**:
 the NAMES-by-key bridge (8 Oct) fixed *Nomada panzeri* and 17 other same-name cases.
 Keep only if another split turns up with no bridge.
 
-**F8. NECR702 licence.** Minutes. Check the report's front matter (very likely
-OGL v3.0) and set `reviews.licence` — survives rebuilds.
+**F8. NECR702 licence.** Checked 8 Oct: OGL v3.0, © Natural England 2026, author
+Steve A. Lane. `import_status_review.py --licence-only --licence "Open Government
+Licence v3.0"` sets it (command in `39_Research_Notes.md` §3) — **to run, apps closed.**
+New imports take `--licence` directly.
 
 **F9. Retire Codex Manager's Import Review tab.** ~30 min. Writes accounts keyed on
 TVK alone, the old way. `import_status_review.py` is now the one importer. Remove

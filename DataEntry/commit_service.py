@@ -60,6 +60,7 @@ def build_kwargs_from_row(row: Dict, job: Dict, embargo_until: Optional[str] = N
         "stage": row.get("stage") or None,
         "quantity": qty,
         "method": row.get("method") or None,
+        "comment": (row.get("comment") or "").strip() or None,
         "record_type": mode,
         "project_name": (job.get("project") or None) if is_commercial else None,
         "client": (job.get("client") or None) if is_commercial else None,
