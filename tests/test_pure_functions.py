@@ -370,3 +370,46 @@ def test_project_rename_moves_all_three_tables_together():
     import pytest as _pt
     with _pt.raises(ValueError):
         pr.rename(conn, ("Derby", "Andy Jukes"), ("  ", "x"))
+
+
+# ---------------------------------------------------------------- shared/drawer_assign (A1)
+def _spec_conn():
+    import sqlite3
+    conn = sqlite3.connect(":memory:")
+    conn.execute("""CREATE TABLE specimens (id INTEGER PRIMARY KEY, species_name, order_name, family,
+                    date_collected, site_name, sex, storage_location, drawer_unit, condition,
+                    preparation_type, taxonomic_sort_key, updated_at)""")
+    conn.executemany("INSERT INTO specimens (id, species_name, order_name, family, storage_location, "
+                     "drawer_unit, condition, taxonomic_sort_key) VALUES (?,?,?,?,?,?,?,?)", [
+        (1, "Nebria brevicollis", "Coleoptera", "Carabidae", None, None, None, 5000200),
+        (2, "Carabus nemoralis", "Coleoptera", "Carabidae", None, None, "Damaged", 5000100),
+        (3, "Carabus violaceus", "Coleoptera", "Carabidae", "Cabinet 1", "Drawer 9", None, 5000101),
+        (4, "Syrphus ribesii", "Diptera", "Syrphidae", None, None, None, 23000500),
+    ])
+    return conn
+
+
+def test_drawer_assign_order_tree_and_plan():
+    import pytest as _pt
+    from shared import drawer_assign as da
+    conn = _spec_conn()
+    specs = da.load_specimens(conn)
+    assert [s["id"] for s in specs] == [2, 3, 1, 4]                  # taxonomic order
+    assert da.tree(specs) == [("Coleoptera", [("Carabidae", [("Carabus", 2), ("Nebria", 1)])]),
+                              ("Diptera", [("Syrphidae", [("Syrphus", 1)])])]
+    ch = da.plan(specs, [2, 1], "Cabinet 2", "Drawer 1", condition="Good")
+    assert sorted(ch) == sorted([
+        (2, "storage_location", "", "Cabinet 2"), (2, "drawer_unit", "", "Drawer 1"),
+        (1, "storage_location", "", "Cabinet 2"), (1, "drawer_unit", "", "Drawer 1"),
+        (1, "condition", "", "Good")])                                   # 'Damaged' kept
+    assert da.summary(ch) == {"storage_location": 2, "drawer_unit": 2, "condition": 1}
+    with _pt.raises(ValueError, match="recorded in"):
+        da.plan(specs, [3], "Cabinet 2", "Drawer 1")                     # already elsewhere
+    assert da.plan(specs, [3], "Cabinet 1", "Drawer 9") == []            # already here: nothing
+    assert da.apply(conn, ch) == 5
+    assert conn.execute("SELECT storage_location, drawer_unit, condition FROM specimens WHERE id=1"
+                        ).fetchone() == ("Cabinet 2", "Drawer 1", "Good")
+    with _pt.raises(RuntimeError, match="changed since"):
+        da.apply(conn, ch)                                               # stale plan refused
+    with _pt.raises(ValueError):
+        da.apply(conn, [(4, "species_name", "", "x")])                   # not curatorial

@@ -155,6 +155,8 @@ class InsectCollectionTab(ICSidebarMixin, ICDataMixin, ICExportMixin, QWidget):
 
     def _connect_signals(self):
         self.toolbar.add_specimen_requested.connect(self._on_add_specimen)
+        if hasattr(self.toolbar, "drawer_assign_requested"):
+            self.toolbar.drawer_assign_requested.connect(self._on_drawer_assign)
         self.toolbar.import_requested.connect(self._on_import_specimens)
         self.toolbar.columns_requested.connect(self._on_columns_requested)
         self.toolbar.filters_toggled.connect(self._on_filters_toggled)
@@ -282,6 +284,13 @@ class InsectCollectionTab(ICSidebarMixin, ICDataMixin, ICExportMixin, QWidget):
     def _save_column_width(self, logical_index: int, old_size: int, new_size: int):
         settings = QSettings()
         settings.setValue(f"collection_table_columns/col_{logical_index}", new_size)
+
+    def _on_drawer_assign(self):
+        """Open "Drawer in hand" (A1); refresh the collection after any save."""
+        from .drawer_assign_dialog import DrawerAssignDialog
+        dlg = DrawerAssignDialog(self)
+        dlg.saved.connect(lambda *_: self.refresh())
+        dlg.exec()
 
     def _on_add_specimen(self):
         """Open the add-specimen dialog."""

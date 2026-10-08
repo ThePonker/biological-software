@@ -25,6 +25,16 @@
 8, storage 2, drawer 0, preparation 204. Those are properties of a tray, not a
 specimen — select everything in a drawer, set Storage and Drawer once.
 Per-record editing is not viable. Never touches biological data.
+*Built 8 Oct — "Drawer in hand…"* on the Insect Collection toolbar
+(`views/collection/drawer_assign_dialog.py`, rules in `shared/drawer_assign.py`, tested):
+pick storage + drawer, tick specimens in taxonomic order under genus headings
+(order › family › genus tree), optional condition/preparation (empty fields only),
+preview, backup, one guarded write; "Next drawer" steps the number. Specimens recorded
+in another drawer are greyed. Records where specimens are; Curator plans layouts.
+Mock-ups (incl. tidy values, from a spreadsheet: not built) on the "Bulk Curatorial
+Editor" canvas. **Open question:** "taxonomic order" is the collection's sort key, i.e.
+UKSI's sort code -- alphabetical by genus within a family (Carabidae: *Abax*,
+*Acupalpus*, *Agonum*…), not checklist order (*Carabus* first).
 
 Sex is the exception: it needs the animal under the scope, and is being worked
 through by hand (602 so far).

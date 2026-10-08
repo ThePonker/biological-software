@@ -24,6 +24,7 @@ class CollectionToolbar(QFrame):
     columns_requested = Signal()
     wizard_toggled = Signal(bool)  # Placeholder for future
     sidebar_toggled = Signal()
+    drawer_assign_requested = Signal()   # "Drawer in hand" (A1, 8 Oct 2026)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -75,6 +76,14 @@ class CollectionToolbar(QFrame):
         self.add_btn.setStyleSheet(self._get_primary_button_style())
         self.add_btn.clicked.connect(self.add_specimen_requested.emit)
         layout.addWidget(self.add_btn)
+
+        # Record which drawer specimens are in -- tick them off a drawer in hand
+        self.drawer_btn = QPushButton("Drawer in hand…")
+        self.drawer_btn.setToolTip("Take a drawer out, tick each specimen in it, and record the\n"
+                                   "storage location and drawer on those specimens.")
+        self.drawer_btn.setStyleSheet(self._get_secondary_button_style())
+        self.drawer_btn.clicked.connect(self.drawer_assign_requested.emit)
+        layout.addWidget(self.drawer_btn)
         
         layout.addStretch()
         
