@@ -891,53 +891,88 @@ class ObservationValidationWorker(QThread):
             external_keys = df[df["external_key"].notna() & (df["external_key"] != "")]["external_key"].unique().tolist()
             irecord_ids = df[df["irecord_id"].notna()]["irecord_id"].unique().tolist()
 
-            ext_key_lookup = {}
+            # Fault F37 (8 Oct 2026): iRecord's external key is NOT unique per record --
+            # 1,276 keys are shared by 4,303 different records (one key per app sample).
+            # Matching on it first sent every record of a sample to ONE existing record,
+            # which the update path then overwrote. Now: the iRecord ID first (unique);
+            # the external key only when it identifies exactly one record. Lookups are
+            # chunked (SQLite's variable limit was a silent failure) and failures are
+            # reported, not swallowed.
+            ext_key_lookup = {}      # key -> {record id: (its irecord_id, species, date)}
             irecord_lookup = {}
 
-            # Batch external key lookup
-            if external_keys:
-                try:
-                    placeholders = ",".join(["?"] * len(external_keys))
-                    result = self.db_manager.execute_main(
-                        f"SELECT observatum_key, id FROM observations WHERE observatum_key IN ({placeholders})",
-                        tuple(external_keys)
-                    )
-                    for r in (result or []):
-                        key = r[0] if isinstance(r, (list, tuple)) else r["observatum_key"]
-                        rid = r[1] if isinstance(r, (list, tuple)) else r["id"]
-                        ext_key_lookup[key] = rid
-                except Exception:
-                    pass
+            def _lookup(sql, values):
+                out = []
+                for i in range(0, len(values), 900):
+                    chunk = values[i:i + 900]
+                    ph = ",".join(["?"] * len(chunk))
+                    out += list(self.db_manager.execute_main(sql.format(ph=ph), tuple(chunk)) or [])
+                return out
 
-            # Batch iRecord ID lookup
             if irecord_ids:
                 try:
-                    placeholders = ",".join(["?"] * len(irecord_ids))
-                    result = self.db_manager.execute_main(
-                        f"SELECT irecord_id, id FROM observations WHERE irecord_id IN ({placeholders})",
-                        tuple(irecord_ids)
-                    )
-                    for r in (result or []):
+                    for r in _lookup("SELECT irecord_id, id FROM observations WHERE irecord_id IN ({ph})",
+                                     irecord_ids):
                         iid = r[0] if isinstance(r, (list, tuple)) else r["irecord_id"]
                         rid = r[1] if isinstance(r, (list, tuple)) else r["id"]
                         irecord_lookup[iid] = rid
-                except Exception:
-                    pass
+                        irecord_lookup[str(iid)] = rid
+                except Exception as e:
+                    print(f"[ImportValidation] iRecord ID duplicate check FAILED: {e}")
+            if external_keys:
+                try:
+                    for r in _lookup("SELECT observatum_key, id, irecord_id, species_name, date "
+                                     "FROM observations WHERE observatum_key IN ({ph})", external_keys):
+                        key, rid, iid, sp, dt = (tuple(r) if isinstance(r, (list, tuple)) else
+                                                 (r["observatum_key"], r["id"], r["irecord_id"],
+                                                  r["species_name"], r["date"]))
+                        ext_key_lookup.setdefault(key, {})[rid] = (iid, sp, dt)
+                except Exception as e:
+                    print(f"[ImportValidation] external key duplicate check FAILED: {e}")
 
             # Apply to DataFrame
             for idx, row in df.iterrows():
-                ext_key = row.get("external_key", "")
-                if ext_key and ext_key in ext_key_lookup:
+                irecord_id = row.get("irecord_id")
+                rid = None
+                if irecord_id is not None and irecord_id == irecord_id and irecord_id != "":
+                    rid = irecord_lookup.get(irecord_id, irecord_lookup.get(str(irecord_id)))
+                    if rid is None:
+                        try:
+                            rid = irecord_lookup.get(str(int(float(irecord_id))))
+                        except (TypeError, ValueError):
+                            pass
+                if rid is not None:
                     df.at[idx, "is_duplicate"] = True
-                    df.at[idx, "existing_record_id"] = ext_key_lookup[ext_key]
-                    df.at[idx, "import_notes"] = f"Will update via External key (ID: {ext_key_lookup[ext_key]})"
+                    df.at[idx, "existing_record_id"] = rid
+                    df.at[idx, "import_notes"] = f"Will update via iRecord ID (ID: {rid})"
                     continue
 
-                irecord_id = row.get("irecord_id")
-                if irecord_id and irecord_id in irecord_lookup:
+                ext_key = row.get("external_key", "")
+                ids = ext_key_lookup.get(ext_key) if ext_key else None
+                if ids and len(ids) == 1:
+                    rid, (existing_iid, ex_sp, ex_dt) = next(iter(ids.items()))
+                    has_iid = irecord_id is not None and irecord_id == irecord_id and irecord_id != ""
+                    if has_iid and existing_iid not in (None, ""):
+                        # Tied to a DIFFERENT iRecord ID. iRecord holds some records twice
+                        # (an app sample sent twice: same external key, same content, two
+                        # IDs -- 374 found 8 Oct 2026). Same species and date: the copy we
+                        # already hold, so not imported again. Otherwise: another record.
+                        same = (" ".join(str(row.get("species_name") or "").split()).casefold()
+                                == " ".join(str(ex_sp or "").split()).casefold()
+                                and str(row.get("date") or "")[:10] == str(ex_dt or "")[:10])
+                        if same:
+                            df.at[idx, "is_duplicate"] = True
+                            df.at[idx, "existing_record_id"] = rid
+                            try:
+                                shown = int(float(irecord_id))
+                            except (TypeError, ValueError):
+                                shown = irecord_id
+                            df.at[idx, "import_notes"] = (f"iRecord holds this twice (ID {shown} "
+                                                          f"and {existing_iid}); already held as record {rid}")
+                        continue
                     df.at[idx, "is_duplicate"] = True
-                    df.at[idx, "existing_record_id"] = irecord_lookup[irecord_id]
-                    df.at[idx, "import_notes"] = f"Will update via iRecord ID (ID: {irecord_lookup[irecord_id]})"
+                    df.at[idx, "existing_record_id"] = rid
+                    df.at[idx, "import_notes"] = f"Will update via External key (ID: {rid})"
 
         else:
             # Personal upload: check by species + date + grid_ref

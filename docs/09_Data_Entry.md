@@ -1,7 +1,7 @@
 # Data Entry
 
 ## The recording grid
-## Updated 6 October 2026
+## Updated 8 October 2026
 ## Consolidates `26_Data_Entry_Design.md` (the design) and
 ## `27_Data_Entry_State.md` (what was built). The research behind it is in
 ## `25_Data_Entry_Research.md`, which remains worth reading.
@@ -178,6 +178,28 @@ reads the other sheet.
 Written as a one-off for the 2026 season; retained in case it is wanted again.
 
 ---
+
+## 7a. Commercial jobs after commit (8 October 2026)
+
+A commercial job's records are grouped everywhere -- Examen, Commercial Reports, the
+iRecord export -- by the **exact** Project and Client strings. So:
+
+- **New job:** Project and Client are pickers of every name already used (committed
+  records and jobs). Typing a name that differs from an existing one only by case or
+  spacing is snapped to the existing spelling. Picking an existing project fills its
+  client when it has only one.
+- **Adding to a finished job:** when every row of a commercial job is committed the
+  job is marked `committed` and drops out of the list. Tick **Show committed** and
+  **Reopen** it (or Open it, which asks). The grid starts empty -- earlier records stay
+  in Observatum -- and the next commit is a new batch under the same project and
+  client, so `check_data_entry_batches.py` checks only the new rows.
+- **From Commercial Reports:** a project's **Add records** does the same in one step,
+  creating a job when the project came in by import, and carries the project's current
+  embargo -- the commit's embargo dialog then offers that date.
+- Editing or deleting committed records is done in Observation Data (Commercial
+  Reports' **View / edit** opens it filtered to the project).
+- **Comments** typed in the grid are written on commit from 8 October; before that
+  they were dropped (fault F31).
 
 ## 8. Not yet built
 

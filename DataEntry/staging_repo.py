@@ -135,6 +135,89 @@ def list_jobs(conn: sqlite3.Connection, include_done: bool = False) -> List[Dict
     return jobs
 
 
+# --- commercial projects: one job per project, reopened to add records ---------
+# Examen and Commercial Reports group records by the exact project and client
+# strings, so a job added to later must carry them exactly (8 Oct 2026).
+
+def _norm_key(v) -> str:
+    return " ".join(str(v or "").split()).casefold()
+
+
+def known_projects(conn: sqlite3.Connection) -> List[Dict]:
+    """[{project, client}] used anywhere -- committed records and jobs -- most frequent first."""
+    seen: Dict[tuple, Dict] = {}
+
+    def add(project, client, n):
+        project = (project or "").strip()
+        if not project:
+            return
+        key = (project, (client or "").strip())
+        d = seen.setdefault(key, {"project": key[0], "client": key[1], "n": 0})
+        d["n"] += n
+
+    try:
+        for p, c, n in conn.execute(
+                "SELECT project_name, client, COUNT(*) FROM observations "
+                "WHERE record_type='Commercial' GROUP BY project_name, client"):
+            add(p, c, n)
+    except sqlite3.Error:
+        pass                      # a staging-only database (tests, dev copy)
+    for p, c in conn.execute("SELECT project, client FROM entry_jobs WHERE mode='Commercial'"):
+        add(p, c, 0)
+    return sorted(seen.values(), key=lambda d: (-d["n"], d["project"].casefold()))
+
+
+def canonical_name(typed: Optional[str], existing) -> Optional[str]:
+    """The existing spelling when `typed` differs from one only by case or spacing."""
+    t = " ".join(str(typed or "").split())
+    if not t:
+        return None
+    for e in existing:
+        if e and _norm_key(e) == _norm_key(t):
+            return e
+    return t
+
+
+def find_project_job(conn: sqlite3.Connection, project: str, client: Optional[str]) -> Optional[Dict]:
+    """The Commercial job for this exact project + client: an active one first, else the latest."""
+    rows = conn.execute(
+        "SELECT * FROM entry_jobs WHERE mode='Commercial' "
+        "AND COALESCE(TRIM(project),'')=? AND COALESCE(TRIM(client),'')=? "
+        "ORDER BY (status='active') DESC, updated_at DESC, id DESC",
+        ((project or "").strip(), (client or "").strip())).fetchall()
+    return dict(rows[0]) if rows else None
+
+
+def reopen_job(conn: sqlite3.Connection, job_id: int) -> None:
+    """Set a committed job back to active so more records can be entered under it.
+    Its committed records stay in Observatum; the grid starts empty."""
+    update_job(conn, job_id, status="active")
+
+
+def open_project_job(conn: sqlite3.Connection, project: str, client: Optional[str],
+                     embargo_until: Optional[str] = None):
+    """(job_id, how) for adding records to a commercial project.
+
+    how: 'open' (an active job exists), 'reopened' (a committed one was reopened) or
+    'created' (no job yet -- e.g. records that came in by import). The job carries the
+    project and client exactly as the records do; a current embargo is carried too.
+    """
+    job = find_project_job(conn, project, client)
+    if job is None:
+        job_id = create_job(conn, (project or "").strip(), "Commercial",
+                            (client or "").strip() or None, (project or "").strip())
+        how = "created"
+    else:
+        job_id = job["id"]
+        how = "open"
+        if (job.get("status") or "active") != "active":
+            reopen_job(conn, job_id)
+            how = "reopened"
+    if embargo_until:
+        update_job(conn, job_id, embargo_until=embargo_until)
+    return job_id, how
+
+
 # --- staging rows (grid) -----------------------------------------------------
 
 # Columns the grid may edit + persist (guards update_row against typos/unknown keys).

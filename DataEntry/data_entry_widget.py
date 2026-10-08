@@ -245,7 +245,32 @@ class DataEntryWidget(QWidget):
         self._job_layout.addWidget(grid, 1)
 
         self._stack.setCurrentIndex(1)
-        self._status.setText(f"Open: {job['name']} ({job.get('mode')}). Staged \u2014 nothing committed.")
+        self._status.setText(f"Open: {job['name']} ({job.get('mode')}). Staged \u2014 nothing committed."
+                             + ("  Previously committed records stay in Observatum; this grid holds "
+                                "only new rows." if self._has_committed(job) else ""))
+
+    def _has_committed(self, job) -> bool:
+        """True when records for this job's project and client are already in Observatum."""
+        if not (job.get("project") and (job.get("mode") or "").lower().startswith("comm")):
+            return False
+        try:
+            return self._conn.execute(
+                "SELECT 1 FROM observations WHERE record_type='Commercial' AND project_name=? "
+                "AND COALESCE(client,'')=? LIMIT 1",
+                (job["project"], job.get("client") or "")).fetchone() is not None
+        except sqlite3.Error:
+            return False
+
+    def open_project_job(self, project: str, client: str = "", embargo_until=None) -> str:
+        """Open (reopening or creating as needed) the Commercial job for this project and
+        client, for Commercial Reports' "Add records". Returns 'open', 'reopened' or
+        'created', or '' when staging is unavailable."""
+        if self._conn is None or not hasattr(self, "_jobs"):
+            return ""
+        self.backup_now()
+        job_id, how = repo.open_project_job(self._conn, project, client, embargo_until)
+        self._jobs.open_job_by_id(job_id)     # emits job_opened -> _open_job
+        return how
 
     def _back_to_jobs(self):
         self.backup_now()          # leaving a job: commit / export / discard / Jobs

@@ -185,9 +185,9 @@ the current `pantheon.db` stored every species without a TVK under one blank key
 Pantheon 3.7.4 CSVs in `Observatum\test data\` (part of that folder's ~120 MB --
 keep them; not in git, so check they are on the `D:\` copy).
 
-**D6. Sweep for never-executed code paths.** 0.5 day. **Seven found this year**,
-all crash-on-first-use. Two more claimed by the September code review and
-unverified — see `37_Code_Review_Findings.md`.
+**D6. Sweep for never-executed code paths.** ✅ Swept 8 Oct (`40_Code_Sweep_20261008.md`
+§1): 57 static hits → 2 real crashes and one wrong-data export, all three fixed; the
+rest dead code or guarded (into I8 / I7b). pyflakes finds no undefined names.
 
 **D7. Rebuild-twice-and-compare check.** 0.5 day. Build Codex into two files and
 diff them; any difference means something is order-dependent. Would have caught
@@ -200,10 +200,10 @@ writes to Codex" is a convention the code does not enforce -- the Examen
 manual-entry route (fixed 6 Oct) is where it broke. A shared helper, read-only by
 default for UKSI, Codex and Pantheon.
 
-**D10. After a UKSI swap, `restore_dropped_statuses.py` can false-positive.** It
-compares old TVKs; statuses that moved to the current TVK look dropped
-(*Mycetoporus baudueri*, 6 Oct). Check the current TVK before restoring; teach the
-script to follow `uksi.tvk_remap`. Small.
+**D10. After a UKSI swap, `restore_dropped_statuses.py` can false-positive.** ✅ Done
+8 Oct. The script now maps each old TVK through `build_codex_db._tvk_translator`
+(tvk_remap, then name_map — imported, not copied) and lists a species whose current
+TVK already holds a status under "MOVED", not under "RESTORE".
 
 **D8. Laptop / second-machine access.** Unscoped. **SQLite over a syncing folder
 from two machines risks corruption.** Options: strict one-at-a-time; export a job
@@ -304,7 +304,10 @@ import with no way to correct or extend it. Musgrove et al. independently call
 for an expert-consensus update mechanism. Natural England has funding again as of
 2026, so upstream updates may resume.
 
-**E16. The SQI verdict bands — DECISION.** The Overview sentence ends *"This
+**E16. The SQI verdict bands.** ✅ **Decided and done 8 Oct:** the verdict sentence is
+removed; the reliability rule stays at **15 or more scoring species** (Telfer's reading,
+the one reports cite -- Pantheon's own wording, "15 or less should not be used", would
+make it 16; kept at 15 by decision). History: the Overview sentence ended *"This
 indicates a site of national / regional importance / some conservation value"*
 at SQI 200 / 150 / 125. **No published source found** — not Pantheon's, not
 Fowles's (whose are 500 and 590, for a different index). The report survey found
@@ -318,6 +321,19 @@ no source for 200/150/125 anywhere. Telfer's definitions are confirmed but the
 source for ">10% exceptional". Recommend removing the band sentence. Also found:
 Pantheon's small-sample rule is "15 **or less**" — the code treats exactly 15 as
 reliable (§1a, decision).
+
+**E23. Managing a commercial job after commit.** ✅ Done 8 Oct. Commercial Reports
+(Observatum → Stats/Reports): click a project to see its records by survey year and
+site; **Add records** opens Data Entry on the project's job (reopened, or created for
+imported projects) with the exact project, client and current embargo; **View / edit**
+opens Observation Data filtered to the project -- editing and deleting stay there. **Edit project / client** renames
+a project or changes its client across own records, contributed records and jobs in one
+transaction (`shared/project_rename.py`), backed up first, warning when it would merge
+into an existing project.
+Data Entry: Project and Client are pickers of names already used (case/spacing
+differences snap to the existing spelling); **Show committed** + **Reopen**. Still
+missing: Observation Data has no project filter of its own, so a reload after an
+edit returns to its normal view.
 
 **E17. Appendix export to match the workbook.** ✅ Done 8 Oct. Statuses through the
 workbook's `status_parts`/`status_cell` (other jurisdictions greyed), "(derived)",
@@ -572,9 +588,17 @@ grid-ref parsing and the 1 km square, the specimen sort key. Run
 Next candidates as they are touched: `grid_converter_service`, the import wizards'
 species matching (C4).
 
-**I7. Review silent errors.** 2–3 hours. 131 handlers that only `pass`; start
-with the import validation workers (26), where one could hide a record failing
-to import.
+**I7. Review silent errors.** Swept 8 Oct (`40_Code_Sweep_20261008.md` §3): 189
+silent handlers; three can lose or duplicate records (F35), several more import
+records with missing fields (F34).
+
+**I7b. Import wizard repairs** (faults F32–F35). ~1 day, then testing against real
+imports -- overlaps C4 (merge the three wizards), so best done with it. **Measure
+first, read-only:** records with NULL sort key by import batch; scheme rows from
+iRecord files with NULL `irecord_id`; duplicate `nbn_atlas_id` / `observatum_key`.
+Then: UPDATE only supplied columns; fixed column list in the scheme batch insert;
+batched duplicate lookups that fail loudly; `utf-8-sig` first; sort key / superfamily
+/ subfamily computed and stored; row warnings instead of `pass`.
 
 **I8. Remove dead code.** 1–2 hours. 10 modules nothing imports (~1,900 lines:
 `conservation_override.py`, `DataEntry/entry_page.py`, `session_picker.py`,

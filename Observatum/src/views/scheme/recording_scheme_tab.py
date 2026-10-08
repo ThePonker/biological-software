@@ -349,7 +349,7 @@ class RecordingSchemeTab(QWidget):
     def _on_wizard_filters_reset(self):
         """Handle filter wizard reset."""
         self._wizard_filters = {}
-        self.filters.clear_filters()
+        self.filter_bar.clear_filters()   # was self.filters (copied from the collection tab): Reset crashed
 
 
     def _load_wizard_tab_data(self):
@@ -676,7 +676,9 @@ class RecordingSchemeTab(QWidget):
             return
         ids = []
         for index in selection:
-            source_index = self.proxy_model.mapToSource(index) if hasattr(self, 'proxy_model') else index
+            # The view shows sort_proxy once connected; mapping through a non-existent
+            # proxy_model exported the wrong rows whenever the table was sorted (8 Oct 2026)
+            source_index = self.sort_proxy.mapToSource(index) if self._proxy_connected else index
             row_data = self.table_model.get_row_data(source_index.row())
             if row_data and 'id' in row_data:
                 ids.append(row_data['id'])

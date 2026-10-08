@@ -1074,9 +1074,11 @@ class ExportOptionsDialog(QDialog):
 
 class EmbargoDialog(QDialog):
     """Choose whether to embargo a commercial job at commit -- 'no embargo' is a clear option."""
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, current=None):
         super().__init__(parent)
         self.setWindowTitle("Embargo")
+        # current: the job's embargo (carried from the project's records when a job is
+        # reopened from Commercial Reports) -- offered as the default when still in force
         self.setMinimumWidth(360)
         self.setStyleSheet(theme.input_qss())
         from PySide6.QtCore import QDate
@@ -1108,6 +1110,12 @@ class EmbargoDialog(QDialog):
         self.rb_embargo.toggled.connect(self.date.setEnabled)
         self.rb_none.setChecked(True)   # default: no embargo, chosen deliberately
         self.date.setEnabled(False)
+        cur = QDate.fromString(str(current or "")[:10], "yyyy-MM-dd")
+        if cur.isValid() and cur > QDate.currentDate():
+            self.date.setDate(cur)
+            self.rb_embargo.setChecked(True)
+            intro.setText(intro.text() + f"\n\nThis project's records are embargoed until "
+                          f"{cur.toString('dd/MM/yyyy')}; the same date is offered.")
 
         btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         btns.accepted.connect(self.accept)
@@ -1476,11 +1484,21 @@ class EntryGridPage(QWidget):
         if self._model.real_count() == 0:
             QMessageBox.information(self, "Commit", "Nothing to commit yet.")
             return
+        if self._is_commercial() and not (self._job.get("project") or "").strip():
+            # Without a project the records become "(no project)" in Examen and
+            # Commercial Reports (8 Oct 2026). Set it with Jobs > Edit details.
+            QMessageBox.warning(
+                self, "Commit",
+                "This commercial job has no Project, so its records would not be grouped "
+                "with any project in Examen or Commercial Reports.\n\nGo back to Jobs, select "
+                "this job, choose \u201cEdit details\u201d and set the Project (and Client), "
+                "then reopen it and commit.")
+            return
         if not self._confirm_precommit_issues(cs):
             return
         embargo = None
         if self._is_commercial():
-            dlg = EmbargoDialog(self)
+            dlg = EmbargoDialog(self, self._job.get("embargo_until"))
             if dlg.exec() != QDialog.DialogCode.Accepted:
                 return
             embargo = dlg.value()

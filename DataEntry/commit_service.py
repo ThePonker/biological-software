@@ -122,6 +122,10 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
     if observation_cls is None:
         from src.models.observation import Observation as observation_cls  # noqa: N806
 
+    if (job.get("mode") or "").lower().startswith("comm") and not (job.get("project") or "").strip():
+        # backstop for the grid's own check: no project means "(no project)" everywhere
+        raise ValueError("this commercial job has no Project -- set it with Jobs > Edit details")
+
     committed = 0
     skipped_species = 0
     skipped_date = 0

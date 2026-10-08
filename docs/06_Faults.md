@@ -152,6 +152,64 @@ VC boundary overlay is shifted the same way. `grid_converter_service` (the
 OSGridConverter library) does apply the shift. **Action:** backlog I3c -- one
 converter (import, not copy), then recompute the 3,332 (dry run first).
 
+### F32. Observation import's update path blanks fields it wasn't given
+*Found 8 October 2026 by the code sweep (`40_Code_Sweep_20261008.md` §2); not yet
+reproduced.* On an iRecord re-sync that finds a changed record, the wizard builds a
+whole `Observation` from the fields it has and `ObservationModel.update` writes every
+field -- so ~15 it was not given (`internal_notes`, `identification_qualifier`,
+`site_name_local`, `individual_count`, `rights_holder`...) go to NULL and
+`basis_of_record` resets. With "skip duplicates" off, a personal-upload row matching
+species + date + grid ref overwrites the existing record (a second sex or stage row
+replaces the first). **Action:** backlog I7b -- measure first, then UPDATE only the
+supplied columns.
+
+### F33. Scheme import drops optional columns batch by batch
+*Found 8 October 2026 by the code sweep, §2.* The batch INSERT takes its column list
+from the first row's non-empty fields; a column empty in row 1 of a 500-row batch is
+dropped for all 500 (comment, verifier, lat/long, irecord_id, nbn_atlas_id).
+**Action:** backlog I7b -- fixed column list; measure how many rows lost values.
+
+### F34. Imports never store the taxonomic sort key, superfamily or subfamily
+*Found 8 October 2026 by the code sweep, §1.* The observation validation worker reads
+UKSI through `self.uksi_conn`, which is never set; the error is swallowed, and the
+row builder would not copy the values anyway. The specimen worker swallows the same
+lookup's failure -- a NULL sort key hides a specimen from the collection sidebar (the
+244-specimen fault below). **Action:** backlog I7b.
+
+### F35. Import duplicate checks fail silently
+*Found 8 October 2026 by the code sweep, §3.* The iRecord-sync and NBN duplicate
+lookups (unbatched `IN (...)`) are wrapped in `except: pass`. If one fails, the
+observation import loses the whole 500-row batch to the `irecord_id` UNIQUE
+constraint (printed, not shown), and the scheme import re-imports an NBN file as
+duplicates. A BOM-prefixed iRecord CSV loses every `irecord_id` (utf-8 tried before
+utf-8-sig). **Action:** backlog I7b -- batch the lookups, fail loudly, try utf-8-sig
+first; check read-only for duplicate keys first.
+
+### F37. iRecord sync matched records by a key shared across records
+*Found 8 October 2026 measuring F35 on the 09:42 backup.* The iRecord-sync duplicate
+check matched an incoming record on its **external key first**, then its iRecord ID.
+The external key is not unique: **1,276 keys are shared by 4,303 different records**
+(one per app sample). Every record of such a sample matched one existing record, and the
+update path then overwrote it -- species and all -- keeping its iRecord ID. **Fixed in
+code** (`observation_import_wizard/validation_worker.py`): iRecord ID first; the external
+key only when it names exactly one record not tied to a different iRecord ID; lookups
+chunked; failures printed, not swallowed. *Checked 8 Oct against a fresh iRecord download
+(20,656 records):* **no record was overwritten** -- all 20,045 matched by iRecord ID agree
+on date; the only differences are 3 names updated since (e.g. *Aeshna* → *Isoaeschna
+isoceles*) and 12 grid refs iRecord shows coarser. Closed.
+
+### F38. 374 personal iRecord records held twice since the 25 March import
+*Found 8 October 2026, same measurement.* Each iRecord number held by two records: one
+with `irecord_id`, one with it blank but the same number in `irecord_key`, otherwise
+identical. Personal counts, maps and the iRecord export see both. **Done 8 Oct:**
+`_oneoff/fix_irecord_twins_20261008.py` removed the 373 copies without the iRecord ID
+(backup `pre-irecord-twins`; one pair differing in record type left). **The cause is in
+iRecord:** it holds 635 pairs of submissions sharing one external key (632 identical,
+mostly entered in the same minute -- the app sending a sample twice), and the 25 March
+import mirrored them under one iRecord number. The sync now recognises such a second
+copy (same external key, species and date) as already held instead of importing it
+again. List for tidying iRecord: `_oneoff/irecord_duplicate_submissions_20261008.csv`.
+
 ### F4. `build_pantheon_db.py` missing
 Same event. Pantheon has not been updated since 2017 v3.7.4, so this is insurance
 rather than need. **Action:** backlog D5.
@@ -203,7 +261,9 @@ of 72, 10 unbridged".) **Action:** backlog F5, which depends on D5.
 At a Welsh site, Cinnabar and Latticed Heath still count as key through S7.
 Whether S7 inherited the UK BAP research-only category needs the Welsh source
 documents, not an assumption. Machen's key species did not move. **Action:**
-backlog F6.
+backlog F6. *Researched 8 Oct (`39_Research_Notes.md` §2):* the Welsh S42/S7 lists
+carry **no** research-only flag; Cinnabar is on S7 -- current behaviour is correct by
+the list. A new Welsh S7 spreadsheet (May 2026) is still to be compared with Codex.
 
 ### F19. Taxa split since 2017 lose their Pantheon data
 *Nomada panzeri*: records carry the sensu lato TVK; the bridge mapped Pantheon's
@@ -217,11 +277,6 @@ turns up.
 125 against the report's 123, same 96 species. Every other figure matches
 exactly. Most likely one score differing between Pantheon 3.7.4 (held) and 3.7.6
 (website). **Action:** none unless it recurs; note only.
-
-### F21. The Appendix export still reports one SQI
-`appendix_export.py`'s totals line gives a single SQI and does not mark derived
-scores. The workbook is the document that goes out; this should still match it.
-**Action:** backlog E17.
 
 ### F11. Mixed line endings
 Some files LF, some CRLF. `.gitattributes` added, but existing files are
@@ -246,7 +301,12 @@ prose written to be lifted into a report. Left unchanged pending a decision.
 *2 October:* every SQI has since fallen 3–66 points (see the closed entries
 below), so the bands now attach to different sites than when they were written —
 another reason they cannot stand unsourced.
-**Action:** backlog E16.
+*8 October:* Pantheon's own page says benchmarks have not been produced; no source
+for 200/150/125 exists anywhere searched (`39_Research_Notes.md` §1). Pantheon's
+small-sample wording is "15 **or less**" -- the code treats exactly 15 as reliable.
+**Closed 8 October:** the sentence is removed (backlog E16). The SQI colours on the
+project and assemblage tables still use 150 / 125 for green / amber -- the same
+unsourced bands, unlabelled; worth a decision of their own.
 
 ### F15. Two specimens without a TVK
 *Phoracantha recurva* (id 1263) and *Oberea linearis* (id 1356). No TVK, so no
@@ -262,6 +322,33 @@ normalises; the data does not. **Action:** backlog A7.
 ---
 
 ## Closed — the ones worth remembering
+
+### F36. Commercial Data Entry jobs could be committed with no project
+*Found 8 October 2026 (Commercial Reports' new drill-in).* The New job dialog checked
+only the name, so Commercial jobs were created with Project and Client blank and 1,129
+records (Alsager, Bristol, Elmley, Slade Green, Sundon) committed as "(no project)".
+Now: a Commercial job needs a Project (dialog), the commit refuses without one (grid,
+and `commit_job` as a backstop), and Jobs > **Edit details** sets it on an existing
+job. Repair: `_oneoff/fix_no_project_20261008.py` -- project = site; client Richard
+Wilson (Elmley), Andy Jukes (the rest), by Wil's decision.
+
+### F31. Data Entry commits dropped the Comment column
+*Found and fixed 8 October 2026 (code sweep).* The grid has a Comment column and the
+workbook loader fills it, but `build_kwargs_from_row` never passed it on, and the
+staging row is deleted on commit -- so every comment was lost from the day Data
+Entry went live. Now carried through (`commit_service`, `write_service`), with a
+test. Comments already committed can come back only from source sheets.
+
+### Recording Scheme: Reset crashed; Export Selected exported the wrong rows when sorted
+*Fixed 8 October 2026 (code sweep).* Filter Wizard → Reset called `self.filters`
+(copied from the collection tab; the bar is `filter_bar`). Export Selected mapped
+through a `proxy_model` that does not exist -- a `hasattr` guard hid it -- so with
+the table sorted it exported the rows at the same *positions* in the unsorted data.
+Also fixed: the Data Entry info panel crashed on build when the distribution map
+could not load.
+
+### Appendix export reported one SQI (was F21)
+*Fixed 8 October 2026 -- backlog E17.*
 
 ### iRecord export stopped silently when every record was embargoed
 *Fixed 8 October 2026.* Choosing iRecord format for 279 embargoed Alsager records

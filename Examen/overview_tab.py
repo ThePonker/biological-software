@@ -137,14 +137,10 @@ class OverviewTab(QWidget):
             sqi_text += " (fewer than 15 scoring species \u2014 treat with caution)"
         sentences.append(sqi_text)
 
-        # SQI interpretation. NOTE: these bands have no published source -- they
-        # are not Pantheon's and not Fowles's. Left unchanged pending a decision;
-        # see patch_overview_sentence.py.
-        if sqi and sqi.sqi:
-            if sqi.sqi >= 200: sentences.append("This indicates a site of national importance")
-            elif sqi.sqi >= 150: sentences.append("This indicates a site of regional importance")
-            elif sqi.sqi >= 125: sentences.append("This indicates a site of some conservation value")
-            elif sqi.sqi >= 100: sentences.append("No significant concentration of rare species")
+        # No verdict on site importance. The 200/150/125 bands it used had no
+        # published source, and Pantheon states that SQI benchmarks have not been
+        # produced (docs/39_Research_Notes.md section 1). Removed 8 Oct 2026 by
+        # decision (backlog E16): the figures are reported, the author judges.
         self.summary_sentence.setText(". ".join(sentences) + ".")
 
         # Tier breakdown

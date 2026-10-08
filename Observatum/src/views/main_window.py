@@ -174,6 +174,11 @@ class MainWindow(QMainWindow):
         self.stats_reports_tab.navigate_to_scheme.connect(self._navigate_to_scheme_tab)
         self.stats_reports_tab.navigate_to_scheme_vc.connect(self._navigate_to_scheme_tab_with_vc)
         self.stats_reports_tab.navigate_to_scheme_record.connect(self._navigate_to_scheme_record)
+        # Commercial Reports: manage a project's records (8 Oct 2026)
+        _crd = getattr(self.stats_reports_tab, 'commercial_reports_dashboard', None)
+        if _crd is not None and hasattr(_crd, 'add_records_requested'):
+            _crd.view_project_requested.connect(self._navigate_to_observation_tab_by_project)
+            _crd.add_records_requested.connect(self._open_data_entry_for_project)
 
         # Connect Recording Scheme tab navigation signals (from record detail dialog)
         self.recording_scheme_tab.navigate_to_observations.connect(self._navigate_to_observation_tab)
@@ -322,6 +327,50 @@ class MainWindow(QMainWindow):
                 species_count = len(set(getattr(obs, 'species_name', '') for obs in filtered if getattr(obs, 'species_name', '')))
             self.observation_tab._update_stats(len(excluded), species_count)
             self.statusBar().showMessage(f"Showing {len(filtered):,} records for {month_name} (all years)", 5000)
+
+    def _navigate_to_observation_tab_by_project(self, project: str, client: str = ""):
+        """Observation Data showing only one commercial project's records (Commercial Reports).
+
+        Same client-side pattern as the month navigation. No species exclusion: when
+        managing a job, every record of it should be visible. A later reload of the tab
+        (after an edit or delete) returns to its usual filters."""
+        self.tabs.setCurrentWidget(self.observation_tab)
+        if hasattr(self.observation_tab, 'filter_bar'):
+            self.observation_tab.filter_bar.clear_filters()
+            if hasattr(self.observation_tab.filter_bar, '_data_type_buttons'):
+                for d, btn in self.observation_tab.filter_bar._data_type_buttons.items():
+                    btn.setChecked(d == 'commercial')
+        if not getattr(self.observation_tab, '_all_observations', None) and hasattr(self.observation_tab, '_load_data'):
+            self.observation_tab._load_data()
+        records = [o for o in (getattr(self.observation_tab, '_all_observations', None) or [])
+                   if getattr(o, 'record_type', '') == 'Commercial'
+                   and (getattr(o, 'project_name', '') or '') == (project or '')
+                   and (getattr(o, 'client', '') or '') == (client or '')]
+        self.observation_tab.table_model.set_observations_fast(records)
+        if hasattr(self.observation_tab, '_connect_proxy_after_load'):
+            self.observation_tab._connect_proxy_after_load()
+        species = len({getattr(o, 'species_name', '') for o in records if getattr(o, 'species_name', '')})
+        self.observation_tab._update_stats(len(records), species)
+        label = (project or '(no project)') + (f' \u2014 {client}' if client else '')
+        self.statusBar().showMessage(f"Showing {len(records):,} records for {label}", 8000)
+
+    def _open_data_entry_for_project(self, project: str, client: str = "", embargo_until: str = ""):
+        """Data Entry on this project's job -- reopened, or created -- from Commercial Reports."""
+        from PySide6.QtWidgets import QMessageBox
+        de = getattr(self, 'data_entry_tab', None)
+        if de is None or not hasattr(de, 'open_project_job'):
+            QMessageBox.information(self, "Data Entry", "The Data Entry tab is not available.")
+            return
+        how = de.open_project_job(project, client, embargo_until or None)
+        if not how:
+            QMessageBox.warning(self, "Data Entry", "Could not open a job: staging is unavailable.")
+            return
+        self.tabs.setCurrentWidget(de)
+        msg = {"open": "Opened the project's job",
+               "reopened": "Reopened the project's committed job",
+               "created": "Created a job for this project"}.get(how, "Opened")
+        self.statusBar().showMessage(f"{msg}: {project}. New records commit under the same "
+                                     "project and client.", 10000)
 
     def _navigate_to_observation_tab_by_family(self, family_name: str):
         """Navigate to Observation Data tab filtered by a specific family."""

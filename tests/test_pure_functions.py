@@ -297,3 +297,76 @@ def test_in_taxonomic_order(monkeypatch):
              NS(tvk="T3", name="Carabus")]
     assert [x.name for x in examen_data.in_taxonomic_order(items)] == [
         "Carabus", "Rutpela", "Philanthus", "Absent from UKSI", "no TVK"]
+
+
+# ---------------------------------------------------------------- Data Entry: commercial project jobs
+def _staging_conn():
+    import sqlite3
+    from DataEntry import staging_repo as repo
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    repo.ensure_schema(conn)
+    conn.execute("CREATE TABLE observations (record_type TEXT, project_name TEXT, client TEXT)")
+    conn.executemany("INSERT INTO observations VALUES (?,?,?)",
+                     [("Commercial", "Glory Park", "BAM")] * 3
+                     + [("Commercial", "Alsager", None), ("Personal", "ignored", None)])
+    return conn, repo
+
+
+def test_known_projects_and_canonical_name():
+    conn, repo = _staging_conn()
+    repo.create_job(conn, "Tilbury job", "Commercial", "Bioscan", "Tilbury")
+    got = [(d["project"], d["client"]) for d in repo.known_projects(conn)]
+    assert got[0] == ("Glory Park", "BAM")                      # most records first
+    assert set(got) == {("Glory Park", "BAM"), ("Alsager", ""), ("Tilbury", "Bioscan")}
+    names = [p for p, _ in got]
+    assert repo.canonical_name("glory  park ", names) == "Glory Park"   # snapped
+    assert repo.canonical_name("Hook Farm", names) == "Hook Farm"       # new name kept
+    assert repo.canonical_name("  ", names) is None
+
+
+def test_open_project_job_reopens_creates_and_carries_embargo():
+    conn, repo = _staging_conn()
+    jid = repo.create_job(conn, "Glory Park", "Commercial", "BAM", "Glory Park")
+    repo.update_job(conn, jid, status="committed")
+    assert [j["id"] for j in repo.list_jobs(conn)] == []         # hidden when committed
+    got, how = repo.open_project_job(conn, "Glory Park", "BAM", "2027-06-01")
+    assert (got, how) == (jid, "reopened")
+    job = repo.get_job(conn, jid)
+    assert job["status"] == "active" and job["embargo_until"] == "2027-06-01"
+    assert repo.open_project_job(conn, "Glory Park", "BAM") == (jid, "open")
+    new, how = repo.open_project_job(conn, "Alsager", "")         # imported, no job yet
+    assert how == "created" and repo.get_job(conn, new)["project"] == "Alsager"
+    assert repo.get_job(conn, new)["client"] is None
+    assert repo.open_project_job(conn, "Alsager", None) == (new, "open")
+
+
+def test_commercial_commit_without_project_is_refused():
+    import pytest as _pt
+    from DataEntry.commit_service import commit_job
+    with _pt.raises(ValueError, match="no Project"):
+        commit_job(None, None, None, {"id": 1, "mode": "Commercial", "project": "  "})
+
+
+# ---------------------------------------------------------------- shared/project_rename
+def test_project_rename_moves_all_three_tables_together():
+    import sqlite3
+    from shared import project_rename as pr
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE observations (record_type, project_name, client)")
+    conn.execute("CREATE TABLE contributed_observations (project_name, client)")
+    conn.execute("CREATE TABLE entry_jobs (mode, project, client)")
+    conn.executemany("INSERT INTO observations VALUES (?,?,?)",
+                     [("Commercial", "Brum", None)] * 3 + [("Personal", "Brum", None),
+                                                           ("Commercial", "Derby", "Andy Jukes")])
+    conn.execute("INSERT INTO contributed_observations VALUES ('Brum ', '')")
+    conn.execute("INSERT INTO entry_jobs VALUES ('Commercial', 'Brum', NULL)")
+    assert pr.plan(conn, "Brum", "") == {"observations": 3, "contributed_observations": 1,
+                                         "entry_jobs": 1}
+    done = pr.rename(conn, ("Brum", ""), ("Birmingham - Wheels Park", " Andy  Jukes "))
+    assert done == {"observations": 3, "contributed_observations": 1, "entry_jobs": 1}
+    assert pr.plan(conn, "Birmingham - Wheels Park", "Andy Jukes")["observations"] == 3
+    assert conn.execute("SELECT COUNT(*) FROM observations WHERE project_name='Brum'").fetchone()[0] == 1  # personal untouched
+    import pytest as _pt
+    with _pt.raises(ValueError):
+        pr.rename(conn, ("Derby", "Andy Jukes"), ("  ", "x"))
