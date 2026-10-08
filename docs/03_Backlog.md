@@ -1,6 +1,6 @@
 # Backlog
 
-## Updated 7 October 2026
+## Updated 8 October 2026
 ## Check this before starting a session.
 
 ---
@@ -10,10 +10,11 @@
 | | Item | Size |
 |---|---|---|
 | 1 | **F11** — email Chris Raper (c.raper@nhm.ac.uk): the 24 British beetles the July 2025 UKSI flags redundant, and any copy newer than July 2025 | 10 min |
-| 2 | **F14** — investigate `uksi.synonyms` mapping other species' old names to the wrong taxon (*Lamia sartor* → *L. textor*); read-only counts first — fault F25 | ~1 hr |
+| 2 | **F14** — `uksi.synonyms` (fault F25), measured 8 Oct: review the 26 multi-target Pantheon-bridge rows in `scripts\_oneoff\f14_bridge_exposure.csv` first -- those can attach the wrong ecology | ~30 min review |
 | 3 | **G13** — your own accounts for the five survey key species with none: *Oligota apicata*, *Xysticus luctuosus*, *Liocyrtusa minuta*, *Chiasmia clathrata*, *Zophomyia temula* | ~1 hr |
 | 4 | **E16** — decide the SQI verdict wording | decision |
 | 5 | **D3** — merge `main` → `stable` | 15 minutes |
+| 5b | **B8** — warn in Data Entry before commit: blank site, grid ref or TVK, likely double entries (fault F28) | 0.5 day |
 | 6 | **I7–I9** — rainy-day hygiene from the 6 October analysis: dead code, silent errors, read-only connections | ~1 day |
 
 ---
@@ -39,7 +40,14 @@ Drawer Number. Column empty, no data risk; touches four files plus reset scripts
 
 **A5. Two specimens without a TVK.** Minutes. *Phoracantha recurva* (id 1263) and
 *Oberea linearis* (id 1356) — both longhorns. With no TVK they get no sort key
-and stay invisible to the sidebar. Assign one by hand.
+and stay invisible to the sidebar. *8 Oct:* **neither is in the July 2025 UKSI.**
+Left as they are by decision; set them when a UKSI release includes them.
+
+**A9. Re-key specimens on the current UKSI numbering** — ✅ **DONE** (8 October).
+All 2,743 keys recomputed on the July 2025 `sort_code`; 0 of 2,742 changed position
+in the tree, 1752 back in place (fault F27). Note `backfill_sort_keys.py
+--apply` as it stands rewrites every key it judges "stray", with a test that
+matches almost all of them -- don't use it for this.
 
 **A6. Live sidebar refresh — parked.** Small. After editing a specimen the tree
 keeps its old counts until restart. `_refresh_sidebar()` exists; it simply isn't
@@ -101,8 +109,10 @@ tallying. Design in `26_Data_Entry_Design.md` §3.3.
 
 **B2. Repeat key for sex splits.** Small. Clone the row, land on Sex.
 
-**B3. Reject `?` and `#N/A` as TVKs on load.** Trivial. Two rows slipped through
-the workbook migration.
+**B3. Reject `?` and `#N/A` as TVKs on load** — ✅ **DONE** (8 October).
+`load_workbook_to_staging.py` loads placeholder and Excel-error TVKs (`?`, `#N/A`,
+`#REF!`, `-`, `0` ...) as no TVK and reports them; `check_data_entry_batches.py` lists
+any still sitting in staging. None found in observations or specimens.
 
 **B4. Species-name paste resolution.** 0.5 day. Pasted names store as text with
 no TVK and commit anyway, with only a count as warning.
@@ -110,7 +120,14 @@ no TVK and commit anyway, with only a count as warning.
 **B6. Common names typed in the species column.** Small. "Cricket bat spider"
 reached staging with no TVK. Same class as B4; UKSI has no common name for many
 taxa, so matching on common names is not a fix (it would have found Cricket-Bat
-Willow).
+Willow). *8 Oct:* it went on to be **committed** (Bristol, "Cricket bat spid", no
+TVK); set by hand to *Mangora acalypha*. B8 would have stopped it.
+
+**B8. Warn before commit.** 0.5 day. Commit flags only a missing TVK or a future date. On 8 Oct five
+commits carried 59 blank site names, 31 records with no trap or grid ref, a common
+name as a species and three doubled entries (fault F28). Show the same counts as
+`scripts\check_data_entry_batches.py` in the commit dialog, with the rows, before
+writing. Until then, run the script after every commit.
 
 **B5. Row insert below the new-row marker.** Small. Attempted, committed, does
 not work. There is a workaround.
@@ -159,7 +176,11 @@ spreadsheet. Procedure in `01_Architecture.md` §5. The Access extractor is no
 longer needed.
 
 **D5. Reconstruct `build_pantheon_db.py`.** ~1 day. Open since March. Pantheon
-has not moved since 2017, so this is insurance rather than need.
+has not moved since 2017, so this is insurance rather than need -- **except** that
+the current `pantheon.db` stored every species without a TVK under one blank key
+(fault F26), losing their ecology. The rebuild must key those on name. Source: the
+Pantheon 3.7.4 CSVs in `Observatum\test data\` (part of that folder's ~120 MB --
+keep them; not in git, so check they are on the `D:\` copy).
 
 **D6. Sweep for never-executed code paths.** 0.5 day. **Seven found this year**,
 all crash-on-first-use. Two more claimed by the September code review and
@@ -286,8 +307,10 @@ Leaning to Telfer. See `06_Faults.md` F14.
 **E17. Appendix export to match the workbook.** Small. Both SQIs in the totals
 line; "(derived)" on derived scores; jurisdiction-named, legal-named status.
 
-**E18. Summary sheet presentation.** Small. Survey and run dates in dd/mm/yyyy;
-"Analysis mode" shows `codex_full`, not "Codex Full".
+**E18. Summary sheet presentation** — ✅ **DONE** (8 October). Survey and run
+dates dd/mm/yyyy, "Analysis mode" reads "Codex Full". Dates and mode labels now come
+from one place, `shared/display_format.py`, used by the workbook, the Site Analysis
+table and Examen's status bar (three copies before).
 
 **E19. "Taxonomic order" claimed but not delivered.** Small. The key species sheet
 says taxonomic order within each tier but sorts by SQS; the workbook appendix is
@@ -330,8 +353,11 @@ carried SQS 8; the incumbent carries 1 while holding RDB 3, which the published
 rule scores at 8. Under incumbent-wins it stays at 1 and the disagreement remains
 visible as a Pantheon-vs-rule case rather than being silently patched.
 
-**F5. Ten research-only species unbridged.** Small. Pantheon lists 72; 62 reach
-current TVKs. Find the other 10 and map them, or they count as ordinary S41.
+**F5. Nine research-only rows with no TVK.** Small, after D5. *Re-measured 8 Oct:*
+of Pantheon's 72 research-only rows, 63 have a TVK and all are bridged (62 current
+TVKs after the *Euxoa* merge). The other 9 have no TVK in `pantheon.db` (fault F26),
+so which species they are can only be read from the Pantheon source CSVs. Until
+then those species count as ordinary S41.
 
 **F6. Env (Wales) Act S7 and research-only.** Decision, from sources. Did S7
 inherit the UK BAP research-only category? If so, extend the rule; at present
@@ -377,6 +403,11 @@ so carried rows yield to NAMES and conflicts are reported, then rebuild UKSI →
 (preferred); (B) consumers filter flagged rows (Lector's stopgap, built in its own
 chat); (C) a `synonym_exclusions` list applied at build. Handover:
 project doc `claude/27_UKSI_Synonyms_Handover.md`.
+
+*Measured 8 Oct (fault F25):* *Lamia* comes from the NAMES sheet itself, so (A) alone
+does not fix it. Revised order: review the 26 multi-target bridge rows and pin the
+wrong ones in the bridge; (C) exclusions for NAMES errors such as *Lamia*, reported to
+Chris Raper with F11; (A) for the 366 CONFLICT rows (search and Lector only).
 
 ---
 

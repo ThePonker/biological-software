@@ -19,6 +19,7 @@ from PySide6.QtGui import QFont
 from shared.repositories.codex_repository import CodexRepository, AnalysisMode
 from shared.repositories.pantheon_repository import PantheonRepository
 from shared.services.pantheon_analysis_service import PantheonAnalysisService
+from shared.display_format import mode_label
 
 from .species_database_view import SpeciesDatabaseView
 from .site_analysis_view import SiteAnalysisView
@@ -145,9 +146,7 @@ class ExamenWindow(QMainWindow):
         self._update_status()
 
     def _update_status(self):
-        mode_text = ("Codex Full" if self._mode == AnalysisMode.CODEX_FULL
-                     else "Pantheon Only")
-        self.status.showMessage(f"Mode: {mode_text}")
+        self.status.showMessage(f"Mode: {mode_label(self._mode)}")
 
     def closeEvent(self, event):
         self._codex_repo.close()

@@ -65,12 +65,8 @@ class _SortItem(QTableWidgetItem):
         return a < b
 
 
-def _dmy(iso):
-    """'2026-05-05' -> '05/05/2026'; anything else unchanged."""
-    s = str(iso or "")
-    if len(s) >= 10 and s[4] == "-" and s[7] == "-":
-        return f"{s[8:10]}/{s[5:7]}/{s[:4]}"
-    return s
+# Dates and mode labels come from one place, shared with the assessment workbook.
+from shared.display_format import dmy as _dmy, mode_label  # noqa: E402
 
 
 class SiteAnalysisView(QWidget):
@@ -308,7 +304,7 @@ class SiteAnalysisView(QWidget):
         self.table.resizeColumnsToContents()
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.table.setSortingEnabled(True)
-        mode_t = "Codex Full" if self._mode == AnalysisMode.CODEX_FULL else "Pantheon Only"
+        mode_t = mode_label(self._mode)
         grouping = "pooled across years" if self._pool_years else "by survey year"
         self.summary_label.setText(f"{len(self._projects)} rows ({grouping})  |  "
                                    f"Mode: {mode_t}")

@@ -92,6 +92,9 @@ except ImportError:  # pragma: no cover -- degrade to "everything applies"
     _legal_applies = None
     StatusEntry = None
 
+# Dates dd/mm/yyyy and mode labels: the same formatter the Examen screen uses.
+from shared.display_format import dmy, mode_label  # noqa: E402
+
 
 # ============================================================
 # Presentation
@@ -980,15 +983,15 @@ def export_workbook(result, detail, project, path,
         "survey_year": year or None,
         "jurisdiction": jurisdiction,
         "basis": [
-            ("Assessment run", date.today().isoformat()),
-            ("Survey dates", f"{getattr(site, 'first_date', '')} to "
-                             f"{getattr(site, 'last_date', '')}"),
+            ("Assessment run", dmy(date.today().isoformat())),
+            ("Survey dates", f"{dmy(getattr(site, 'first_date', ''))} to "
+                             f"{dmy(getattr(site, 'last_date', ''))}"),
             ("Visits", getattr(site, "visit_count", "")),
             ("Sites", ", ".join(getattr(project, "site_names", []) or []) or
                       getattr(site, "site_name", "")),
             ("Survey scope", "all years pooled" if pooled_years
                              else f"survey year {year}" if year else "all records"),
-            ("Analysis mode", getattr(result, "mode", "")),
+            ("Analysis mode", mode_label(getattr(result, "mode", ""))),
             ("SQS basis", sqs_basis),
             ("Jurisdiction", jurisdiction),
         ] + _codex_provenance() + [

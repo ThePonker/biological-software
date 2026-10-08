@@ -1,6 +1,6 @@
 # Rules
 
-## Updated 6 October 2026
+## Updated 8 October 2026
 ## Every rule here was paid for. Read this before a long session.
 
 ---
@@ -297,6 +297,10 @@ disagree, that is a finding, not noise.
 
 ## PowerShell
 
+**Run everything with `py -3.14`.** Not `python`, not another version: `run.bat` and
+every launcher use 3.14, and code that loads on 3.14 can fail on 3.13 (see *Python
+3.14 hides one class of missing import*, below).
+
 **`-Encoding UTF8` writes a BOM** in Windows PowerShell 5.1, which breaks
 direct-text parsing of Python source. Use:
 
@@ -410,6 +414,20 @@ taxa can become one species, and a primary key on `(tvk, review_id)` then
 collides -- a plain `INSERT` aborts the whole rebuild. Handle it explicitly: keep
 one, report the other.
 
+**An empty string is still a key.** `pantheon.db` stored every species without a
+TVK under `''`, so all of them became one row carrying all of their ecology
+(fault F26). A missing key must be NULL or a different key -- never a value that
+compares equal across rows.
+
+**Don't guess a format from the data you have.** `remap_record_tvks.py` decided
+whether specimen keys were `sort_code` or `sort_order` by testing for "at most 7
+digits"; the keys are 8, so it wrote a 50-character path into specimen 1752 (fault
+F27). Use the formula the data was made with, and import it.
+
+**A commit is not a check.** Data Entry committed 59 blank site names, records with
+no grid ref and a common name as a species, all without a word (fault F28). After
+every commit: `scripts\check_data_entry_batches.py`.
+
 **Prune by filename, not mtime, inside OneDrive.** Sync rewrites modification
 times, so timestamps there are not a record of when a file was made.
 
@@ -518,4 +536,10 @@ single readback up front (`scripts/show_funcs.py`) turned a two-hour estimate
 into ten minutes.
 
 **Diagnostic queries before and after every change.** The numbers are the proof;
-"it still launches" is not.
+"it still launches" is not. `scripts\check_reference_figures.py` compares the
+frozen figures (Glory Park SQI 117, every survey, the Codex counts) -- run it after
+anything that could move one.
+
+**A path that ends with nothing must say so.** The iRecord export excluded all 279
+embargoed records, said "0 records will be exported" and stopped: no file, no reason.
+It looked like a missing dialog, and the search began in the wrong place.

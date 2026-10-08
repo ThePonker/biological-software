@@ -1,12 +1,12 @@
 # Architecture
 
-## Updated 6 October 2026
+## Updated 8 October 2026
 
 ---
 
 ## 1. The suite
 
-Seven Latin-themed desktop tools sharing a common data layer, built with
+Latin-themed desktop tools sharing a common data layer, built with
 Python / PySide6 / SQLite by a single developer, Wil Heeney, trading as Flauna.
 
 | Name | Meaning | Purpose |
@@ -15,7 +15,8 @@ Python / PySide6 / SQLite by a single developer, Wil Heeney, trading as Flauna.
 | **Examen** | "examination / swarm of bees" | Invertebrate assemblage assessment; replaces the Pantheon website |
 | **Codex** | "book of law" | Conservation authority — database plus a maintenance GUI |
 | **Curator** | "the one who takes care" | Insect collection organiser — box planning, labels |
-| **Tabella** | "writing tablet" | Field workbook generator (Excel+VBA). **Paused** — superseded by Data Entry |
+| **Tabella** | "writing tablet" | Field workbook generator (Excel+VBA). **Retired 7 Oct 2026** to `_archive\Tabella_20261007` — superseded by Data Entry |
+| **Lector** | "reader" | Biodiversity Heritage Library harvester (BHL API v3) gathering literature for species profiles; writes `data\lector.db`. Joined 7 Oct 2026 |
 | **Munia** | "duties" | Capacity planner |
 | **Atrium** | "entrance hall" | System-tray launcher |
 
@@ -31,12 +32,16 @@ conservation data.
 Biological Software/
 ├── paths.py                 Suite-wide path registry — PERMANENT, never delete
 ├── run.bat                  Observatum launcher
+├── CLAUDE.md                Instructions for Claude Code (rules, safety, where things are)
+├── .claude/settings.json    Claude Code deny rules: no deletion, no destructive git
 ├── .git/  .gitattributes    main (development) / stable (field-season tool)
 ├── shared/                  UI-agnostic library — the analysis engine
 │   ├── db_config.py         Per-app path resolution for standalone use
 │   ├── backup_service.py    The single database-copy routine
 │   ├── sqs_derivation.py    Pantheon's published SQS rule
 │   ├── sex_summary.py       The one formatter for specimen sex (♂3 ♀4 +2)
+│   ├── display_format.py    Dates dd/mm/yyyy and analysis-mode labels for screens and exports
+│   ├── species_rank.py      Species search ranking (Data Entry and Add Specimen)
 │   ├── repositories/        CodexRepository · PantheonRepository
 │   └── services/            PantheonAnalysisService
 ├── Observatum/              Main app; src/ re-exports from shared/ via shims
@@ -44,10 +49,12 @@ Biological Software/
 ├── Examen/                  Assessment tool — see 08
 │   └── workbook_export.py   Multi-sheet Excel assessment workbook
 ├── Codex/                   Conservation manager GUI
-├── Curator/  Munia/  Atrium/  Tabella/
-├── data/                    8 databases (git-excluded, backup-protected)
-├── build_gb_basemap.py      Builds the GB basemap for Data Entry — keep
+├── Curator/  Munia/  Atrium/
+├── Lector/                  BHL literature harvester; launcher in launchers\run_lector.bat
+├── data/                    The databases, incl. lector.db (git-excluded, backup-protected)
 ├── scripts/                 Build, reset, import, patch and check scripts
+│   ├── build_gb_basemap.py  Builds the GB basemap for Data Entry — keep (moved here 7 Oct)
+│   └── _oneoff/             One-off data-changing scripts, git-ignored, archived later
 ├── launchers/               All .bat files
 ├── _archive/                Retired code, dated
 └── docs/                    This set, plus the research documents
@@ -58,6 +65,11 @@ C:\BiologicalSoftware_Backups\    Outside OneDrive by design
 
 D:\BiologicalSoftware_Offsite\     External drive — mirror of both of the above
 ```
+
+Spider Extract moved out on 7 Oct to `OneDrive\Natural History Tools\Spider Extract`
+(its own git repo). `Observatum\` is ~200 MB, almost all `test data\` (~120 MB,
+including the **Pantheon 3.7.4 source CSVs that D5 needs**) and `BackUps\` (~86 MB of
+CSV exports and the close-time CSV safety backup). Neither is in git.
 
 **`build_gb_basemap.py`** was deleted in September and restored from git before
 the deletion was committed. It is a build script, and build scripts are exactly

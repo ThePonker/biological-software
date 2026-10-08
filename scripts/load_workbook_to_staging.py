@@ -60,6 +60,11 @@ COLUMN_MAP = {
 # Deliberately ignored: Conservation, Red List, Rarity, S41, Legal Protection,
 # BAP, Class, Sort Code, Personal, Commercial, Specimens. Display aids, not data.
 
+# Placeholder and Excel-error values a TVK cell can hold. Loaded as no TVK, so the
+# row is counted under "no TVK" and resolved in the grid, never committed as a key.
+# Backlog B3: two rows with '?' / '#N/A' slipped through the August migration.
+JUNK_TVKS = {"?", "??", "-", "0", "n/a", "na", "#n/a", "#ref!", "#value!", "#name?", "none", "tbc"}
+
 
 def normalise_date(value):
     """ISO-normalise a workbook date cell. Returns (value_or_None, ok)."""
@@ -151,7 +156,7 @@ def resolve_vc(service, grid_ref):
 
 
 def build_records(body, index, vc_service=None):
-    records, blanks, no_tvk, bad_dates, vc_ok = [], 0, 0, [], 0
+    records, blanks, no_tvk, bad_dates, vc_ok, junk = [], 0, 0, [], 0, []
     for order, row in enumerate(body, start=1):
         def cell(col):
             pos = index.get(col)
@@ -189,12 +194,17 @@ def build_records(body, index, vc_service=None):
             rec["vice_county"] = name or rec.get("vice_county")
             vc_ok += 1
 
+        tvk = rec.get("species_tvk")
+        if tvk is not None and str(tvk).strip().lower() in JUNK_TVKS:
+            junk.append((order, str(tvk).strip()))
+            rec["species_tvk"] = None
         if not rec.get("species_tvk"):
             no_tvk += 1
 
         records.append(rec)
 
-    return records, {"blanks": blanks, "no_tvk": no_tvk, "bad_dates": bad_dates, "vc_ok": vc_ok}
+    return records, {"blanks": blanks, "no_tvk": no_tvk, "bad_dates": bad_dates, "vc_ok": vc_ok,
+                     "junk_tvks": junk}
 
 
 def insert(conn, job_name, mode, records, source_file):
@@ -254,6 +264,9 @@ def main():
     print(f"  records    {real}")
     print(f"  spacers    {stats['blanks']}  (blank rows kept)")
     print(f"  no TVK     {stats['no_tvk']}")
+    if stats["junk_tvks"]:
+        print(f"  placeholder TVKs rejected (loaded as no TVK): {len(stats['junk_tvks'])} "
+              f"(row, value: {stats['junk_tvks'][:5]})")
     print(f"  VC derived {stats['vc_ok']} of {real}")
     if meta["missing"]:
         print(f"  columns not found: {', '.join(meta['missing'])}")

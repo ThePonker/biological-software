@@ -1,6 +1,6 @@
 # Faults
 
-## Updated 7 October 2026
+## Updated 8 October 2026
 ## Open faults carry an action. Closed ones are kept in brief, because knowing
 ## what has already gone wrong is how the rules in `05` were earned.
 
@@ -51,11 +51,75 @@ Lector `--synonyms`; the species search (finding a species by an old name). The
 NECR217 withdrawal fault below (closed) was the same failure through a different
 door.
 
-**Action:** backlog F14. Read-only diagnostics first (epithet mismatch, names
-mapping to more than one TVK, bridge and record exposure, NAMES sheet vs carried
-rows), counts before any change. The likely fix is a small change to the build
-script: carried rows yield to NAMES, and conflicts are reported. Then rebuild
-UKSI → Codex.
+**Measured 8 October** (`scripts/check_uksi_synonyms.py`, then
+`_oneoff/f14_followup_20261008.py`):
+- **The *Lamia* rows are the NHM's own data, not inherited.** The July 2025 NAMES
+  sheet itself gives *Lamia sartor*, *sutor*, *titillator* and *rosenmulleri* status S
+  with recommended taxon *Lamia textor* (NBNSYS0000149843-6). *Cerambyx textor* is not
+  in it. The hypothesis above was wrong for the case that found the fault.
+- Of 98,415 synonyms rows: 97,113 from NAMES, 936 carried over from 2023 with no
+  NAMES evidence, **366 carried rows that NAMES contradicts** (CONFLICT -- mostly
+  plants and fungi). 2,193 names map to more than one TVK.
+- **Exposure:** no record, specimen or contributed record stored under a flagged
+  name. 147 Pantheon-bridge rows matched through a flagged name -- **all through
+  NAMES-sheet rows, none through a carried or CONFLICT row.** 121 are an epithet
+  heuristic (most look like genuine synonyms: *Acupalpus dorsalis* → *parvulus*);
+  **26 are names NAMES maps to more than one species**, where the bridge took one
+  (*Aphodius pusillus* → *Agrilinus ater*, not *Esymus pusillus*; *Arion lusitanicus*
+  → *A. flagellus*). Those 26 can attach the wrong Pantheon ecology to a species.
+  List: `scripts/_oneoff/f14_bridge_exposure.csv`.
+
+**Action:** backlog F14, revised: (1) the 366 CONFLICT rows -- the build fix
+(carried rows yield to NAMES) still applies, but affects search and Lector only;
+(2) the 26 multi-target bridge rows -- review, then pin by hand; (3) *Lamia* and any
+other NAMES errors -- a local exclusions list, and report to the NHM (F11).
+
+### F26. Pantheon species without a TVK collapsed onto one blank key
+*Found 8 October 2026, chasing F17.* Every Pantheon species that came without a TVK
+was stored under the same key, `''`. In `pantheon.db` that one key holds 1,287
+conservation-status rows, 2,018 habitat-trait rows, 246 habitat rows, 234 biotope
+rows and one SQS (4); `species` keeps a single row for it (*Acalypta platychila*),
+so the other names are gone from the database. The same blank key carries 9 of the
+72 research-only rows (F17).
+
+**Not harmful, but lossy.** `codex.tvk_bridge` has no entry for `''`, so none of it
+reaches an analysis; Glory Park and the other surveys still match. What is lost is
+the ecology and score of every species stored that way -- perhaps 150-250 species,
+an estimate from the row counts, **not measured**. Pantheon's own `uksi_match` maps
+`''` to *Acalypta platycheila*'s TVK; nothing found reads that table.
+
+**Action:** name them from the Pantheon 3.7.4 source CSVs (`Observatum\test data\`)
+and fix with backlog D5 (rebuild `build_pantheon_db.py`): key a species without a
+TVK on its name, never on an empty string.
+
+### F27. Specimen sort keys: one corrupted, and the numbering may now be mixed
+*Found 8 October 2026.* Specimen 1752 (*Phaonia signata*) has a 50-character key --
+UKSI's `sort_order` path, not the 8-digit number every other specimen carries.
+`remap_record_tvks.py` wrote it on 6 Oct: it guesses the key format from existing
+values and takes `sort_code` only if they are **at most 7 digits**; specimen keys
+are 8 (order position × 1,000,000 + `sort_code`), so it chose `sort_order`.
+
+Second, possibly wider: `build_uksi_from_release.py` renumbered `sort_code`, and
+keys made before 6 Oct used the 2023 numbers. Specimens added since then get the new
+numbering. **Measured 8 Oct: all 2,742 numeric keys are on the 2023 numbering**;
+none added since 6 Oct, so the tree is consistent today, but the next specimen
+added would sort out of place.
+**Re-keyed 8 Oct:** all 2,743 keys on the July 2025 numbering, 1752 included; 0 of
+2,742 changed tree position (`observatum_pre_rekey_*` in `reference\`).
+**Action still open:** fix `remap_record_tvks.py` to use the specimens' formula, not a
+guess, before the next UKSI update -- or the next update repeats both problems.
+
+### F28. Data Entry commits carried gaps
+*Found 8 October 2026* in the morning's five commits (1,136 records): 59 with no site
+name, 31 pitfall records with no trap or grid ref, one common name typed as a species
+("Cricket bat spid" -- B6), three species entered twice with sex left "Not recorded".
+Commit flags only a missing TVK or a future date. All of those fixed the same morning
+(`scripts\_oneoff\fix_*_20261008.py`). Of the further doubles the check found, four
+Slade Green re-entries were deleted (Run 2); Elmley's ladybirds, *Philanthus*, *Tephritis*
+and *Odynerus* confirmed as genuine; three pairs with different quantities (*Kalama*,
+*Melanogaster*, *Margarinotus*) left as separate lines.
+**Action:** run `scripts\check_data_entry_batches.py` after every commit; a warning
+in Data Entry before commit -- backlog B8.
 
 ### F4. `build_pantheon_db.py` missing
 Same event. Pantheon has not been updated since 2017 v3.7.4, so this is insurance
@@ -97,9 +161,12 @@ and some Global pre-94 codes fall through unmapped. **Action:** backlog F2.
 here. Vascular plants only. **Action:** backlog F3.
 
 ### F17. Research-only species that do not reach the bridge
-Pantheon lists 72 species as S41 research only; **62** map to current TVKs. The
-other 10 are among the Pantheon names that resolve by no route, and so are treated
-as ordinary S41 — able to confer key status. **Action:** backlog F5.
+Pantheon lists 72 rows as S41 research only. *Measured 8 October:* **63 carry a
+TVK and all 63 are bridged**; they reach 62 current TVKs only because *Euxoa crypta*
+and *E. tritici* merge into one -- correct, not a gap. The other **9 rows have no TVK
+at all** in `pantheon.db` (F26), so they cannot be bridged, and those species are
+treated as ordinary S41 -- able to confer key status. (Previously recorded as "62
+of 72, 10 unbridged".) **Action:** backlog F5, which depends on D5.
 
 ### F18. Does Env (Wales) Act S7 carry the research-only qualification?
 At a Welsh site, Cinnabar and Latticed Heath still count as key through S7.
@@ -151,7 +218,10 @@ another reason they cannot stand unsourced.
 
 ### F15. Two specimens without a TVK
 *Phoracantha recurva* (id 1263) and *Oberea linearis* (id 1356). No TVK, so no
-sort key, so invisible to the sidebar. **Action:** backlog A5.
+sort key, so invisible to the sidebar. Both came in from the March import as
+"Species not found" against the 2023 UKSI. **Action:** backlog A5 -- fix script
+run 8 Oct: **neither is in the July 2025 UKSI**. Left as they are, by decision --
+no TVK, no sort key -- until a UKSI release includes them.
 
 ### F16. `subfamily` stored inconsistently
 NULL on some rows and `''` on others for the same species. The sidebar now
@@ -160,6 +230,14 @@ normalises; the data does not. **Action:** backlog A7.
 ---
 
 ## Closed — the ones worth remembering
+
+### iRecord export stopped silently when every record was embargoed
+*Fixed 8 October 2026.* Choosing iRecord format for 279 embargoed Alsager records
+said "0 records will be exported" and then did nothing -- no Save dialog, no file,
+no reason. It read as a missing dialog. It now says that all are excluded and that
+a client export needs "All columns". The suggested filename is now
+`<project or site>_<date>.csv`, not always `observations_export.csv`, so one job's
+export cannot silently replace another's.
 
 ### Examen's manual-entry dialog could empty Codex
 *Fixed 6 October 2026. Found by static analysis, never triggered.* "+ Add Manual
