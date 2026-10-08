@@ -9,7 +9,7 @@ from typing import Optional, Dict, Any, List
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QFrame,
     QTableView, QHeaderView, QAbstractItemView
-, QMessageBox)
+, QMessageBox, QHBoxLayout, QLabel, QPushButton)
 from PySide6.QtCore import Qt, QSortFilterProxyModel, QSettings, Signal
 
 from .observation_toolbar import ObservationToolbar
@@ -87,6 +87,24 @@ class ObservationTab(
         self.filter_bar = ObservationFilterBar()
         self.filter_bar.setVisible(False)
         layout.addWidget(self.filter_bar)
+
+        # One commercial project pinned from Commercial Reports' "View / edit": kept
+        # across reloads (an edit or delete) until cleared here (8 Oct 2026).
+        self._project_filter = None          # (project, client) or None
+        self._project_banner = QWidget()
+        pb = QHBoxLayout(self._project_banner)
+        pb.setContentsMargins(12, 5, 12, 5)
+        self._project_label = QLabel("")
+        self._project_label.setStyleSheet(f"color: {t.get('text_heading')}; font-weight: 600;")
+        pb.addWidget(self._project_label, 1)
+        _clear = QPushButton("Show all records")
+        _clear.setCursor(Qt.CursorShape.PointingHandCursor)
+        _clear.clicked.connect(self.clear_project_filter)
+        pb.addWidget(_clear)
+        self._project_banner.setStyleSheet(
+            f"background-color: {t.get('surface_alt')}; border-bottom: 1px solid {t.get('border')};")
+        self._project_banner.setVisible(False)
+        layout.addWidget(self._project_banner)
 
 
         # Content area with table
@@ -316,6 +334,9 @@ class ObservationTab(
         
         # Store wizard filters for filtering
         self._wizard_filters = filters
+        if getattr(self, "_project_filter", None):    # a wizard search replaces the pin
+            self._project_filter = None
+            self._project_banner.setVisible(False)
         
         # Apply filters directly to table
         self._apply_wizard_filters(filters)
@@ -507,6 +528,24 @@ class ObservationTab(
     def _on_wizard_filters_reset(self):
         """Handle filter wizard reset."""
         self.filter_bar.clear_filters()
+
+    # -- one commercial project, pinned from Commercial Reports ----------------
+    def set_project_filter(self, project: str, client: str = ""):
+        """Show only this project's commercial records, until cleared; survives reloads."""
+        self._project_filter = ((project or "").strip(), (client or "").strip())
+        self._project_label.setText(
+            f"Project: {project or '(no project)'}" + (f"  \u2014  {client}" if client else "")
+            + "   (commercial records only)")
+        self._project_banner.setVisible(True)
+        if not self._all_observations:
+            self._load_data()
+        else:
+            self._apply_current_filters()
+
+    def clear_project_filter(self):
+        self._project_filter = None
+        self._project_banner.setVisible(False)
+        self._apply_current_filters()
 
     def _save_column_width(self, logical_index: int, old_size: int, new_size: int):
         """Save column width when resized."""

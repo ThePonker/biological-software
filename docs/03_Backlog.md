@@ -343,9 +343,9 @@ a project or changes its client across own records, contributed records and jobs
 transaction (`shared/project_rename.py`), backed up first, warning when it would merge
 into an existing project.
 Data Entry: Project and Client are pickers of names already used (case/spacing
-differences snap to the existing spelling); **Show committed** + **Reopen**. Still
-missing: Observation Data has no project filter of its own, so a reload after an
-edit returns to its normal view.
+differences snap to the existing spelling); **Show committed** + **Reopen**. Observation
+Data now pins the project (a banner with "Show all records"), surviving the reload
+after an edit or delete.
 
 **E17. Appendix export to match the workbook.** ✅ Done 8 Oct. Statuses through the
 workbook's `status_parts`/`status_cell` (other jurisdictions greyed), "(derived)",

@@ -331,10 +331,17 @@ class MainWindow(QMainWindow):
     def _navigate_to_observation_tab_by_project(self, project: str, client: str = ""):
         """Observation Data showing only one commercial project's records (Commercial Reports).
 
-        Same client-side pattern as the month navigation. No species exclusion: when
-        managing a job, every record of it should be visible. A later reload of the tab
-        (after an edit or delete) returns to its usual filters."""
+        Pinned in the tab (set_project_filter), so it survives the reload after an edit or
+        delete, until "Show all records" there. No species exclusion: when managing a
+        job, every record of it should be visible."""
         self.tabs.setCurrentWidget(self.observation_tab)
+        if hasattr(self.observation_tab, 'set_project_filter'):
+            if hasattr(self.observation_tab, 'filter_bar'):
+                self.observation_tab.filter_bar.clear_filters()
+            self.observation_tab.set_project_filter(project, client)
+            label = (project or '(no project)') + (f' \u2014 {client}' if client else '')
+            self.statusBar().showMessage(f"Observation Data pinned to {label}", 8000)
+            return
         if hasattr(self.observation_tab, 'filter_bar'):
             self.observation_tab.filter_bar.clear_filters()
             if hasattr(self.observation_tab.filter_bar, '_data_type_buttons'):

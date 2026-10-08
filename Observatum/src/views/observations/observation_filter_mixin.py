@@ -108,8 +108,33 @@ class ObservationFilterMixin:
         """Public method to show New Species List - called from other tabs."""
         self.filter_bar.select_new_species_list()
 
+    def _project_pin(self, observations):
+        """Only the pinned commercial project's records (ObservationTab.set_project_filter).
+
+        None when nothing is pinned. Species exclusion is not applied to a pinned
+        project: managing a job, every one of its records should be visible."""
+        pin = getattr(self, "_project_filter", None)
+        if not pin:
+            return None
+        project, client = pin
+        return [o for o in (observations or [])
+                if self._get_attr(o, 'record_type', '') == 'Commercial'
+                and self._get_attr(o, 'project_name', '').strip() == project
+                and self._get_attr(o, 'client', '').strip() == client]
+
+    def _show_list(self, observations, exclude=True):
+        rows = self._apply_record_exclusion(observations) if exclude else observations
+        self.table_model.set_observations_fast(rows)
+        if hasattr(self, '_connect_proxy_after_load'):
+            self._connect_proxy_after_load()
+        self._update_stats(len(rows), self._count_species_with_exclusion(rows))
+
     def _apply_current_filters(self, use_cache=False):
         """Apply current filter values."""
+        pinned = self._project_pin(self._all_observations)
+        if pinned is not None:
+            self._show_list(pinned, exclude=False)
+            return
         filters = self.filter_bar.get_filters()
         # If cached data available and no active filters, skip re-query
         has_active = any(v for k, v in filters.items() if k != 'data_type' or v not in ('all', '', None))
