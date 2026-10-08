@@ -33,7 +33,7 @@
 | status_summary | JNCC 26,908 + manual entries applied; 15,841 species with a status |
 | sqs_scores | **9,600**, all Pantheon-sourced; 0 stored derived |
 | tvk_bridge | 14,146 (8,588 direct / 2,513 name / 3,045 synonym; 83 unmatched; 1,855 merged) |
-| manual_entries | **10,079** -- review statuses, withdrawals, superseded and old-name clearances, 52 JNCC-2023 restorations |
+| manual_entries | **10,092** -- review statuses, withdrawals, superseded and old-name clearances, 52 JNCC-2023 restorations, 13 clearances after the UKSI swap (6 Oct; was given as 10,079, counted before them -- corrected 8 Oct by `check_reference_figures.py`) |
 | reviews | **35** |
 | species_profiles | **3,874** review accounts, keyed `(tvk, review_id)` |
 

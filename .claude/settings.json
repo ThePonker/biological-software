@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "defaultMode": "default",
+    "disableBypassPermissionsMode": "disable",
+    "disableAutoMode": "disable",
+    "deny": [
+      "PowerShell(Remove-Item*)",
+      "PowerShell(rmdir *)",
+      "PowerShell(git clean*)",
+      "PowerShell(git reset*)",
+      "PowerShell(git restore*)",
+      "PowerShell(git checkout -- *)",
+      "PowerShell(git stash drop*)",
+      "PowerShell(git stash clear*)",
+      "PowerShell(git branch -D *)",
+      "PowerShell(git push *--force*)",
+      "PowerShell(git push *-f)",
+      "PowerShell(git push *-f *)",
+      "PowerShell(git push *+*)",
+      "Bash(rm *)",
+      "Bash(rmdir *)",
+      "Bash(del *)",
+      "Bash(rd *)",
+      "Bash(erase *)",
+      "Bash(git clean*)",
+      "Bash(git reset*)",
+      "Bash(git restore*)",
+      "Bash(git checkout -- *)",
+      "Bash(git stash drop*)",
+      "Bash(git stash clear*)",
+      "Bash(git branch -D *)",
+      "Bash(git push *--force*)",
+      "Bash(git push *-f)",
+      "Bash(git push *-f *)",
+      "Bash(git push *+*)"
+    ]
+  }
+}
