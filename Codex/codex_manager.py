@@ -12,7 +12,6 @@ from PySide6.QtWidgets import (
     QMainWindow, QTabWidget, QWidget, QVBoxLayout, QLabel, QHBoxLayout,
     QStatusBar
 )
-from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 
 from . import theme

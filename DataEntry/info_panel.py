@@ -528,7 +528,14 @@ class InfoPanel(QWidget):
             return ""
         if not ok:
             return f"\u26a0 Grid ref: {msg}"
-        if "warning" in (msg or "").lower():
+        # on a vice-county boundary (F29, I3b): say which VCs and how much of each
+        try:
+            a = self._vc.assess(gr) if hasattr(self._vc, "assess") else None
+        except Exception:
+            a = None
+        if a and a.get("boundary"):
+            return f"\u26a0 {a['note']} \u2014 check the VC"
+        if a is None and "warning" in (msg or "").lower():
             return f"\u26a0 {msg}"
         return ""
 

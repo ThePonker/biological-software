@@ -15,11 +15,10 @@ Usage:
 """
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame
+    QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame
 )
 from PySide6.QtCore import Qt, QTimer
 
-from .theme import TEXT
 
 
 class GamificationLauncher(QFrame):

@@ -6,16 +6,16 @@ Handles Order, Superfamily, Family, and Species levels.
 """
 
 import sqlite3
-from typing import Optional
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QPlainTextEdit,
-    QPushButton, QHBoxLayout, QFrame
+    QPushButton, QFrame
 )
 from PySide6.QtCore import Qt, Signal
 
 from ...themes import theme
 from ...core.config import ButtonColors, TabColors
+from shared.db_open import connect_ro  # D9: reference data, read-only
 
 
 class FamilyDetailPanel(QWidget):
@@ -306,7 +306,7 @@ class FamilyDetailPanel(QWidget):
         if cache_key in self._british_species_cache:
             return self._british_species_cache[cache_key]
         try:
-            conn = sqlite3.connect(self._uksi_db_path)
+            conn = connect_ro(self._uksi_db_path)
             if level == 'family':
                 cursor = conn.execute(
                     "SELECT COUNT(*) FROM taxa WHERE family = ? AND rank = 'Species'",

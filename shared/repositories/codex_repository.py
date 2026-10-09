@@ -35,6 +35,7 @@ from enum import Enum
 from typing import Optional
 
 import paths
+from shared.db_open import connect_ro  # D9: reference data, read-only
 
 
 DB_PATH = paths.CODEX_DB
@@ -293,7 +294,7 @@ class CodexRepository:
         if self._conn is None:
             if not Path(self._db_path).exists():
                 raise FileNotFoundError(f"codex.db not found: {self._db_path}")
-            self._conn = sqlite3.connect(self._db_path)
+            self._conn = connect_ro(self._db_path)
             self._conn.row_factory = sqlite3.Row
         return self._conn
 
@@ -301,7 +302,7 @@ class CodexRepository:
         if self._pan_conn is None:
             if not Path(self._pantheon_path).exists():
                 return None
-            self._pan_conn = sqlite3.connect(self._pantheon_path)
+            self._pan_conn = connect_ro(self._pantheon_path)
             self._pan_conn.row_factory = sqlite3.Row
         return self._pan_conn
 
@@ -732,8 +733,8 @@ class CodexRepository:
                              WHERE match_method = 'name'""")
                 for r in c.fetchall():
                     self._bridge[r["uksi_tvk"]] = r["pantheon_tvk"]
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[codex_repository] _get_bridge: {e}")  # I7: was silent
         return self._bridge
 
     def _to_pantheon_tvk(self, uksi_tvk):
@@ -863,8 +864,8 @@ class CodexRepository:
                     ph = ",".join("?" * len(batch))
                     out.update(r[0] for r in c.execute(
                         f"SELECT uksi_tvk FROM tvk_bridge WHERE pantheon_tvk IN ({ph})", batch))
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[codex_repository] _get_research_only_tvks: {e}")  # I7: was silent
         self._research_only = out
         return out
 

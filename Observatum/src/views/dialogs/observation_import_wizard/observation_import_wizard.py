@@ -51,7 +51,7 @@ from .wizard_import_mixin import WizardImportMixin
 from .wizard_species_mixin import WizardSpeciesResolutionMixin
 
 from src.themes import theme
-from src.core.config import TabColors, ButtonColors
+from src.core.config import TabColors
 
 
 class ObservationImportWizard(
@@ -251,27 +251,6 @@ class ObservationImportWizard(
         self.back_btn.clicked.connect(self._go_back)
         self.back_btn.setVisible(False)
         nav_layout.addWidget(self.back_btn)
-
-        # Resolve Species button (hidden until errors found)
-        self.resolve_species_btn = QPushButton("Resolve Species...")
-        self.resolve_species_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.resolve_species_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: transparent;
-                color: {self._accent};
-                border: 1px solid {self._accent};
-                border-radius: {t.get('radius_md')};
-                padding: 8px 16px;
-                font-weight: 500;
-            }}
-            QPushButton:hover {{
-                background-color: {self._accent};
-                color: white;
-            }}
-        """)
-        self.resolve_species_btn.clicked.connect(self._open_resolve_species_dialog)
-        self.resolve_species_btn.setVisible(False)
-        nav_layout.addWidget(self.resolve_species_btn)
 
         # Resolve Species button (hidden until errors found)
         self.resolve_species_btn = QPushButton("Resolve Species...")

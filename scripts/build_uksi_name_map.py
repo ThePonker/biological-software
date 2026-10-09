@@ -15,8 +15,7 @@ and how many point to a taxon newer than our copy (needs a UKSI rebuild).
   python scripts\\build_uksi_name_map.py "<path to the .xlsx>"
   python scripts\\build_uksi_name_map.py "<path to the .xlsx>" --apply     (backs up uksi.db first)
 """
-import os, shutil, sqlite3, sys, time
-from collections import Counter
+import os, sqlite3, sys, time
 from datetime import datetime
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

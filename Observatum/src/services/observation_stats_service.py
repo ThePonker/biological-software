@@ -11,7 +11,7 @@ PERFORMANCE OPTIMIZATIONS:
 """
 
 from typing import Dict, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 from PySide6.QtCore import QSettings
 
 

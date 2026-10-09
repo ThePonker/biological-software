@@ -164,8 +164,8 @@ class ObservationModel:
         if HAS_REPOSITORY:
             try:
                 self._repo = ObservationRepository()
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[observation] __init__: {e}")  # I7: was silent
 
     # =========================================================================
     # CREATE

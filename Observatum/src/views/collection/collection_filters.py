@@ -5,7 +5,6 @@ Horizontal filter bar with saved filters for the Insect Collection tab.
 Uses shared components for ComboFilterWidget, SavedFiltersMixin, and styling.
 """
 
-from typing import List, Dict
 
 from PySide6.QtWidgets import (
     QFrame, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,

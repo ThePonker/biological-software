@@ -13,7 +13,6 @@ Or via the batch file:
 """
 
 import sys
-from pathlib import Path
 
 from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QFont

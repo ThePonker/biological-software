@@ -5,18 +5,17 @@ Shows a summary of how each unique species was matched during import validation.
 Accessible from the confirmation page of the specimen import wizard.
 """
 
-from typing import List, Dict, Tuple
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget,
     QTableWidgetItem, QHeaderView, QPushButton, QAbstractItemView,
-    QFrame, QFileDialog, QApplication
+    QFrame, QFileDialog
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QFont
 
-from ....themes import theme
-from ....core.config import ButtonColors
+from ...themes import theme
+from ...core.config import ButtonColors
 
 
 class SpeciesMatchReportDialog(QDialog):
@@ -394,8 +393,10 @@ class SpeciesMatchReportDialog(QDialog):
                 row.error_message = ''
                 row.warnings = [f"Re-matched to '{new_name}'"]
 
-                # Update status
-                from .validation_worker import RowStatus
+                # Update status -- with the row's own wizard's RowStatus. This used the stale
+                # dialogs/validation_worker.RowStatus, a different enum, so a re-matched row's
+                # status equalled neither VALID nor WARNING in its wizard (fixed 9 Oct, I4).
+                RowStatus = type(row.status)
                 if row.species_tvk:
                     if row.warnings:
                         row.status = RowStatus.WARNING

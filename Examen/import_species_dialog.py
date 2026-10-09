@@ -11,11 +11,11 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTextEdit, QTableWidget, QTableWidgetItem, QHeaderView,
-    QFileDialog, QMessageBox, QAbstractItemView, QFrame,
+    QFileDialog, QMessageBox,
 )
-from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QColor
 import paths
+from shared.db_open import connect_ro  # D9: reference data, read-only
 
 SURFACE = "#ffffff"
 BG = "#f5f5f4"
@@ -175,7 +175,7 @@ class ImportSpeciesDialog(QDialog):
         if not paths.UKSI_DB.exists():
             QMessageBox.warning(self, "Examen", "UKSI database not found.")
             return []
-        conn = sqlite3.connect(str(paths.UKSI_DB))
+        conn = connect_ro(str(paths.UKSI_DB))
         c = conn.cursor()
         results = []
         for name in names:

@@ -5,7 +5,7 @@ Shows applied filters as removable chips/tags.
 Chips stack vertically in a scrollable list.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict
 from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, QPushButton,
     QFrame, QScrollArea, QSizePolicy

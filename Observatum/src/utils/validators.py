@@ -5,7 +5,7 @@ Validation functions for user input.
 """
 
 import re
-from typing import Optional, List
+from typing import List
 
 
 class Validators:

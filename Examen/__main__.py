@@ -5,7 +5,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 # Also add Observatum to path for shared repositories
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "Observatum"))
-import paths
+import paths  # noqa: F401  (sets up the suite paths)
 
 from PySide6.QtWidgets import QApplication
 

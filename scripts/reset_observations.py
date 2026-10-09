@@ -6,7 +6,6 @@ Drops and recreates the observations table. All other tables are preserved.
 import sqlite3
 import sys; sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.parent))
 import paths
-from pathlib import Path
 
 
 DB_PATH = paths.OBSERVATUM_DB

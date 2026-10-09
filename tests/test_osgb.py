@@ -43,7 +43,7 @@ def test_gridref_to_en(ref, out):
     assert osgb.gridref_to_en(ref) == out
 
 
-@pytest.mark.parametrize("ref", ["", None, "SI1234", "SP123", "XX1234", "SP58X", "12SP"])
+@pytest.mark.parametrize("ref", ["", None, "SI1234", "SP123", "XX1234", "SP58O", "12SP"])
 def test_gridref_rejects(ref):
     assert osgb.gridref_to_en(ref) is None
 
@@ -58,3 +58,13 @@ def test_centre_not_corner():
                                           (327500, 673500, 4, "NT2773"), (91492, 11318, 2, "SV91")])
 def test_en_to_gridref(e, n, d, ref):
     assert osgb.en_to_gridref(e, n, d) == ref
+
+
+def test_data_entry_commit_sets_latlong_from_the_grid_ref():
+    from DataEntry.commit_service import build_kwargs_from_row
+    kw = build_kwargs_from_row({"species_name": "Carabus nemoralis", "date": "2026-06-01",
+                                "grid_ref": "SP580207"}, {"mode": "Personal"})
+    assert (kw["latitude"], kw["longitude"]) == osgb.gridref_to_wgs84("SP580207")
+    assert kw["geodetic_datum"] == "WGS84"
+    kw = build_kwargs_from_row({"species_name": "x", "date": "2026-06-01"}, {"mode": "Personal"})
+    assert "latitude" not in kw

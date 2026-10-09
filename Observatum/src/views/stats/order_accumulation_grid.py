@@ -6,10 +6,10 @@ sorted by species richness (most species-rich first), 3 per row.
 """
 
 from PySide6.QtWidgets import (
-    QFrame, QVBoxLayout, QHBoxLayout, QLabel, QGridLayout, QWidget
+    QFrame, QVBoxLayout, QLabel, QGridLayout, QWidget
 )
 from PySide6.QtCore import Signal, Qt, QMargins
-from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QLinearGradient
+from PySide6.QtGui import QPainter, QColor, QPen, QBrush
 
 try:
     from PySide6.QtCharts import QChart, QChartView, QLineSeries, QValueAxis, QAreaSeries

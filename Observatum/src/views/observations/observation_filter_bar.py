@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFrame,
     QLabel, QLineEdit, QComboBox, QPushButton, QCompleter
 )
-from PySide6.QtCore import Signal, QDate, QSettings, Qt, QStringListModel
+from PySide6.QtCore import Signal, QDate, Qt, QStringListModel
 
 from ...themes import theme
 from ...core.config import TabColors
@@ -25,7 +25,7 @@ from ..components.filter_styles import (
     STANDARD_INPUT_HEIGHT,
     COL_SPECIES, COL_LOCATION, COL_DATE_FROM, COL_DATE_TO,
     COL_ORDER, COL_FAMILY, COL_VICE_COUNTY, COL_RECORDER,
-    COL_METHOD, COL_SOURCE, COL_VERIFICATION,
+    COL_METHOD, COL_VERIFICATION,
     get_input_style, get_clear_button_style, create_filter_label,
 )
 from ...services.vc_lookup_service import VCLookupService

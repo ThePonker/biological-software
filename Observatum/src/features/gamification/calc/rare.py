@@ -20,7 +20,6 @@ v2 changes (Codex Strategy doc, 16 April 2026):
     award gamification points
 """
 
-import sqlite3
 from typing import Dict, List, Any, Optional
 
 from ..theme import RARE_MILESTONES, RARITY_TIERS

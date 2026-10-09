@@ -10,9 +10,9 @@ import sys
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-import paths
+import paths  # noqa: F401  (sets up the suite paths)
 from pathlib import Path
-from typing import Optional, Dict, List, Tuple, Any
+from typing import Optional, Dict, List, Any
 
 import pandas as pd
 from PySide6.QtCore import QThread, Signal
@@ -804,8 +804,8 @@ class SchemeValidationWorker(QThread):
                             "warning": f"cf. identification: matched to '{match.scientific_name}'",
                             "import_notes": f"Original: '{name}' (cf. = uncertain identification)",
                         }
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[validation_worker] _batch_species_lookup: {e}")  # I7: was silent
 
         def apply_species(row):
             name = row["species_name"]
@@ -942,7 +942,7 @@ class SchemeValidationWorker(QThread):
 
     def _enrich_sort_and_superfamily(self, df: pd.DataFrame) -> pd.DataFrame:
         """Enrich with taxonomic_sort_key and superfamily from UKSI (batch)."""
-        from src.utils.constants import INSECT_ORDER_POSITION, compute_taxonomic_sort_key
+        from src.utils.constants import compute_taxonomic_sort_key
 
         if not self.uksi_model or not hasattr(self.uksi_model, 'db'):
             return df
@@ -976,8 +976,8 @@ class SchemeValidationWorker(QThread):
                         'sort_key': compute_taxonomic_sort_key(order_name, sort_code),
                         'superfamily': superfamily
                     }
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[validation_worker] _enrich_sort_and_superfamily: {e}")  # I7: was silent
             if i % 2000 == 0:
                 self.progress.emit(int(len(self.rows) * (0.30 + (i / max(len(unique_tvks), 1)) * 0.10)), len(self.rows))
 

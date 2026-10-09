@@ -129,6 +129,20 @@ restart); `scripts\check_data_entry_batches.py` after commit. Both use one defin
 of a double entry, `DataEntry/commit_service.DOUBLE_KEY`.
 
 ### F29. Vice-county from a 1 km lookup is wrong in boundary squares
+**Fixed 9 Oct 2026.** `data/vc_splits.db` (built by `scripts/build_vc_splits.py` from
+`data/maps/vc_brc.shp`) holds the 14,455 1 km squares a VC boundary crosses -- each VC's
+share and the outline of its part -- and 42 squares that had no VC (centre in the sea or in
+a gap between boundaries). `VCLookupService.assess()` uses it: a 100 m or finer ref gets the
+VC it is in (a 100 m square is tested at its centre and corners); a 1 km square on a
+boundary is flagged with each VC's share; 2 km tetrads and 10 km squares look at every 1 km
+square inside them, not the south-west one. `get_vc_from_grid_ref` and `get_vc_batch` give
+the same answer, so Data Entry, the import wizards and the backfill all use it; Data Entry's
+info panel shows "On the VC35/VC34 boundary: ... -- check the VC". `vc_lookup.db` is
+unchanged. Checked against your records (`_oneoff/vc_disagree_20261009.py`, read-only):
+560 records were wholly in another VC -- 553 Machen 2024 GPS points VC35 -> VC41, 7 Bredon
+Hill (iRecord 2022) VC37 -> VC33 -- set by `_oneoff/fix_vc_20261009.py` (backup
+`pre-vc-fix`); 940 records on a boundary have one of its VCs and were left alone; no
+contributed record disagreed. Tests: `tests/test_vc_boundaries.py`.
 *Found 8 October 2026 by the I3 grid-ref test.* `vc_lookup.db` gives each 1 km square
 one VC, and both Data Entry and the 26 Sep backfill derive VC through it. In a square
 that straddles a boundary, a record on the minority side gets the wrong VC. Measured:
@@ -149,8 +163,9 @@ records match). `_oneoff/fix_latlong_20261009.py` moved the 3,334 no-shift recor
 commercial + 2 iRecord) to the centre with the shift, 107-130 m; backup `pre-latlong-fix`.
 **Correction to the text below:** `grid_converter_service` (OSGridConverter) is *not* sound
 -- its grid -> lat/long is up to 1.4 km out away from 2 deg W (~200 m in Kent), and the
-Mapping tab drew squares with it; now routed through `shared/osgb.py`. Still open: 1,301
-records have a grid ref but no lat/long (Data Entry commits don't set it).
+Mapping tab drew squares with it; now routed through `shared/osgb.py`. The 1,301 records
+with a grid ref but no lat/long were filled the same way (9 Oct, same script and backup),
+and Data Entry now sets lat/long (centre, WGS84) when it commits a record.
 *Found 8 October 2026 by the I3 test.* The import wizard's `_osgb36_to_wgs84` (and
 `DataEntry/osgb.lonlat_to_en`, its inverse) omit the OSGB36 → WGS84 datum shift: the
 result is OSGB36 latitude/longitude labelled WGS84. Measured against pyproj on all
@@ -223,6 +238,14 @@ mostly entered in the same minute -- the app sending a sample twice), and the 25
 import mirrored them under one iRecord number. The sync now recognises such a second
 copy (same external key, species and date) as already held instead of importing it
 again. List for tidying iRecord: `_oneoff/irecord_duplicate_submissions_20261008.csv`.
+
+### F41. The import wizards' Species Match Report never opened
+*Found and fixed 9 Oct 2026 (I8 import check).* `species_match_report_dialog.py` sits in
+`views/dialogs/` but imported `....themes` (four dots: one level too far), so opening the
+report raised ImportError, which the wizards caught and printed ("Match report error").
+Behind it, re-matching a name set the row's status with the stale wizard set's `RowStatus`,
+a different enum from the wizard's own, so a re-matched row would have equalled neither
+VALID nor WARNING. Both fixed: three dots, and `type(row.status)`. Not yet tried in the app.
 
 ### F40. All 35,104 iRecord rows in the Recording Scheme had lost their iRecord ID
 *Found 9 Oct 2026 by `_oneoff/measure_imports_20261009.py`; repaired the same morning.* The

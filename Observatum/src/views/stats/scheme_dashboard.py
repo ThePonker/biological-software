@@ -16,11 +16,10 @@ NO gamification - this is a scheme organiser tool.
 from PySide6.QtWidgets import (
     QDialog, QTabWidget,
     QScrollArea, QWidget, QVBoxLayout, QHBoxLayout, QFrame, QLabel,
-    QTableWidget, QTableWidgetItem, QHeaderView, QGridLayout, QTableView,
-    QLineEdit, QPushButton, QButtonGroup, QComboBox, QCompleter
+    QHeaderView, QTableView,
+    QLineEdit, QPushButton, QComboBox, QCompleter
 )
-from PySide6.QtCore import Signal, Qt, QMargins, QSortFilterProxyModel, QAbstractTableModel, QModelIndex, QRectF
-from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QPainterPath
+from PySide6.QtCore import Signal, Qt, QSortFilterProxyModel, QAbstractTableModel, QModelIndex
 
 try:
     from PySide6.QtCharts import QChart, QChartView, QBarSeries, QBarSet, QValueAxis, QBarCategoryAxis
@@ -169,16 +168,6 @@ class SortableTable(QFrame):
         if row >= 0 and row < self._model.rowCount():
             species_name = self._model._data[row][0]  # First column is species
             self.species_selected.emit(species_name)
-
-    def _on_cell_clicked(self, index):
-        """Handle single click - check if VCs column was clicked."""
-        source_index = self._proxy.mapToSource(index)
-        col = source_index.column()
-        row = source_index.row()
-        # Column 2 is VCs
-        if col == 2 and row >= 0 and row < self._model.rowCount():
-            species_name = self._model._data[row][0]  # First column is species
-            self.vc_count_clicked.emit(species_name)
 
     def _apply_table_style(self):
         t = theme()
@@ -584,7 +573,6 @@ class CountyFirstsTable(QFrame):
 
     def set_data(self, firsts: list):
         """Set the county firsts data."""
-        from ...utils.date_utils import format_date_for_display
         
         self._record_ids = []  # Store record IDs for navigation
         rows = []
@@ -937,58 +925,6 @@ class RecordingGapsTable(QFrame):
         if row >= 0 and row < self._model.rowCount():
             species_name = self._model._data[row][0]  # First column is species (Species, Last Recorded, Years Ago)
             self.species_selected.emit(species_name)
-
-    def _apply_table_style(self):
-        t = theme()
-        self.table.setStyleSheet(f"""
-            QTableView {{
-                background-color: {t.get('surface')};
-                alternate-background-color: {t.get('surface_alt')};
-                border: none;
-                gridline-color: transparent;
-                selection-background-color: transparent;
-                outline: 0;
-            }}
-            QTableView::item {{
-                padding: 6px 8px;
-                color: {t.get('text_primary')};
-            }}
-            QTableView::item:selected {{
-                background-color: {TabColors.RECORDING_SCHEME_LIGHT};
-                color: {t.get('text_primary')};
-            }}
-            QHeaderView::section {{
-                background-color: {t.get('surface')};
-                color: {t.get('text_secondary')};
-                font-weight: 600;
-                padding: 8px;
-                border: none;
-                border-bottom: 1px solid {t.get('border')};
-            }}
-        """)
-
-    def set_data(self, gaps: list):
-        """Set the recording gaps data."""
-        rows = []
-        for item in gaps:
-            species = item.get('species', '')
-            last_recorded = item.get('last_recorded', '')  # Raw date for proper sorting
-            years_ago = item.get('years_ago', 0)
-            rows.append([species, last_recorded, years_ago])
-        
-        self._model.set_data(rows)
-
-    def apply_theme(self):
-        t = theme()
-        self.setStyleSheet(f"""
-            QFrame {{
-                background-color: {t.get('surface')};
-                border: none;
-                border-radius: {t.get('radius_lg')};
-            }}
-        """)
-        self._apply_table_style()
-
 
     def _apply_table_style(self):
         t = theme()
@@ -1412,7 +1348,6 @@ class SchemeDashboard(QScrollArea):
         
         # Find VC data from stats service
         try:
-            from ...models.database import get_database
             from ...services.recording_scheme_stats_service import get_recording_scheme_stats
             
             stats_service = get_recording_scheme_stats()

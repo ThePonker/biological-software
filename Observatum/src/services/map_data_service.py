@@ -15,10 +15,10 @@ Usage:
 
 import sqlite3
 from typing import Optional
-from pathlib import Path
 
 from .grid_converter_service import get_grid_converter
 import paths
+from shared.db_open import connect_ro  # D9: reference data, read-only
 
 
 # Default time period bands
@@ -296,7 +296,7 @@ class MapDataService:
             [{vc_number, vc_name, record_count, first_year, last_year, has_records}, ...]
         """
         # Get all VC names from vc_lookup.db
-        vc_conn = sqlite3.connect(self._vc_db_path)
+        vc_conn = connect_ro(self._vc_db_path)
         vc_names = {}
         try:
             rows = vc_conn.execute(

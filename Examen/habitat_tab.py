@@ -8,13 +8,13 @@ and fidelity scores (IEC, ERS, calcareous, acid mire etc.).
 
 import sqlite3
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame,
-    QTreeWidget, QTreeWidgetItem, QHeaderView, QTableWidget,
+    QWidget, QVBoxLayout, QLabel, QTreeWidget, QTreeWidgetItem, QHeaderView, QTableWidget,
     QTableWidgetItem,
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QColor
 import paths
+from shared.db_open import connect_ro  # D9: reference data, read-only
 
 BG = "#f5f5f4"; SURFACE = "#ffffff"; TEXT_PRIMARY = "#1f2937"; TEXT_HEADING = "#4b5563"
 TEXT_SECONDARY = "#6b7280"; TEXT_MUTED = "#9ca3af"; BORDER = "#d1d5db"; SEPARATOR = "#e5e7eb"
@@ -31,7 +31,7 @@ def _load_reference_counts():
         return _ref_cache
     if not paths.PANTHEON_DB.exists():
         return {}
-    conn = sqlite3.connect(str(paths.PANTHEON_DB))
+    conn = connect_ro(str(paths.PANTHEON_DB))
     c = conn.cursor()
     _ref_cache["biotope"] = {}
     c.execute("SELECT biotope, COUNT(DISTINCT tvk) FROM broad_biotope GROUP BY biotope")

@@ -11,16 +11,14 @@ from typing import Optional, Dict, Any, List
 
 from PySide6.QtWidgets import (
     QVBoxLayout, QHBoxLayout,
-    QLabel, QPushButton, QFrame, QWidget, QCheckBox, QMessageBox
+    QLabel, QWidget, QCheckBox, QMessageBox
 )
-from PySide6.QtCore import Qt, Signal, QDate, QSettings
+from PySide6.QtCore import Signal, QDate, QSettings
 
 from .card import Card
 from .status_bar import StatusBar
 from .quick_entry_fields_mixin import (
-    QuickEntryFieldsMixin,
-    SEX_OPTIONS, STAGE_OPTIONS, CERTAINTY_OPTIONS,
-    SAMPLE_METHOD_OPTIONS
+    QuickEntryFieldsMixin
 )
 from ...models.database import get_database
 from ...models.observation import ObservationModel, Observation

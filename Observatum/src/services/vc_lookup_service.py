@@ -10,6 +10,17 @@ Supports:
 - 10-figure grid refs (10m precision) - rounded to 1km
 
 Uses a pre-computed 1km lookup table for fast queries.
+
+Boundaries and the coast (F29, I3b, 9 Oct 2026): vc_lookup.db gives each 1 km square the VC
+containing its centre. data/vc_splits.db (built by scripts/build_vc_splits.py from the BRC
+boundary shapefile) lists every square a boundary runs through, with each VC's share and the
+outline of its part, plus coastal squares whose centre is in the sea. assess() uses it:
+  - a point (100 m or finer): the VC its position is actually in -- for a 100 m square the
+    centre and four corners are tested, and if they fall in different VCs it is "on a boundary";
+  - a 1 km square that a boundary crosses: "on a boundary", with each VC's share;
+  - a 2 km tetrad or 10 km square: every 1 km square inside it, not just the south-west one.
+The VC returned is the one at the point, or else the one with the largest share; `boundary`
+says whether another VC is possible. Without vc_splits.db it falls back to vc_lookup alone.
 """
 
 import json
@@ -18,6 +29,21 @@ import sqlite3
 import paths
 from pathlib import Path
 from typing import Optional, Tuple, Dict, Any, List
+from shared.db_open import connect_ro  # D9: reference data, read-only
+
+
+def _in_rings(x: float, y: float, rings) -> bool:
+    """Even-odd ray cast over all of a VC part's rings (holes included)."""
+    inside = False
+    for ring in rings:
+        j = len(ring) - 1
+        for i in range(len(ring)):
+            xi, yi = ring[i]
+            xj, yj = ring[j]
+            if (yi > y) != (yj > y) and x < (xj - xi) * (y - yi) / (yj - yi) + xi:
+                inside = not inside
+            j = i
+    return inside
 
 
 class VCLookupService:
@@ -129,6 +155,8 @@ class VCLookupService:
         self._db_path = db_path
         self._connection = None
         self._cache: Dict[str, Optional[int]] = {}  # Cache for repeated lookups
+        self._splits = None                           # vc_splits.db connection; False = not found
+        self._assess_cache: Dict[str, Optional[Dict[str, Any]]] = {}
         
         # Load names from database if available
         self._load_names_from_db()
@@ -232,7 +260,7 @@ class VCLookupService:
         
         db_path = self._get_db_path()
         if db_path and db_path.exists():
-            self._connection = sqlite3.connect(str(db_path))
+            self._connection = connect_ro(str(db_path))
             return self._connection
         
         return None
@@ -368,6 +396,106 @@ class VCLookupService:
         
         return f"{letters}{e_digit}{n_digit}"
     
+    # ------------------------------------------------------------ boundaries (F29, I3b)
+
+    def _splits_connection(self) -> Optional[sqlite3.Connection]:
+        if self._splits is None:
+            self._splits = False
+            p = self._get_db_path()
+            cand = (p.parent / "vc_splits.db") if p else None
+            if cand and cand.exists():
+                try:
+                    self._splits = sqlite3.connect(cand.resolve().as_uri() + "?mode=ro", uri=True)
+                except sqlite3.Error as e:
+                    print(f"[VCLookupService] Could not open {cand}: {e}")
+        return self._splits or None
+
+    def _parts_for(self, squares: List[str]) -> Dict[str, List[Tuple[int, float, Any]]]:
+        """1 km square -> [(vc, share of the square, rings or None)]; [] when nothing is known."""
+        out: Dict[str, List[Tuple[int, float, Any]]] = {s: [] for s in squares}
+        sp = self._splits_connection()
+        rest = list(squares)
+        if sp:
+            for i in range(0, len(squares), 500):
+                chunk = squares[i:i + 500]
+                for sq, vc, frac, rings in sp.execute(
+                        f"SELECT grid_1km, vc_number, area_fraction, rings_json FROM vc_split_squares "
+                        f"WHERE grid_1km IN ({','.join('?' * len(chunk))})", chunk):
+                    out[sq].append((vc, frac, json.loads(rings) if rings else None))
+            rest = [s for s in squares if not out[s]]
+        conn = self._get_connection()
+        if conn and rest:
+            for i in range(0, len(rest), 500):
+                chunk = rest[i:i + 500]
+                for sq, vc in conn.execute(
+                        f"SELECT grid_1km, vc_number FROM vc_lookup WHERE grid_1km IN ({','.join('?' * len(chunk))})",
+                        chunk):
+                    out[sq].append((vc, 1.0, None))
+        return out
+
+    def assess(self, grid_ref: str) -> Optional[Dict[str, Any]]:
+        """The VC of a grid reference, and whether it is on a boundary.
+
+        Returns None for an unreadable reference or one with no VC (open sea), else
+            {"vc_number", "vc_name", "boundary": bool,
+             "vcs": [(vc_number, percent or None), ...]  largest first,
+             "note": "" or e.g. "On the VC34/VC35 boundary: VC34 46%, VC35 54%"}
+        """
+        from shared import osgb
+        key = (grid_ref or "").upper().replace(" ", "")
+        if key in self._assess_cache:
+            return self._assess_cache[key]
+        p = osgb.gridref_to_en(key)
+        if not p:
+            return None
+        e, n, size = p
+        if size < 1000:
+            e0, n0 = e - e % 1000, n - n % 1000
+            squares = [osgb.en_to_gridref(e0, n0, 4)]
+        else:
+            squares = [osgb.en_to_gridref(x, y, 4) for x in range(e, e + size, 1000)
+                       for y in range(n, n + size, 1000)]
+        squares = [s for s in squares if s]
+        parts = self._parts_for(squares)
+        result = None
+        if size < 1000:
+            pieces = parts.get(squares[0], []) if squares else []
+            if len({vc for vc, _, _ in pieces}) > 1 and any(r for _, _, r in pieces):
+                pts = [(e + size / 2, n + size / 2)]
+                if size >= 100:
+                    pts += [(e, n), (e + size, n), (e, n + size), (e + size, n + size)]
+                hits = []
+                for x, y in pts:
+                    hits.append(next((vc for vc, _, r in pieces if r and _in_rings(x - e0, y - n0, r)), None))
+                found = [h for h in hits if h is not None]
+                if found:
+                    vcs = list(dict.fromkeys(([hits[0]] if hits[0] else []) + found))
+                    result = {"vc_number": vcs[0], "boundary": len(vcs) > 1,
+                              "vcs": [(v, None) for v in vcs]}
+                    if len(vcs) > 1:
+                        result["note"] = (f"On the {'/'.join(f'VC{v}' for v in vcs)} boundary: "
+                                          f"this {size} m square crosses it")
+        if result is None:
+            share: Dict[int, float] = {}
+            for pieces in parts.values():
+                for vc, frac, _ in pieces:
+                    share[vc] = share.get(vc, 0.0) + frac
+            if not share:
+                self._assess_cache[key] = None
+                return None
+            total = sum(share.values())
+            ranked = sorted(share.items(), key=lambda kv: -kv[1])
+            vcs = [(vc, round(100 * a / total)) for vc, a in ranked]
+            result = {"vc_number": ranked[0][0], "boundary": len(ranked) > 1, "vcs": vcs}
+            if len(ranked) > 1:
+                what = {1000: "1 km square", 2000: "tetrad", 10000: "10 km square"}.get(size, "square")
+                result["note"] = (f"On the {'/'.join(f'VC{v}' for v, _ in vcs)} boundary: this {what} is "
+                                  + ", ".join(f"VC{v} {pc}%" if pc else f"VC{v} <1%" for v, pc in vcs))
+        result.setdefault("note", "")
+        result["vc_name"] = self.get_vc_name(result["vc_number"])
+        self._assess_cache[key] = result
+        return result
+
     def get_vc_from_grid_ref(self, grid_ref: str) -> Optional[Tuple[int, str]]:
         """
         Get vice county from grid reference.
@@ -376,10 +504,18 @@ class VCLookupService:
             grid_ref: OS Grid Reference (4, 6, 8, or 10 figure)
             
         Returns:
-            Tuple of (vc_number, vc_name), or None if not found
+            Tuple of (vc_number, vc_name), or None if not found.
+            On a boundary this is the VC at the point, or with the largest share -- see assess().
         """
         if not grid_ref:
             return None
+        try:
+            a = self.assess(grid_ref)
+        except Exception as e:                       # never let the boundary check stop a lookup
+            print(f"[VCLookupService] assess({grid_ref!r}) failed: {e}")
+            a = False
+        if a is not False:
+            return (a["vc_number"], a["vc_name"]) if a else None
         
         # Get the 1km square
         square_1km = self.get_1km_square(grid_ref)
@@ -468,6 +604,24 @@ class VCLookupService:
                                 results[item["original"]] = {"vc_number": None, "vc_name": "", "warning": item["warning"] or "Could not determine Vice County", "error": ""}
                 except Exception as e:
                     print(f"[VCLookupService] Batch lookup error: {e}")
+
+        # boundaries, the coast and coarse refs (F29, I3b): the same answer as assess()
+        for grid, res in results.items():
+            if not grid or res.get("error"):
+                continue
+            try:
+                a = self.assess(grid)
+            except Exception as e:
+                print(f"[VCLookupService] assess({grid!r}) failed: {e}")
+                continue
+            res["boundary"] = bool(a and a["boundary"])
+            res["vcs"] = a["vcs"] if a else []
+            if a:
+                res["vc_number"], res["vc_name"] = a["vc_number"], a["vc_name"]
+                if a["note"]:
+                    res["warning"] = a["note"]
+                elif "VC may be ambiguous" in res.get("warning", "") or res.get("warning") == "Could not determine Vice County":
+                    res["warning"] = ""
         
         return results
 

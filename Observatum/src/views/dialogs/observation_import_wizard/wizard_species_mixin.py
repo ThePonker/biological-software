@@ -9,7 +9,7 @@ from typing import Dict, List
 
 from PySide6.QtWidgets import QDialog, QMessageBox
 
-from .validation_worker import ObservationImportRow, RowStatus, ImportMode
+from .validation_worker import ObservationImportRow, RowStatus
 from ..specimen_import_wizard.bulk_resolution_dialog import BulkSpeciesResolutionDialog
 from ....core.config import TabColors
 

@@ -10,12 +10,13 @@ from published reviews. Naturalist theme.
 import sqlite3
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QPushButton, QSplitter, QListWidget, QListWidgetItem,
+    QSplitter, QListWidget, QListWidgetItem,
     QFrame, QScrollArea, QGridLayout,
 )
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont, QColor
 import paths
+from shared.db_open import connect_ro  # D9: reference data, read-only
 
 BG = "#f5f5f4"
 SURFACE = "#ffffff"
@@ -151,16 +152,9 @@ class SpeciesDatabaseView(QWidget):
         self.status_grid = QGridLayout()
         self.status_grid.setSpacing(6)
         self.status_group.layout().addLayout(self.status_grid)
-        # Manual entry button inside status group
-        self.manual_btn = QPushButton("+ Add Manual Entry")
-        self.manual_btn.setStyleSheet(
-            "QPushButton { color: " + ACCENT + "; border: 1px solid " + ACCENT + "; "
-            "padding: 4px 12px; border-radius: 3px; font-size: 11px; background: none; }"
-            "QPushButton:hover { background: " + ACCENT_LIGHT + "; }")
         # "+ Add Manual Entry" removed (Oct 2026): its dialog emptied codex.db manual_entries,
         # which now holds every review status. Statuses come from review loads and the
-        # withdraw / clear tools (scripts/), never from here.
-        self.manual_btn.hide()
+        # withdraw / clear tools (scripts/), never from here. The dialog was retired 9 Oct (I8).
         self.pl.addWidget(self.status_group)
         self.status_group.hide()
 
@@ -217,7 +211,7 @@ class SpeciesDatabaseView(QWidget):
 
     def _search_uksi(self, query):
         if not paths.UKSI_DB.exists(): return []
-        conn = sqlite3.connect(str(paths.UKSI_DB))
+        conn = connect_ro(str(paths.UKSI_DB))
         c = conn.cursor()
         c.execute("""SELECT t.scientific_name, t.tvk, cn.common_name, t.family, t.rank
             FROM taxa t LEFT JOIN common_names cn ON t.tvk = cn.tvk AND cn.preferred = 1
@@ -325,8 +319,3 @@ class SpeciesDatabaseView(QWidget):
         v = QLabel(value); v.setStyleSheet("font-size: 11px; border: none; color: "+TEXT_PRIMARY+";"); v.setWordWrap(True); r.addWidget(v, 1)
         self.eco_layout.addWidget(w)
 
-    def _on_manual_entry(self):
-        from .manual_entry_dialog import ManualEntryDialog
-        dlg = ManualEntryDialog(self, self._current_tvk, self._current_name)
-        dlg.exec()
-        if self._current_tvk: self._display_codex_status(self._current_tvk)

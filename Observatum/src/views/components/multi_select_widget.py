@@ -8,7 +8,7 @@ Used throughout the Filter Wizard v2 for multi-selection filtering.
 from typing import List, Dict, Any, Optional, Set
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QPushButton, QScrollArea, QFrame, QCheckBox, QButtonGroup
+    QPushButton, QScrollArea, QFrame, QCheckBox
 )
 from PySide6.QtCore import Signal, Qt
 

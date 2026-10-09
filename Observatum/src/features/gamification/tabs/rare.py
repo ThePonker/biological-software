@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QByteArray
 from PySide6.QtSvgWidgets import QSvgWidget
 
-from ..theme import BACKGROUND, TEXT, RARITY_TIERS, PAPER
+from ..theme import TEXT, RARITY_TIERS, PAPER
 
 
 class RareTab:

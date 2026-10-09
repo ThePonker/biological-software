@@ -7,7 +7,6 @@ in the insect collection.
 
 import sqlite3
 from typing import Optional, Dict
-from pathlib import Path
 
 
 class FamilyNotesRepository:

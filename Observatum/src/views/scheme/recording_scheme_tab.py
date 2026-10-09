@@ -3,15 +3,14 @@
 Main tab for viewing Longhorn Beetle Recording Scheme data.
 Uses Model/View pattern matching Observation Data tab structure.
 """
-from typing import Optional, Dict, Any, List
-import time
+from typing import Optional, Dict, List
 import paths
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QFrame, QTableView,
-    QHeaderView, QAbstractItemView, QLabel, QStackedWidget
+    QHeaderView, QAbstractItemView
 )
-from PySide6.QtCore import Qt, QSortFilterProxyModel, QSettings, QThread, Signal, QTimer
+from PySide6.QtCore import Qt, QSortFilterProxyModel, QSettings, Signal, QTimer
 
 from .scheme_toolbar import SchemeToolbar
 from .scheme_filter_bar import SchemeFilterBar
@@ -397,7 +396,6 @@ class RecordingSchemeTab(QWidget):
         # Resolve db path for thread-safe connection
         db_path = self._main_db_path
         if not db_path:
-            from pathlib import Path
             db_path = str(paths.OBSERVATUM_DB)
 
         # Inject scheme family scope from settings

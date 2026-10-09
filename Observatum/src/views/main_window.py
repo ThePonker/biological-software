@@ -13,7 +13,7 @@ import time
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QTabWidget, QStatusBar, QLabel
 )
-from PySide6.QtCore import Qt, QSettings
+from PySide6.QtCore import Qt
 
 # Import from refactored packages
 from .home import HomeTab
@@ -1103,7 +1103,6 @@ class MainWindow(QMainWindow):
             backup_path = settings.value(Settings.CSV_BACKUP_PATH, "")
 
             if backup_enabled and backup_path:
-                import time
                 from PySide6.QtWidgets import QMessageBox
                 reply = QMessageBox.question(
                     self, "CSV Safety Backup",

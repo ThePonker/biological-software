@@ -5,10 +5,10 @@ Provides saved filter functionality for filter bar components.
 Handles loading, saving, selecting, and deleting saved filters via QSettings.
 """
 
-from typing import List, Dict, Optional
+from typing import List, Dict
 
-from PySide6.QtWidgets import QComboBox, QPushButton, QMessageBox, QInputDialog
-from PySide6.QtCore import QSettings, Signal
+from PySide6.QtWidgets import QPushButton, QMessageBox, QInputDialog
+from PySide6.QtCore import QSettings
 
 from ...themes import theme
 

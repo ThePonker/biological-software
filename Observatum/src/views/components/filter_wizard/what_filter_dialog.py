@@ -8,7 +8,7 @@ Filter by species, order, and family with search bars and chips.
 - Chips stack vertically
 """
 
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, List
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QFrame, QCompleter, QScrollArea, QWidget, QSizePolicy

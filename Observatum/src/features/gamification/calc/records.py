@@ -9,8 +9,7 @@ import sqlite3
 from typing import Dict, List, Any, Optional, Tuple
 
 from ..theme import (
-    ONE_TIME_ACHIEVEMENTS, SEAL_COLOURS,
-    ACHIEVEMENT_GROUP_ORDERS, BUTTERFLY_FAMILIES, 
+    ONE_TIME_ACHIEVEMENTS, ACHIEVEMENT_GROUP_ORDERS, BUTTERFLY_FAMILIES, 
     HOVERFLY_FAMILIES, ACULEATE_FAMILIES,
     get_seal_colour
 )

@@ -47,7 +47,7 @@ from .wizard_species_mixin import WizardSpeciesResolutionMixin
 from .wizard_file_mixin import WizardFileMixin
 
 from ....themes import theme
-from ....core.config import TabColors, ButtonColors
+from ....core.config import TabColors
 
 
 class SpecimenImportWizard(

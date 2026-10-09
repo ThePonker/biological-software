@@ -15,6 +15,7 @@ import sqlite3
 import paths
 from pathlib import Path
 from dataclasses import dataclass, field
+from shared.db_open import connect_ro  # D9: reference data, read-only
 
 
 DB_PATH = paths.PANTHEON_DB
@@ -58,7 +59,7 @@ class PantheonRepository:
         if self._conn is None:
             if not Path(self._db_path).exists():
                 raise FileNotFoundError(f"pantheon.db not found: {self._db_path}")
-            self._conn = sqlite3.connect(self._db_path)
+            self._conn = connect_ro(self._db_path)
             self._conn.row_factory = sqlite3.Row
         return self._conn
 

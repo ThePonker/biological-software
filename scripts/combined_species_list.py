@@ -23,7 +23,7 @@ import paths
 from import_status_review import resolve      # import the rule, don't restate it
 
 import openpyxl
-from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.styles import Font, PatternFill
 
 JOB_ID = 6
 SITE = "Birmingham - Wheels Park"

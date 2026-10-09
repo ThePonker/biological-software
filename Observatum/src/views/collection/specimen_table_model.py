@@ -5,7 +5,7 @@ Table model for specimen collection data with checkbox support.
 Matches the Observation Data tab layout for consistency.
 """
 
-from typing import Optional, List, Dict, Any, Union
+from typing import Optional, List, Any
 
 from PySide6.QtCore import Qt, QSettings
 from PySide6.QtGui import QStandardItemModel, QStandardItem, QColor

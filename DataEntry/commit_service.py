@@ -66,6 +66,13 @@ def build_kwargs_from_row(row: Dict, job: Dict, embargo_until: Optional[str] = N
         "client": (job.get("client") or None) if is_commercial else None,
         "embargo_until": (embargo_until or None) if is_commercial else None,
     }
+    # Lat/long of the grid square's centre, with the OSGB36 -> WGS84 shift (9 Oct 2026);
+    # commits used to leave it blank (1,301 records)
+    from shared.osgb import gridref_to_wgs84
+    ll = gridref_to_wgs84(kwargs["grid_ref"]) if kwargs["grid_ref"] else None
+    if ll:
+        kwargs["latitude"], kwargs["longitude"] = ll
+        kwargs["geodetic_datum"] = "WGS84"
     return {k: v for k, v in kwargs.items() if k in _ALLOWED_FIELDS}
 
 

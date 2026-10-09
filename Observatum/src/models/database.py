@@ -21,7 +21,7 @@ Usage:
 import sqlite3
 import threading
 from pathlib import Path
-from typing import Optional, List, Tuple, Any, Dict
+from typing import Optional, List, Tuple, Dict
 from contextlib import contextmanager
 
 
@@ -73,7 +73,7 @@ class DatabaseManager:
         return self._uksi_db_path
     
     @contextmanager
-    def _get_connection(self, db_path: Path, enable_foreign_keys: bool = True):
+    def _get_connection(self, db_path: Path, enable_foreign_keys: bool = True, read_only: bool = False):
         """
         Context manager for database connections.
         
@@ -84,7 +84,11 @@ class DatabaseManager:
             db_path: Path to the database file
             enable_foreign_keys: Whether to enable FK constraints (default True)
         """
-        conn = sqlite3.connect(str(db_path))
+        if read_only:                       # D9: reference data, read-only
+            from shared.db_open import connect_ro
+            conn = connect_ro(db_path)
+        else:
+            conn = sqlite3.connect(str(db_path))
         conn.row_factory = sqlite3.Row  # Enables column access by name
         
         # Enable foreign key constraints for data integrity
@@ -92,7 +96,8 @@ class DatabaseManager:
             conn.execute("PRAGMA foreign_keys = ON")
         
         # Performance optimizations
-        conn.execute("PRAGMA journal_mode = WAL")
+        if not read_only:                   # a write: not allowed (or needed) read-only
+            conn.execute("PRAGMA journal_mode = WAL")
         conn.execute("PRAGMA cache_size = -64000")  # 64MB cache
         conn.execute("PRAGMA mmap_size = 268435456")  # 256MB memory-mapped I/O
         conn.execute("PRAGMA synchronous = NORMAL")
@@ -116,7 +121,7 @@ class DatabaseManager:
         if not self._uksi_db_path:
             raise ValueError("UKSI database path not set. Call set_paths() first.")
         # UKSI is read-only reference data, FK constraints not needed
-        with self._get_connection(self._uksi_db_path, enable_foreign_keys=False) as conn:
+        with self._get_connection(self._uksi_db_path, enable_foreign_keys=False, read_only=True) as conn:
             yield conn
     
     def execute_main(self, query: str, params: Tuple = ()) -> List[sqlite3.Row]:

@@ -10,7 +10,7 @@ progressively from moss green to heather purple as modules load.
 from pathlib import Path
 
 from PySide6.QtWidgets import QSplashScreen, QProgressBar, QLabel, QApplication
-from PySide6.QtCore import Qt, QTimer, QRectF, QRect
+from PySide6.QtCore import Qt, QTimer, QRectF
 from PySide6.QtGui import (
     QPixmap, QColor, QPainter, QFont, QLinearGradient,
     QPen, QPainterPath, QImage

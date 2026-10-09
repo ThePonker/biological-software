@@ -4,7 +4,7 @@ Status Filter Dialog.
 Filter by verification status and record type with checkboxes.
 """
 
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, List
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QFrame, QCheckBox, QWidget

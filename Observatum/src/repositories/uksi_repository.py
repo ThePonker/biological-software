@@ -23,6 +23,7 @@ import sqlite3
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 import paths
+from shared.db_open import connect_ro  # D9: reference data, read-only
 
 # Try to import from config
 try:
@@ -73,7 +74,7 @@ class UKSIRepository:
     
     def _get_connection(self) -> sqlite3.Connection:
         """Get a database connection with row factory."""
-        conn = sqlite3.connect(self._db_path)
+        conn = connect_ro(self._db_path)
         conn.row_factory = sqlite3.Row
         return conn
     

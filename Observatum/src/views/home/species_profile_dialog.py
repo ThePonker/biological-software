@@ -11,7 +11,7 @@ Same constructor and signals as before, so every caller is unchanged:
     SpeciesProfileDialog(species_data: dict, parent)
 """
 import html
-from typing import Optional, Dict
+from typing import Dict
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit, QTextBrowser,

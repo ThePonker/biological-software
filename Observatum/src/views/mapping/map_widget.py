@@ -15,7 +15,7 @@ from pathlib import Path
 from PySide6.QtWidgets import QWidget, QVBoxLayout
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWebChannel import QWebChannel
-from PySide6.QtCore import Qt, QUrl, QObject, Slot, Signal
+from PySide6.QtCore import QUrl, QObject, Slot, Signal
 
 
 # Path to the Leaflet HTML template (same directory as this file)

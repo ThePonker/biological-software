@@ -1,5 +1,4 @@
 """Home Tab - Orchestrator"""
-from typing import Optional
 from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QMessageBox
 from PySide6.QtCore import Qt, Signal
 from .quick_entry import QuickEntryForm
@@ -232,7 +231,7 @@ class HomeTab(QWidget):
         search_service.set_database(db)
         try:
             search_service.refresh_recorded_species()
-        except:
+        except Exception:
             pass
         self.refresh_data()
 

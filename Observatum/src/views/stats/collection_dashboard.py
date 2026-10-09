@@ -11,7 +11,7 @@ Dashboard for collection managers showing:
 
 from PySide6.QtWidgets import (
     QScrollArea, QWidget, QVBoxLayout, QHBoxLayout, QFrame, QLabel,
-    QTableWidget, QTableWidgetItem, QHeaderView, QPushButton
+    QTableWidget, QTableWidgetItem, QHeaderView
 )
 from PySide6.QtCore import Signal, Qt
 
@@ -19,7 +19,7 @@ from .stat_widgets import StatCard
 from ...themes import theme
 from ...utils.date_utils import format_date_display
 from ...core.config import TabColors
-from ...services.specimen_stats_service import get_specimen_stats, SpecimenStatsService
+from ...services.specimen_stats_service import get_specimen_stats
 from ...views.dialogs.species_list_dialog import SpeciesListDialog
 
 

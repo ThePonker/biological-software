@@ -13,11 +13,12 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
     QComboBox, QFileDialog, QTableWidget, QTableWidgetItem, QHeaderView,
-    QFrame, QMessageBox, QGroupBox, QFormLayout, QTextEdit
+    QMessageBox, QGroupBox, QFormLayout, QTextEdit
 )
 from PySide6.QtCore import Signal
 
 from . import theme
+from shared.db_open import connect_ro  # D9: reference data, read-only
 
 
 # 11-track scheme (Codex Strategy doc, section 3)
@@ -600,7 +601,7 @@ class ImportTab(QWidget):
     # ============================================================
     def _resolve_species(self, entries):
         import paths
-        uksi = sqlite3.connect(str(paths.UKSI_DB))
+        uksi = connect_ro(str(paths.UKSI_DB))
         resolved = []
         unresolved = []
         for entry in entries:

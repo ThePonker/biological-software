@@ -1,4 +1,4 @@
-from src.utils.constants import INSECT_ORDER_POSITION, compute_taxonomic_sort_key
+from src.utils.constants import compute_taxonomic_sort_key
 import paths
 """
 Validation Worker for Specimen Import Wizard.
@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Optional, Dict, List, Tuple
+from typing import Optional, Dict, List
 
 import pandas as pd
 from PySide6.QtCore import QThread, Signal
@@ -356,8 +356,8 @@ class ValidationWorker(QThread):
                         "warning": f"Aggregate matched to base species '{matched_name}'",
                         "import_notes": f"Original: '{name}' -> matched to '{matched_name}'",
                     }
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[validation_worker] _batch_species_lookup: {e}")  # I7: was silent
 
         # Apply to DataFrame
         for idx, row in df.iterrows():
@@ -422,9 +422,16 @@ class ValidationWorker(QThread):
                                 'Megaloptera': 'insect',
                             }
                             df.at[idx, "taxon_group"] = ORDER_TO_GROUP.get(order_name, '')
-                    except Exception:
-                        pass
-                df.at[idx, "species_warning"] = lookup.get("warning", "")
+                    except Exception as e:
+                        print(f"[specimen import] taxonomy lookup failed for {tvk}: {e}")
+                warning = lookup.get("warning", "")
+                sk = df.at[idx, "taxonomic_sort_key"]
+                if tvk and (sk is None or pd.isna(sk) or not sk):
+                    # I7 (9 Oct 2026): without a sort key the specimen is invisible in the
+                    # collection sidebar -- say so instead of importing it silently
+                    warning = "; ".join(w for w in (warning, "No taxonomic sort key -- it would "
+                                        "not show in the collection sidebar") if w)
+                df.at[idx, "species_warning"] = warning
                 df.at[idx, "species_error"] = lookup.get("error", "")
                 df.at[idx, "import_notes"] = lookup.get("import_notes", "")
             elif not name:

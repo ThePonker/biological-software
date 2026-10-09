@@ -10,7 +10,7 @@ PERFORMANCE OPTIMIZATIONS:
 """
 
 from typing import Dict, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 from PySide6.QtCore import QSettings
 
 
@@ -377,7 +377,7 @@ class RecordingSchemeStatsService:
                             'years_ago': years_ago,
                             'total_records': r['total_records']
                         })
-                    except:
+                    except Exception:
                         pass
             
             self._cache['recording_gaps'] = gaps
@@ -446,7 +446,6 @@ class RecordingSchemeStatsService:
     def get_vc_details(self, vc_number: int) -> Dict[str, Any]:
         """Get detailed statistics for a specific Vice County."""
         from ..core.vc_shortnames import VC_FULL_NAMES
-        from ..utils.date_utils import format_date_for_display
         
         result = {
             'vc_number': vc_number,
@@ -507,7 +506,7 @@ class RecordingSchemeStatsService:
                         species_info = uksi.get_by_tvk(r['species_tvk'])
                         if species_info:
                             common_name = species_info.common_name or ""
-                    except:
+                    except Exception:
                         pass
                     
                     result['species_list'].append({
@@ -559,7 +558,7 @@ class RecordingSchemeStatsService:
                         species_info = uksi.get_by_name(r['species_name'])
                         if species_info:
                             common_name = species_info.common_name or ""
-                    except:
+                    except Exception:
                         pass
                     
                     result['county_firsts'].append({
@@ -612,7 +611,7 @@ class RecordingSchemeStatsService:
                         species_info = uksi.get_by_tvk(r['species_tvk'])
                         if species_info:
                             common_name = species_info.common_name or ""
-                    except:
+                    except Exception:
                         pass
                     result['recording_gaps'].append({
                         'species_name': r['species_name'],

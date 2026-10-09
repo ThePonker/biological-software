@@ -17,7 +17,7 @@ the two cases it cannot see:
 Run:  python scripts\\check_newest_review.py
 """
 import os, re, sqlite3, sys
-from collections import Counter, defaultdict
+from collections import defaultdict
 from datetime import date, timedelta
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

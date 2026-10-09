@@ -12,7 +12,7 @@ Usage:
     background = colors['background']
 """
 
-from typing import Dict, Any
+from typing import Dict
 
 # Try to import main theme, fall back to local defaults
 try:

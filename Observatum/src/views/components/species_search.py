@@ -3,13 +3,12 @@ Species Search Component with manual popup.
 Uses QListWidget popup for full keyboard control.
 """
 
-from typing import Optional, Dict, List
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLineEdit, QListWidget, QListWidgetItem,
     QStyledItemDelegate, QStyle, QSizePolicy,
 )
-from PySide6.QtCore import Signal, Qt, QTimer, QModelIndex, QPoint
-from PySide6.QtGui import QFont, QFontMetrics, QPainter
+from PySide6.QtCore import Signal, Qt, QTimer, QPoint
+from PySide6.QtGui import QFont, QFontMetrics
 
 
 class SpeciesItemDelegate(QStyledItemDelegate):

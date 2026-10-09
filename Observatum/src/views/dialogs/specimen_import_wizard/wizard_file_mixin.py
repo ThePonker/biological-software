@@ -5,10 +5,10 @@ Contains file loading, column mapping, preview, and export methods.
 """
 
 import csv
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 from PySide6.QtWidgets import (
-    QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QFileDialog,
+    QHBoxLayout, QLabel, QComboBox, QFileDialog,
     QTableWidget, QTableWidgetItem, QHeaderView, QMessageBox, QFrame
 )
 

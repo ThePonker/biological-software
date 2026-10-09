@@ -13,17 +13,16 @@ from PySide6.QtWidgets import (
     QLineEdit, QComboBox, QCheckBox, QGroupBox, QGridLayout, QFrame,
     QPushButton, QCompleter
 )
-from PySide6.QtCore import Signal, QSettings, Qt, Qt
-from PySide6.QtWidgets import QCompleter
+from PySide6.QtCore import Signal, QSettings, Qt
 
 from ...themes import theme
 from ...utils.constants import (
-    DATE_FORMAT_OPTIONS,
-    DEFAULT_DATE_FORMAT
+    DATE_FORMAT_OPTIONS
 )
 
 # Import centralised config
 from ...core.config import Settings, Defaults
+from shared.db_open import connect_ro  # D9: reference data, read-only
 
 
 class GeneralSettingsPanel(QScrollArea):
@@ -298,7 +297,7 @@ class GeneralSettingsPanel(QScrollArea):
             import sqlite3
             from ...core.config import Paths
             uksi_path = Paths.default_uksi_db()
-            conn = sqlite3.connect(str(uksi_path))
+            conn = connect_ro(str(uksi_path))
             all_families = [r[0] for r in conn.execute(
                 "SELECT DISTINCT family FROM taxa WHERE family IS NOT NULL AND family != '' ORDER BY family"
             ).fetchall()]
@@ -316,7 +315,7 @@ class GeneralSettingsPanel(QScrollArea):
             import sqlite3
             from ...core.config import Paths
             uksi_path = Paths.default_uksi_db()
-            conn = sqlite3.connect(str(uksi_path))
+            conn = connect_ro(str(uksi_path))
             all_families = [r[0] for r in conn.execute(
                 "SELECT DISTINCT family FROM taxa WHERE family IS NOT NULL AND family != '' ORDER BY family"
             ).fetchall()]

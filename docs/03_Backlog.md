@@ -16,7 +16,7 @@
 | 4 | **E16** — decide the SQI verdict wording | decision |
 | 5 | **D3** — merge `main` → `stable` | 15 minutes |
 | 5b | **B8** — built 8 Oct; test on the next restart: commit a job with a blank site and a doubled row, expect "Check before commit" | 5 min test |
-| 6 | **I7–I9** — rainy-day hygiene from the 6 October analysis: dead code, silent errors, read-only connections | ~1 day |
+| 6 | ~~**I7, I8, D9**~~ ✅ **Done 9 Oct** (~25 min) — dead code retired, silent errors reporting, reference DBs read-only. Wil: run `_oneoff/retire_dead_code_20261009.py`; 4 Data Entry files still to land. I9 (duplicated UI components) still open | test |
 
 ---
 
@@ -205,7 +205,11 @@ diff them; any difference means something is order-dependent. Would have caught
 the collapse tiebreak in April, and converts the version-stamping promise from an
 assumption into a tested fact.
 
-**D9. Read-only connections for reference databases.** Half a day. 97
+**D9. Read-only connections for reference databases.** ✅ Done 9 Oct -- `shared/db_open.connect_ro()`;
+every app connection to UKSI, Codex (outside Codex Manager's own writes), Pantheon and the VC
+lookup now goes through it (26 sites, and `DatabaseManager.uksi_connection`, which also used
+to switch uksi.db to WAL on every open). A stray write now fails: "attempt to write a
+readonly database". Tests: `tests/test_db_open.py`. *Original note:* Half a day. 97
 `sqlite3.connect()` calls across 55 files, 13 read-only. "Only Codex Manager
 writes to Codex" is a convention the code does not enforce -- the Examen
 manual-entry route (fixed 6 Oct) is where it broke. A shared helper, read-only by
@@ -601,17 +605,19 @@ archived. `grid_ref_service.to_coordinates()` is an unimplemented stub with no c
 delete. The real problems are VC in boundary squares (F29) and lat/long without the
 datum shift (F30):
 
-**I3b. VC by point-in-polygon at boundaries** (fault F29). ~0.5 day. Use the VC
+**I3b. VC by point-in-polygon at boundaries** (fault F29). ✅ Done 9 Oct -- see F29;
+`data/vc_splits.db`, `VCLookupService.assess()`, 560 stored VCs corrected. Took ~10 min of
+build time against the ~0.5 day estimate. Use the VC
 boundaries (`data/maps/vc_brc_wgs84.geojson`) for refs finer than 1 km whose 1 km square
 straddles a boundary; report "on a boundary" for a ref too coarse to decide. Then a
 read-only list of records whose stored VC disagrees, for your judgement.
 
-**I3c. One lat/long converter, and recompute the 3,332** (fault F30). ~1 hr + a dry
-run. The import wizard and `DataEntry/osgb.py` call `grid_converter_service` (or a
+**I3c. One lat/long converter, and recompute the 3,332** (fault F30). ✅ Done 9 Oct --
+see F30; the 1,301 missing lat/longs filled too. The import wizard and `DataEntry/osgb.py` call `grid_converter_service` (or a
 shared function with the Helmert shift) instead of their own maths.
 
-**I4. Remove the stale wizard set.** Five files, ~1,700 lines. Only
-`species_match_report_dialog.py:398` still imports `RowStatus` from it.
+**I4. Remove the stale wizard set.** ✅ Done 9 Oct -- the five files go to `_archive` with I8.
+`species_match_report_dialog.py` now uses the row's own `RowStatus` (see F41).
 
 **I5. `ruff.toml` + pre-commit hook.** So the lint counts stop growing.
 
@@ -624,9 +630,16 @@ grid-ref parsing and the 1 km square, the specimen sort key. Run
 Next candidates as they are touched: `grid_converter_service`, the import wizards'
 species matching (C4).
 
-**I7. Review silent errors.** Swept 8 Oct (`40_Code_Sweep_20261008.md` §3): 189
-silent handlers; three can lose or duplicate records (F35), several more import
-records with missing fields (F34).
+**I7. Review silent errors.** ✅ Done 9 Oct. Re-swept: 211 handlers (`except` whose whole
+body is pass / continue / return a blank). The ones on data paths now say so: the
+observation wizard marks a row when its species lookup *failed* (not "not found"), when
+the duplicate check failed ("may already be in Observatum") and when lat/long could not
+be worked out; the specimen wizard warns when a row has no sort key (it would be invisible
+in the collection sidebar); species lookups, sort-key enrichment, row-by-row insert
+fallback, the Codex bridge / research-only lookups, UKSI batch lookup and the search
+cache print the error. 9 bare `except:` became `except Exception:`. 197 remain, read and
+left: number/date parsing fallbacks, path probing, closing connections, UI cosmetics,
+and 40 in Data Entry (not touched while in use).
 
 **I7b. Import wizard repairs** (faults F32–F35). ~1 day, then testing against real
 imports -- overlaps C4 (merge the three wizards), so best done with it. **Measure
@@ -636,7 +649,15 @@ Then: UPDATE only supplied columns; fixed column list in the scheme batch insert
 batched duplicate lookups that fail loudly; `utf-8-sig` first; sort key / superfamily
 / subfamily computed and stored; row warnings instead of `pass`.
 
-**I8. Remove dead code.** 1–2 hours. 10 modules nothing imports (~1,900 lines:
+**I8. Remove dead code.** ✅ Done 9 Oct. Import graph + importing every module: 15 files
+nothing imports go to `_archive\dead_code_20261009` via
+`_oneoff/retire_dead_code_20261009.py` (plus `codex_repository.py.bak` and a 9 May wizard
+`.bak`); `build_gb_basemap.py`, `game_launcher.py` and `src/main.py` kept. Removed: the
+duplicated 52-line block and an unconnected click handler in `scheme_dashboard.py`;
+`_load_uksi_total_counts` pasted three times in Curator; five dead write methods in
+`observation_repository.py` (one wrote a column that doesn't exist); the second "Resolve
+Species" button in the observation wizard; Examen's hidden manual-entry button; 353 unused
+imports (ruff; `import paths` kept). Undefined names: 0. *Original note:* 10 modules nothing imports (~1,900 lines:
 `conservation_override.py`, `DataEntry/entry_page.py`, `session_picker.py`,
 `column_config_dialog.py`, the two theme files, `shared/db_config.py`,
 `uksi_diagnostic.py`, `gamification_widgets.py`, `build_gb_basemap.py` -- **keep

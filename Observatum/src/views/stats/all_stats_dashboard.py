@@ -6,11 +6,9 @@ Uses ObservationStatsService for centralized data.
 """
 
 from PySide6.QtWidgets import (
-    QScrollArea, QWidget, QVBoxLayout, QHBoxLayout, QFrame, QLabel,
-    QTableWidget, QTableWidgetItem, QHeaderView
+    QScrollArea, QWidget, QVBoxLayout, QHBoxLayout
 )
-from PySide6.QtCore import Signal, Qt, QMargins
-from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QLinearGradient
+from PySide6.QtCore import Signal
 
 try:
     from PySide6.QtCharts import QChart, QChartView, QLineSeries, QValueAxis, QAreaSeries
@@ -20,7 +18,7 @@ except ImportError:
 
 from .stat_widgets import (
     StatCard, MonthlyActivityChart,
-    TopFamiliesList, YearByYearTable, RecentSpeciesList,
+    YearByYearTable, RecentSpeciesList,
     AccumulationCurveChart, DataTable
 )
 from .order_accumulation_grid import OrderAccumulationGrid

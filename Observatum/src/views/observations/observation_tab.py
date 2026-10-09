@@ -5,11 +5,11 @@ Main tab for viewing and managing observation records.
 Uses mixins for filter, export, and detail functionality.
 """
 
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, List
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QFrame,
     QTableView, QHeaderView, QAbstractItemView
-, QMessageBox, QHBoxLayout, QLabel, QPushButton)
+, QHBoxLayout, QLabel, QPushButton)
 from PySide6.QtCore import Qt, QSortFilterProxyModel, QSettings, Signal
 
 from .observation_toolbar import ObservationToolbar
@@ -21,9 +21,9 @@ from ..components import tick_column
 from .observation_filter_mixin import ObservationFilterMixin
 from .observation_export_mixin import ObservationExportMixin
 from .observation_detail_mixin import ObservationDetailMixin
-from ..dialogs import RecordDetailDialog, ObservationImportWizard
+from ..dialogs import ObservationImportWizard
 from ...models.database import get_database
-from ...models.observation import ObservationModel, Observation
+from ...models.observation import ObservationModel
 from ...models.uksi import UKSIModel
 from ...themes import theme
 from ...core.config import TabColors, Settings, Defaults

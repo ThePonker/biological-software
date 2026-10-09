@@ -6,11 +6,11 @@ and problem export methods.
 """
 
 import csv
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 from PySide6.QtWidgets import (
     QFileDialog, QMessageBox, QTableWidget, QTableWidgetItem, QHeaderView,
-    QHBoxLayout, QLabel, QComboBox, QFrame, QVBoxLayout
+    QHBoxLayout, QLabel, QComboBox, QFrame
 )
 
 from .validation_worker import ImportMode, RowStatus

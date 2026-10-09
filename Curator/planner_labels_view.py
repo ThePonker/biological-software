@@ -7,11 +7,11 @@ PDF export for printing collection labels at various levels.
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QComboBox, QCheckBox, QRadioButton, QButtonGroup, QFrame,
-    QSplitter, QScrollArea, QTreeWidget, QTreeWidgetItem,
+    QComboBox, QCheckBox, QRadioButton, QFrame,
+    QSplitter, QTreeWidget, QTreeWidgetItem,
     QFileDialog, QSpinBox,
 )
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QColor
 
 from .planner_tree_data import load_taxonomic_tree, TaxonNode

@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QPushButton, QComboBox, QCheckBox, QGroupBox, QFrame,
     QDialog, QProgressBar
 )
-from PySide6.QtCore import Qt, Signal, QSettings, QTimer
+from PySide6.QtCore import Qt, QSettings
 
 from ...themes import theme
 from ...core.config import Settings

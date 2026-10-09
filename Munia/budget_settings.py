@@ -9,12 +9,11 @@ Edit capacity budgets for a business year:
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QSpinBox,
-    QPushButton, QFrame, QFormLayout, QGroupBox,
+    QPushButton, QFormLayout, QGroupBox,
 )
-from PySide6.QtCore import Qt
 
 from Munia.theme import (
-    STONE_LIGHT, STONE_BORDER, BODY_FAMILY, HEADING_FAMILY,
+    STONE_BORDER, HEADING_FAMILY,
     TEXT_DARK, TEXT_MID, MOSS_GREEN, DUSTY_PURPLE, AMBER,
 )
 from Munia import munia_data as db

@@ -57,7 +57,7 @@ def _page_record(page, title, item):
                  or item.get("ContainerTitle") or item.get("Title"),
         "volume": page.get("Volume") or item.get("Volume"),
         "year": parse_year(page.get("Year"), item.get("Year"), item.get("Date"),
-                           title.get("PublicationDate")),
+                           item.get("Volume"), title.get("PublicationDate")),
         "page_label": _page_label(page),
         "page_url": page.get("PageUrl")
                     or f"https://www.biodiversitylibrary.org/page/{page['PageID']}",
@@ -93,6 +93,27 @@ def extract_pages(result):
     return list(pages.values())
 
 
+def _norm(text):
+    return re.sub(r"[^a-z0-9]", "", (text or "").lower())
+
+
+def drop_duplicate_scans(pages):
+    """Keep one copy where several libraries scanned the same page.
+
+    Pages count as duplicates when normalised title, volume and printed page
+    number all match. Pages without a printed page number are always kept.
+    """
+    seen, kept = set(), []
+    for p in pages:
+        if p["page_label"]:
+            key = (_norm(p["title"]), _norm(p["volume"]), _norm(p["page_label"]))
+            if key in seen:
+                continue
+            seen.add(key)
+        kept.append(p)
+    return kept
+
+
 def apply_filters(pages, opts):
     kept = []
     for p in pages:
@@ -107,6 +128,7 @@ def apply_filters(pages, opts):
             continue
         kept.append(p)
     kept.sort(key=lambda p: (p["year"] is None, p["year"] or 0, p["page_id"]))
+    kept = drop_duplicate_scans(kept)
     return kept[:opts.max_pages] if opts.max_pages else kept
 
 

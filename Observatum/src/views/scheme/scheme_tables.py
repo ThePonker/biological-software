@@ -12,10 +12,10 @@ for consistency with Observation Data and Insect Collection tabs.
 
 from PySide6.QtWidgets import (
     QTableWidget, QTableWidgetItem, QHeaderView,
-    QWidget, QHBoxLayout, QLabel, QPushButton,
+    QLabel, QPushButton,
     QAbstractItemView
 )
-from PySide6.QtCore import Qt, Signal, QSettings
+from PySide6.QtCore import Qt, QSettings
 from PySide6.QtGui import QColor
 
 from ...themes import theme

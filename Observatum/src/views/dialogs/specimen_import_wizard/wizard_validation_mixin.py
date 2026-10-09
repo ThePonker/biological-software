@@ -8,7 +8,7 @@ from typing import List, Optional
 from datetime import datetime
 
 from PySide6.QtWidgets import (
-    QDialog, QTableWidgetItem, QHeaderView, QMessageBox, QTableView, QAbstractItemView
+    QDialog, QTableWidgetItem, QMessageBox, QTableView
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor

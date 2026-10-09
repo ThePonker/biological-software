@@ -10,8 +10,7 @@ PERFORMANCE OPTIMIZATIONS:
 """
 
 from typing import Dict, Any, Optional
-from datetime import datetime, timedelta
-from PySide6.QtCore import QSettings
+from datetime import datetime
 
 
 CACHE_TTL_SECONDS = 30

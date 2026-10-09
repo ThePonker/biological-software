@@ -6,12 +6,11 @@ Contains species resolution dialog handling and alias management.
 
 from typing import Dict, List
 
-from PySide6.QtWidgets import QDialog, QMessageBox
+from PySide6.QtWidgets import QDialog
 
 from .validation_worker import RowStatus
 from .bulk_resolution_dialog import BulkSpeciesResolutionDialog
 
-from ....themes import theme
 
 
 class WizardSpeciesResolutionMixin:
@@ -120,7 +119,6 @@ class WizardSpeciesResolutionMixin:
     
     def _update_row_in_table(self, row):
         """Update a single row's display in the validation table."""
-        from .validation_worker import ImportRow
         for row_idx, validated_row in enumerate(self.validated_rows):
             if validated_row.row_number == row.row_number:
                 self._update_table_row_display(row_idx, row)

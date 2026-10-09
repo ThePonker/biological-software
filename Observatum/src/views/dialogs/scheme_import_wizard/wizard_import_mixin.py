@@ -5,7 +5,7 @@ Contains the actual import execution, duplicate handling,
 preview dialogs, and summary generation.
 """
 
-from typing import List, Optional
+from typing import List
 from datetime import datetime
 
 from PySide6.QtWidgets import (
@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 
-from .validation_worker import SchemeImportRow, RowStatus, SchemeImportMode
+from .validation_worker import SchemeImportRow, RowStatus
 
 from src.themes import theme
 

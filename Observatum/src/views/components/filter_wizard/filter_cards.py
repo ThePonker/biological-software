@@ -5,10 +5,10 @@ Card-based interface for the Filter Wizard.
 Each card opens a specific filter dialog.
 """
 
-from typing import List, Tuple, Dict, Any, Optional
+from typing import List, Tuple, Dict, Optional
 from PySide6.QtWidgets import (
     QWidget, QFrame, QVBoxLayout, QHBoxLayout, QGridLayout,
-    QLabel, QPushButton, QSizePolicy
+    QLabel, QSizePolicy
 )
 from PySide6.QtCore import Signal, Qt
 

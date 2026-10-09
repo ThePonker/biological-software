@@ -8,13 +8,12 @@ from typing import Dict, Any
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame,
-    QProgressBar, QGridLayout
+    QProgressBar
 )
 from PySide6.QtCore import Qt, QByteArray
 from PySide6.QtSvgWidgets import QSvgWidget
 
 from ..theme import BACKGROUND, TEXT, SEAL_COLOURS
-from ..theme_bridge import get_color
 
 
 class OverviewTab:

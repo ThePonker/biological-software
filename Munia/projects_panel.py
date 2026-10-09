@@ -2,14 +2,14 @@
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget,
-    QTableWidgetItem, QHeaderView, QPushButton, QAbstractItemView
+    QTableWidgetItem, QHeaderView, QAbstractItemView
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QBrush, QFont
 from Munia.theme import (
     STONE_LIGHT, STONE_BORDER, BODY_FAMILY,
     TEXT_DARK, TEXT_MID, TEXT_LIGHT, WARM_GRAY_LIGHT,
-    MOSS_GREEN, DUSTY_PURPLE, AMBER, FADED_CRIMSON, WARM_GRAY
+    MOSS_GREEN, DUSTY_PURPLE, FADED_CRIMSON, WARM_GRAY
 )
 from Munia import munia_data as db
 

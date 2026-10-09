@@ -8,7 +8,7 @@ Writes tidy_inventory.txt in the suite root:
 
 Run:  py -3.14 scripts\\tidy_inventory.py
 """
-import os, re, subprocess, sys
+import os, re, subprocess
 from collections import defaultdict
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

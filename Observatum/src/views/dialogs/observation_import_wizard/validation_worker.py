@@ -13,7 +13,7 @@ from datetime import datetime
 from enum import Enum
 import paths
 from pathlib import Path
-from typing import Optional, Dict, List, Tuple
+from typing import Optional, Dict, List
 
 import pandas as pd
 from PySide6.QtCore import QThread, Signal
@@ -236,7 +236,7 @@ class ObservationImportRow:
 
 
 # UKSI order -> iRecord taxon_group mapping
-from src.utils.constants import INSECT_ORDER_POSITION, compute_taxonomic_sort_key
+from src.utils.constants import compute_taxonomic_sort_key
 
 ORDER_TO_GROUP = {
     'Coleoptera': 'insect - beetle (Coleoptera)',
@@ -358,6 +358,7 @@ class ObservationValidationWorker(QThread):
         self.db_manager = db_manager
         self.species_aliases = species_aliases or {}
         self._cancelled = False
+        self._lookup_failed = {}          # species name -> error, when the lookup itself failed (I7)
         self._vc_service = None
 
         self.valid_count = 0
@@ -530,6 +531,7 @@ class ObservationValidationWorker(QThread):
             "species_warning": "",
             "vc_error": "",
             "vc_warning": "",
+            "check_warning": "",
             "is_duplicate": False,
             "existing_record_id": None,
             "import_notes": "",
@@ -600,6 +602,7 @@ class ObservationValidationWorker(QThread):
             "species_warning": "",
             "vc_error": "",
             "vc_warning": "",
+            "check_warning": "",
             "is_duplicate": False,
             "existing_record_id": None,
             "import_notes": "",
@@ -709,8 +712,9 @@ class ObservationValidationWorker(QThread):
                             "rank": getattr(match, "rank", "") or "",
                             "matched_name": getattr(match, "scientific_name", name) or name,
                         }
-                except Exception:
-                    pass
+                except Exception as e:                       # I7: not the same as "not found"
+                    print(f"[import] species lookup failed for {name!r}: {e}")
+                    self._lookup_failed[name] = str(e)
 
         # Apply lookups to DataFrame
 
@@ -780,8 +784,8 @@ class ObservationValidationWorker(QThread):
                         "_qualifier": parsed["qualifier"],
                         "_original": name,
                     }
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[validation_worker] _batch_species_lookup: {e}")  # I7: was silent
 
         still_missing = []
         for idx, row in df.iterrows():
@@ -819,7 +823,14 @@ class ObservationValidationWorker(QThread):
                             df.at[idx, "import_notes"] = f"Original: '{species}' -> matched to '{matched}'"
             else:
                 still_missing.append(species)
-                if self.import_mode != ImportMode.IRECORD_SYNC:
+                failed = getattr(self, "_lookup_failed", {}).get(species)
+                if failed:
+                    why = f"Species lookup failed ({failed}) -- the name may well be in UKSI; re-run validation"
+                    if self.import_mode != ImportMode.IRECORD_SYNC:
+                        df.at[idx, "species_error"] = why
+                    else:
+                        df.at[idx, "species_warning"] = why
+                elif self.import_mode != ImportMode.IRECORD_SYNC:
                     df.at[idx, "species_error"] = f"Species not found in UKSI: {species}"
                 else:
                     df.at[idx, "species_warning"] = "Missing TVK - species not found in UKSI"
@@ -1018,6 +1029,7 @@ class ObservationValidationWorker(QThread):
             ]["_dup_key"].unique().tolist()
 
             dup_lookup = {}
+            dup_failed = set()
             for key in unique_keys:
                 if self._cancelled:
                     break
@@ -1032,8 +1044,9 @@ class ObservationValidationWorker(QThread):
                         if result and len(result) > 0:
                             rid = result[0][0] if isinstance(result[0], (list, tuple)) else result[0]["id"]
                             dup_lookup[key] = rid
-                    except Exception:
-                        pass
+                    except Exception as e:                   # I7: say so, don't import as new
+                        print(f"[import] duplicate check failed for {key!r}: {e}")
+                        dup_failed.add(key)
 
             # Apply to DataFrame
             for idx, row in df.iterrows():
@@ -1041,6 +1054,9 @@ class ObservationValidationWorker(QThread):
                 if dup_key and dup_key in dup_lookup:
                     df.at[idx, "is_duplicate"] = True
                     df.at[idx, "existing_record_id"] = dup_lookup[dup_key]
+                elif dup_key and dup_key in dup_failed:
+                    df.at[idx, "check_warning"] = ("Duplicate check failed -- this record may "
+                                                   "already be in Observatum")
 
             # Remove temp column
             if "_dup_key" in df.columns:
@@ -1075,8 +1091,8 @@ class ObservationValidationWorker(QThread):
                             df.at[idx, "geodetic_datum"] = "WGS84"
                             if not row.get("grid_precision"):
                                 df.at[idx, "grid_precision"] = precision
-                except Exception:
-                    pass
+                except Exception as e:                       # I7
+                    df.at[idx, "check_warning"] = f"Could not work out lat/long from the grid ref: {e}"
 
         # Compute taxonomic sort key from TVK
         if 'species_tvk' in df.columns:
@@ -1158,6 +1174,8 @@ class ObservationValidationWorker(QThread):
                 warnings.append(row_data["species_warning"])
             if row_data.get("vc_warning"):
                 warnings.append(row_data["vc_warning"])
+            if row_data.get("check_warning"):
+                warnings.append(row_data["check_warning"])
 
             # Additional validation for personal uploads
             if self.import_mode != ImportMode.IRECORD_SYNC:

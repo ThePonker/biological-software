@@ -7,8 +7,7 @@ Contains all _create_*_page() methods for the 5 wizard steps.
 from PySide6.QtWidgets import (
     QTableView,
     QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget,
-    QComboBox, QWidget, QProgressBar, QFrame, QHeaderView,
-    QAbstractItemView, QGroupBox, QRadioButton, QButtonGroup,
+    QWidget, QProgressBar, QAbstractItemView, QGroupBox, QRadioButton, QButtonGroup,
     QScrollArea, QCheckBox
 )
 from PySide6.QtCore import Qt

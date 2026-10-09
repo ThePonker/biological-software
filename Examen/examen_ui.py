@@ -13,7 +13,6 @@ from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QTabWidget, QStatusBar, QComboBox,
 )
-from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 
 from shared.repositories.codex_repository import CodexRepository, AnalysisMode

@@ -9,10 +9,10 @@ from typing import Optional, Dict, Any
 from src.utils.date_utils import format_date_display, parse_display_date, get_user_date_format
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFrame, QLabel,
-    QLineEdit, QTextEdit, QPushButton, QCompleter, QComboBox,
+    QLineEdit, QTextEdit, QPushButton, QComboBox,
     QScrollArea, QWidget, QMessageBox
 )
-from PySide6.QtCore import Qt, QStringListModel, Signal
+from PySide6.QtCore import Qt, Signal
 from ..components.species_search import SpeciesSearch
 
 from ...themes import theme
@@ -573,7 +573,7 @@ class AddSpecimenDialog(QDialog):
             try:
                 from ...models.database import get_database
                 self._db = get_database()
-            except:
+            except Exception:
                 pass
         
         if not self._db:
@@ -850,7 +850,7 @@ class AddSpecimenDialog(QDialog):
                 if vc_info:
                     data['vice_county'] = vc_info.get('name')
                     data['vc_number'] = vc_info.get('number')
-            except:
+            except Exception:
                 pass
         
         return data

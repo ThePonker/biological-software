@@ -7,10 +7,8 @@ Dialogs for Recording Scheme tab:
 """
 
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QGridLayout,
-    QLabel, QPushButton, QFrame, QWidget, QLineEdit
+    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame, QLineEdit
 )
-from PySide6.QtCore import Signal
 
 from ...themes import theme
 

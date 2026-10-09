@@ -359,9 +359,9 @@ class SearchService:
             query = "SELECT DISTINCT species_tvk FROM observations WHERE species_tvk IS NOT NULL"
             results = self.db.execute_main(query, ())
             self._recorded_tvks = {row['species_tvk'] for row in results}
-        except Exception:
+        except Exception as e:
             # Table might not exist yet
-            pass
+            print(f"[search_service] refresh_recorded_species: {e}")  # I7: was silent
         
         self._cache_loaded = True
     

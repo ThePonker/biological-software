@@ -12,7 +12,6 @@ Main achievement window with dark Victorian naturalist theme.
 - Rare Species: Pins + rosettes
 """
 
-from typing import Dict, Any, Optional
 
 from PySide6.QtWidgets import (
     QDialog, QWidget, QVBoxLayout, QHBoxLayout,
@@ -24,7 +23,7 @@ from .calculator import GamificationCalculator
 from .setup import ensure_gamification_db
 from .renderer import AchievementRenderer
 from .styles import get_dark_stylesheet, get_light_stylesheet
-from .theme import TEXT, get_stage_colours
+from .theme import get_stage_colours
 
 # Import tab classes
 from .tabs import (

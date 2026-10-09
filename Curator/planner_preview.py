@@ -5,7 +5,6 @@ Custom-painted QWidget showing a scaled representation of one box
 with family sections drawn proportionally.
 """
 
-import math
 
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
 from PySide6.QtCore import Qt, QRectF

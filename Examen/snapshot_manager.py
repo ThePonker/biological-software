@@ -22,7 +22,6 @@ import sys; sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve(
 
 import sqlite3
 import os
-from pathlib import Path
 from dataclasses import dataclass, field
 from datetime import datetime
 import paths

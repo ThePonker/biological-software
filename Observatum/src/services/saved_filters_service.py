@@ -49,7 +49,6 @@ class SavedFiltersService:
         """Get path to saved filters file."""
         # Try to use the app's data directory
         try:
-            from ..core.config import Paths
             data_dir = Path(paths.DATA_DIR)
         except:
             data_dir = Path("data")

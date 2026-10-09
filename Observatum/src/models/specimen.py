@@ -19,7 +19,7 @@ Usage:
     stats = repo.get_quick_stats()
 """
 
-from typing import List, Dict, Optional, Any
+from typing import Dict, Optional, Any
 from dataclasses import dataclass, asdict
 from datetime import datetime
 

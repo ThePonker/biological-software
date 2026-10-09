@@ -19,6 +19,7 @@ _ALLOWED_FIELDS = {
     "site_name", "recorder", "determiner", "sex", "stage", "quantity", "method",
     "record_type", "project_name", "client", "embargo_until",
     "comment",   # the grid's Comment column -- was dropped at commit until 8 Oct 2026
+    "latitude", "longitude", "geodetic_datum",   # from the grid ref at commit (9 Oct 2026)
 }
 
 

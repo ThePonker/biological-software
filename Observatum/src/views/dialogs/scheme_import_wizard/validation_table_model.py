@@ -5,7 +5,7 @@ Uses QAbstractTableModel for efficient rendering of large datasets.
 Only visible rows are rendered - instant population regardless of row count.
 """
 
-from typing import List, Optional, Any
+from typing import List, Optional
 from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex
 from PySide6.QtGui import QColor
 

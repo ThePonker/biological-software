@@ -6,7 +6,7 @@ Handles complex AND/OR/NOT logic for multi-select filters.
 """
 
 from typing import Dict, Any, List, Tuple, Optional
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass

@@ -5,12 +5,10 @@ Shows Order > Family > Species hierarchy with specimen counts.
 Clicking filters the main table. Detail panel shows family info.
 """
 
-import sqlite3
-from typing import Optional, Dict, List, Tuple
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QTreeWidget, QTreeWidgetItem,
-    QSplitter, QLabel, QFrame, QPushButton
+    QSplitter, QPushButton
 )
 from PySide6.QtCore import Qt, Signal
 
@@ -18,6 +16,7 @@ from .family_detail_panel import FamilyDetailPanel
 from ...themes import theme
 from ...core.config import TabColors
 from ...utils.constants import INSECT_ORDER_POSITION
+from shared.db_open import connect_ro  # D9: reference data, read-only
 
 
 class TaxonomicSidebar(QWidget):
@@ -440,7 +439,7 @@ class TaxonomicSidebar(QWidget):
         conservation = ""
         try:
             import sqlite3
-            conn = sqlite3.connect(self._uksi_db_path)
+            conn = connect_ro(self._uksi_db_path)
             cursor = conn.execute(
                 'SELECT tvk, red_list_status, rarity_status, legal_protection '
                 'FROM taxa WHERE scientific_name = ? AND rank = \'Species\' LIMIT 1',

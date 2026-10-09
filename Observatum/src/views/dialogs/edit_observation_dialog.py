@@ -5,14 +5,13 @@ Modal dialog for editing an observation record that hasn't been
 uploaded to iRecord yet. Based on the AddSpecimenDialog pattern.
 """
 
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 from src.utils.date_utils import format_date_display, parse_display_date, get_user_date_format
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFrame, QLabel,
-    QLineEdit, QTextEdit, QPushButton, QComboBox,
-    QScrollArea, QWidget, QMessageBox
+    QLineEdit, QTextEdit, QPushButton, QScrollArea, QWidget, QMessageBox
 )
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt
 from ..components.species_search import SpeciesSearch
 
 from ...themes import theme
@@ -308,7 +307,7 @@ class EditObservationDialog(QDialog):
                 if vc_info:
                     data['vice_county'] = vc_info.get('name')
                     data['vc_number'] = vc_info.get('number')
-            except:
+            except Exception:
                 pass
 
         return data

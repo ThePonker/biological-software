@@ -6,16 +6,14 @@ filtering, table population, and inline editing.
 """
 
 import csv
-from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 from PySide6.QtWidgets import (
     QApplication,
-    QTableWidgetItem, QFileDialog, QDialog, QVBoxLayout,
-    QHBoxLayout, QLabel, QLineEdit, QPushButton, QCompleter,
-    QMessageBox
+    QFileDialog, QDialog, QVBoxLayout,
+    QHBoxLayout, QLineEdit, QPushButton, QMessageBox
 )
-from PySide6.QtCore import Qt, QStringListModel, QModelIndex
+from PySide6.QtCore import Qt, QModelIndex
 
 from .validation_worker import SchemeImportRow, RowStatus, SchemeValidationWorker, SchemeImportMode
 from .validation_table_model import SchemeValidationTableModel

@@ -13,8 +13,7 @@ Usage:
 """
 
 import sqlite3
-from typing import Optional, List, Tuple, Any, Dict, TypeVar, Generic
-from contextlib import contextmanager
+from typing import Optional, List, Tuple, Any, Dict, TypeVar
 from datetime import datetime
 
 # Try to import from Observatum's database module

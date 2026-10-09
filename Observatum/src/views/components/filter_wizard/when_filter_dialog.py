@@ -5,11 +5,10 @@ Filter by date range, specific year, or quick presets.
 Uses consistent checkbox styling matching Home tab.
 """
 
-from typing import Dict, Any, Optional, List
-from datetime import datetime, timedelta
+from typing import Dict, Any, List
+from datetime import datetime
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QPushButton, QFrame, QDateEdit, QComboBox, QRadioButton,
+    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame, QDateEdit, QComboBox, QRadioButton,
     QButtonGroup, QWidget
 )
 from PySide6.QtCore import Qt, QDate

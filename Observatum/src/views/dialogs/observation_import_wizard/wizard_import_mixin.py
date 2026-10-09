@@ -5,7 +5,7 @@ Contains the actual import execution, duplicate handling,
 update preview dialog, and summary generation.
 """
 
-from typing import List, Optional
+from typing import List
 from datetime import datetime
 
 from PySide6.QtWidgets import (
@@ -18,7 +18,6 @@ from PySide6.QtCore import Qt
 from .validation_worker import ObservationImportRow, RowStatus, ImportMode
 
 from src.themes import theme
-from src.core.config import TabColors
 
 # The fields an iRecord re-sync may change on a record it already holds (F32, 9 Oct 2026).
 # Everything else -- internal notes, import notes, record type, project, client, embargo,
@@ -330,8 +329,8 @@ class WizardImportMixin:
                         result = self.db.execute_main_write(query, params)
                         if result and result > 0:
                             success_count += 1
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        print(f"[wizard_import_mixin] _batch_insert_observations: {e}")  # I7: was silent
                 return success_count
         
         except Exception as e:

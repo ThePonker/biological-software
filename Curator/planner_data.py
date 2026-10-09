@@ -12,6 +12,7 @@ import sys; sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve(
 import paths
 from pathlib import Path
 from dataclasses import dataclass, field
+from shared.db_open import connect_ro  # D9: reference data, read-only
 
 
 PROFILES_PATH = Path(__file__).parent / "mounting_profiles.json"
@@ -146,7 +147,7 @@ def load_superfamily_lookup() -> dict:
     """
     if not UKSI_PATH.exists():
         return {}
-    conn = sqlite3.connect(str(UKSI_PATH))
+    conn = connect_ro(str(UKSI_PATH))
     c = conn.cursor()
     # Direct parent is Superfamily, or one hop via Infraorder etc.
     c.execute("""
@@ -213,7 +214,7 @@ def load_families(order_name: str) -> list:
     # Always load UKSI sort codes as fallback
     uksi_sort = {}
     if UKSI_PATH.exists():
-        uconn = sqlite3.connect(str(UKSI_PATH))
+        uconn = connect_ro(str(UKSI_PATH))
         uc = uconn.cursor()
         uc.execute("""
             SELECT scientific_name, sort_code FROM taxa
@@ -291,7 +292,7 @@ def load_orders_from_uksi() -> list:
     """Get list of insect orders from UKSI (no specimen data needed)."""
     if not UKSI_PATH.exists():
         return []
-    conn = sqlite3.connect(str(UKSI_PATH))
+    conn = connect_ro(str(UKSI_PATH))
     c = conn.cursor()
     c.execute("""
         SELECT t.scientific_name, COUNT(f.scientific_name) as fam_count

@@ -12,26 +12,20 @@ Writes to:
 """
 
 import sqlite3
-from datetime import datetime
 import paths
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple, Any
 
 from .models import (
-    Achievement, AchievementType, UserProgress,
-    TierAchievement, VCBadge, VCCompletion,
-    FamilyFirstBadge, FamilyDepthMedal,
-    RareSpeciesPin, RareMilestoneRosette
+    UserProgress
 )
 from .theme import (
-    TIERS, RARE_MILESTONES, ONE_TIME_ACHIEVEMENTS, SEAL_COLOURS,
-    ACHIEVEMENT_GROUP_ORDERS, BUTTERFLY_FAMILIES, HOVERFLY_FAMILIES, ACULEATE_FAMILIES,
-    get_tier_for_species_count, get_family_thresholds, get_rarity_tier,
-    get_region_for_vc, get_taxonomic_group, get_vc_counts, get_seal_colour
+    get_tier_for_species_count, get_family_thresholds, get_taxonomic_group, get_vc_counts
 )
 
 # Import calculator modules
 from .calc import RecordsCalculator, RareCalculator
+from shared.db_open import connect_ro  # D9: reference data, read-only
 
 # Try to import Paths from config
 try:
@@ -84,7 +78,7 @@ class GamificationCalculator:
     
     def _get_uksi_conn(self) -> sqlite3.Connection:
         """Get connection to UKSI database."""
-        return sqlite3.connect(str(self.uksi_db))
+        return connect_ro(str(self.uksi_db))
     
     def _get_gamification_conn(self) -> sqlite3.Connection:
         """Get connection to gamification database."""

@@ -9,7 +9,7 @@ Input: a CSV with columns  species_name, profile_text  (optional: order_name, fa
 
 DRY RUN unless --apply.  --apply backs up observatum.db first.
 """
-import csv, os, shutil, sqlite3, sys
+import csv, os, sqlite3, sys
 from datetime import datetime
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

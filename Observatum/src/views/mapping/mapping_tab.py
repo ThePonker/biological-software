@@ -14,7 +14,6 @@ Signals flow:
   → MapWidget.set_species (grid data sent to Leaflet)
 """
 
-from pathlib import Path
 
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QFrame
 

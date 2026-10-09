@@ -239,7 +239,7 @@ class SpeciesAliasService:
             cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) FROM species_aliases")
             return cursor.fetchone()[0]
-        except:
+        except Exception:
             return 0
         finally:
             conn.close()

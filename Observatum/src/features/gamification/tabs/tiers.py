@@ -8,10 +8,10 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame,
     QScrollArea, QGridLayout
 )
-from PySide6.QtCore import Qt, QByteArray
+from PySide6.QtCore import QByteArray
 from PySide6.QtSvgWidgets import QSvgWidget
 
-from ..theme import BACKGROUND, TEXT, TIERS, get_stage_colours
+from ..theme import TEXT, TIERS, get_stage_colours
 
 
 class TiersTab:

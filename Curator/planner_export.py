@@ -9,7 +9,6 @@ Uses fpdf2 for PDF generation.
 Install: pip install fpdf2
 """
 
-import math
 
 try:
     from fpdf import FPDF
@@ -18,8 +17,7 @@ except ImportError:
     print("WARNING: fpdf2 not installed. Run: pip install fpdf2")
 
 from .planner_data import (
-    ProfileManager, BoxAllocation, FamilyData,
-    calculate_family_rows,
+    ProfileManager, calculate_family_rows,
 )
 
 

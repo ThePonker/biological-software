@@ -7,7 +7,7 @@ Dark Victorian naturalist aesthetic.
 Single source of truth - change values here to update everywhere.
 """
 
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional
 
 
 # =============================================================================

@@ -6,11 +6,10 @@ Styled consistently across Insect Collection and Observation Data tabs.
 Uses configurable tab accent colors and displays appropriate fields per record type.
 """
 
-from typing import Optional, Dict, Any
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFrame,
-    QLabel, QPushButton, QWidget, QMessageBox, QScrollArea, QTextEdit
+    QLabel, QPushButton, QWidget, QMessageBox, QScrollArea
 )
 from PySide6.QtCore import Signal, Qt
 

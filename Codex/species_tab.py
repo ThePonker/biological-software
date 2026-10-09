@@ -6,11 +6,12 @@ v2: aligned to Codex v5 / 11-track scheme.
 import sqlite3
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QFrame,
-    QScrollArea, QPushButton
+    QScrollArea
 )
 from PySide6.QtCore import Qt, QTimer
 
 from . import theme
+from shared.db_open import connect_ro  # D9: reference data, read-only
 
 
 # ============================================================
@@ -122,7 +123,7 @@ class SpeciesTab(QWidget):
 
         try:
             import paths
-            conn = sqlite3.connect(str(paths.UKSI_DB))
+            conn = connect_ro(str(paths.UKSI_DB))
 
             words = text.lower().split()
 

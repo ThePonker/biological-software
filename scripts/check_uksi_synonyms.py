@@ -28,7 +28,6 @@ Writes every flagged row to scripts\\_oneoff\\f14_flagged.csv.
 """
 import csv
 import os
-import re
 import sqlite3
 import sys
 from collections import Counter, defaultdict

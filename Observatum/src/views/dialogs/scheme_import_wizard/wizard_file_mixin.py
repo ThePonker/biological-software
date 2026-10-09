@@ -5,13 +5,10 @@ Contains file handling, CSV parsing, format detection,
 and column mapping functionality.
 """
 
-import csv
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 from PySide6.QtWidgets import (
-    QFileDialog, QLabel, QComboBox, QHBoxLayout, QFrame, QVBoxLayout,
-    QTableWidget, QTableWidgetItem
+    QFileDialog, QLabel, QComboBox, QHBoxLayout, QFrame, QTableWidget, QTableWidgetItem
 )
 
 from .validation_worker import (

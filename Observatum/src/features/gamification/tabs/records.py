@@ -5,7 +5,6 @@ Displays one-time achievements (daily/annual records) by taxonomic group.
 Uses vertical scrolling grid layout.
 """
 
-from typing import Callable
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame,

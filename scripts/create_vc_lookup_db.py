@@ -20,9 +20,7 @@ Alternative: If you have a CSV with grid_ref,vc_number columns, use:
 import argparse
 import csv
 import sqlite3
-import sys
-from pathlib import Path
-from typing import Optional, Tuple, Dict
+from typing import Optional
 
 # Try to import spatial libraries
 try:

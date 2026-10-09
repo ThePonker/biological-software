@@ -13,7 +13,7 @@ Reusable widgets for stats dashboards:
 from PySide6.QtWidgets import (
     QFrame, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QHeaderView, QWidget,
-    QAbstractItemView, QScrollArea, QSizePolicy, QComboBox
+    QAbstractItemView, QScrollArea, QSizePolicy
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont

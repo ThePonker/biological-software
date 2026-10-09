@@ -25,6 +25,7 @@ import re
 from typing import Optional, Tuple
 
 _LETTERS = "ABCDEFGHJKLMNOPQRSTUVWXYZ"       # no I
+_DINTY = "ABCDEFGHIJKLMNPQRSTUVWXYZ"         # tetrad letters: no O
 
 # Airy 1830 (OSGB36) and GRS80 / WGS84 ellipsoids
 _AIRY = (6377563.396, 6356256.909)
@@ -55,11 +56,20 @@ def _square_origin(letters: str) -> Optional[Tuple[int, int]]:
 def gridref_to_en(ref) -> Optional[Tuple[int, int, int]]:
     """(easting, northing, size_m) of the square's SOUTH-WEST CORNER, or None.
 
-    Accepts spaces and any even number of digits (SP58, SP5820, SP580207, 'TQ 53083 77347').
+    Accepts spaces and any even number of digits (SP58, SP5820, SP580207, 'TQ 53083 77347'),
+    and 2 km tetrads in the DINTY letters (SP58A: A-E up the first column, F-K the next, no O).
     """
     if not ref:
         return None
     s = str(ref).upper().replace(" ", "")
+    t = re.fullmatch(r"([A-Z]{2})(\d)(\d)([A-NP-Z])", s)
+    if t:
+        origin = _square_origin(t.group(1))
+        if origin is None:
+            return None
+        k = _DINTY.index(t.group(4))
+        return (origin[0] * 100000 + int(t.group(2)) * 10000 + (k // 5) * 2000,
+                origin[1] * 100000 + int(t.group(3)) * 10000 + (k % 5) * 2000, 2000)
     m = re.fullmatch(r"([A-Z]{2})(\d*)", s)
     if not m or len(m.group(2)) % 2:
         return None

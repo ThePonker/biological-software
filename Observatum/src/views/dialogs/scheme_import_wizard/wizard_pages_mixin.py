@@ -12,14 +12,10 @@ Contains page creation methods for each wizard step:
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QFrame, QTableWidget, QTableWidgetItem, QTableView, QHeaderView,
-    QProgressBar, QCheckBox, QScrollArea, QComboBox,
-    QRadioButton, QSizePolicy, QGroupBox, QButtonGroup
+    QFrame, QTableWidget, QTableView, QProgressBar, QCheckBox, QScrollArea, QRadioButton, QGroupBox
 )
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
 
-from src.core.config import TabColors, ButtonColors
 from src.themes import theme
 
 

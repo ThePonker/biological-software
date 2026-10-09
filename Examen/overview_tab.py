@@ -6,7 +6,7 @@ Detailed breakdowns moved to Habitats/Assemblages/Species/Conservation tabs.
 """
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QGridLayout,
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame,
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont

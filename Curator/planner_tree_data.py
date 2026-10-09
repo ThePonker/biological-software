@@ -11,6 +11,7 @@ import sys; sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve(
 import paths
 from pathlib import Path
 from dataclasses import dataclass, field
+from shared.db_open import connect_ro  # D9: reference data, read-only
 
 UKSI_PATH = paths.UKSI_DB
 DB_PATH = paths.OBSERVATUM_DB
@@ -38,53 +39,7 @@ def _load_uksi_total_counts(order_name):
     gen_totals = {}
     if not UKSI_PATH.exists():
         return fam_totals, gen_totals
-    conn = sqlite3.connect(str(UKSI_PATH))
-    c = conn.cursor()
-    c.execute("""SELECT family, COUNT(DISTINCT scientific_name) FROM taxa
-                 WHERE "order" = ? AND rank = 'Species' AND family IS NOT NULL
-                 GROUP BY family""", (order_name,))
-    for fam, cnt in c.fetchall():
-        fam_totals[fam] = cnt
-    c.execute("""SELECT genus, COUNT(DISTINCT scientific_name) FROM taxa
-                 WHERE "order" = ? AND rank = 'Species' AND genus IS NOT NULL
-                 GROUP BY genus""", (order_name,))
-    for gen, cnt in c.fetchall():
-        gen_totals[gen] = cnt
-    conn.close()
-    return fam_totals, gen_totals
-
-
-
-def _load_uksi_total_counts(order_name):
-    """Load total species counts per family and genus from UKSI."""
-    fam_totals = {}
-    gen_totals = {}
-    if not UKSI_PATH.exists():
-        return fam_totals, gen_totals
-    conn = sqlite3.connect(str(UKSI_PATH))
-    c = conn.cursor()
-    c.execute("""SELECT family, COUNT(DISTINCT scientific_name) FROM taxa
-                 WHERE "order" = ? AND rank = 'Species' AND family IS NOT NULL
-                 GROUP BY family""", (order_name,))
-    for fam, cnt in c.fetchall():
-        fam_totals[fam] = cnt
-    c.execute("""SELECT genus, COUNT(DISTINCT scientific_name) FROM taxa
-                 WHERE "order" = ? AND rank = 'Species' AND genus IS NOT NULL
-                 GROUP BY genus""", (order_name,))
-    for gen, cnt in c.fetchall():
-        gen_totals[gen] = cnt
-    conn.close()
-    return fam_totals, gen_totals
-
-
-
-def _load_uksi_total_counts(order_name):
-    """Load total species counts per family and genus from UKSI."""
-    fam_totals = {}
-    gen_totals = {}
-    if not UKSI_PATH.exists():
-        return fam_totals, gen_totals
-    conn = sqlite3.connect(str(UKSI_PATH))
+    conn = connect_ro(str(UKSI_PATH))
     c = conn.cursor()
     c.execute("""SELECT family, COUNT(DISTINCT scientific_name) FROM taxa
                  WHERE "order" = ? AND rank = 'Species' AND family IS NOT NULL
@@ -375,7 +330,7 @@ def _load_suborder_map(order_name):
 
     # Source 3: UKSI hierarchy (1-hop family → suborder)
     if UKSI_PATH.exists():
-        conn = sqlite3.connect(str(UKSI_PATH))
+        conn = connect_ro(str(UKSI_PATH))
         c = conn.cursor()
         c.execute("""SELECT f.scientific_name, so.scientific_name FROM taxa f
                      JOIN hierarchy h ON f.tvk = h.tvk
@@ -389,7 +344,7 @@ def _load_suborder_map(order_name):
     # Source 4: Apply default for unassigned families
     if default_suborder:
         if UKSI_PATH.exists():
-            conn = sqlite3.connect(str(UKSI_PATH))
+            conn = connect_ro(str(UKSI_PATH))
             c = conn.cursor()
             c.execute("""SELECT scientific_name FROM taxa
                          WHERE "order" = ? AND rank = 'Family'""", (order_name,))
@@ -403,7 +358,7 @@ def _load_suborder_map(order_name):
 
 def _load_uksi_families(order_name):
     if not UKSI_PATH.exists(): return []
-    conn = sqlite3.connect(str(UKSI_PATH))
+    conn = connect_ro(str(UKSI_PATH))
     c = conn.cursor()
     c.execute("SELECT scientific_name, sort_code FROM taxa WHERE \"order\" = ? AND rank = 'Family' AND sort_code IS NOT NULL ORDER BY sort_code", (order_name,))
     result = [(r[0], r[1]) for r in c.fetchall()]
@@ -420,7 +375,7 @@ def _load_uksi_families(order_name):
 def _load_uksi_subfamilies(order_name):
     """Load subfamilies grouped by family."""
     if not UKSI_PATH.exists(): return {}
-    conn = sqlite3.connect(str(UKSI_PATH))
+    conn = connect_ro(str(UKSI_PATH))
     c = conn.cursor()
     c.execute("""
         SELECT scientific_name, family, sort_code FROM taxa
@@ -437,7 +392,7 @@ def _load_uksi_subfamilies(order_name):
 def _load_uksi_genera_species(order_name):
     """Load genera, species, and genus→subfamily mapping."""
     if not UKSI_PATH.exists(): return {}, {}, {}
-    conn = sqlite3.connect(str(UKSI_PATH))
+    conn = connect_ro(str(UKSI_PATH))
     c = conn.cursor()
 
     # Genera by family
@@ -493,7 +448,7 @@ def _load_common_names():
             if not k.startswith("_"):
                 result[k] = v
     if UKSI_PATH.exists():
-        conn = sqlite3.connect(str(UKSI_PATH))
+        conn = connect_ro(str(UKSI_PATH))
         c = conn.cursor()
         c.execute("SELECT t.scientific_name, cn.common_name FROM taxa t JOIN common_names cn ON t.tvk = cn.tvk WHERE t.rank = 'Species' LIMIT 50000")
         for r in c.fetchall():

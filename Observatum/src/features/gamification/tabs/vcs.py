@@ -5,16 +5,16 @@ Displays interactive UK VC map with regional crown completion.
 """
 
 from pathlib import Path
-from typing import Dict, List, Set
+from typing import Set
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame,
-    QScrollArea, QGraphicsOpacityEffect, QSplitter
+    QGraphicsOpacityEffect
 )
 from PySide6.QtCore import Qt, QByteArray
 from PySide6.QtSvgWidgets import QSvgWidget
 
-from ..theme import TEXT, BACKGROUND
+from ..theme import TEXT
 
 
 class VCsTab:

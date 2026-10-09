@@ -10,7 +10,7 @@ from typing import Optional
 
 from .theme import (
     TROPHY_TIERS, TAXONOMIC_GROUPS, VC_REGIONS, RARITY_TIERS,
-    PROGRESSION_STAGES, ICON_SIZES, GROUP_ICONS, get_stage_colours
+    ICON_SIZES, GROUP_ICONS, get_stage_colours
 )
 
 

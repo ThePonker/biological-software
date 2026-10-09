@@ -6,10 +6,10 @@ Shows card grid and manages filter state.
 Supports saving and loading filter configurations.
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QPushButton, QFrame, QComboBox, QMessageBox
+    QPushButton, QComboBox, QMessageBox
 )
 from PySide6.QtCore import Signal, Qt
 

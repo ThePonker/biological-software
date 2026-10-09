@@ -10,8 +10,8 @@ from PySide6.QtWidgets import (
     QSystemTrayIcon, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QFrame, QMenu, QApplication,
 )
-from PySide6.QtCore import Qt, QTimer, QPoint, QSize
-from PySide6.QtGui import QFont, QIcon, QPixmap, QCursor, QImage, QColor, QPainter
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QFont, QIcon, QPixmap, QCursor, QColor, QPainter
 
 from Atrium.process_manager import APPS, launch_app, is_running, running_count
 

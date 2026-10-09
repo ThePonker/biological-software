@@ -15,7 +15,7 @@ Kept taxa and TVKs newer than the release are not in tvk_remap and are left alon
   python scripts\\remap_record_tvks.py --apply      only once the new file IS the live uksi.db; backs up observatum.db
 """
 import os, re, sqlite3, sys
-from collections import Counter, defaultdict
+from collections import Counter
 from datetime import datetime
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QDate, Signal
 from PySide6.QtGui import QFont, QColor, QBrush
 from Munia.theme import (
-    STONE_LIGHT, STONE_BORDER, BODY_FAMILY, HEADING_FAMILY,
+    STONE_BORDER, BODY_FAMILY, HEADING_FAMILY,
     TEXT_DARK, TEXT_MID, MOSS_GREEN, DUSTY_PURPLE, AMBER, WARM_GRAY_LIGHT
 )
 from Munia import munia_data as db

@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
     QPushButton, QFrame, QScrollArea, QWidget, QSizePolicy,
     QCheckBox, QGridLayout
 )
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import Qt, Signal
 
 from ....themes import theme
 from ....core.config import ButtonColors

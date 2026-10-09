@@ -4,7 +4,6 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget,
     QTableWidgetItem, QHeaderView, QFrame
 )
-from PySide6.QtCore import Qt
 
 from . import theme
 

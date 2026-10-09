@@ -4,7 +4,6 @@ Observation Export Mixin
 Handles export functionality for ObservationTab.
 """
 
-from typing import Dict
 
 
 class ObservationExportMixin:

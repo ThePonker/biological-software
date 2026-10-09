@@ -5,11 +5,10 @@ Modal dialog for viewing Recording Scheme record details.
 Styled consistently with RecordDetailDialog (Observation/Specimen).
 """
 
-from typing import Optional, Dict, Any
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFrame,
-    QLabel, QPushButton, QWidget, QMessageBox, QScrollArea, QTextEdit
+    QLabel, QPushButton, QWidget, QMessageBox, QScrollArea
 )
 from PySide6.QtCore import Signal, Qt
 

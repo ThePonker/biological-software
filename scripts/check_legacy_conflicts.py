@@ -14,7 +14,7 @@ and which of your surveys hold the STALE KEY species.
 
 Run:  python scripts\\check_legacy_conflicts.py
 """
-import ast, os, re, sqlite3, sys
+import os, re, sqlite3, sys
 from collections import Counter, defaultdict
 from datetime import date, timedelta
 

@@ -6,7 +6,6 @@ to keep the GUI responsive during the 98k+ row load.
 
 import threading
 from PySide6.QtCore import QThread, Signal
-from ...models.database import get_database
 
 
 class SchemeDataWorker(QThread):

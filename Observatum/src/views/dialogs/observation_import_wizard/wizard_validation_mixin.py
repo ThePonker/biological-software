@@ -5,7 +5,7 @@ Contains validation worker callbacks, table updates, filtering,
 inline editing, and revalidation methods.
 """
 
-from typing import List, Optional
+from typing import List
 
 from PySide6.QtWidgets import (
     QTableWidgetItem, QHeaderView, QMessageBox, QInputDialog

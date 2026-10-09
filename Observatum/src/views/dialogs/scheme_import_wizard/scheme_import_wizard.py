@@ -49,7 +49,7 @@ from .wizard_validation_mixin import WizardValidationMixin
 from .wizard_import_mixin import WizardImportMixin
 
 from src.themes import theme
-from src.core.config import TabColors, ButtonColors
+from src.core.config import TabColors
 
 
 class SchemeImportWizard(

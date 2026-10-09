@@ -340,7 +340,6 @@ class BulkSpeciesResolutionDialog(QDialog):
                     (text + "%",)
                 )
                 if agg_results:
-                    from dataclasses import dataclass
                     for ar in agg_results:
                         # Check not already in results
                         existing_tvks = {r.tvk for r in results}

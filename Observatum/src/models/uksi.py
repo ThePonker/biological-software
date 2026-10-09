@@ -687,7 +687,7 @@ class UKSIModel:
                         genus=row[8],
                     )
         except Exception as e:
-            pass
+            print(f"[uksi] get_species_batch: {e}")  # I7: was silent
         return results
 
     def get_synonyms(self, tvk: str) -> List[str]:
