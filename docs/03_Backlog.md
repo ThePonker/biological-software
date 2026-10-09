@@ -9,7 +9,7 @@
 
 | | Item | Size |
 |---|---|---|
-| 0 | **I7b** — scheme + specimen import repairs. Fully planned in `41_Groundwork_Notes_20261009.md` Part 1 (~2.5 days); run its read-only measurement queries first. Then E7 (Part 2), photos/geo (Part 3) | ~2.5 days |
+| 0 | ~~**I7b**~~ ✅ **Done 9 Oct** — scheme + specimen import repairs and the scheme data repair (F40). Wil to test one scheme and one specimen import with real files. Next: E7 (`41` Part 2), photos/geo (Part 3) | test |
 | 1 | **F11** — email Chris Raper (c.raper@nhm.ac.uk): the 24 British beetles the July 2025 UKSI flags redundant, and any copy newer than July 2025 | 10 min |
 | 2 | **F14** — remaining (search and Lector only): build fix for the 366 CONFLICT carried synonyms; exclusions for NAMES errors (*Lamia*); add to the F11 email. Bridge part done 8 Oct | ~0.5 day |
 | 3 | **G13** — your own accounts for the five survey key species with none: *Oligota apicata*, *Xysticus luctuosus*, *Liocyrtusa minuta*, *Chiasmia clathrata*, *Zophomyia temula* | ~1 hr |

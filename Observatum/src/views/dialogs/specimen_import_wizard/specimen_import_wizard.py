@@ -336,6 +336,56 @@ class SpecimenImportWizard(
             QMessageBox.warning(self, "No Data", "No valid rows to import.")
             return
 
+        # Taxonomy from each row's FINAL species (9 Oct 2026). A species picked by hand --
+        # bulk resolution, the search dialogs, revalidate -- set the TVK but kept no sort key
+        # (invisible in the collection sidebar) or the previous species' key (filed under
+        # the wrong species). Now recomputed for every row, just before writing.
+        try:
+            from shared.import_core import taxonomy_for_tvks
+            tax = taxonomy_for_tvks(r.species_tvk for r in rows_to_import)
+        except Exception as e:
+            tax = {}
+            print(f"[SpecimenImportWizard] Taxonomy lookup failed: {e}")
+        for r in rows_to_import:
+            t_ = tax.get(r.species_tvk)
+            if t_:
+                r.taxonomic_sort_key = t_["sort_key"]
+                r.superfamily = t_["superfamily"] or r.superfamily
+                r.subfamily = t_["subfamily"] or r.subfamily
+                r.order_name = t_["order_name"] or r.order_name
+                r.family = t_["family"] or r.family
+        def _has_key(k):
+            try:
+                return float(k) == float(k) and float(k) > 0      # not None, '', NaN or 0
+            except (TypeError, ValueError):
+                return False
+        unsorted = [r for r in rows_to_import if not _has_key(r.taxonomic_sort_key)]
+        if unsorted:
+            names = ", ".join(sorted({r.species_name or "?" for r in unsorted})[:12])
+            if QMessageBox.warning(
+                    self, "Specimens without a place in the collection",
+                    f"{len(unsorted)} specimen(s) have no taxonomic sort key, so they will not "
+                    f"appear in the collection sidebar:\n\n{names}\n\nImport them anyway?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
+                return
+
+        # Snapshot observatum.db first, so any import can be undone (9 Oct 2026)
+        try:
+            from shared.backup_service import backup_main_only
+            backed_up = backup_main_only("pre-specimen-import")
+        except Exception as e:
+            print(f"[SpecimenImportWizard] Backup error: {e}")
+            backed_up = False
+        if not backed_up:
+            if QMessageBox.warning(
+                    self, "Backup failed",
+                    "Observatum could not back up the database before importing.\n\nImport anyway?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
+                return
+        self._import_errors = []
+
         self.import_progress.setMaximum(len(rows_to_import))
         self.imported_count = 0
         self.skipped_count = 0
@@ -408,6 +458,15 @@ class SpecimenImportWizard(
             self.import_status_label.setText("Import complete!")
             self.import_status_label.setStyleSheet(f"color: {t.get('success')}; font-weight: 600;")
 
+            if self._import_errors:
+                shown = "\n".join(f"{who}: {why}" for who, why in self._import_errors[:8])
+                more = len(self._import_errors) - 8
+                QMessageBox.warning(
+                    self, "Some specimens were not imported",
+                    f"{len(self._import_errors)} specimen(s) could not be written.\n\n{shown}"
+                    + (f"\n... and {more} more" if more > 0 else "")
+                    + "\n\nA backup was taken before the import (pre-specimen-import).")
+
             if self.imported_count > 0:
                 self.import_completed.emit(self.imported_count)
 
@@ -419,49 +478,19 @@ class SpecimenImportWizard(
             self.import_status_label.setStyleSheet(f"color: {t.get('error')};")
 
     def _batch_insert_specimens(self, records: list) -> int:
-        """Batch insert multiple specimen records.
+        """Insert a batch; if it fails, row by row, collecting why (9 Oct 2026).
 
-        Args:
-            records: List of specimen dictionaries
-
-        Returns:
-            Number of successfully inserted records
-        """
-        if not records:
-            return 0
-
-        try:
-            # Use first record to determine columns
-            columns = list(records[0].keys())
-            column_names = ", ".join(columns)
-            placeholders = ", ".join(["?" for _ in columns])
-
-            params_list = []
-            for record in records:
-                values = tuple(record.get(c) for c in columns)
-                params_list.append(values)
-
-            query = f"INSERT INTO specimens ({column_names}) VALUES ({placeholders})"
-
-            if hasattr(self.db, 'execute_main_many'):
-                result = self.db.execute_main_many(query, params_list)
-                return result if result else len(params_list)
-            else:
-                # Fallback to individual inserts
-                success_count = 0
-                for params in params_list:
-                    try:
-                        result = self.db.execute_main_write(query, params)
-                        if result and result > 0:
-                            success_count += 1
-                    except Exception:
-                        pass
-                return success_count
-
-        except Exception as e:
-            print(f"[SpecimenImportWizard] Batch insert error: {e}")
-            return 0
-
+        One bad row (e.g. a specimen code already held) used to lose all 500, with the
+        reason only on the console."""
+        from shared.import_core import insert_rows
+        ok, fails = insert_rows(
+            self.db, "specimens", records,
+            lambda r: f"{r.get('species_name') or '?'} {r.get('date_collected') or ''} "
+                      f"{r.get('specimen_code') or ''}".strip())
+        if not hasattr(self, "_import_errors"):
+            self._import_errors = []
+        self._import_errors += fails
+        return ok
 
     def _update_summary(self):
         """Update the summary page."""

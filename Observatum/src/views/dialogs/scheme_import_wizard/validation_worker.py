@@ -485,7 +485,8 @@ class SchemeValidationWorker(QThread):
             # Occurrence
             "sex": raw.get('Sex', '').strip(),
             "stage": raw.get('Stage', '').strip(),
-            "quantity": self._parse_int(raw.get('Count of sex or stage', '')) or 1,
+            "quantity": self._parse_count(raw.get('Count of sex or stage', ''))[0] or 1,
+            "organism_quantity": self._parse_count(raw.get('Count of sex or stage', ''))[1] or "",
             "zero_abundance": 1 if raw.get('Zero abundance', '').upper() == 'TRUE' else 0,
             "method": raw.get('Sample method', '').strip(),
             "sensitive": 1 if raw.get('Sensitive', '').upper() == 'TRUE' else 0,
@@ -586,7 +587,9 @@ class SchemeValidationWorker(QThread):
             # Occurrence
             "sex": g('sex', 'Sex'),
             "stage": g('lifeStage', 'Life stage'),
-            "quantity": self._parse_int(g('individualCount', 'Individual count')) or 1,
+            "quantity": (self._parse_count(g('individualCount', 'Individual count'))[0]
+                         or self._parse_count(g('organismQuantity'))[0] or 1),
+            "individual_count": self._parse_count(g('individualCount', 'Individual count'))[0],
             "organism_quantity": g('organismQuantity'),
             "organism_quantity_type": g('organismQuantityType'),
             "occurrence_remarks": g('occurrenceRemarks', 'Occurrence remarks'),
@@ -644,7 +647,8 @@ class SchemeValidationWorker(QThread):
             # Occurrence
             "sex": raw.get(mapping.get('sex', ''), '').strip(),
             "stage": raw.get(mapping.get('stage', ''), '').strip(),
-            "quantity": self._parse_int(raw.get(mapping.get('quantity', ''), '')) or 1,
+            "quantity": self._parse_count(raw.get(mapping.get('quantity', ''), ''))[0] or 1,
+            "organism_quantity": self._parse_count(raw.get(mapping.get('quantity', ''), ''))[1] or "",
             "comment": raw.get(mapping.get('comment', ''), '').strip(),
             # For batch processing
             "species_error": "",
@@ -987,58 +991,77 @@ class SchemeValidationWorker(QThread):
         return df
 
     def _batch_duplicate_check(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Check for duplicates in batches."""
+        """Find rows already held, and rows repeated within the file (9 Oct 2026, F35).
+
+        Lookups are chunked and NOT swallowed: if one fails, every row is marked with the
+        error, so nothing imports by default -- it used to carry on as though there were no
+        duplicates, re-importing a whole NBN file. iRecord rows are also matched on
+        record_key ('iBRC' + ID) for records held without their iRecord ID (35,104 scheme
+        rows lost theirs to the byte-order-mark fault). A row repeating an earlier row's id
+        within the same file is an error, not a second record.
+        """
+        from shared.import_core import chunked_select
+
+        df["is_duplicate"] = False
+        df["existing_record_id"] = None
+        df["dup_error"] = ""
         if not self.db_manager:
             return df
 
-        # Initialize columns
-        df["is_duplicate"] = False
-        df["existing_record_id"] = None
+        def present(col):
+            if col not in df.columns:
+                return pd.Series(False, index=df.index)
+            return df[col].notna() & (df[col].astype(str).str.strip() != "")
 
-        # Check iRecord IDs
-        if "irecord_id" in df.columns:
-            irecord_ids = df[df["irecord_id"].notna() & (df["irecord_id"] != "")]["irecord_id"].unique().tolist()
-            if irecord_ids:
-                try:
-                    placeholders = ",".join(["?" for _ in irecord_ids])
-                    result = self.db_manager.execute_main(
-                        f"SELECT id, irecord_id FROM recording_scheme WHERE irecord_id IN ({placeholders})",
-                        tuple(irecord_ids)
-                    )
-                    if result:
-                        existing = {r[1] if isinstance(r, (list, tuple)) else r['irecord_id']: 
-                                   r[0] if isinstance(r, (list, tuple)) else r['id'] for r in result}
-                        for irid, db_id in existing.items():
-                            mask = df["irecord_id"] == irid
-                            df.loc[mask, "is_duplicate"] = True
-                            df.loc[mask, "existing_record_id"] = db_id
-                except Exception:
-                    pass
+        def mark(col, db_col, normalise=lambda v: v):
+            m = present(col) & ~df["is_duplicate"]
+            values = sorted({normalise(v) for v in df.loc[m, col]})
+            if not values:
+                return
+            found = {}
+            for r in chunked_select(self.db_manager,
+                                    f"SELECT id, {db_col} FROM recording_scheme WHERE {db_col} IN ({{ph}})",
+                                    values):
+                rid = r[0] if isinstance(r, (list, tuple)) else r["id"]
+                key = r[1] if isinstance(r, (list, tuple)) else r[db_col]
+                found[normalise(key)] = rid
+            for idx in df.index[m]:
+                rid = found.get(normalise(df.at[idx, col]))
+                if rid is not None:
+                    df.at[idx, "is_duplicate"] = True
+                    df.at[idx, "existing_record_id"] = rid
 
-        # Check NBN Atlas IDs
-        if "nbn_atlas_id" in df.columns:
-            nbn_ids = df[
-                (df["nbn_atlas_id"].notna()) & 
-                (df["nbn_atlas_id"] != "") & 
-                (~df["is_duplicate"])
-            ]["nbn_atlas_id"].unique().tolist()
-            if nbn_ids:
-                try:
-                    placeholders = ",".join(["?" for _ in nbn_ids])
-                    result = self.db_manager.execute_main(
-                        f"SELECT id, nbn_atlas_id FROM recording_scheme WHERE nbn_atlas_id IN ({placeholders})",
-                        tuple(nbn_ids)
-                    )
-                    if result:
-                        existing = {r[1] if isinstance(r, (list, tuple)) else r['nbn_atlas_id']: 
-                                   r[0] if isinstance(r, (list, tuple)) else r['id'] for r in result}
-                        for nbn_id, db_id in existing.items():
-                            mask = df["nbn_atlas_id"] == nbn_id
-                            df.loc[mask, "is_duplicate"] = True
-                            df.loc[mask, "existing_record_id"] = db_id
-                except Exception:
-                    pass
+        def as_int(v):
+            try:
+                return int(float(v))
+            except (TypeError, ValueError):
+                return v
 
+        try:
+            mark("irecord_id", "irecord_id", as_int)
+            mark("record_key", "record_key", lambda v: str(v).strip())
+            mark("nbn_atlas_id", "nbn_atlas_id", lambda v: str(v).strip())
+        except Exception as e:
+            print(f"[SchemeValidation] duplicate check FAILED: {e}")
+            df["dup_error"] = f"Duplicate check failed ({e}) -- not imported, to be safe"
+            return df
+
+        # The same record twice in one file
+        for col, norm in (("irecord_id", as_int), ("nbn_atlas_id", lambda v: str(v).strip()),
+                          ("record_key", lambda v: str(v).strip())):
+            m = present(col)
+            if not m.any():
+                continue
+            keys = df.loc[m, col].map(norm)
+            repeated = keys.duplicated(keep="first")
+            if repeated.any():
+                first_row = {}
+                for idx, k in keys.items():
+                    first_row.setdefault(k, df.at[idx, "row_number"])
+                for idx in keys.index[repeated]:
+                    if not df.at[idx, "dup_error"]:
+                        df.at[idx, "dup_error"] = (f"Same record as row {first_row[keys[idx]]} "
+                                                   f"of this file ({col} {keys[idx]})")
         return df
 
     def _build_import_rows(self, df: pd.DataFrame) -> List[SchemeImportRow]:
@@ -1193,6 +1216,8 @@ class SchemeValidationWorker(QThread):
                 errors.append(row_data["species_error"])
             if row_data.get("vc_error"):
                 errors.append(row_data["vc_error"])
+            if row_data.get("dup_error"):
+                errors.append(row_data["dup_error"])
 
             # Collect warnings from batch processing
             if row_data.get("species_warning"):
@@ -1335,6 +1360,11 @@ class SchemeValidationWorker(QThread):
                 continue
 
         return None
+
+    def _parse_count(self, value):
+        """(number, original text) -- 'c.20' is 20, not 1, and the text is kept (9 Oct 2026)."""
+        from shared.import_core import parse_quantity
+        return parse_quantity(value)
 
     def _parse_int(self, value: str) -> Optional[int]:
         """Safely parse string to int."""

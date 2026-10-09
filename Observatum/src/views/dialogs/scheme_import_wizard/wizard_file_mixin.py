@@ -221,32 +221,11 @@ class WizardFileMixin:
             return
 
         try:
-            # Try different encodings
-            encodings = ['utf-8', 'utf-8-sig', 'latin-1', 'cp1252']
-            content = None
-
-            for encoding in encodings:
-                try:
-                    with open(self.file_path, 'r', encoding=encoding) as f:
-                        content = f.read()
-                        self._file_encoding = encoding
-                        break
-                except UnicodeDecodeError:
-                    continue
-
-            if content is None:
-                self.file_info_label.setText("Error: Could not read file with any supported encoding")
-                return
-
-            # Parse CSV
-            lines = content.strip().split('\n')
-            reader = csv.DictReader(lines)
-            self.columns = reader.fieldnames or []
-
-            # Store raw rows
-            self.raw_rows = []
-            for row in reader:
-                self.raw_rows.append(row)
+            # One reader for every wizard (9 Oct 2026): a byte-order mark used to stay on
+            # the first heading, so iRecord's 'ID' was never found and all 35,104 iRecord
+            # IDs were lost; quoted comments with a line break were split in two.
+            from shared.import_core import read_table_file
+            self.columns, self.raw_rows, self._file_encoding = read_table_file(self.file_path)
 
             # Detect format
             detected_mode = self._detect_format()

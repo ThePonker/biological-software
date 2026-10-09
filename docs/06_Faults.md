@@ -215,6 +215,24 @@ import mirrored them under one iRecord number. The sync now recognises such a se
 copy (same external key, species and date) as already held instead of importing it
 again. List for tidying iRecord: `_oneoff/irecord_duplicate_submissions_20261008.csv`.
 
+### F40. All 35,104 iRecord rows in the Recording Scheme had lost their iRecord ID
+*Found 9 Oct 2026 by `_oneoff/measure_imports_20261009.py`; repaired the same morning.* The
+scheme wizard read files as plain UTF-8 before UTF-8-with-BOM, so an iRecord download's
+byte-order mark stayed on the first heading and the 'ID' column was never found. Any
+re-import would have added all 35,104 again (no ID to match). **Repaired:**
+`_oneoff/fix_scheme_data_20261009.py` filled `irecord_id` from `record_key` ('iBRC' + ID,
+sometimes with a trailing '!'; format confirmed on all 20,293 observations holding both),
+and corrected 13 counts stored as 1 whose text survived ("2", "5 (Exact)"); backup
+`pre-scheme-repair`. **Fixed in code (I7b):** `shared/import_core.py` — BOM-safe reader,
+fixed column list (F33), chunked loud duplicate checks also on `record_key` (F35), counts
+parsed ("c.20" → 20, text kept); scheme updates touch only verification/name/determiner
+fields; specimen sort keys from each row's final species; backup first in both wizards.
+*Checked and found sound:* comments, verifiers and site names show no batch loss; up to
+~2,400 determiners may be missing in the big longhorn/iRecord datasets but the pattern fits
+those datasets' natural sparseness (re-importing a source file with "Update duplicates"
+fills any real gaps). The 3,679 same-species/date/place groups are separate records in the
+source data (own IDs), not import duplicates.
+
 ### F39. The 9 Oct iRecord sync added 283 records already held
 *Found and repaired 9 October 2026, the first sync after F37.* 248 records from the
 25 March import held their iRecord number only in `irecord_key` (`irecord_id` blank), so

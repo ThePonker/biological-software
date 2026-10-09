@@ -269,7 +269,11 @@ class ValidationWorker(QThread):
         for name in still_missing:
             if self._cancelled:
                 break
-            results = self.uksi_model.search_species(name, limit=1)
+            try:
+                results = self.uksi_model.search_species(name, limit=1)
+            except Exception as e:      # an error here used to leave the wizard hanging
+                species_lookup[name] = {"error": f"UKSI lookup error for {name}: {e}"}
+                continue
             if results:
                 match = results[0]
                 species_lookup[name] = {

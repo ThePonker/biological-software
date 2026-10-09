@@ -19,6 +19,16 @@ from .validation_worker import SchemeImportRow, RowStatus, SchemeImportMode
 
 from src.themes import theme
 
+# What re-importing a record already held may change (9 Oct 2026). Verification, names
+# and determination move on at source; everything else -- counts, sensitivity, notes,
+# local edits -- stays as held. A blank in the file never blanks a stored value.
+SCHEME_UPDATE_FIELDS = (
+    'verification_status', 'verification_status_2', 'verifier', 'verified_on', 'automated_checks',
+    'species_name', 'species_tvk', 'common_name', 'taxon_rank', 'order_name', 'family',
+    'subfamily', 'superfamily', 'taxonomic_sort_key', 'determiner', 'comment', 'images',
+    'licence', 'last_edited_date', 'irecord_id', 'record_key',
+)
+
 
 class DuplicatePreviewDialog(QDialog):
     """Dialog showing records that are duplicates."""
@@ -103,6 +113,36 @@ class WizardImportMixin:
             QMessageBox.warning(self, "No Data", "No valid rows to import.")
             return
 
+        # Snapshot observatum.db first, so any import can be undone (9 Oct 2026)
+        try:
+            from shared.backup_service import backup_main_only
+            backed_up = backup_main_only("pre-scheme-import")
+        except Exception as e:
+            print(f"[SchemeImportWizard] Backup error: {e}")
+            backed_up = False
+        if not backed_up:
+            if QMessageBox.warning(
+                    self, "Backup failed",
+                    "Observatum could not back up the database before importing.\n\nImport anyway?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
+                return
+        self._import_errors = []
+
+        # Sort key, superfamily and subfamily from each row's FINAL species, including any
+        # picked by hand during validation (those kept the old species' values, or none)
+        try:
+            from shared.import_core import taxonomy_for_tvks
+            tax = taxonomy_for_tvks(r.species_tvk for r in rows_to_import)
+            for r in rows_to_import:
+                t_ = tax.get(r.species_tvk)
+                if t_:
+                    r.taxonomic_sort_key = t_["sort_key"]
+                    r.superfamily = t_["superfamily"] or r.superfamily
+                    r.subfamily = t_["subfamily"] or r.subfamily
+        except Exception as e:
+            print(f"[SchemeImportWizard] Taxonomy lookup failed: {e}")
+
         self.import_progress.setMaximum(len(rows_to_import))
         self.imported_count = 0
         self.updated_count = 0
@@ -155,7 +195,9 @@ class WizardImportMixin:
             for i, row in enumerate(update_rows):
                 record_data = self._row_to_record_dict(row)
                 success = self._update_record(row.existing_record_id, record_data)
-                if success:
+                if success == 'unchanged':
+                    self.skipped_count += 1
+                elif success:
                     self.updated_count += 1
                 else:
                     self.error_count += 1
@@ -171,6 +213,15 @@ class WizardImportMixin:
 
             self.import_status_label.setText("Import complete!")
             self.import_status_label.setStyleSheet(f"color: {t.get('success')}; font-weight: 600;")
+
+            if self._import_errors:
+                shown = "\n".join(f"{who}: {why}" for who, why in self._import_errors[:8])
+                more = len(self._import_errors) - 8
+                QMessageBox.warning(
+                    self, "Some rows were not imported",
+                    f"{len(self._import_errors)} row(s) could not be written.\n\n{shown}"
+                    + (f"\n... and {more} more" if more > 0 else "")
+                    + "\n\nA backup was taken before the import (pre-scheme-import).")
 
             self.next_btn.setEnabled(True)
 
@@ -308,97 +359,47 @@ class WizardImportMixin:
             parts.append(f"[Warning: {'; '.join(row.warnings)}]")
         return " | ".join(parts) if parts else None
 
-    def _insert_record(self, record_data: dict) -> bool:
-        """Insert a new recording scheme record."""
-        try:
-            # Filter out None values and build query
-            data = {k: v for k, v in record_data.items() if v is not None}
-
-            columns = list(data.keys())
-            placeholders = ', '.join(['?' for _ in columns])
-            column_names = ', '.join(columns)
-            values = [data[c] for c in columns]
-
-            query = f"INSERT INTO recording_scheme ({column_names}) VALUES ({placeholders})"
-            result = self.db.execute_main_write(query, tuple(values))
-            return result > 0
-
-        except Exception as e:
-            print(f"[SchemeImportWizard] Insert error: {e}")
-            return False
-
     def _batch_insert_records(self, records: list) -> int:
-        """Batch insert multiple recording scheme records.
-        
-        Args:
-            records: List of record dictionaries
-            
-        Returns:
-            Number of successfully inserted records
+        """Insert a batch with a FIXED column list; a failed batch is retried row by row.
+
+        The column list used to come from the batch's first row, so a column empty in that
+        row was dropped for all 500 (F33). Failures are collected and shown, not printed.
         """
-        if not records:
-            return 0
-            
+        from shared.import_core import insert_rows
+        ok, fails = insert_rows(
+            self.db, "recording_scheme", records,
+            lambda r: f"{r.get('species_name') or '?'} {r.get('date') or ''}".strip())
+        if not hasattr(self, "_import_errors"):
+            self._import_errors = []
+        self._import_errors += fails
+        return ok
+
+    def _update_record(self, record_id: int, record_data: dict):
+        """Update a record already held: only SCHEME_UPDATE_FIELDS, only non-blank values
+        that differ from what is held. Returns True, 'unchanged' or False (9 Oct 2026).
+
+        It used to rewrite every non-blank field -- resetting quantity and sensitivity,
+        replacing import notes, and overwriting any local edit."""
         try:
-            # Use the first record to determine columns (filter out None values)
-            # All records should have the same structure
-            first_data = {k: v for k, v in records[0].items() if v is not None}
-            columns = list(first_data.keys())
-            column_names = ', '.join(columns)
-            placeholders = ', '.join(['?' for _ in columns])
-            
-            # Build params list for all records
-            params_list = []
-            for record in records:
-                data = {k: v for k, v in record.items() if v is not None}
-                # Ensure consistent column order, use None for missing keys
-                values = tuple(data.get(c) for c in columns)
-                params_list.append(values)
-            
-            query = f"INSERT INTO recording_scheme ({column_names}) VALUES ({placeholders})"
-            
-            # Use executemany for batch insert
-            if hasattr(self.db, 'execute_main_many'):
-                result = self.db.execute_main_many(query, params_list)
-                return result if result else len(params_list)
-            else:
-                # Fallback to individual inserts
-                success_count = 0
-                for params in params_list:
-                    try:
-                        self.db.execute_main_write(query, params)
-                        success_count += 1
-                    except Exception:
-                        pass
-                return success_count
-                
+            rows = self.db.execute_main("SELECT * FROM recording_scheme WHERE id = ?", (record_id,))
+            if not rows:
+                raise ValueError(f"record {record_id} not found")
+            held = dict(rows[0])
+            changes = {k: record_data[k] for k in SCHEME_UPDATE_FIELDS
+                       if record_data.get(k) not in (None, '') and record_data.get(k) != held.get(k)}
+            if held.get('irecord_id') not in (None, '') and 'irecord_id' in changes:
+                del changes['irecord_id']                 # never replace an ID already held
+            if not changes:
+                return 'unchanged'
+            changes['updated_at'] = datetime.now().isoformat()
+            set_clauses = ', '.join(f"{k} = ?" for k in changes)
+            self.db.execute_main_write(f"UPDATE recording_scheme SET {set_clauses} WHERE id = ?",
+                                       tuple(changes.values()) + (record_id,))
+            return True
         except Exception as e:
-            print(f"[SchemeImportWizard] Batch insert error: {e}")
-            # Fallback to individual inserts on batch failure
-            success_count = 0
-            for record in records:
-                if self._insert_record(record):
-                    success_count += 1
-            return success_count
-
-    def _update_record(self, record_id: int, record_data: dict) -> bool:
-        """Update an existing recording scheme record."""
-        try:
-            # Remove fields that shouldn't be updated
-            preserve_fields = ['created_at', 'id']
-            update_data = {k: v for k, v in record_data.items()
-                          if k not in preserve_fields and v is not None}
-            update_data['updated_at'] = datetime.now().isoformat()
-
-            set_clauses = ', '.join([f"{k} = ?" for k in update_data.keys()])
-            values = list(update_data.values()) + [record_id]
-
-            query = f"UPDATE recording_scheme SET {set_clauses} WHERE id = ?"
-            result = self.db.execute_main_write(query, tuple(values))
-            return result > 0
-
-        except Exception as e:
-            print(f"[SchemeImportWizard] Update error: {e}")
+            if not hasattr(self, "_import_errors"):
+                self._import_errors = []
+            self._import_errors.append((f"{record_data.get('species_name') or '?'} (record {record_id})", str(e)))
             return False
 
     def _update_summary(self):
