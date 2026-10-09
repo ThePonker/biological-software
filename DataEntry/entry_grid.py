@@ -13,7 +13,7 @@ from __future__ import annotations
 import sqlite3
 from typing import List, Dict, Optional
 
-from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex, QTimer, QEvent, QPoint, Signal, QSettings
+from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex, Signal, QSettings
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableView,
     QStyledItemDelegate, QComboBox, QSpinBox, QAbstractItemView, QHeaderView,
@@ -76,6 +76,37 @@ class StagingTableModel(QAbstractTableModel):
 
     def set_copy_context(self, on: bool) -> None:
         self._copy_context = bool(on)
+
+    # fields a repeat (B2) carries over besides the context keys: the species and its stage
+    _REPEAT_KEYS = ("species_name", "species_tvk", "common_name", "order_name", "family",
+                    "taxon_rank", "stage", "vice_county", "vc_number")
+
+    def repeat_row(self, r: int) -> Optional[int]:
+        """B2: a copy of row r (species, stage and context) inserted just below it, with Sex
+        and No. left blank for the next split. Returns the new row's index."""
+        if not (0 <= r < len(self._rows)) or not self._rows[r].get("species_name"):
+            return None
+        src = dict(self._rows[r])
+        self.insert_rows(r + 1, 1, inherit=True)        # context keys from row r
+        new = self._rows[r + 1]
+        upd = {k: src.get(k) for k in self._REPEAT_KEYS if src.get(k) not in (None, "")}
+        if upd:
+            new.update(upd)
+            repo.update_row(self._conn, new["id"], upd)
+            self.dataChanged.emit(self.index(r + 1, 0), self.index(r + 1, self.columnCount() - 1),
+                                  [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole])
+        return r + 1
+
+    def bump_quantity(self, r: int, delta: int) -> int:
+        """B1 count mode: add delta to row r's No. (never below 1; a blank No. counts as 0)."""
+        self._materialize_to(r)
+        try:
+            cur = int(self._rows[r].get("quantity") or 0)
+        except (TypeError, ValueError):
+            cur = 0
+        new = max(1, cur + delta)
+        self.setData(self.index(r, COLIDX["quantity"]), str(new), Qt.ItemDataRole.EditRole)
+        return new
 
     def _nearest_above(self, r: int, key: str):
         """Value for `key` from the row IMMEDIATELY above r.
@@ -241,6 +272,16 @@ class StagingTableModel(QAbstractTableModel):
         return r >= len(self._rows)
 
     def data(self, index, role=Qt.ItemDataRole.DisplayRole):
+        if (index.isValid() and role in (Qt.ItemDataRole.BackgroundRole, Qt.ItemDataRole.ToolTipRole)
+                and COLUMNS[index.column()][2] == "species" and not self._is_virtual(index.row())):
+            row = self._rows[index.row()]
+            if row.get("species_name") and not row.get("species_tvk"):      # B4/B6: not matched
+                if role == Qt.ItemDataRole.BackgroundRole:
+                    from PySide6.QtGui import QColor
+                    return QColor(250, 222, 214)
+                return ("Not matched to a species -- no TVK. Type over it to choose; "
+                        "the commit check lists any left.")
+            return None
         if not index.isValid() or role not in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole):
             return None
         if self._is_virtual(index.row()):
@@ -467,6 +508,25 @@ class StagingTableModel(QAbstractTableModel):
         return None
 
 
+def _count_keys():
+    """(up, down) key sets for count mode, from QSettings DataEntry/countUpKeys / countDownKeys.
+
+    Defaults: Space, + (main and keypad) and F13 count up; - counts down. A USB foot pedal
+    programmed to send any of these works with no other set-up."""
+    def parse(name, default):
+        try:
+            raw = QSettings().value(f"DataEntry/{name}", default, type=str) or default
+        except Exception:
+            raw = default
+        keys = set()
+        for part in raw.split(","):
+            k = getattr(Qt.Key, "Key_" + part.strip(), None)
+            if k is not None:
+                keys.add(k)
+        return keys or {getattr(Qt.Key, "Key_" + p) for p in default.split(",")}
+    return parse("countUpKeys", "Space,Plus,Equal,F13"), parse("countDownKeys", "Minus,Underscore")
+
+
 def _select_all(editor):
     if isinstance(editor, QLineEdit):
         editor.selectAll()
@@ -544,7 +604,7 @@ class _NumberDelegate(_EnterMovesDown, QStyledItemDelegate):
         model.setData(index, editor.value(), Qt.ItemDataRole.EditRole)
 
 
-from shared.species_rank import rank_matches   # one ranking for every species search
+from shared.species_rank import rank_matches, resolve_name   # one ranking + one decision for every species search
 
 
 def _to_species_dict(r):
@@ -656,19 +716,19 @@ class SpeciesCascadeDelegate(_EnterMovesDown, QStyledItemDelegate):
         except Exception:
             return []
 
-    def decide(self, text):
-        """Return one of: ('fill', dict) | ('pick', ranked_list) | ('unresolved', text)."""
+    def decide(self, text, interactive=True):
+        """Return one of: ('fill', dict) | ('pick', ranked_list) | ('unresolved', text).
+
+        The rules are shared.species_rank.resolve_name (B4/B6): a paste (interactive=False)
+        never guesses, and a hit through part of a common name is never filled silently.
+        """
         if not self._service:
             return ("unresolved", text)
-        ranked = rank_matches(text, self._resolve(text))
-        exact = next((r for r in ranked
-                      if (r.get("scientific_name") or "").lower() == text.lower()), None)
-        if exact:
-            return ("fill", _to_species_dict(exact))
-        if len(ranked) == 1:
-            return ("fill", _to_species_dict(ranked[0]))
-        if len(ranked) >= 2:
-            return ("pick", ranked)
+        action, payload = resolve_name(text, self._resolve(text), interactive=interactive)
+        if action == "fill":
+            return ("fill", _to_species_dict(payload))
+        if action == "pick":
+            return ("pick", payload)
         return ("unresolved", text)
 
     def setModelData(self, editor, model, index):
@@ -699,6 +759,13 @@ class EntryTableView(QTableView):
         self._clip_rows = None   # internal rich buffer (species dicts preserved)
         self._clip_text = None   # the text we put on the system clipboard at copy time
         self._clip_marker = None  # (r0, r1, c0, c1) of the copied block, for the dashed outline
+        # B1 count mode: the page turns it on (button or F9); keys are configurable in QSettings
+        # DataEntry/countUpKeys and DataEntry/countDownKeys (Qt key names, e.g. "Space,Plus,F13")
+        self.count_mode = False
+        self.on_count = None          # callback(row, new_qty)
+        self.on_toggle_count = None   # callback() for F9
+        self.on_count_done = None     # callback() when Enter ends a count (turns count mode off)
+        self._up_keys, self._down_keys = _count_keys()
         # double-click the ROW NUMBER -> species account (a double-click on a cell still edits it)
         self.verticalHeader().sectionDoubleClicked.connect(self._open_species_account)
 
@@ -707,7 +774,22 @@ class EntryTableView(QTableView):
         mods = event.modifiers()
         editing = self.state() == QAbstractItemView.State.EditingState
 
+        if k == Qt.Key.Key_F9 and self.on_toggle_count:
+            self.on_toggle_count(); return
+        # B1: in count mode the clicker / pedal keys count, and nothing else happens
+        if self.count_mode and not editing and not (mods & (
+                Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier)):
+            if k in self._up_keys or k in self._down_keys:
+                cur = self.currentIndex()
+                if cur.isValid():
+                    n = self.model().bump_quantity(cur.row(), 1 if k in self._up_keys else -1)
+                    if self.on_count:
+                        self.on_count(cur.row(), n)
+                return
+
         if mods & Qt.KeyboardModifier.ControlModifier:
+            if k == Qt.Key.Key_R:
+                self._repeat_row(); return
             if k == Qt.Key.Key_D:
                 self._fill_down(); return
             if k == Qt.Key.Key_I and not editing:
@@ -738,6 +820,8 @@ class EntryTableView(QTableView):
         # Enter / Shift+Enter -> commit the cell and wrap to the FIRST column (Species) of the
         # next / previous row, like starting a fresh record. Works while editing too.
         if k in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and not (mods & Qt.KeyboardModifier.ControlModifier):
+            if self.count_mode and self.on_count_done:
+                self.on_count_done()          # the count is already saved; Enter ends count mode
             cur = self.currentIndex()
             if cur.isValid():
                 if editing:
@@ -773,6 +857,20 @@ class EntryTableView(QTableView):
                             event.type(), event.key(), event.modifiers(), event.text()))
                     return
         super().keyPressEvent(event)
+
+    def _repeat_row(self):
+        """B2 (Ctrl+R): repeat this row's species below it and land on Sex -- for sex splits."""
+        if self.state() == QAbstractItemView.State.EditingState:
+            ed = self.focusWidget()
+            if ed is not None and ed is not self:
+                self.commitData(ed)
+                self.closeEditor(ed, QStyledItemDelegate.EndEditHint.NoHint)
+        cur = self.currentIndex()
+        if not cur.isValid():
+            return
+        new = self.model().repeat_row(cur.row())
+        if new is not None:
+            self._go(new, COLIDX["sex"])
 
     def _go(self, row, col):
         m = self.model()
@@ -1022,8 +1120,14 @@ class EntryTableView(QTableView):
         if len(grid) == 1 and len(grid[0]) == 1 and len(sel) > 1:
             val = grid[0][0]
             m.ensure_rows(max(i.row() for i in sel) + 1)
+            unresolved, done = [], {}
             for idx in sel:
-                m.setData(m.index(idx.row(), idx.column()), val, Qt.ItemDataRole.EditRole)
+                v = val
+                if idx.column() not in done:
+                    done[idx.column()] = self._resolve_pasted(idx.column(), val, unresolved)
+                v = done[idx.column()]
+                m.setData(m.index(idx.row(), idx.column()), v, Qt.ItemDataRole.EditRole)
+            self._report_unresolved(unresolved[:1])
             return
 
         if sel:
@@ -1036,12 +1140,41 @@ class EntryTableView(QTableView):
             r0, c0 = cur.row(), cur.column()
 
         m.ensure_rows(r0 + len(grid))
+        unresolved = []
         for i, rowvals in enumerate(grid):
             for j, val in enumerate(rowvals):
                 c = c0 + j
                 if c >= m.columnCount():
                     break
+                val = self._resolve_pasted(c, val, unresolved)
                 m.setData(m.index(r0 + i, c), val, Qt.ItemDataRole.EditRole)
+        self._report_unresolved(unresolved)
+
+    def _resolve_pasted(self, c, val, unresolved):
+        """B4: a pasted species name goes through the same rules as a typed one -- matched to
+        its TVK when that is certain, otherwise kept as text and listed (never guessed)."""
+        if COLUMNS[c][2] != "species" or not isinstance(val, str) or not val.strip():
+            return val
+        delegate = self.itemDelegateForColumn(c)
+        if not hasattr(delegate, "decide"):
+            return val
+        action, payload = delegate.decide(val.strip(), interactive=False)
+        if action == "fill":
+            return payload
+        unresolved.append(val.strip())
+        return {"scientific_name": val.strip()}
+
+    def _report_unresolved(self, names):
+        if not names:
+            return
+        from PySide6.QtWidgets import QMessageBox
+        uniq = list(dict.fromkeys(names))
+        QMessageBox.information(
+            self, "Pasted names to check",
+            f"{len(names)} pasted name(s) did not match one species for certain and are kept as "
+            "text with no TVK:\n\n  " + "\n  ".join(uniq[:15])
+            + ("\n  ..." if len(uniq) > 15 else "")
+            + "\n\nType over each one to choose the species (the commit check lists any left).")
 
 
 class ExportOptionsDialog(QDialog):
@@ -1297,6 +1430,29 @@ class EntryGridPage(QWidget):
         addr.addWidget(self._del_btn); addr.addStretch(1)
         cv.addLayout(addr)
 
+        # B1 count mode: big glanceable counter; clicker / pedal keys count the current row
+        cnt_row = QHBoxLayout(); cnt_row.setSpacing(8)
+        self._count_btn = QPushButton("Count mode (F9)")
+        self._count_btn.setCheckable(True)
+        self._count_btn.setStyleSheet(theme.button_secondary_qss())
+        self._count_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._count_btn.setToolTip(
+            "Count the current row's No. with a key or a foot pedal: Space or + adds one,\n"
+            "- takes one off, Enter goes to the next record. F9 turns it on and off.")
+        self._count_btn.toggled.connect(self._set_count_mode)
+        self._count_btn.toggled.connect(
+            lambda on: (None if on else self._count_btn.setText("Count mode (F9)")))
+        cnt_row.addWidget(self._count_btn)
+        self._counter = QLabel("")
+        self._counter.setStyleSheet(f"color: {theme.INK}; font-size: 26px; font-weight: 700;")
+        self._counter.setVisible(False)
+        cnt_row.addWidget(self._counter)
+        cnt_row.addStretch(1)
+        cv.addLayout(cnt_row)
+        self._view.on_toggle_count = self._count_btn.toggle
+        self._view.on_count_done = lambda: self._count_btn.setChecked(False)
+        self._view.on_count = lambda r, n: self._show_counter(r)
+
         # finish-job row: commit / export / discard (+ count)
         fin_row = QHBoxLayout(); fin_row.setSpacing(8)
         fin = QLabel("Finish job:"); fin.setStyleSheet(f"color: {theme.MUTED}; font-size: 12px;")
@@ -1356,8 +1512,25 @@ class EntryGridPage(QWidget):
 
         # refresh the info panel as the current row changes or its species is edited
         self._view.selectionModel().currentChanged.connect(lambda cur, prev: self._refresh_info(cur))
+        self._view.selectionModel().currentChanged.connect(lambda cur, prev: self._show_counter(cur.row()))
         self._model.dataChanged.connect(self._on_data_changed)
         self._refresh_info(self._view.currentIndex())
+
+    def _set_count_mode(self, on: bool):
+        self._view.count_mode = bool(on)
+        self._counter.setVisible(bool(on))
+        self._view.setFocus()
+        self._show_counter(self._view.currentIndex().row())
+
+    def _show_counter(self, r):
+        if not self._view.count_mode:
+            return
+        row = self._model.row_dict(r) if r is not None and r >= 0 else None
+        n = (row or {}).get("quantity") or 0
+        name = (row or {}).get("species_name") or "no species yet"
+        self._counter.setText(f"{n}")
+        self._counter.setToolTip(name)
+        self._count_btn.setText(f"Counting: {name[:28]}")
 
     def _on_data_changed(self, top_left, bottom_right, roles=None):
         cur = self._view.currentIndex()

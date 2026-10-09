@@ -88,12 +88,7 @@ class ImportMode(Enum):
     COMMERCIAL_UPLOAD = "commercial_upload"
 
 
-class RowStatus(Enum):
-    """Status of a row during validation."""
-    PENDING = "pending"
-    VALID = "valid"
-    WARNING = "warning"
-    ERROR = "error"
+from ..row_status import RowStatus  # noqa: F401  (I9: one copy; re-exported for the mixins)
 
 
 # Valid dropdown values

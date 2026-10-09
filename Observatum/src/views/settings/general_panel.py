@@ -294,7 +294,6 @@ class GeneralSettingsPanel(QScrollArea):
 
         # Load family names from UKSI for autocomplete
         try:
-            import sqlite3
             from ...core.config import Paths
             uksi_path = Paths.default_uksi_db()
             conn = connect_ro(str(uksi_path))
@@ -312,7 +311,6 @@ class GeneralSettingsPanel(QScrollArea):
 
         # Load family names from UKSI for autocomplete
         try:
-            import sqlite3
             from ...core.config import Paths
             uksi_path = Paths.default_uksi_db()
             conn = connect_ro(str(uksi_path))

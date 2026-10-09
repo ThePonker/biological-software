@@ -14,7 +14,7 @@ from typing import Optional
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QStackedWidget, QPushButton, QFrame,
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QStackedWidget, QPushButton,
 )
 
 from DataEntry import theme

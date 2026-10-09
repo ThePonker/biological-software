@@ -5,7 +5,6 @@ Displays below the taxonomic tree in the sidebar.
 Handles Order, Superfamily, Family, and Species levels.
 """
 
-import sqlite3
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QPlainTextEdit,

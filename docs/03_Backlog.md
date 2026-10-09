@@ -114,21 +114,29 @@ when present, never require it.
 
 ## B. Data Entry
 
-**B1. Clicker count-mode.** 0.5 day. A keystroke increments Qty; foot-pedal
+**B1. Clicker count-mode.** ✅ Done 9 Oct (held until Data Entry is closed) -- "Count mode (F9)"
+button; Space / + / F13 add one to the current row's No., - takes one off (never below 1),
+Enter moves on; a large counter shows the count and the species. Keys in QSettings
+`DataEntry/countUpKeys` / `countDownKeys`. *Original:* 0.5 day. A keystroke increments Qty; foot-pedal
 compatible. For counting many individuals under the microscope without mental
 tallying. Design in `26_Data_Entry_Design.md` §3.3.
 
-**B2. Repeat key for sex splits.** Small. Clone the row, land on Sex.
+**B2. Repeat key for sex splits.** ✅ Done 9 Oct (held) -- Ctrl+R copies the row's species, stage
+and context into a new row just below, Sex and No. blank, and lands on Sex.
 
 **B3. Reject `?` and `#N/A` as TVKs on load** — ✅ **DONE** (8 October).
 `load_workbook_to_staging.py` loads placeholder and Excel-error TVKs (`?`, `#N/A`,
 `#REF!`, `-`, `0` ...) as no TVK and reports them; `check_data_entry_batches.py` lists
 any still sitting in staging. None found in observations or specimens.
 
-**B4. Species-name paste resolution.** 0.5 day. Pasted names store as text with
+**B4. Species-name paste resolution.** ✅ Done 9 Oct (held) -- a pasted name goes through the
+typing rules (`shared/species_rank.resolve_name`): matched when certain, otherwise kept as
+text and listed in a message; never guessed. *Original:* 0.5 day. Pasted names store as text with
 no TVK and commit anyway, with only a count as warning.
 
-**B6. Common names typed in the species column.** Small. "Cricket bat spider"
+**B6. Common names typed in the species column.** ✅ Done 9 Oct (held) -- a single hit reached
+only through part of a common name (or an old name) is no longer filled silently: typing
+shows the picker to confirm, a paste leaves it unresolved. Exact matches still fill. *Original:* Small. "Cricket bat spider"
 reached staging with no TVK. Same class as B4; UKSI has no common name for many
 taxa, so matching on common names is not a fix (it would have found Cricket-Bat
 Willow). *8 Oct:* it went on to be **committed** (Bristol, "Cricket bat spid", no
@@ -154,7 +162,12 @@ still edits.
 
 ## C. Import wizards
 
-**C1. Re-enrich conservation from live Codex.** 0.5–1 day. **Raised in value:**
+**C1. Re-enrich conservation from live Codex.** ✅ Done 9 Oct, as far as it still applies:
+nothing stores conservation per record any more (Examen, Data Entry and the gamification
+read Codex live). The one display still reading uksi.db's old 2023 status columns -- the
+Insect Collection sidebar's species detail -- now reads Codex (falls back to the old
+columns, marked "(UKSI 2023)", only if Codex can't be opened). Report workbooks already
+sent out keep the Codex data of their day: re-export any that matter. *Original:* 0.5–1 day. **Raised in value:**
 generated workbooks bake in Codex data that now predates five corrections.
 
 **C2. Route wizards through `_get_preferred_common_name()`.** Small. Safe since
@@ -471,7 +484,13 @@ the two Tachyporinae accounts moved with it.
 **F13. *Tetartopeus ciceronii* account.** Rove beetle review, no UKSI match until
 a release newer than July 2025. Load with `load_review.py --add-accounts` then.
 
-**F14. Wrong targets in `uksi.synonyms`** (fault F25). ~1 hr to diagnose, read-only:
+**F14. Wrong targets in `uksi.synonyms`** (fault F25). ✅ Fix built 9 Oct --
+`scripts/fix_uksi_synonyms.py` (dry run, then --apply with a backup): carried-over rows
+that contradict the NAMES sheet's own mapping go (expected ~366), plus
+`scripts/uksi_synonym_corrections.csv` (Lamia sartor / sutor / titillator / rosenmulleri
+removed; Cerambyx textor added). `build_uksi_from_release.py` applies the same rules, so the
+next UKSI build needs no fix. Only `synonyms` changes: search and Lector benefit; no rebuild
+of Codex. Tell Chris Raper about the Lamia rows with F11. *Original:* ~1 hr to diagnose, read-only:
 (1) every synonym whose epithet differs from its target's epithet *and* matches another
 current taxon in the same family (a differing epithet alone is not proof, e.g.
 *Ranunculus ficaria* → *Ficaria verna*); (2) synonym names mapped to more than one TVK;
@@ -665,7 +684,11 @@ the last**, see `01` §2); a 52-line block pasted twice in `scheme_dashboard.py`
 duplicated functions in Curator; 399 unused imports (automatable). Delete Examen's
 disabled `manual_entry_dialog.py` with them.
 
-**I9. Duplicated UI components.** 1–2 days. FilterChip ×6, FuzzyCompleter ×3,
+**I9. Duplicated UI components.** ✅ Done 9 Oct -- FilterChip now one copy (`chip_display.py`;
+the Scheme dashboard's toggle "FilterChip" is a different widget and stays);
+FuzzyCompleter / FuzzyFilterProxyModel one copy in `filter_wizard/fuzzy.py` (the Where
+dialog's place-name abbreviations kept as `PlaceCompleter`); RowStatus one enum in
+`views/dialogs/row_status.py`. *Original:* 1–2 days. FilterChip ×6, FuzzyCompleter ×3,
 FuzzyFilterProxyModel ×3, RowStatus ×4 -- confirmed by the analysis.
 
 **I10. Split the two most complex functions** when next touched:

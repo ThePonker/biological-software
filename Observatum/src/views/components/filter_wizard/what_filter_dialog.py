@@ -11,137 +11,16 @@ Filter by species, order, and family with search bars and chips.
 from typing import Dict, Any, List
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QPushButton, QFrame, QCompleter, QScrollArea, QWidget, QSizePolicy
+    QPushButton, QFrame, QScrollArea, QWidget
 )
-from PySide6.QtCore import Qt, QTimer, Signal, QSortFilterProxyModel
-from PySide6.QtGui import QStandardItemModel, QStandardItem
+from PySide6.QtCore import Qt, QTimer
 
 from ....themes import theme
 from ....core.config import ButtonColors
 
 
-class FuzzyFilterProxyModel(QSortFilterProxyModel):
-    """
-    Proxy model that filters by matching ALL space-separated words.
-    E.g., "rut mac" matches "Rutpela maculata" because both "rut" and "mac" are found.
-    """
-    
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self._filter_words = []
-        self.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-    
-    def setFilterText(self, text: str):
-        """Set filter text, splitting into words."""
-        self._filter_words = text.lower().split()
-        self.invalidateFilter()
-    
-    def filterAcceptsRow(self, source_row: int, source_parent) -> bool:
-        """Accept row if ALL filter words are found in the item text."""
-        if not self._filter_words:
-            return True
-        
-        index = self.sourceModel().index(source_row, 0, source_parent)
-        text = self.sourceModel().data(index, Qt.ItemDataRole.DisplayRole)
-        if not text:
-            return False
-        
-        text_lower = text.lower()
-        return all(word in text_lower for word in self._filter_words)
-
-
-class FuzzyCompleter(QCompleter):
-    """Completer with fuzzy multi-word matching."""
-    
-    def __init__(self, items: List[str], parent=None):
-        self._source_model = QStandardItemModel(parent)
-        for item in items:
-            self._source_model.appendRow(QStandardItem(item))
-        
-        self._proxy_model = FuzzyFilterProxyModel(parent)
-        self._proxy_model.setSourceModel(self._source_model)
-        
-        super().__init__(self._proxy_model, parent)
-        self.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
-        self.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-        self.setMaxVisibleItems(10)
-    
-    def splitPath(self, path: str) -> List[str]:
-        """Override to update filter when text changes."""
-        self._proxy_model.setFilterText(path)
-        return [path]
-    
-    def pathFromIndex(self, index) -> str:
-        """Return the actual item text from source model."""
-        source_index = self._proxy_model.mapToSource(index)
-        return self._source_model.data(source_index, Qt.ItemDataRole.DisplayRole)
-
-
-class FilterChip(QFrame):
-    """A single removable chip."""
-    
-    removed = Signal(str, str)  # (category, value)
-    
-    def __init__(self, category: str, value: str, display_text: str, accent_color: str, parent=None):
-        super().__init__(parent)
-        self._category = category
-        self._value = value
-        self._accent_color = accent_color
-        
-        t = theme()
-        
-        self.setFixedHeight(32)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(12, 4, 8, 4)
-        layout.setSpacing(8)
-        
-        label = QLabel(display_text)
-        label.setStyleSheet(f"color: {t.get('text_primary')}; font-size: 12px; background: transparent;")
-        layout.addWidget(label)
-        
-        layout.addStretch()
-        
-        remove_btn = QPushButton("×")
-        remove_btn.setFixedSize(20, 20)
-        remove_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        remove_btn.clicked.connect(lambda: self.removed.emit(self._category, self._value))
-        remove_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: transparent;
-                color: {t.get('text_secondary')};
-                border: none;
-                border-radius: 10px;
-                font-size: 14px;
-                font-weight: bold;
-            }}
-            QPushButton:hover {{
-                background-color: {t.get('hover')};
-                color: {t.get('text_primary')};
-            }}
-        """)
-        layout.addWidget(remove_btn)
-        
-        hex_color = accent_color.lstrip('#')
-        r = int(hex_color[0:2], 16)
-        g = int(hex_color[2:4], 16)
-        b = int(hex_color[4:6], 16)
-        r = int(r + (255 - r) * 0.9)
-        g = int(g + (255 - g) * 0.9)
-        b = int(b + (255 - b) * 0.9)
-        light_color = f"#{r:02x}{g:02x}{b:02x}"
-        
-        self.setStyleSheet(f"""
-            FilterChip {{
-                background-color: {light_color};
-                border: 1px solid {accent_color};
-                border-radius: 4px;
-            }}
-        """)
-    
-    def get_category(self): return self._category
-    def get_value(self): return self._value
+from .chip_display import FilterChip  # I9: one copy
+from .fuzzy import picking_from_popup, FuzzyCompleter
 
 
 class WhatFilterDialog(QDialog):
@@ -473,6 +352,8 @@ class WhatFilterDialog(QDialog):
     
     def _on_species_enter(self):
         """Handle Enter in species field."""
+        if picking_from_popup(self._species_input):   # the completer's activated handler adds the chip
+            return
         text = self._species_input.text().strip()
         if text:
             # Check if it matches a display text
@@ -537,6 +418,8 @@ class WhatFilterDialog(QDialog):
     
     def _on_enter_pressed(self, input_widget: QLineEdit, category: str, prefix: str):
         """Handle Enter key."""
+        if picking_from_popup(input_widget):   # the completer's activated handler adds the chip
+            return
         text = input_widget.text().strip()
         if text:
             self._add_chip(category, text, f"{prefix}: {text}")

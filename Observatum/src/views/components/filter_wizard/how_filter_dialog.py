@@ -9,80 +9,15 @@ Filter by method/sample details.
 from typing import Dict, Any, List
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QPushButton, QFrame, QScrollArea, QWidget, QSizePolicy,
-    QCheckBox, QGridLayout
+    QPushButton, QFrame, QScrollArea, QWidget, QCheckBox, QGridLayout
 )
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt
 
 from ....themes import theme
 from ....core.config import ButtonColors
 
 
-class FilterChip(QFrame):
-    """A single removable chip."""
-    
-    removed = Signal(str, str)
-    
-    def __init__(self, category: str, value: str, display_text: str, accent_color: str, parent=None):
-        super().__init__(parent)
-        self._category = category
-        self._value = value
-        self._accent_color = accent_color
-        
-        t = theme()
-        
-        self.setFixedHeight(32)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(12, 4, 8, 4)
-        layout.setSpacing(8)
-        
-        label = QLabel(display_text)
-        label.setStyleSheet(f"color: {t.get('text_primary')}; font-size: 12px; background: transparent;")
-        layout.addWidget(label)
-        
-        layout.addStretch()
-        
-        remove_btn = QPushButton("×")
-        remove_btn.setFixedSize(20, 20)
-        remove_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        remove_btn.clicked.connect(lambda: self.removed.emit(self._category, self._value))
-        remove_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: transparent;
-                color: {t.get('text_secondary')};
-                border: none;
-                border-radius: 10px;
-                font-size: 14px;
-                font-weight: bold;
-            }}
-            QPushButton:hover {{
-                background-color: {t.get('hover')};
-                color: {t.get('text_primary')};
-            }}
-        """)
-        layout.addWidget(remove_btn)
-        
-        hex_color = accent_color.lstrip('#')
-        r = int(hex_color[0:2], 16)
-        g = int(hex_color[2:4], 16)
-        b = int(hex_color[4:6], 16)
-        r = int(r + (255 - r) * 0.9)
-        g = int(g + (255 - g) * 0.9)
-        b = int(b + (255 - b) * 0.9)
-        light_color = f"#{r:02x}{g:02x}{b:02x}"
-        
-        self.setStyleSheet(f"""
-            FilterChip {{
-                background-color: {light_color};
-                border: 1px solid {accent_color};
-                border-radius: 4px;
-            }}
-        """)
-    
-    def get_category(self): return self._category
-    def get_value(self): return self._value
+from .chip_display import FilterChip  # I9: one copy
 
 
 class HowFilterDialog(QDialog):

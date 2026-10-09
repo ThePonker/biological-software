@@ -10,7 +10,6 @@ import os
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
 from pathlib import Path
 from typing import Optional, Dict, List
 
@@ -58,11 +57,7 @@ def _find_vc_database() -> Optional[str]:
     return None
 
 
-class RowStatus(Enum):
-    PENDING = "pending"
-    VALID = "valid"
-    WARNING = "warning"
-    ERROR = "error"
+from ..row_status import RowStatus  # noqa: F401  (I9: one copy; re-exported for the mixins)
 
 
 @dataclass

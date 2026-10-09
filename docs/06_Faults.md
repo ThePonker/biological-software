@@ -31,7 +31,13 @@ No survey figure affected now. **Action:** a newer UKSI -- backlog F11, F13.
 or UKSI; the Examen manual-entry route (closed below) is where that broke.
 **Action:** backlog D9.
 
-### F25. `uksi.synonyms` maps other species' old names to the wrong taxon — INVESTIGATE
+### F25. `uksi.synonyms` maps other species' old names to the wrong taxon — FIXED 9 Oct
+**Fixed 9 Oct 2026, 16:28:** `scripts/fix_uksi_synonyms.py` (backlog F14) removed 403 rows
+(399 carried-over links contradicting the NAMES sheet, e.g. *Andrena albofasciata* →
+*A. ovatula*; 4 *Lamia* rows from `scripts/uksi_synonym_corrections.csv`) and added
+*Cerambyx textor* → *Lamia textor*: synonyms 98,415 → 98,013. Backup
+`data/_backups/uksi_pre_synonym_fix_20261009_162827.db`; list of changes in
+`scripts/_oneoff/uksi_synonym_changes.csv`. `build_uksi_from_release.py` applies the same rules.
 *Found 7 October 2026 by Lector testing (Lamia textor).* *Lamia sartor*, *Lamia
 sutor*, *Lamia titillator* and *Lamia rosenmulleri* all point at *Lamia textor*
 (NBNSYS0000011050). The first two are *Monochamus sartor* / *sutor*, which UKSI holds

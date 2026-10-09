@@ -11,98 +11,17 @@ Filter by vice county, grid reference, and site name.
 from typing import Dict, Any, List
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QPushButton, QFrame, QCompleter, QScrollArea, QWidget, QSizePolicy,
-    QCheckBox
+    QPushButton, QFrame, QCompleter, QScrollArea, QWidget, QCheckBox
 )
-from PySide6.QtCore import Qt, QTimer, Signal, QSortFilterProxyModel
+from PySide6.QtCore import Qt, QTimer, QSortFilterProxyModel
 from PySide6.QtGui import QStandardItemModel, QStandardItem
 
 from ....themes import theme
 from ....core.config import ButtonColors
 
 
-class FuzzyFilterProxyModel(QSortFilterProxyModel):
-    """Proxy model that filters by matching ALL space-separated words.
-    
-    Includes common geographic abbreviation expansion:
-    - south/sth, north/nth, east/e, west/w
-    - fen/fn, wood/wd, field/fld, farm/fm, etc.
-    """
-    
-    # Abbreviation mappings (both directions)
-    ABBREVIATIONS = {
-        'south': ['sth', 's'],
-        'sth': ['south', 's'],
-        'north': ['nth', 'n'],
-        'nth': ['north', 'n'],
-        'east': ['e', 'est'],
-        'west': ['w', 'wst'],
-        'fen': ['fn'],
-        'fn': ['fen'],
-        'wood': ['wd', 'wds'],
-        'wd': ['wood'],
-        'woods': ['wds', 'wd'],
-        'wds': ['woods', 'wood'],
-        'field': ['fld', 'flds'],
-        'fld': ['field'],
-        'fields': ['flds', 'fld'],
-        'farm': ['fm'],
-        'fm': ['farm'],
-        'lane': ['ln'],
-        'ln': ['lane'],
-        'road': ['rd'],
-        'rd': ['road'],
-        'meadow': ['mdw', 'mead'],
-        'mdw': ['meadow'],
-        'reserve': ['res', 'rsv'],
-        'res': ['reserve'],
-        'nature': ['nat'],
-        'nat': ['nature'],
-        'green': ['grn'],
-        'grn': ['green'],
-        'great': ['gt', 'grt'],
-        'gt': ['great'],
-        'little': ['lt', 'ltl'],
-        'lt': ['little'],
-        'saint': ['st'],
-        'st': ['saint', 'street'],
-        'street': ['st'],
-    }
-    
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self._filter_words = []
-        self.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-    
-    def setFilterText(self, text: str):
-        self._filter_words = text.lower().split()
-        self.invalidateFilter()
-    
-    def _word_matches(self, word: str, text_lower: str) -> bool:
-        """Check if word matches text, including abbreviation variants."""
-        # Direct match
-        if word in text_lower:
-            return True
-        
-        # Try abbreviation variants
-        variants = self.ABBREVIATIONS.get(word, [])
-        for variant in variants:
-            if variant in text_lower:
-                return True
-        
-        return False
-    
-    def filterAcceptsRow(self, source_row: int, source_parent) -> bool:
-        if not self._filter_words:
-            return True
-        
-        index = self.sourceModel().index(source_row, 0, source_parent)
-        text = self.sourceModel().data(index, Qt.ItemDataRole.DisplayRole)
-        if not text:
-            return False
-        
-        text_lower = text.lower()
-        return all(self._word_matches(word, text_lower) for word in self._filter_words)
+from .chip_display import FilterChip  # I9: one copy
+from .fuzzy import picking_from_popup, PlaceCompleter as FuzzyCompleter  # place names: abbreviations understood
 
 
 class GridRefProxyModel(QSortFilterProxyModel):
@@ -129,31 +48,6 @@ class GridRefProxyModel(QSortFilterProxyModel):
         return grid_ref.upper().startswith(self._filter_text)
 
 
-class FuzzyCompleter(QCompleter):
-    """Completer with fuzzy multi-word matching."""
-    
-    def __init__(self, items: List[str], parent=None):
-        self._source_model = QStandardItemModel(parent)
-        for item in items:
-            self._source_model.appendRow(QStandardItem(item))
-        
-        self._proxy_model = FuzzyFilterProxyModel(parent)
-        self._proxy_model.setSourceModel(self._source_model)
-        
-        super().__init__(self._proxy_model, parent)
-        self.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
-        self.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-        self.setMaxVisibleItems(10)
-    
-    def splitPath(self, path: str) -> List[str]:
-        self._proxy_model.setFilterText(path)
-        return [path]
-    
-    def pathFromIndex(self, index) -> str:
-        source_index = self._proxy_model.mapToSource(index)
-        return self._source_model.data(source_index, Qt.ItemDataRole.DisplayRole)
-
-
 class GridRefCompleter(QCompleter):
     """Completer for grid references with prefix matching."""
     
@@ -177,73 +71,6 @@ class GridRefCompleter(QCompleter):
     def pathFromIndex(self, index) -> str:
         source_index = self._proxy_model.mapToSource(index)
         return self._source_model.data(source_index, Qt.ItemDataRole.DisplayRole)
-
-
-class FilterChip(QFrame):
-    """A single removable chip."""
-    
-    removed = Signal(str, str)
-    
-    def __init__(self, category: str, value: str, display_text: str, accent_color: str, parent=None):
-        super().__init__(parent)
-        self._category = category
-        self._value = value
-        self._accent_color = accent_color
-        
-        t = theme()
-        
-        self.setFixedHeight(32)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(12, 4, 8, 4)
-        layout.setSpacing(8)
-        
-        label = QLabel(display_text)
-        label.setStyleSheet(f"color: {t.get('text_primary')}; font-size: 12px; background: transparent;")
-        layout.addWidget(label)
-        
-        layout.addStretch()
-        
-        remove_btn = QPushButton("×")
-        remove_btn.setFixedSize(20, 20)
-        remove_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        remove_btn.clicked.connect(lambda: self.removed.emit(self._category, self._value))
-        remove_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: transparent;
-                color: {t.get('text_secondary')};
-                border: none;
-                border-radius: 10px;
-                font-size: 14px;
-                font-weight: bold;
-            }}
-            QPushButton:hover {{
-                background-color: {t.get('hover')};
-                color: {t.get('text_primary')};
-            }}
-        """)
-        layout.addWidget(remove_btn)
-        
-        hex_color = accent_color.lstrip('#')
-        r = int(hex_color[0:2], 16)
-        g = int(hex_color[2:4], 16)
-        b = int(hex_color[4:6], 16)
-        r = int(r + (255 - r) * 0.9)
-        g = int(g + (255 - g) * 0.9)
-        b = int(b + (255 - b) * 0.9)
-        light_color = f"#{r:02x}{g:02x}{b:02x}"
-        
-        self.setStyleSheet(f"""
-            FilterChip {{
-                background-color: {light_color};
-                border: 1px solid {accent_color};
-                border-radius: 4px;
-            }}
-        """)
-    
-    def get_category(self): return self._category
-    def get_value(self): return self._value
 
 
 class WhereFilterDialog(QDialog):
@@ -595,6 +422,8 @@ class WhereFilterDialog(QDialog):
     
     def _on_site_enter(self):
         """Handle Enter in site field - check partial match toggle."""
+        if picking_from_popup(self._site_input):   # the completer's activated handler adds the chip
+            return
         if self._handling_selection:
             return
         
@@ -681,6 +510,8 @@ class WhereFilterDialog(QDialog):
     
     def _on_enter(self, input_widget: QLineEdit, category: str, prefix: str, is_grid_ref: bool):
         """Handle Enter key press."""
+        if picking_from_popup(input_widget):   # the completer's activated handler adds the chip
+            return
         if self._handling_selection:
             return
         

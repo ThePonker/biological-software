@@ -240,11 +240,23 @@ for r in N:
     nm = r.get("TAXON_NAME", "")
     if tgt and nm and nm.lower() not in cur_names:
         syn.add((nm, tgt))
-carried = 0
+carried = conflicts = 0
+names_syn = {n.lower() for n, _ in syn}           # names the NAMES sheet already maps
 for nm, t in list(old.execute("SELECT synonym, tvk FROM synonyms")) + list(old.execute("SELECT scientific_name, tvk FROM taxa")):
     tgt = to_current(t)
     if tgt and nm and nm.lower() not in cur_names and (nm, tgt) not in syn:
+        if nm.lower() in names_syn:                  # F14: NAMES wins; a carried row may not contradict it
+            conflicts += 1
+            continue
         syn.add((nm, tgt)); carried += 1
+# F14: corrections the NAMES sheet gets wrong or lacks (scripts/uksi_synonym_corrections.csv)
+sys.path.insert(0, os.path.join(ROOT, "scripts"))
+from fix_uksi_synonyms import load_corrections  # noqa: E402
+_corr = load_corrections()
+syn -= _corr["exclude"]
+syn |= {(s, t) for s, t in _corr["add"] if t in current}
+print(f"  synonyms: carried rows dropped because the NAMES sheet maps the name elsewhere: {conflicts}; "
+      f"corrections: -{len(_corr['exclude'])} +{len(_corr['add'])}")
 new.executemany("INSERT OR IGNORE INTO synonyms (synonym, tvk) VALUES (?, ?)", sorted(syn))
 
 # ---- common names ----

@@ -1,0 +1,6 @@
+action,synonym,tvk,reason
+exclude,Lamia sartor,NBNSYS0000011050,"Monochamus sartor, not Lamia textor (F25; reported to Chris Raper with F11)"
+exclude,Lamia sutor,NBNSYS0000011050,"Monochamus sutor, not Lamia textor (F25)"
+exclude,Lamia titillator,NBNSYS0000011050,"Monochamus titillator (Nearctic), not Lamia textor (F25)"
+exclude,Lamia rosenmulleri,NBNSYS0000011050,"unverified; old Lamia combination resolved at genus level (F25)"
+add,Cerambyx textor,NBNSYS0000011050,"the genuine original combination of Lamia textor, missing from UKSI (F25)"

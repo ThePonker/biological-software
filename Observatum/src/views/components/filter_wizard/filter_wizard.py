@@ -546,13 +546,15 @@ class FilterWizard(QWidget):
             
             # Get distinct species from observations for autocomplete
             try:
+                # 9 Oct 2026: this asked DatabaseManager for .execute() (it has execute_main)
+                # and for a scientific_name column (observations has species_name), so it
+                # always failed and the What card's Species box had nothing to suggest.
                 from ....models.database import get_database
-                db = get_database()
-                cursor = db.execute(
-                    "SELECT DISTINCT scientific_name FROM observations "
-                    "WHERE scientific_name IS NOT NULL ORDER BY scientific_name LIMIT 5000"
+                rows = get_database().execute_main(
+                    "SELECT DISTINCT species_name FROM observations "
+                    "WHERE species_name IS NOT NULL AND species_name != '' ORDER BY species_name"
                 )
-                self._species_list = [row[0] for row in cursor.fetchall()]
+                self._species_list = [row[0] for row in rows]
                 print(f"[FilterWizard] Loaded {len(self._species_list)} species")
             except Exception as e:
                 print(f"[FilterWizard] Could not load species: {e}")

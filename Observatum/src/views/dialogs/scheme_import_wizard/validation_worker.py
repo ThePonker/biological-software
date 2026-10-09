@@ -100,12 +100,7 @@ def _safe_str(row_data, key, default=""):
     return str(val) if val else default
 
 
-class RowStatus(Enum):
-    """Status of a row during validation."""
-    PENDING = "pending"
-    VALID = "valid"
-    WARNING = "warning"
-    ERROR = "error"
+from ..row_status import RowStatus  # noqa: F401  (I9: one copy; re-exported for the mixins)
 
 
 # iRecord column names (for auto-detection)

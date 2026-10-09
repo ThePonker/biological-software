@@ -438,7 +438,6 @@ class TaxonomicSidebar(QWidget):
         common_name = ""
         conservation = ""
         try:
-            import sqlite3
             conn = connect_ro(self._uksi_db_path)
             cursor = conn.execute(
                 'SELECT tvk, red_list_status, rarity_status, legal_protection '
@@ -447,8 +446,12 @@ class TaxonomicSidebar(QWidget):
             row = cursor.fetchone()
             if row:
                 tvk = row[0] or ""
-                statuses = [s for s in [row[1], row[2], row[3]] if s]
-                conservation = "; ".join(statuses)
+                # C1 (9 Oct 2026): conservation from live Codex. uksi.db's status columns were
+                # carried over from the 2023 file and predate every review loaded since.
+                conservation = self._codex_status(tvk)
+                if conservation is None:            # Codex unavailable: the old columns, marked
+                    statuses = [s for s in [row[1], row[2], row[3]] if s]
+                    conservation = ("; ".join(statuses) + " (UKSI 2023)") if statuses else ""
 
             if tvk:
                 cn_cursor = conn.execute(
@@ -470,6 +473,19 @@ class TaxonomicSidebar(QWidget):
         self.detail_panel.show_species(
             species_name, tvk, common_name, family, order_name,
             specimen_count, conservation, self._sum_sexes([species_name]))
+
+    def _codex_status(self, tvk):
+        """Codex's compact status for a TVK ('' if none), or None if Codex can't be read."""
+        if not tvk:
+            return ""
+        try:
+            if getattr(self, "_codex_repo", None) is None:
+                from shared.repositories.codex_repository import CodexRepository
+                self._codex_repo = CodexRepository()
+            return self._codex_repo.get_status_summary(tvk).display_status or ""
+        except Exception as e:
+            print(f"[taxonomic_sidebar] Codex status for {tvk}: {e}")
+            return None
 
     def _on_reset(self):
         """Reset sidebar: clear filter, collapse tree, show all specimens."""

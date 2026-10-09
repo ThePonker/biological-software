@@ -8,7 +8,7 @@ scheme. Display only; queries are read-only and fail soft.
 from __future__ import annotations
 
 import sqlite3
-from typing import List, Optional, Set, Tuple
+from typing import Optional
 
 from PySide6.QtCore import Qt, QPointF
 from PySide6.QtGui import QPainter, QPen, QBrush, QColor, QPolygonF
@@ -251,9 +251,6 @@ class DistributionMiniMap(PanZoomMixin, QWidget):
 
     _SEA = _SEA_C; _LAND = _LAND_C; _COAST = _COAST_C
     _VCLINE = _VCLINE_C; _GRID100 = _GRID100_C; _GRID10 = _GRID10_C
-
-    def has_data(self) -> bool:
-        return bool(self._rings)
 
     @staticmethod
     def _sample_sea(img):

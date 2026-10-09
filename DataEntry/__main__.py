@@ -10,7 +10,6 @@ newest timestamped dev copy, never the live database.
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 
 from DataEntry import bootstrap
