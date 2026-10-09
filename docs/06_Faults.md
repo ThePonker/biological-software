@@ -1,6 +1,6 @@
 # Faults
 
-## Updated 8 October 2026
+## Updated 9 October 2026
 ## Open faults carry an action. Closed ones are kept in brief, because knowing
 ## what has already gone wrong is how the rules in `05` were earned.
 
@@ -162,6 +162,11 @@ field -- so ~15 it was not given (`internal_notes`, `identification_qualifier`,
 species + date + grid ref overwrites the existing record (a second sex or stage row
 replaces the first). **Action:** backlog I7b -- measure first, then UPDATE only the
 supplied columns.
+**Observation import fixed 9 Oct 2026** (`wizard_import_mixin.py`): an iRecord re-sync
+writes only the sync fields it was given and never blanks a stored value; in the upload
+modes an unskipped duplicate is added, not overwritten. The import also backs up
+observatum.db first, and a failed batch is retried row by row with the failures shown
+(the observation half of F35). Scheme import (F33) still open.
 
 ### F33. Scheme import drops optional columns batch by batch
 *Found 8 October 2026 by the code sweep, §2.* The batch INSERT takes its column list
@@ -209,6 +214,20 @@ mostly entered in the same minute -- the app sending a sample twice), and the 25
 import mirrored them under one iRecord number. The sync now recognises such a second
 copy (same external key, species and date) as already held instead of importing it
 again. List for tidying iRecord: `_oneoff/irecord_duplicate_submissions_20261008.csv`.
+
+### F39. The 9 Oct iRecord sync added 283 records already held
+*Found and repaired 9 October 2026, the first sync after F37.* 248 records from the
+25 March import held their iRecord number only in `irecord_key` (`irecord_id` blank), so
+the sync -- matching on `irecord_id` -- added them again. 35 more were the second number of
+a sighting iRecord holds twice (F38), missed because their external key was shared by more
+than one record held. **Repaired:** `_oneoff/fix_sync_doubles_20261009.py` removed the 35
+(backup `pre-sync-doubles`), then `fix_irecord_twins_20261008.py` the 248 old copies
+(backup `pre-irecord-twins`); 24,962 records, as before the sync. Pre-sync copy kept as
+`C:\BiologicalSoftware_Backups\observatum_pre_sync_20261009.db`. **Fixed in code:** the
+sync matches a number held in either field and fills in `irecord_id`; a twice-held
+sighting is recognised when the key is shared and is left alone. 36 records still hold
+their number only in `irecord_key` -- the next sync fills those in. Everything else in
+the sync was sound: nothing blanked, none of our fields touched, 48 verifications in.
 
 ### F4. `build_pantheon_db.py` missing
 Same event. Pantheon has not been updated since 2017 v3.7.4, so this is insurance

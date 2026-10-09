@@ -919,6 +919,21 @@ class ObservationValidationWorker(QThread):
                         irecord_lookup[str(iid)] = rid
                 except Exception as e:
                     print(f"[ImportValidation] iRecord ID duplicate check FAILED: {e}")
+                # 9 Oct 2026: 284 records held the iRecord number only in irecord_key (ID
+                # blank), so the sync did not recognise them and added 248 again. A
+                # number held either way is the same record.
+                try:
+                    keys = sorted({str(int(float(v))) for v in irecord_ids
+                                   if str(v).strip() not in ("", "nan")})
+                    for r in _lookup("SELECT irecord_key, id FROM observations "
+                                     "WHERE irecord_id IS NULL AND irecord_key IN ({ph})", keys):
+                        k = r[0] if isinstance(r, (list, tuple)) else r["irecord_key"]
+                        rid = r[1] if isinstance(r, (list, tuple)) else r["id"]
+                        k = str(k).strip()
+                        irecord_lookup.setdefault(k, rid)
+                        irecord_lookup.setdefault(int(k), rid)
+                except Exception as e:
+                    print(f"[ImportValidation] iRecord key duplicate check FAILED: {e}")
             if external_keys:
                 try:
                     for r in _lookup("SELECT observatum_key, id, irecord_id, species_name, date "
@@ -949,6 +964,24 @@ class ObservationValidationWorker(QThread):
 
                 ext_key = row.get("external_key", "")
                 ids = ext_key_lookup.get(ext_key) if ext_key else None
+                has_iid = irecord_id is not None and irecord_id == irecord_id and irecord_id != ""
+                if ids and len(ids) > 1 and has_iid:
+                    # Several records share the key (one per record of an app sample, or a
+                    # sample iRecord holds twice). One already held with its own iRecord
+                    # number and the same species and date is this sighting (9 Oct 2026:
+                    # 35 such were added again because the key named more than one record).
+                    sp = " ".join(str(row.get("species_name") or "").split()).casefold()
+                    dt = str(row.get("date") or "")[:10]
+                    held = [rid for rid, (eiid, esp, edt) in ids.items()
+                            if eiid not in (None, "")
+                            and " ".join(str(esp or "").split()).casefold() == sp
+                            and str(edt or "")[:10] == dt]
+                    if held:
+                        df.at[idx, "is_duplicate"] = True
+                        df.at[idx, "existing_record_id"] = held[0]
+                        df.at[idx, "import_notes"] = (f"iRecord holds this twice; already held "
+                                                      f"as record {held[0]}")
+                    continue
                 if ids and len(ids) == 1:
                     rid, (existing_iid, ex_sp, ex_dt) = next(iter(ids.items()))
                     has_iid = irecord_id is not None and irecord_id == irecord_id and irecord_id != ""

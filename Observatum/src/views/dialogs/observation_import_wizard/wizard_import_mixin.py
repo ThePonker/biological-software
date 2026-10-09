@@ -20,6 +20,25 @@ from .validation_worker import ObservationImportRow, RowStatus, ImportMode
 from src.themes import theme
 from src.core.config import TabColors
 
+# The fields an iRecord re-sync may change on a record it already holds (F32, 9 Oct 2026).
+# Everything else -- internal notes, import notes, record type, project, client, embargo,
+# Observatum key, iRecord ID, never-upload, individual count, rights holder -- is ours and
+# is never touched by a sync. A blank incoming value never blanks a stored one.
+SYNC_UPDATE_FIELDS = (
+    'species_name', 'species_tvk', 'common_name', 'order_name', 'family', 'kingdom',
+    'taxon_group', 'taxon_rank', 'superfamily', 'subfamily', 'taxonomic_sort_key',
+    'date', 'date_type', 'grid_ref', 'grid_precision', 'vice_county', 'vc_number',
+    'site_name', 'latitude', 'longitude', 'geodetic_datum',
+    'sensitive', 'sensitive_site', 'sensitive_output_map_ref',
+    'recorder', 'determiner', 'recorder_certainty',
+    'sex', 'stage', 'quantity', 'zero_abundance', 'method',
+    'comment', 'sample_comment', 'biotope',
+    'verification_status', 'verification_status_2', 'verifier', 'verified_on',
+    'automated_checks', 'images', 'licence', 'input_on_date', 'last_edited_date',
+    'record_key', 'external_key', 'source',
+    'irecord_key', 'sync_status', 'last_synced', 'updated_at',
+)
+
 
 class UpdatePreviewDialog(QDialog):
     """Dialog showing records that will be updated."""
@@ -105,6 +124,25 @@ class WizardImportMixin:
             return
         
         import_mode = self._get_selected_mode()
+
+        # Snapshot observatum.db first, so any import can be undone (9 Oct 2026)
+        try:
+            from shared.backup_service import backup_main_only
+            backed_up = backup_main_only("pre-import")
+        except Exception as e:
+            print(f"[ObservationImportWizard] Backup error: {e}")
+            backed_up = False
+        if not backed_up:
+            answer = QMessageBox.warning(
+                self, "Backup failed",
+                "Observatum could not back up the database before importing.\n\n"
+                "Import anyway?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No)
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+        self._import_errors = []
+
         skip_duplicates = self.skip_duplicates_checkbox.isChecked() if import_mode in [ImportMode.PERSONAL_UPLOAD, ImportMode.COMMERCIAL_UPLOAD] else False
         never_upload = self.never_upload_checkbox.isChecked() if import_mode in [ImportMode.PERSONAL_UPLOAD, ImportMode.COMMERCIAL_UPLOAD] else False
         
@@ -144,7 +182,12 @@ class WizardImportMixin:
             for row in rows_to_import:
                 if never_upload:
                     row.never_upload_to_irecord = 1
-                if row.is_duplicate and row.existing_record_id:
+                # Only an iRecord re-sync updates a record it already holds. In the upload
+                # modes a duplicate that was not skipped is added as its own record -- it
+                # used to overwrite the match, so a second sex or stage row replaced the
+                # first (F32, 9 Oct 2026).
+                if (row.is_duplicate and row.existing_record_id
+                        and import_mode == ImportMode.IRECORD_SYNC):
                     update_rows.append(row)
                 else:
                     insert_rows.append(row)
@@ -212,6 +255,15 @@ class WizardImportMixin:
             )
             QApplication.processEvents()
             
+            if self.error_count:
+                shown = "\n".join(self._import_errors[:8])
+                more = len(self._import_errors) - 8
+                QMessageBox.warning(
+                    self, "Some rows were not imported",
+                    f"{self.error_count} row(s) could not be written.\n\n{shown}"
+                    + (f"\n... and {more} more" if more > 0 else "")
+                    + "\n\nA backup was taken before the import (pre-import).")
+
             # Auto-advance to summary page
             self._update_summary()
             self.stack.setCurrentIndex(6)
@@ -283,8 +335,25 @@ class WizardImportMixin:
                 return success_count
         
         except Exception as e:
-            print(f"[ObservationImportWizard] Batch insert error: {e}")
-            return 0
+            # One bad row (e.g. an iRecord ID already held) used to lose the whole
+            # 500-row batch silently (F35). Retry row by row; record what fails.
+            print(f"[ObservationImportWizard] Batch insert error: {e} -- retrying row by row")
+            ok = 0
+            for record in records:
+                try:
+                    values = tuple(record.get(c) for c in columns)
+                    if self.db.execute_main_write(query, values):
+                        ok += 1
+                except Exception as row_error:
+                    self._note_import_error(record, row_error)
+            return ok
+
+    def _note_import_error(self, record: dict, error) -> None:
+        if not hasattr(self, "_import_errors"):
+            self._import_errors = []
+        self._import_errors.append(
+            f"{record.get('species_name') or '?'} {record.get('date') or ''} "
+            f"(iRecord {record.get('irecord_id') or '-'}): {error}")
 
     def _pre_generate_observatum_keys(self, rows, import_mode):
         """Pre-generate unique observatum_keys for all rows in a batch.
@@ -633,42 +702,42 @@ class WizardImportMixin:
             update_data = {k: v for k, v in obs_data.items() if k not in preserve_fields}
             update_data['updated_at'] = datetime.now().isoformat()
 
-            # Use observation model if available
-            if hasattr(self.observation_model, 'update'):
-                from src.models.observation import Observation
+            existing = self.observation_model.get_by_id(record_id) if self.observation_model else None
+            if existing is None:
+                self._note_import_error(obs_data, f"record {record_id} not found to update")
+                return False
 
-                # Get existing record to preserve fields and check for changes
-                existing = self.observation_model.get_by_id(record_id)
-                if existing:
-                    # Check if there are actual changes
-                    if not self._has_changes(existing, update_data):
-                        return 'skipped'
+            def _num(v):
+                try:
+                    return int(float(v))
+                except (TypeError, ValueError):
+                    return None
+            incoming_id, held_id = _num(obs_data.get('irecord_id')), _num(existing.irecord_id)
+            if held_id is not None and incoming_id is not None and held_id != incoming_id:
+                # iRecord's second copy of a sighting we hold under its other number:
+                # leave the held record alone (9 Oct 2026)
+                return 'skipped'
+            add_id = held_id is None and incoming_id is not None   # number was only in irecord_key
 
-                    # Preserve record_type, observatum_key, and commercial fields from existing
-                    update_data['record_type'] = existing.record_type
-                    update_data['observatum_key'] = existing.observatum_key
-                    update_data['project_name'] = existing.project_name
-                    update_data['client'] = existing.client
-                    update_data['embargo_status'] = existing.embargo_status
-                    update_data['embargo_until'] = existing.embargo_until
-                    update_data['irecord_id'] = existing.irecord_id
+            if not add_id and not self._has_changes(existing, update_data):
+                return 'skipped'
 
-
-
-                obs = Observation(id=record_id, **{k: v for k, v in update_data.items() if hasattr(Observation, k) or k in ['updated_at', 'irecord_key', 'sync_status', 'last_synced']})
-                result = self.observation_model.update(obs)
-                return result
-            
-            # Fallback to direct SQL
-            set_clauses = ', '.join([f"{k} = ?" for k in update_data.keys()])
-            values = list(update_data.values()) + [record_id]
-            
+            # Write only the sync fields, and only those the import actually supplied --
+            # this used to rewrite the whole record, blanking ~15 fields (F32, 9 Oct 2026)
+            changes = {k: update_data[k] for k in SYNC_UPDATE_FIELDS
+                       if k in update_data and update_data[k] not in (None, '')}
+            if add_id:
+                changes['irecord_id'] = incoming_id
+            if not changes:
+                return 'skipped'
+            set_clauses = ', '.join(f"{k} = ?" for k in changes)
             query = f"UPDATE observations SET {set_clauses} WHERE id = ?"
-            result = self.db.execute_main_write(query, tuple(values))
-            return result > 0
-            
+            result = self.db.execute_main_write(query, tuple(changes.values()) + (record_id,))
+            return bool(result)
+
         except Exception as e:
             print(f"[ObservationImportWizard] Update error: {e}")
+            self._note_import_error(obs_data, e)
             return False
     
     def _update_summary(self):
