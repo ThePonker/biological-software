@@ -20,6 +20,8 @@ class SchemeDataWorker(QThread):
         self._filters = filters
         # Thread-safe result storage (bypass Qt signal queue)
         self.results = None
+        self.error_message = None        # set if run() raised; results stay None
+        # Set when run() ends, success or not -- startup waits on it (OBS-02)
         self.results_ready = threading.Event()
 
     def run(self):
@@ -140,4 +142,8 @@ class SchemeDataWorker(QThread):
         except Exception as e:
             import traceback
             traceback.print_exc()
-            self.error.emit(str(e))
+            self.error_message = str(e) or e.__class__.__name__
+            self.results_ready.set()     # an error is an outcome too: nobody waits forever
+            self.error.emit(self.error_message)
+        finally:
+            self.results_ready.set()

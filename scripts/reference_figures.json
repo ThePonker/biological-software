@@ -1,24 +1,29 @@
 {
- "_about": "Frozen reference figures, 8 Oct 2026 (bridge by NAMES key): JNCC June 2026, UKSI July 2025, 35 reviews. From docs/02_Current_State.md. Change only when a figure moves on purpose, in the same commit as 02, saying why. Survey keys are check_sqi_table.py's, spacing included.",
+ "_about": "Frozen reference figures, 9 Oct 2026 (fix round: one SQI path, bridge J2 rule in strict mode, invertebrates from UKSI, s.l./s.s. merged): JNCC June 2026, UKSI July 2025, 35 reviews, codex.db built 9 Oct 2026 17:56 (D5). From docs/02_Current_State.md. Change only when a figure moves on purpose, in the same commit as 02, saying why. Survey keys are check_sqi_table.py's, spacing included. sqi_strict / key_strict: Examen in Pantheon Only mode (project table, jurisdiction from vice-county).",
  "codex_counts": {
   "designations": 27152,
-  "sqs_scores": 9594,
-  "tvk_bridge": 14215,
+  "sqs_scores": 9599,
+  "tvk_bridge": 15307,
   "manual_entries": 10092,
   "reviews": 35,
   "species_profiles": 3874
  },
  "surveys": {
-  "BAM Glory Park 2024":            {"species": 128, "key": 8,  "sqi": 117, "sqi_pantheon": 117},
-  "Badshot Lea 2023":               {"species": 167, "key": 8,  "sqi": 111, "sqi_pantheon": 111},
-  "Bicester Graven Hill 2023":      {"species": 367, "key": 17, "sqi": 108, "sqi_pantheon": 107},
-  "Bicester Graven Hill 2025":      {"species": 254, "key": 19, "sqi": 127, "sqi_pantheon": 126},
-  "Birmingham - Wheels Park 2026":  {"species": 195, "key": 7,  "sqi": 116, "sqi_pantheon": 105},
-  "Derby  2025":                    {"species": 230, "key": 4,  "sqi": 101, "sqi_pantheon": 100},
-  "Fermyn Hall Wood Deadwood 2024": {"species": 49,  "key": 7,  "sqi": 157, "sqi_pantheon": 153},
-  "Kent Deadwood 2024":             {"species": 393, "key": 75, "sqi": 181, "sqi_pantheon": 175},
-  "Long Hanborough 2025":           {"species": 118, "key": 10, "sqi": 112, "sqi_pantheon": 111},
-  "Machen 2024":                    {"species": 321, "key": 16, "sqi": 121, "sqi_pantheon": 115},
-  "Tilbury  2025":                  {"species": 238, "key": 4,  "sqi": 101, "sqi_pantheon": 100}
+  "Alsager 2026":                   {"species": 191, "key":  5, "sqi": 109, "sqi_pantheon": 109, "sqi_strict": 109, "key_strict":  5},
+  "BAM Glory Park 2024":            {"species": 128, "key":  8, "sqi": 117, "sqi_pantheon": 117, "sqi_strict": 117, "key_strict":  9},
+  "Badshot Lea 2023":               {"species": 167, "key":  8, "sqi": 111, "sqi_pantheon": 111, "sqi_strict": 111, "key_strict":  9},
+  "Bicester Graven Hill 2023":      {"species": 367, "key": 18, "sqi": 107, "sqi_pantheon": 107, "sqi_strict": 107, "key_strict": 20},
+  "Bicester Graven Hill 2025":      {"species": 254, "key": 19, "sqi": 126, "sqi_pantheon": 125, "sqi_strict": 125, "key_strict": 21},
+  "Birmingham - Wheels Park 2026":  {"species": 195, "key":  7, "sqi": 116, "sqi_pantheon": 105, "sqi_strict": 105, "key_strict":  9},
+  "Bristol 2026":                   {"species": 122, "key":  4, "sqi": 106, "sqi_pantheon": 105, "sqi_strict": 105, "key_strict":  6},
+  "Derby  2025":                    {"species": 230, "key":  4, "sqi": 100, "sqi_pantheon":  99, "sqi_strict":  99, "key_strict":  6},
+  "Elmley 2026":                    {"species":  44, "key":  7, "sqi": 182, "sqi_pantheon": 184, "sqi_strict": 184, "key_strict":  7},
+  "Fermyn Hall Wood Deadwood 2024": {"species":  49, "key":  7, "sqi": 157, "sqi_pantheon": 153, "sqi_strict": 153, "key_strict":  8},
+  "Kent Deadwood 2024":             {"species": 393, "key": 75, "sqi": 181, "sqi_pantheon": 175, "sqi_strict": 175, "key_strict": 82},
+  "Long Hanborough 2025":           {"species": 118, "key": 10, "sqi": 112, "sqi_pantheon": 111, "sqi_strict": 111, "key_strict": 12},
+  "Machen 2024":                    {"species": 321, "key": 16, "sqi": 120, "sqi_pantheon": 114, "sqi_strict": 114, "key_strict": 20},
+  "Slade Green 2026":               {"species": 344, "key": 44, "sqi": 153, "sqi_pantheon": 147, "sqi_strict": 147, "key_strict": 45},
+  "Sundon 2026":                    {"species": 135, "key": 12, "sqi": 132, "sqi_pantheon": 114, "sqi_strict": 114, "key_strict": 12},
+  "Tilbury  2025":                  {"species": 238, "key":  4, "sqi": 100, "sqi_pantheon":  99, "sqi_strict":  99, "key_strict":  5}
  }
 }

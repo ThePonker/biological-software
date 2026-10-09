@@ -85,6 +85,11 @@ fix (carried rows yield to NAMES); *Lamia* and any other NAMES-sheet errors -- a
 exclusions list, and report to the NHM (F11). Backlog F14.
 
 ### F26. Pantheon species without a TVK collapsed onto one blank key
+**Fixed in code 9 Oct (D5), live once `pantheon.db` and Codex are rebuilt.** *Measured:* 1,114
+species, not 150-250 (797 of them give only a preferred name). `build_pantheon_db.py` keys each
+`NOTVK:<name>`; the Codex bridge resolves 1,092 of them (758 UKSI taxa gain ecology, 5 an SQS,
+no existing SQS moves); F17's nine research-only rows all bridge.
+
 *Found 8 October 2026, chasing F17.* Every Pantheon species that came without a TVK
 was stored under the same key, `''`. In `pantheon.db` that one key holds 1,287
 conservation-status rows, 2,018 habitat-trait rows, 246 habitat rows, 234 biotope
@@ -205,6 +210,9 @@ dropped for all 500 (comment, verifier, lat/long, irecord_id, nbn_atlas_id).
 **Action:** backlog I7b -- fixed column list; measure how many rows lost values.
 
 ### F34. Imports never store the taxonomic sort key, superfamily or subfamily
+*9 Oct (C4):* still open -- the observation worker reads `self.uksi_conn`, which is never set;
+left alone during the wizard merge because fixing it changes import outputs.
+
 *Found 8 October 2026 by the code sweep, §1.* The observation validation worker reads
 UKSI through `self.uksi_conn`, which is never set; the error is swallowed, and the
 row builder would not copy the values anyway. The specimen worker swallows the same
@@ -906,3 +914,23 @@ always offered · 9 UTF-8 BOMs stripped · toolbar mojibake repaired ·
 `sorted(..., QMessageBox)` crash fixed · Delete Selected delivered · a hardcoded
 date format replaced · staging given CSV coverage · header state guarded against
 column changes.
+
+### F42. Stats service lettered tetrads rows-first
+*Found 9 Oct during H3.* `observation_stats_service._extract_grid_squares` numbered tetrad
+letters across rows (A–E along the bottom row) where DINTY runs A–E up the first column, and
+its "skip O" step was off by one. Tetrad **counts** were right; tetrad **labels** disagreed with
+`shared/osgb.py`. **Fixed 9 Oct**, test in `tests/test_osgb.py`.
+
+### F43. "Melanotus" records on the fungus genus TVK
+*Found 9 Oct by the E8b taxonomic summary.* 10 Kent Deadwood records named "Melanotus" carry
+BMSSYS0000020490, the Agaricales genus, so they appear as an "Agaricales" group in Examen.
+`saproxylic_scores.csv` gives the beetle genus the same TVK (harmless there: genus entries match
+by name). **Open** -- the records want the click-beetle genus TVK.
+
+### F44-F46. Suite review, 9 Oct 2026
+The full review is in the project (`claude/32_Suite_Review_20261009.md`), finding IDs OBS/SRCH/MAP/
+DE/EXA/CDX/IMP/CUR/MUN/ATR/LEC/SPD/INF. Tier 1 fixed and tested the same night (see 03_Backlog
+"Next"). Two were regressions from that day's own work and are fixed: IMP-2 (scheme import refused
+every row -- I7b) and INF1/EXA6 (Pantheon Only mode lost SQS through NOTVK twins -- D5). Moving
+records from an s.l. TVK to the species (Nomada panzeri) briefly dropped Pantheon's SQS from two
+surveys until the species-over-s.l. fallback was extended to Pantheon data and stored SQS.

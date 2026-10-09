@@ -1,12 +1,16 @@
 """
 Species Resolution Mixin for Specimen Import Wizard.
 
-Contains species resolution dialog handling and alias management.
+Contains species resolution dialog handling. (Saved aliases are no longer written or read:
+UKSI's synonyms cover them -- 9 Oct 2026.)
 """
 
 from typing import Dict, List
 
 from PySide6.QtWidgets import QDialog
+
+from shared.species_lookup import is_unresolved_error
+from shared.species_lookup_entries import apply_confirmed
 
 from .validation_worker import RowStatus
 from .bulk_resolution_dialog import BulkSpeciesResolutionDialog
@@ -21,9 +25,8 @@ class WizardSpeciesResolutionMixin:
         unmatched = set()
         
         for row in self.validated_rows:
-            if row.status == RowStatus.ERROR and row.error_message:
-                if "Species not found:" in row.error_message:
-                    unmatched.add(row.species_name)
+            if row.status == RowStatus.ERROR and is_unresolved_error(row.error_message):
+                unmatched.add(row.species_name)
         
         return sorted(list(unmatched))
     
@@ -33,18 +36,10 @@ class WizardSpeciesResolutionMixin:
             self,
             uksi_model=self.uksi_model,
             unmatched_species=unmatched_species,
-            alias_service=self.alias_service
         )
         
         if dialog.exec() == QDialog.DialogCode.Accepted:
-            resolutions = dialog.get_resolutions()
-            aliases_to_save = dialog.get_aliases_to_save()
-            
-            # Save aliases
-            if self.alias_service and aliases_to_save:
-                self._save_species_aliases(aliases_to_save)
-            
-            self._apply_species_resolutions(resolutions)
+            self._apply_species_resolutions(dialog.get_resolutions())
         
         self._update_validation_counts()
 
@@ -58,63 +53,12 @@ class WizardSpeciesResolutionMixin:
         if hasattr(self, 'resolve_species_btn'):
             self.resolve_species_btn.setVisible(errors > 0)
     
-    def _save_species_aliases(self, aliases_to_save: Dict[str, dict]):
-        """Save species aliases to database and memory."""
-        for original_name, uksi_data in aliases_to_save.items():
-            self.alias_service.save_alias(
-                input_name=original_name,
-                uksi_name=uksi_data.get('scientific_name', ''),
-                uksi_tvk=uksi_data.get('tvk', ''),
-                uksi_common_name=uksi_data.get('common_name', ''),
-                uksi_order=uksi_data.get('order_name', ''),
-                uksi_family=uksi_data.get('family', ''),
-                uksi_subfamily=uksi_data.get('subfamily', '')
-            )
-            # Add to in-memory aliases
-            key = original_name.lower().strip()
-            self.species_aliases[key] = {
-                'uksi_name': uksi_data.get('scientific_name', ''),
-                'uksi_tvk': uksi_data.get('tvk', ''),
-                'uksi_common_name': uksi_data.get('common_name', ''),
-                'uksi_order': uksi_data.get('order_name', ''),
-                'uksi_family': uksi_data.get('family', ''),
-                'uksi_subfamily': uksi_data.get('subfamily', '')
-            }
-        
-        print(f"[SpecimenImportWizard] Saved {len(aliases_to_save)} new species aliases")
-    
     def _apply_species_resolutions(self, resolutions: Dict[str, dict]):
         """Apply species resolutions to validated rows."""
         for row in self.validated_rows:
             if row.species_name in resolutions:
-                uksi_data = resolutions[row.species_name]
-                original_name = row.species_name
-                
-                # Update row with resolved data
-                new_name = uksi_data.get('scientific_name', row.species_name)
-                row.species_name = new_name
-                row.species_tvk = uksi_data.get('tvk', '')
-                row.common_name = uksi_data.get('common_name', '')
-                row.order_name = uksi_data.get('order_name', '')
-                row.family = uksi_data.get('family', '')
-                row.subfamily = uksi_data.get('subfamily', '')
-                
-                row.import_notes = f"Original: '{original_name}' → Resolved via bulk lookup to '{new_name}'"
-                
-                # Update status
-                if row.status == RowStatus.ERROR and "Species not found" in row.error_message:
-                    other_errors = [e for e in row.error_message.split("; ")
-                                    if "Species not found" not in e]
-                    if other_errors:
-                        row.error_message = "; ".join(other_errors)
-                    else:
-                        row.status = RowStatus.WARNING if row.warnings else RowStatus.VALID
-                        row.error_message = ""
-                        if row.warnings:
-                            row.warnings.append("Species resolved via bulk lookup")
-                        else:
-                            row.warnings = ["Species resolved via bulk lookup"]
-                
+                apply_confirmed(row, resolutions[row.species_name], row.species_name,
+                                "resolved by you")
                 self._update_row_in_table(row)
     
     def _update_row_in_table(self, row):

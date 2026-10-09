@@ -1,0 +1,33 @@
+# Lint settings for the whole suite (backlog I5).
+#
+#   py -3.14 -m pip install ruff          once
+#   py -3.14 -m ruff check .              whole tree -- should say "All checks passed!"
+#   py -3.14 scripts\install_git_hooks.py once -- checks the files you commit, every commit
+#
+# Only the pyflakes rules (F) plus syntax errors (E9): the ones that find real
+# mistakes -- unused or missing imports, undefined names, repeated dict keys.
+# No style rules, so nothing reformats your code.
+
+extend-exclude = [
+    "_archive",
+    "_backups",
+    "_dump",
+    "data",
+    "Observatum/BackUps",
+    "Observatum/test data",
+    "scripts/_oneoff",
+    "*.bak*",
+]
+
+[lint]
+select = ["E9", "F"]
+# Left off for now because the tree already holds many (Oct 2026: 109 and 54);
+# both are harmless. Remove a line here to start enforcing it.
+ignore = [
+    "F541",  # f-string with no {placeholders}
+    "F841",  # local variable assigned but never used
+]
+
+[lint.per-file-ignores]
+# Package __init__ files re-export names on purpose.
+"__init__.py" = ["F401", "F403"]

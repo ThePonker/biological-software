@@ -9,9 +9,9 @@ from PySide6.QtWidgets import (
     QFrame, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QLineEdit, QComboBox, QScrollArea, QWidget
 )
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, QTimer, Signal
 
-from ...models.database import get_database
+from ...services.map_square_service import search_species
 from ...themes import theme
 from ...core.config import TabColors
 
@@ -22,6 +22,9 @@ class MapFilterPanel(QFrame):
     species_selected = Signal(dict)
     species_cleared = Signal()
     generate_requested = Signal()
+    square_clicked = Signal(str)   # a row in the grid-square list (H4)
+
+    GRID_LIST_MAX = 200            # rows shown; the rest are summarised in one line
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -93,9 +96,15 @@ class MapFilterPanel(QFrame):
         species_group.addWidget(species_label)
         
         self.species_search = QLineEdit()
-        self.species_search.setPlaceholderText("Search your species...")
+        self.species_search.setPlaceholderText("Scientific or common name...")
         self.species_search.setMinimumHeight(32)
-        self.species_search.textChanged.connect(self._on_search_changed)
+        # Debounced: each search reads three tables and UKSI (~0.2 s), so wait for a pause
+        self._search_timer = QTimer(self)
+        self._search_timer.setSingleShot(True)
+        self._search_timer.setInterval(250)
+        self._search_timer.timeout.connect(
+            lambda: self._on_search_changed(self.species_search.text()))
+        self.species_search.textChanged.connect(lambda _t: self._search_timer.start())
         species_group.addWidget(self.species_search)
         
         # Search results dropdown
@@ -274,7 +283,7 @@ class MapFilterPanel(QFrame):
         self.style_combo.addItems([
             'Presence (filled squares)',
             'Density (colour gradient)',
-            'Date classes (by decade)'
+            'Date classes (time period)'
         ])
         style_group.addWidget(self.style_combo)
         layout.addLayout(style_group)
@@ -396,37 +405,24 @@ class MapFilterPanel(QFrame):
         return item
     
     def _search_recorded_species(self, text: str) -> list:
-        """Search for species in your observations."""
+        """Your recorded species matching a scientific or common name (H6).
+
+        Every word must appear ("wasp beet" -> Clytus arietis); common names come from the
+        records and from UKSI, so a species recorded without one is still found by it.
+        """
         try:
-            db = get_database()
-            query = """
-                SELECT species_name, species_tvk, common_name, COUNT(*) as record_count
-                FROM observations
-                WHERE species_name LIKE ? OR common_name LIKE ?
-                GROUP BY species_tvk
-                ORDER BY record_count DESC
-                LIMIT 10
-            """
-            search_term = f"%{text}%"
-            results = db.execute_main(query, (search_term, search_term))
-            
-            species_list = []
-            for row in results:
-                species_list.append({
-                    'scientific_name': row[0],
-                    'tvk': row[1],
-                    'common_name': row[2],
-                    'records': row[3]
-                })
-            return species_list
+            return search_species(text, "all")
         except Exception as e:
             print(f"Error searching species: {e}")
             return []
-    
+
     def _select_species(self, species: dict):
         """Select a species."""
         self._selected_species = species
+        self.species_search.blockSignals(True)
         self.species_search.setText(species['scientific_name'])
+        self.species_search.blockSignals(False)
+        self._search_timer.stop()
         self.results_frame.hide()
         
         # Show selected card
@@ -447,33 +443,47 @@ class MapFilterPanel(QFrame):
         self.species_cleared.emit()
     
     def set_grid_squares(self, squares: list):
-        """Update the grid squares list."""
+        """Update the grid squares list (most records first). Click a row to see its records."""
         t = theme()
         # Clear existing
         while self.grid_list.count():
             item = self.grid_list.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
-        
+
         self.grid_title.setText(f"GRID SQUARES ({len(squares)})")
-        
-        for sq in squares:
+
+        ordered = sorted(squares, key=lambda sq: (-sq['count'], sq['grid']))
+        for sq in ordered[:self.GRID_LIST_MAX]:
             row = QHBoxLayout()
-            
+            row.setContentsMargins(4, 2, 4, 2)
+
             grid_label = QLabel(sq['grid'])
             grid_label.setStyleSheet(f"font-family: monospace; color: {t.get('text_heading')};")
             row.addWidget(grid_label)
-            
+
             row.addStretch()
-            
-            count_label = QLabel(f"{sq['count']} records")
+
+            n = sq['count']
+            count_label = QLabel(f"{n} record{'s' if n != 1 else ''}")
             count_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 11px;")
             row.addWidget(count_label)
-            
-            container = QWidget()
+
+            container = QFrame()
             container.setLayout(row)
+            container.setCursor(Qt.CursorShape.PointingHandCursor)
+            container.setToolTip("Show the records in this square")
+            container.setStyleSheet(
+                f"QFrame:hover {{ background-color: {self._accent_light}; }}")
+            container.mousePressEvent = lambda e, g=sq['grid']: self.square_clicked.emit(g)
             self.grid_list.addWidget(container)
-    
+
+        if len(ordered) > self.GRID_LIST_MAX:
+            more = QLabel(f"\u2026 and {len(ordered) - self.GRID_LIST_MAX} more "
+                          f"(click them on the map)")
+            more.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 11px;")
+            self.grid_list.addWidget(more)
+
     def get_selected_species(self):
         """Get the currently selected species."""
         return self._selected_species

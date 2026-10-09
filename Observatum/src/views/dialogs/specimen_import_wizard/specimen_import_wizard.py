@@ -77,16 +77,14 @@ class SpecimenImportWizard(
         self.db = db
         self.specimen_model = specimen_model
         self.vc_db_path = None
-        self.alias_service = None
-        self.species_aliases: Dict[str, dict] = {}
         
         # Tab colors for Collection
         self._accent = TabColors.COLLECTION
         self._accent_light = TabColors.COLLECTION_LIGHT
         self._accent_dark = TabColors.COLLECTION_DARK
         
-        # Initialize services
-        self._init_alias_service()
+        # Initialize services (saved species aliases are no longer used: UKSI synonyms
+        # cover them -- 9 Oct 2026)
         self._init_vc_service(vc_service)
         
         self.setWindowTitle("Import Specimen Collection")
@@ -107,20 +105,6 @@ class SpecimenImportWizard(
         self._edited_row_indices: set = set()
         
         self._setup_ui()
-    
-    def _init_alias_service(self):
-        """Initialize the species alias service."""
-        try:
-            from src.services.species_alias_service import SpeciesAliasService
-            self.alias_service = SpeciesAliasService(db_manager=self.db)
-            self._load_aliases()
-        except ImportError:
-            try:
-                from services.species_alias_service import SpeciesAliasService
-                self.alias_service = SpeciesAliasService(db_manager=self.db)
-                self._load_aliases()
-            except ImportError:
-                print("[SpecimenImportWizard] Could not import SpeciesAliasService")
     
     def _init_vc_service(self, vc_service):
         """Initialize the VC lookup service."""
@@ -143,27 +127,6 @@ class SpecimenImportWizard(
             self.vc_service = vc_service
             if hasattr(vc_service, '_db_path') and vc_service._db_path:
                 self.vc_db_path = vc_service._db_path
-    
-    def _load_aliases(self):
-        """Load species aliases from database."""
-        if not self.alias_service:
-            return
-        
-        try:
-            aliases = self.alias_service.get_all_aliases()
-            for alias in aliases:
-                key = alias['input_name'].lower().strip()
-                self.species_aliases[key] = {
-                    'uksi_name': alias['uksi_name'],
-                    'uksi_tvk': alias.get('uksi_tvk', ''),
-                    'uksi_common_name': alias.get('uksi_common_name', ''),
-                    'uksi_order': alias.get('uksi_order', ''),
-                    'uksi_family': alias.get('uksi_family', ''),
-                    'uksi_subfamily': alias.get('uksi_subfamily', '')
-                }
-            print(f"[SpecimenImportWizard] Loaded {len(self.species_aliases)} species aliases")
-        except Exception as e:
-            print(f"[SpecimenImportWizard] Error loading aliases: {e}")
     
     def _setup_ui(self):
         """Set up the wizard UI."""
@@ -431,7 +394,7 @@ class SpecimenImportWizard(
                     'determiner': row.determiner,
                     'preparation_type': row.preparation_type,
                     'storage_location': row.storage_location,
-                    'drawer_unit': row.drawer_unit,
+                    'drawer_number': row.drawer_number,
                     'condition': row.condition,
                     'label_data': row.label_data,
                     'notes': row.notes,

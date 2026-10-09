@@ -282,6 +282,9 @@ class StagingTableModel(QAbstractTableModel):
                 return ("Not matched to a species -- no TVK. Type over it to choose; "
                         "the commit check lists any left.")
             return None
+        if (index.isValid() and role in (Qt.ItemDataRole.BackgroundRole, Qt.ItemDataRole.ToolTipRole)
+                and COLUMNS[index.column()][0] == "date" and not self._is_virtual(index.row())):
+            return self._date_flag(self._rows[index.row()].get("date"), role)
         if not index.isValid() or role not in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole):
             return None
         if self._is_virtual(index.row()):
@@ -292,6 +295,28 @@ class StagingTableModel(QAbstractTableModel):
             from DataEntry import date_utils
             return date_utils.to_display(val)  # show/edit as dd/mm/yyyy; stored as ISO
         return "" if val is None else str(val)
+
+    @staticmethod
+    def _date_flag(value, role):
+        """DE1: an unreadable date ('31/02/2026', 'summer') or a future one shows in its cell."""
+        from DataEntry import date_utils
+        if value in (None, ""):
+            return None
+        if not date_utils.is_readable(value):
+            msg = ("Can't read this date -- type dd/mm/yyyy, mm/yyyy (or Jun 2026) or a year. "
+                   "It stays in staging until it can be read.")
+            bg = theme.CLAY_BG
+        elif date_utils.is_future(value):
+            msg, bg = "This date is in the future.", theme.GOLD_BG
+        else:
+            kind = date_utils.date_type(value)
+            if role == Qt.ItemDataRole.ToolTipRole and kind in ("O", "Y"):
+                return "Month and year only" if kind == "O" else "Year only"
+            return None
+        if role == Qt.ItemDataRole.BackgroundRole:
+            from PySide6.QtGui import QColor
+            return QColor(bg)
+        return msg
 
     def _materialize_to(self, r: int) -> None:
         """Ensure row index r is a real staging row, creating blank rows up to it if needed.
@@ -422,20 +447,26 @@ class StagingTableModel(QAbstractTableModel):
         return True
 
     def _derive_vc(self, r: int):
-        """Auto-fill VC from the row's grid ref via the VC service (no clobber if lookup fails)."""
-        if not self._vc_service or not (0 <= r < len(self._rows)):
+        """VC from the row's grid ref via the VC service. A cleared or unreadable grid ref
+        clears the VC (DE2: 'XX123' kept the previous VC41). Without a VC service only a
+        cleared grid ref clears it -- nothing can be checked."""
+        if not (0 <= r < len(self._rows)):
             return
         row = self._rows[r]
         gr = (row.get("grid_ref") or "").strip()
         if not gr:
+            res = (None, None)
+        elif not self._vc_service:
             return
-        try:
-            res = self._vc_service.get_vc_from_grid_ref(gr)
-        except Exception:
-            res = None
-        if not res:
-            return
+        else:
+            try:
+                res = self._vc_service.get_vc_from_grid_ref(gr)
+            except Exception:
+                res = None
+            res = res or (None, None)
         vc_num, vc_name = res
+        if row.get("vc_number") == vc_num and row.get("vice_county") == vc_name:
+            return
         updates = {"vice_county": vc_name, "vc_number": vc_num}
         row.update(updates)
         repo.update_row(self._conn, row["id"], updates)
@@ -604,7 +635,7 @@ class _NumberDelegate(_EnterMovesDown, QStyledItemDelegate):
         model.setData(index, editor.value(), Qt.ItemDataRole.EditRole)
 
 
-from shared.species_rank import rank_matches, resolve_name   # one ranking + one decision for every species search
+from shared.species_rank import resolve_name   # one decision for every species search
 
 
 def _to_species_dict(r):
@@ -1283,6 +1314,7 @@ class EntryGridPage(QWidget):
         self._sexes, _ = load_sexes()
         self._methods, _ = load_methods()
         self._model = StagingTableModel(conn, job_id, vc_service, self)
+        self.before_change = None   # staging CSV before Discard / Export-and-clear (DE8)
         self._build_ui()
 
     def _build_ui(self):
@@ -1460,11 +1492,18 @@ class EntryGridPage(QWidget):
         self._commit_btn = QPushButton("Commit to Observatum")
         self._commit_btn.setStyleSheet(theme.button_primary_qss())
         self._commit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._commit_btn.clicked.connect(self._do_commit)
-        if self._commit_cb is None:
+        if not self._is_commercial():
+            # Personal records go to iRecord first and come back by the sync (DE7)
+            self._commit_btn.setText("Export for iRecord")
+            self._commit_btn.setToolTip("Write a CSV for iRecord's import. The job is kept until "
+                                        "Check iRecord return finds every record back.")
+            self._commit_btn.clicked.connect(self._do_irecord_export)
+        elif self._commit_cb is None:
             self._commit_btn.setEnabled(False)
             pass  # disabled look handled by button_primary_qss :disabled
             self._commit_btn.setToolTip("Commit is disabled here (preview / not launched against Observatum)")
+        if self._is_commercial():
+            self._commit_btn.clicked.connect(self._do_commit)
         fin_row.addWidget(self._commit_btn)
         self._export_btn = QPushButton("Export\u2026")
         self._export_btn.setStyleSheet(theme.button_secondary_qss())
@@ -1617,7 +1656,8 @@ class EntryGridPage(QWidget):
             row = self._conn.execute(
                 "SELECT j.mode, COUNT(*) FROM entry_staging s "
                 "JOIN entry_jobs j ON j.id = s.job_id "
-                "WHERE s.species_tvk=? GROUP BY j.mode", (tvk,)).fetchall()
+                f"WHERE s.species_tvk=? AND j.status IN ({','.join('?' * len(repo.PENDING_STATUSES))}) "
+                "GROUP BY j.mode", (tvk, *repo.PENDING_STATUSES)).fetchall()
             out = {"personal": 0, "commercial": 0}
             for mode, n in row:
                 if str(mode or "").lower().startswith("comm"):
@@ -1684,11 +1724,25 @@ class EntryGridPage(QWidget):
         try:
             summary = self._commit_cb(self._job_id, embargo)
         except Exception as e:
+            # commit_job reports a part-way failure in its summary; an exception here came
+            # before the first record was written
             QMessageBox.warning(self, "Commit failed", f"Nothing was committed.\n\n{e}")
             return
         if summary is None:
             QMessageBox.warning(self, "Commit failed",
                                 "Could not write to Observatum. Nothing was committed.")
+            return
+        if summary.get("error"):
+            # DE4: part-way -- say how many were written, and refresh Observation Data
+            n = int(summary.get("committed") or 0)
+            QMessageBox.warning(
+                self, "Commit stopped",
+                f"Committed {n} record(s), then stopped:\n\n{summary['error']}\n\n"
+                f"{summary.get('remaining', 0)} row(s) are still in staging. The {n} written are "
+                f"in Observatum under {summary.get('batch')}.")
+            if n:
+                self.committed.emit(n)
+            self.finished.emit()
             return
         bits = [f"Committed {summary['committed']} record(s)."]
         detail = []
@@ -1696,6 +1750,11 @@ class EntryGridPage(QWidget):
             detail.append(f"{summary['skipped_species']} skipped (no species)")
         if summary.get("skipped_date"):
             detail.append(f"{summary['skipped_date']} skipped (no date)")
+        if summary.get("skipped_bad_date"):
+            detail.append(f"{summary['skipped_bad_date']} skipped (date unreadable)")
+        if summary.get("taxonomy_error"):
+            detail.append("taxon group and sort key not written (UKSI unreadable: "
+                          f"{summary['taxonomy_error']})")
         if summary.get("unresolved"):
             detail.append(f"{summary['unresolved']} committed without a TVK")
         if summary.get("future"):
@@ -1723,10 +1782,14 @@ class EntryGridPage(QWidget):
             shown = ", ".join(str(x) for x in v[:limit])
             return shown + (f" \u2026 (+{len(v) - limit} more)" if len(v) > limit else "")
 
-        labels = {"no site": "no site name", "no grid ref": "no grid reference",
+        labels = {"unreadable date": "a date that can't be read (left in staging)",
+                  "future date": "a date in the future",
+                  "no site": "no site name", "no grid ref": "no grid reference",
+                  "no VC": "no vice-county", "no recorder": "no recorder",
                   "no TVK": "species not matched (no TVK)"}
         lines = []
-        for key in ("no site", "no grid ref", "no TVK"):
+        for key in ("unreadable date", "future date", "no site", "no grid ref", "no VC",
+                    "no recorder", "no TVK"):
             if key in found:
                 v = found[key]
                 lines.append(f"\u2022 {len(v)} with {labels[key]}: rows {rows_text(v)}")
@@ -1757,6 +1820,8 @@ class EntryGridPage(QWidget):
         path, _ = QFileDialog.getSaveFileName(self, "Export job to CSV", default, "CSV files (*.csv)")
         if not path:
             return
+        if clear_after and not self._safety_copy("Export and clear"):
+            return
         try:
             if clear_after:
                 n = cs.export_and_discard(self._conn, self._job, path, COLUMNS)
@@ -1781,8 +1846,25 @@ class EntryGridPage(QWidget):
         msg += "\n\nThis removes only staged working data \u2014 nothing already in Observatum."
         if QMessageBox.question(self, "Discard job", msg) != QMessageBox.StandardButton.Yes:
             return
+        if not self._safety_copy("Discard"):
+            return
         cs.discard_job(self._conn, self._job)
         self.finished.emit()
+
+    def _safety_copy(self, what: str) -> bool:
+        """Staging CSV before rows are cleared (DE8). False = stop."""
+        if self.before_change is None or self.before_change():
+            return True
+        return QMessageBox.question(
+            self, "Safety copy failed",
+            f"The staging safety copy (staging_backup.csv) could not be written.\n\n{what} "
+            "anyway?") == QMessageBox.StandardButton.Yes
+
+    def _do_irecord_export(self):
+        """Personal job: CSV for iRecord's import; the job waits for the records (DE7)."""
+        from DataEntry.irecord_return_dialog import export_for_irecord
+        if export_for_irecord(self, self._conn, repo.get_job(self._conn, self._job_id) or self._job):
+            self.finished.emit()
 
     # -- saved column layout (drag-reorder + show/hide via QSettings) ---------
     _HEADER_KEY = "DataEntry/gridHeaderState"

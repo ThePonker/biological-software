@@ -7,7 +7,6 @@ directly for autocomplete. Manual entry editor for adding statuses
 from published reviews. Naturalist theme.
 """
 
-import sqlite3
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QSplitter, QListWidget, QListWidgetItem,
@@ -280,8 +279,16 @@ class SpeciesDatabaseView(QWidget):
                 sl.setWordWrap(True)
                 self.status_grid.addWidget(sl, i, 2)
         else: self.status_group.hide()
+        if getattr(status, "status_note", ""):
+            # Not the species' own: held by its sensu-lato / aggregate counterpart.
+            nl = QLabel(f"({status.status_note}: {status.status_from_tvk})")
+            nl.setStyleSheet("color: " + TEXT_MUTED + "; font-size: 10px; border: none;")
+            self.status_grid.addWidget(nl, len(rows), 0, 1, 3)
         if status.sqs:
-            self.sqs_label.setText(f"Species Quality Score (SQS): {status.sqs}")
+            # A score Pantheon does not publish, derived from current status by its
+            # rule, says so -- as in the workbook (EXA7).
+            derived = " (derived)" if getattr(status, "sqs_derived", False) else ""
+            self.sqs_label.setText(f"Species Quality Score (SQS): {status.sqs}{derived}")
             self.sqs_label.setStyleSheet("font-size: 12px; color: " + ACCENT_DARK + "; font-weight: bold;")
         else: self.sqs_label.setText("")
 

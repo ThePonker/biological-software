@@ -15,6 +15,9 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QModelIndex
 
+from shared.species_lookup import is_unresolved_error
+from shared.species_lookup_entries import apply_confirmed
+
 from .validation_worker import SchemeImportRow, RowStatus, SchemeValidationWorker, SchemeImportMode
 from .validation_table_model import SchemeValidationTableModel
 from src.themes import theme
@@ -233,6 +236,45 @@ class WizardValidationMixin:
             self.match_report_btn.setEnabled(True)
         if hasattr(self, "revalidate_btn"):
             self.revalidate_btn.setEnabled(True)
+        if hasattr(self, "resolve_species_btn"):
+            self.resolve_species_btn.setVisible(bool(self._get_unmatched_species()))
+
+    def _get_unmatched_species(self) -> List[str]:
+        """Names not found in UKSI, or held more than once: they wait for the user's choice."""
+        return sorted({r.species_name for r in self.validated_rows
+                       if r.status == RowStatus.ERROR and is_unresolved_error(r.error_message)})
+
+    def _open_resolve_species_dialog(self):
+        """Choose the UKSI taxon for each unmatched name (suggestions shown; nothing automatic)."""
+        unmatched = self._get_unmatched_species()
+        if not unmatched:
+            QMessageBox.information(self, "No Errors", "No unmatched species to resolve.")
+            return
+        from ..specimen_import_wizard.bulk_resolution_dialog import BulkSpeciesResolutionDialog
+        from ....core.config import TabColors
+        dialog = BulkSpeciesResolutionDialog(
+            self, uksi_model=self.uksi_model, unmatched_species=unmatched,
+            accent=TabColors.RECORDING_SCHEME, accent_light=TabColors.RECORDING_SCHEME_LIGHT,
+            accent_dark=TabColors.RECORDING_SCHEME_DARK)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            resolutions = dialog.get_resolutions()
+            for row in self.validated_rows:
+                if row.species_name in resolutions:
+                    apply_confirmed(row, resolutions[row.species_name], row.species_name,
+                                    "resolved by you")
+            self._refresh_after_species_change()
+
+    def _refresh_after_species_change(self):
+        """Redraw the table and counters after rows were resolved or re-matched."""
+        if hasattr(self, 'validation_model') and self.validation_model:
+            self.validation_model.set_data(self.validated_rows)
+        valid = sum(1 for r in self.validated_rows if r.status == RowStatus.VALID)
+        warnings = sum(1 for r in self.validated_rows if r.status == RowStatus.WARNING)
+        errors = sum(1 for r in self.validated_rows if r.status == RowStatus.ERROR)
+        self._on_counts_updated(valid, warnings, errors)
+        self._update_confirmation_counts()
+        if hasattr(self, "resolve_species_btn"):
+            self.resolve_species_btn.setVisible(bool(self._get_unmatched_species()))
 
     def _on_table_double_clicked(self, index: QModelIndex):
         """Handle double-click on QTableView."""
@@ -417,7 +459,17 @@ class WizardValidationMixin:
         try:
             from .species_match_report import SpeciesMatchReportDialog
             uksi = getattr(self, 'uksi_model', None)
-            dialog = SpeciesMatchReportDialog(self.validated_rows, self, uksi_model=uksi)
+            mode = self._get_selected_mode()
+            if mode == SchemeImportMode.IRECORD:
+                name_columns = ["Taxon"]
+            elif mode == SchemeImportMode.NBN_ATLAS:
+                name_columns = ["scientificName", "Scientific name"]
+            else:
+                name_columns = [self._get_column_mapping().get("species_name", "")]
+            dialog = SpeciesMatchReportDialog(self.validated_rows, self, uksi_model=uksi,
+                                              name_columns=name_columns)
             dialog.exec()
+            if dialog.changed_rows():
+                self._refresh_after_species_change()
         except Exception as e:
             print(f"Match report error: {e}")

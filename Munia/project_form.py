@@ -3,9 +3,9 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QComboBox,
     QPushButton, QDoubleSpinBox, QSpinBox, QTableWidget, QTableWidgetItem,
-    QDateEdit, QHeaderView, QSizePolicy
+    QHeaderView, QSizePolicy
 )
-from PySide6.QtCore import Qt, QDate, Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont, QColor, QBrush
 from Munia.theme import (
     STONE_BORDER, BODY_FAMILY, HEADING_FAMILY,
@@ -13,6 +13,7 @@ from Munia.theme import (
 )
 from Munia import munia_data as db
 from Munia.munia_data import BIZ_MONTHS, BIZ_LABELS
+from Munia.deadline_edit import DeadlineEdit
 
 STATUSES = ["quoted", "accepted", "complete", "declined", "no_response"]
 STATUS_DISPLAY = {
@@ -130,10 +131,10 @@ class ProjectForm(QWidget):
         yr_row = QHBoxLayout()
         yr_row.setSpacing(8)
         yr_row.addWidget(self._lbl("ID due:"))
-        self.id_deadline = self._make_date()
+        self.id_deadline = DeadlineEdit()
         yr_row.addWidget(self.id_deadline)
         yr_row.addWidget(self._lbl("Report due:"))
-        self.report_deadline = self._make_date()
+        self.report_deadline = DeadlineEdit()
         yr_row.addWidget(self.report_deadline)
         yr_row.addWidget(self._lbl("Notes:"))
         self.notes_edit = QLineEdit()
@@ -209,26 +210,12 @@ class ProjectForm(QWidget):
         l = QLabel(text)
         l.setStyleSheet(f"font-size: 12px; color: {TEXT_MID};")
         return l
-    def _make_date(self):
-        de = QDateEdit()
-        de.setCalendarPopup(True)
-        de.setDisplayFormat("dd/MM/yyyy")
-        de.setSpecialValueText("Not set")
-        de.setMinimumDate(QDate(self._view_year, 1, 1))
-        de.setDate(de.minimumDate())
-        de.setFixedWidth(120)
-        return de
+    # Deadlines: any date or none -- DeadlineEdit (MUN-2: the old minimum of 1 Jan of
+    # the season shown turned earlier deadlines into "Not set", and saving erased them)
     def _deadline_str(self, widget):
-        if widget.date() == widget.minimumDate():
-            return ""
-        return widget.date().toString("yyyy-MM-dd")
+        return widget.value()
     def _set_deadline(self, widget, date_str):
-        if date_str:
-            d = QDate.fromString(date_str, "yyyy-MM-dd")
-            if d.isValid():
-                widget.setDate(d)
-                return
-        widget.setDate(widget.minimumDate())
+        widget.set_value(date_str)
     def _alloc_label(self):
         y = self._alloc_year
         return f"{y}/{y + 1}"
@@ -297,8 +284,8 @@ class ProjectForm(QWidget):
         self.quote_spin.setValue(0)
         self.start_year_spin.setValue(self._view_year)
         self.end_year_spin.setValue(self._view_year)
-        self.id_deadline.setDate(self.id_deadline.minimumDate())
-        self.report_deadline.setDate(self.report_deadline.minimumDate())
+        self.id_deadline.clear()
+        self.report_deadline.clear()
         self.notes_edit.clear()
         self.field_grid.blockSignals(True)
         for col in range(12):

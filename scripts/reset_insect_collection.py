@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS specimens (
     sex TEXT,
     preparation_type TEXT,
     storage_location TEXT,
-    drawer_unit TEXT,
+    drawer_number TEXT,
     condition TEXT,
     label_data TEXT,
     notes TEXT,

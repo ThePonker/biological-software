@@ -12,13 +12,15 @@ from PySide6.QtWidgets import (
     QTableWidget, QTableWidgetItem, QHeaderView, QMessageBox, QFrame
 )
 
-from .validation_worker import RowStatus
+from ..import_common.problem_export import ProblemExportMixin
 
 from ....themes import theme
 
 
-class WizardFileMixin:
+class WizardFileMixin(ProblemExportMixin):
     """Mixin providing file handling methods for SpecimenImportWizard."""
+
+    PROBLEMS_FILE_NAME = "specimen_import_problems.csv"     # _export_problems: import_common (C4)
     
     def _browse_file(self):
         """Open file browser dialog."""
@@ -116,7 +118,7 @@ class WizardFileMixin:
             ('specimen_code', 'Specimen Code', False),
             ('preparation_type', 'Preparation Type', False),
             ('storage_location', 'Storage Location', False),
-            ('drawer_unit', 'Drawer/Unit', False),
+            ('drawer_number', 'Drawer/Unit', False),
             ('condition', 'Condition', False),
             ('label_data', 'Label Data', False),
             ('notes', 'Notes', False),
@@ -192,7 +194,7 @@ class WizardFileMixin:
             'specimen_code': ['specimen code', 'code', 'specimen id', 'id', 'catalog'],
             'preparation_type': ['prep', 'preparation', 'prep type', 'mount', 'mounting'],
             'storage_location': ['storage', 'cabinet', 'box', 'storage location'],
-            'drawer_unit': ['drawer', 'unit', 'tray'],
+            'drawer_number': ['drawer', 'unit', 'tray'],
             'condition': ['condition', 'state'],
             'label_data': ['label', 'labels', 'label data'],
             'notes': ['notes', 'remarks', 'comments'],
@@ -221,46 +223,3 @@ class WizardFileMixin:
             if col_name:
                 mapping[field_id] = col_name
         return mapping
-    
-    def _export_problems(self):
-        """Export problem rows to CSV for manual correction."""
-        problems = [r for r in self.validated_rows
-                    if r.status in (RowStatus.ERROR, RowStatus.WARNING)]
-        
-        if not problems:
-            QMessageBox.information(self, "No Problems", "No problem rows to export.")
-            return
-        
-        file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Export Problem Rows",
-            "specimen_import_problems.csv",
-            "CSV Files (*.csv)"
-        )
-        
-        if not file_path:
-            return
-        
-        try:
-            with open(file_path, 'w', newline='', encoding='utf-8') as f:
-                fieldnames = ['_Status', '_Row', '_Error'] + self.columns
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
-                writer.writeheader()
-                
-                for row in problems:
-                    output_row = {
-                        '_Status': row.status.value,
-                        '_Row': row.row_number,
-                        '_Error': row.error_message,
-                    }
-                    output_row.update(row.raw_data)
-                    writer.writerow(output_row)
-            
-            QMessageBox.information(
-                self,
-                "Export Complete",
-                f"Exported {len(problems)} problem rows to:\n{file_path}"
-            )
-            
-        except Exception as e:
-            QMessageBox.critical(self, "Export Error", f"Failed to export:\n{str(e)}")

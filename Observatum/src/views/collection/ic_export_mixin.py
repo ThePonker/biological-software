@@ -90,7 +90,7 @@ class ICExportMixin:
             ('sex', 'Sex'),
             ('preparation_type', 'Prep Type'),
             ('storage_location', 'Storage'),
-            ('drawer_unit', 'Drawer'),
+            ('drawer_number', 'Drawer'),
             ('condition', 'Condition'),
             ('label_data', 'Label Data'),
             ('notes', 'Notes'),

@@ -20,7 +20,7 @@
 | **Three grid-ref implementations** | **Not yet cost anything. Would produce wrong vice-counties, silently.** |
 | The SQI arithmetic in four places | Now one call to `compute_sqi` |
 | `status_detail` applied to `legal_protection` but not `priority` | 2,303 conservation facts lost |
-| **Species lookup in three import wizards** | Not yet a wrong result -- but every matching change (a UKSI update, kept taxa) must be made three times. Backlog C4 |
+| **Species lookup in three import wizards** | Not yet a wrong result -- but every matching change (a UKSI update, kept taxa) must be made three times. Now one: `shared/species_lookup.py` (C4, 9 Oct), the differences kept as named options |
 
 That last one is a variant worth naming separately: **written once, applied to
 one case, forgotten for the other, in the same dictionary in the same file.**

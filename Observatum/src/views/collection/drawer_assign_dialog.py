@@ -62,7 +62,7 @@ class PreviewDialog(QDialog):
                       f"{storage}{' · ' if storage and drawer else ''}{drawer}")
         head.setStyleSheet("font-size: 15px;")
         v.addWidget(head)
-        names = {"storage_location": "Storage location", "drawer_unit": "Drawer",
+        names = {"storage_location": "Storage location", "drawer_number": "Drawer",
                  "condition": "Condition", "preparation_type": "Preparation"}
         summ = da.summary(changes)
         v.addWidget(QLabel("   ".join(f"{names[f]}: {n}" for f, n in summ.items())))
@@ -144,7 +144,7 @@ class DrawerAssignDialog(QDialog):
         self.cmb_storage.setMinimumWidth(170)
         b.addWidget(self.cmb_storage)
         b.addWidget(QLabel("Drawer"))
-        self.cmb_drawer = _combo(self._distinct("drawer_unit"))
+        self.cmb_drawer = _combo(self._distinct("drawer_number"))
         self.cmb_drawer.setMinimumWidth(150)
         b.addWidget(self.cmb_drawer)
         hint = QLabel("Tick each specimen as you find it. The list is in taxonomic order.")
@@ -269,7 +269,7 @@ class DrawerAssignDialog(QDialog):
             key = {"order": "order_name", "family": "family", "genus": "genus"}[kind]
             if (s.get(key) or "") != val and not (val.startswith("(no ") and not s.get(key)):
                 return False
-        placed = bool((s.get("storage_location") or "").strip() or (s.get("drawer_unit") or "").strip())
+        placed = bool((s.get("storage_location") or "").strip() or (s.get("drawer_number") or "").strip())
         here = placed and not da.elsewhere(s, self.cmb_storage.currentText(), self.cmb_drawer.currentText())
         if s["id"] in self._ticked or here:
             return True
@@ -296,7 +296,7 @@ class DrawerAssignDialog(QDialog):
                 self.list.addTopLevelItem(h)
             away = da.elsewhere(s, storage, drawer)
             now = " · ".join(x for x in ((s.get("storage_location") or "").strip(),
-                                         (s.get("drawer_unit") or "").strip()) if x) or "—"
+                                         (s.get("drawer_number") or "").strip()) if x) or "—"
             it = QTreeWidgetItem([s["species_name"] or "", s.get("date_collected") or "",
                                   s.get("site_name") or "", s.get("sex") or "", now])
             f = it.font(0); f.setItalic(True); it.setFont(0, f)
@@ -316,7 +316,7 @@ class DrawerAssignDialog(QDialog):
             self.list.resizeColumnToContents(c)
         self.list.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         scope = self._filter[1] if self._filter else "All specimens"
-        free = sum(1 for s in shown if not (s.get("drawer_unit") or s.get("storage_location")))
+        free = sum(1 for s in shown if not (s.get("drawer_number") or s.get("storage_location")))
         self.lbl_scope.setText(f"{scope} — {len(shown):,} shown, {free:,} not yet in a drawer")
         self._building = False
         self._update_summary()

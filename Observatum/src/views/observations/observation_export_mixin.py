@@ -11,24 +11,12 @@ class ObservationExportMixin:
 
     def _on_export_selected(self):
         """Export selected (checked) observations."""
-        checked_rows = self.table_model.get_checked_rows()
-        if not checked_rows:
+        # The ticked records themselves, held by id: a sort cannot swap them (OBS-01).
+        # (This used to map model row numbers through the proxy a second time.)
+        observations = self.table_model.get_checked_observations()
+        if not observations:
             from PySide6.QtWidgets import QMessageBox
             QMessageBox.information(self, "No Selection", "Please check at least one row to export.")
-            return
-
-        # Get observations for checked rows
-        observations = []
-        for row in checked_rows:
-            obs = self._get_observation_at_row(row)
-            if obs:
-                # Convert to dict if needed
-                if isinstance(obs, dict):
-                    observations.append(obs)
-                else:
-                    observations.append(obs.__dict__ if hasattr(obs, '__dict__') else vars(obs))
-
-        if not observations:
             return
 
         self._export_observations(observations, "Export Selected Observations")
@@ -111,38 +99,28 @@ class ObservationExportMixin:
 
         use_irecord = irecord_radio.isChecked()
 
-        # Filter embargoed records for iRecord export
-        embargo_excluded = 0
-        never_upload_excluded = 0
+        # Filter records that must not go to iRecord
         if use_irecord:
-            from datetime import date
-            today = date.today().isoformat()
-            filtered = []
-            for obs in observations:
-                # Skip records flagged as never upload
-                if obs.get('never_upload_to_irecord'):
-                    never_upload_excluded += 1
-                    continue
-                # Skip records under active embargo
-                embargo = obs.get('embargo_status', '')
-                until = obs.get('embargo_until', '')
-                if embargo == 'Active' and until and until > today:
-                    embargo_excluded += 1
-                    continue
-                filtered.append(obs)
-            observations = filtered
+            observations, excluded = self._irecord_export_filter(observations)
+            embargo_excluded = excluded['embargo']
+            never_upload_excluded = excluded['never_upload']
+            from_irecord_excluded = excluded['from_irecord']
 
-            if embargo_excluded or never_upload_excluded:
+            if embargo_excluded or never_upload_excluded or from_irecord_excluded:
                 excluded_msg = []
+                if from_irecord_excluded:
+                    excluded_msg.append(
+                        f"{from_irecord_excluded} came from iRecord (already there -- "
+                        f"uploading them again would make duplicates)")
                 if embargo_excluded:
                     excluded_msg.append(f"{embargo_excluded} under embargo")
                 if never_upload_excluded:
                     excluded_msg.append(f"{never_upload_excluded} marked never upload")
-                excluded_text = ' and '.join(excluded_msg)
+                excluded_text = '; '.join(excluded_msg)
 
                 if not observations:
                     # Nothing left: say so plainly and stop -- no Save dialog follows.
-                    total = embargo_excluded + never_upload_excluded
+                    total = embargo_excluded + never_upload_excluded + from_irecord_excluded
                     QMessageBox.information(
                         self, "Nothing to Export to iRecord",
                         f"All {total} record(s) are excluded from iRecord export "
@@ -153,7 +131,7 @@ class ObservationExportMixin:
 
                 QMessageBox.information(
                     self, "Records Excluded",
-                    f"{excluded_text}: excluded from iRecord export."
+                    f"Excluded from the iRecord export: {excluded_text}."
                     f"\n\n{len(observations)} record(s) will be exported."
                 )
 
@@ -193,6 +171,38 @@ class ObservationExportMixin:
             )
         except Exception as e:
             QMessageBox.critical(self, "Export Error", f"Failed to export: {e}")
+
+    @staticmethod
+    def _irecord_export_filter(observations: list):
+        """(records to send, {'from_irecord', 'embargo', 'never_upload': counts}).
+
+        Left out, each counted once under the first reason that applies:
+          - records that came from iRecord (an iRecord id, or a source starting
+            'iRecord') -- they are already there; sending them back duplicates them
+            (review OBS-12, 9 Oct 2026);
+          - records marked never upload;
+          - records under an active embargo.
+        """
+        from datetime import date
+        today = date.today().isoformat()
+        keep = []
+        counts = {'from_irecord': 0, 'embargo': 0, 'never_upload': 0}
+        for obs in observations:
+            irecord_id = obs.get('irecord_id')
+            source = str(obs.get('source') or '').strip()
+            if (irecord_id not in (None, '', 0)) or source.lower().startswith('irecord'):
+                counts['from_irecord'] += 1
+                continue
+            if obs.get('never_upload_to_irecord'):
+                counts['never_upload'] += 1
+                continue
+            embargo = obs.get('embargo_status', '')
+            until = obs.get('embargo_until', '')
+            if embargo == 'Active' and until and until > today:
+                counts['embargo'] += 1
+                continue
+            keep.append(obs)
+        return keep, counts
 
     @staticmethod
     def _export_file_name(observations: list, use_irecord: bool) -> str:

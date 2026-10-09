@@ -41,6 +41,8 @@ NA_GREY = "#9CA3AF"
 PALE = "#F4F6F3"
 
 TABLE_WIDTHS = {   # relative column widths per section
+    "Taxonomic summary": [1.3, 2.6, 0.5, 0.8, 0.7],
+    "Compartments": [1.5, 0.6, 0.7, 0.6, 0.6, 0.55, 0.6, 0.55, 1.3],
     "Habitats": [1.3, 1.6, 0.6, 0.6, 0.6, 0.8],
     "Specific assemblage types": [1.9, 0.65, 0.65, 0.6, 0.75, 0.7, 0.85, 2.0],
     "Feeding guilds": [0.8, 2.0, 0.6],

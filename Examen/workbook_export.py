@@ -13,7 +13,9 @@ Sheets
     Summary              metrics, with the stamp that makes them defensible
     Key species          Rare Key first, then Scarce (Telfer), with accounts
     Species appendix     full list, taxonomic order, computed footer
-    Habitats             biotope -> habitat, SQI, % national pool
+    Taxonomic summary    taxa and species with status per order (E8b)
+    Compartments         figures per sub-location, when there are 2+ (E6)
+    Habitats           biotope -> habitat, SQI, % national pool
     Assemblages          SATs with Favourable Condition threshold and PtT
     Guilds               larval and adult composition
     Status definitions   the three-version annex, generated
@@ -94,6 +96,13 @@ except ImportError:  # pragma: no cover -- degrade to "everything applies"
 
 # Dates dd/mm/yyyy and mode labels: the same formatter the Examen screen uses.
 from shared.display_format import dmy, mode_label  # noqa: E402
+
+# Status names, the vernacular fallback and the SQI scale text (E8): one home,
+# shared with the Examen screen.
+try:
+    from Examen.presentation import SQI_SCALE, vernacular
+except ImportError:  # pragma: no cover
+    from presentation import SQI_SCALE, vernacular
 
 
 # ============================================================
@@ -236,8 +245,11 @@ def status_string(entry):
             parts.append(v)
     for j in getattr(entry, "priority", None) or []:
         parts.append(_short_jurisdiction(j))
-    if getattr(entry, "legal", None):
-        parts.append(f"Legal ({len(entry.legal)})")
+    # Each legal instrument named, as non-key rows are (EXA10).
+    for x in getattr(entry, "legal", None) or []:
+        parts.append(f"Legal: {x}")
+    if getattr(entry, "status_note", ""):
+        parts.append(entry.status_note)
     return ", ".join(parts)
 
 
@@ -296,12 +308,12 @@ def status_parts(entry, jurisdiction):
             parts.append((v, True))
     for j in getattr(entry, "priority", None) or []:
         parts.append((_short_jurisdiction(j), _priority_ok(j, jurisdiction)))
-    legal = getattr(entry, "legal", None) or []
-    ok = sum(1 for x in legal if _legal_ok(x, jurisdiction))
-    if ok:
-        parts.append((f"Legal ({ok})", True))
-    if len(legal) - ok:
-        parts.append((f"Legal, other jurisdiction ({len(legal) - ok})", False))
+    # Each legal instrument named, greyed where it does not apply -- the same
+    # cell a non-key row gets from _parts_from_string (EXA10; was "Legal (3)").
+    for x in getattr(entry, "legal", None) or []:
+        parts.append((f"Legal: {x}", _legal_ok(x, jurisdiction)))
+    if getattr(entry, "status_note", ""):
+        parts.append((entry.status_note, True))      # "status held at sensu lato"
     return parts
 
 
@@ -331,25 +343,28 @@ def status_cell(parts, jurisdiction):
 # Supporting data
 # ============================================================
 
+# What "% national pool" means, stated wherever the figure is shown (EXA13).
+NATIONAL_POOL_NOTE = (
+    "% national pool: species recorded here coded for the biotope, habitat or SAT, as a "
+    "share of the national pool -- every current UKSI species bridged to a Pantheon taxon "
+    "coded for it, each species counted once however many Pantheon taxa were merged into it.")
+
+
 def _reference_counts():
-    """National species totals per biotope / habitat / SAT, for '% national pool'."""
-    out = {"biotope": {}, "habitat": {}, "sat": {}}
+    """National species pool per biotope / habitat / SAT, for '% national pool'.
+
+    PantheonRepository.national_pool_counts -- the one definition, shared with the
+    Habitats and Assemblages tabs."""
     try:
-        p = sqlite3.connect(f"file:{paths.PANTHEON_DB}?mode=ro", uri=True)
-        for k, (tbl, col) in {"biotope": ("broad_biotope", "biotope"),
-                              "habitat": ("habitats", "habitat"),
-                              "sat": ("specific_assemblage_types", "sat_name")}.items():
-            try:
-                for v, n in p.execute(
-                        f"SELECT {col}, COUNT(DISTINCT tvk) FROM {tbl} GROUP BY 1"):
-                    if v:
-                        out[k][v] = n
-            except sqlite3.Error:
-                pass
-        p.close()
-    except sqlite3.Error:
-        pass
-    return out
+        from shared.repositories.pantheon_repository import PantheonRepository
+        repo = PantheonRepository()
+        try:
+            return repo.national_pool_counts()
+        finally:
+            repo.close()
+    except Exception as e:  # noqa: BLE001 -- the column shows "-" rather than failing
+        print(f"[workbook_export] national pool unavailable: {e}")
+        return {"biotope": {}, "habitat": {}, "sat": {}}
 
 
 def _sat_thresholds():
@@ -596,6 +611,34 @@ def _sqi_arith(s):
             f"({s.species_with_sqs} scoring{tail})")
 
 
+def _analysed(result):
+    """Species analysed -- the SQI's divisor, one figure everywhere (EXA5)."""
+    n = getattr(result, "species_analysed", 0)
+    if n:
+        return n
+    o = getattr(result, "overall_sqi", None)
+    return getattr(o, "species_analysed", 0) or getattr(result, "species_in_pantheon", 0)
+
+
+def _analysed_note(result):
+    held = getattr(result, "species_in_pantheon", 0)
+    extra = _analysed(result) - held
+    note = (f"{held} held by Pantheon (ecology or a published score, through the TVK "
+            "bridge)")
+    if extra > 0:
+        note += (f", plus {extra} Pantheon does not hold, scored from current status by "
+                 "Pantheon's rule")
+    return note + ". The SQI divides by this figure; the rest cannot be analysed."
+
+
+def _stenotopic(result):
+    """Distinct species in at least one SAT (EXA4), not one per SAT membership."""
+    n = getattr(result, "stenotopic_count", None)
+    if n is not None:
+        return n
+    return 0
+
+
 def _sheet_summary(wb, result, detail, project, stamp):
     ws = wb.create_sheet("Summary")
     r = _title(ws, stamp["title"],
@@ -610,9 +653,10 @@ def _sheet_summary(wb, result, detail, project, stamp):
     total = result.total_species or 1
 
     rows = [
-        ("Species recorded", result.total_species, ""),
-        ("Analysed by Pantheon", result.species_in_pantheon,
-         "Species Pantheon holds ecology for; the remainder cannot be analysed."),
+        ("Species recorded", result.total_species,
+         "One per taxon; a species recorded as s.l. and s.s. counts once."
+         if getattr(result, "merged_tvks", None) else ""),
+        ("Species analysed", _analysed(result), _analysed_note(result)),
         ("Scoring species (SQS)", result.species_with_sqs,
          "Species carrying a Species Quality Score."),
         (None, None, None),
@@ -635,9 +679,10 @@ def _sheet_summary(wb, result, detail, project, stamp):
         ("Species Quality Index (SQI)", _sqi_cell(result.overall_sqi),
          f"{_sqi_arith(result.overall_sqi)}. "
          f"Pantheon does not trust an SQI below {SQI_MIN_SPECIES}."),
-        ("Stenotopic species (in SATs)", sum(result.sat_counts.values())
-         if result.sat_counts else 0,
-         "Species restricted to specific assemblage types."),
+        ("What the SQI means", "", SQI_SCALE),
+        ("Stenotopic species (in SATs)", _stenotopic(result),
+         "Species restricted to specific assemblage types, each counted once "
+         "however many SATs it belongs to."),
     ]
 
     # Both SQS bases, when any score was derived (patch_sqs_basis.py).
@@ -713,11 +758,15 @@ def _sheet_key_species(wb, result, project, stamp):
     for k in ordered:
         tier = "Rare Key" if telfer_tier(k) == "rare" else "Scarce Key"
         prof, prof_source = profiles.get(k.tvk, ("", ""))
+        order = getattr(k, "order_name", "") or _taxon(k).get("order", "")
+        family = k.family or _taxon(k).get("family", "")
         ws.append([tier,
-                   getattr(k, "order_name", "") or _taxon(k).get("order", ""),
-                   k.family or _taxon(k).get("family", ""),
-                   k.species_name,
-                   getattr(k, "common_name", "") or _taxon(k).get("common", ""),
+                   order,
+                   family,
+                   (f"{k.species_name} ({k.recorded_note})"
+                    if getattr(k, "recorded_note", "") else k.species_name),
+                   vernacular(getattr(k, "common_name", "") or _taxon(k).get("common", ""),
+                              family, order),
                    status_cell(status_parts(k, stamp["jurisdiction"]),
                                stamp["jurisdiction"]),
                    k.sqs or "",
@@ -748,7 +797,8 @@ def _sheet_appendix(wb, detail, result, stamp):
     ws = wb.create_sheet("Species appendix")
     r = _title(ws, "Species appendix",
                "All species recorded, in taxonomic order. Key species carry a "
-               "conservation status.")
+               "conservation status. Where UKSI holds no common name the group is "
+               "described instead (“A ground beetle”).")
 
     r = _header(ws, r,
                 ["Order", "Family", "Species", "Common name",
@@ -775,8 +825,9 @@ def _sheet_appendix(wb, detail, result, stamp):
             sqs_total += sp.sqs
         ws.append([getattr(sp, "order_name", "") or "",
                    getattr(sp, "family", "") or "",
-                   sp.name,
-                   getattr(sp, "common_name", "") or "",
+                   appendix_name(sp),
+                   vernacular(getattr(sp, "common_name", ""), getattr(sp, "family", ""),
+                              getattr(sp, "order_name", "")),
                    status,
                    sp.sqs or "",
                    sp.broad_biotope or "",
@@ -790,12 +841,11 @@ def _sheet_appendix(wb, detail, result, stamp):
     # in one workbook (found 8 Oct 2026).
     r = ws.max_row + 2
     osqi = getattr(result, "overall_sqi", None)
-    analysed = (getattr(osqi, "species_analysed", 0) or getattr(result, "species_in_pantheon", 0)
-                or scoring)
+    analysed = _analysed(result) or scoring
     for label, value in [
             ("Species recorded", len(species)),
             ("Without a TVK (not analysed)", no_tvk),
-            ("Analysed by Pantheon", analysed),
+            ("Species analysed", analysed),
             ("Scoring taxa", scoring),
             ("Species Quality Score (SQS)", getattr(osqi, "sqs_sum", None) or sqs_total),
             ("Species Quality Index (SQI)", _sqi_cell(osqi) if osqi is not None else "-")]:
@@ -805,12 +855,16 @@ def _sheet_appendix(wb, detail, result, stamp):
     return ws
 
 
+def appendix_name(sp):
+    """The species cell: the name, and "(recorded as s.l. and s.s.)" where the
+    survey recorded the species under its own TVK and its s.l. counterpart."""
+    note = getattr(sp, "note", "") or ""
+    return f"{sp.name} ({note})" if note else sp.name
+
+
 def _sheet_habitats(wb, result, refs):
     ws = wb.create_sheet("Habitats")
-    r = _title(ws, "Habitats",
-               "Biotope and habitat associations. % national pool is the share "
-               "of the national fauna coded for that biotope or habitat which "
-               "this sample holds.")
+    r = _title(ws, "Habitats", "Biotope and habitat associations. " + NATIONAL_POOL_NOTE)
 
     r = _header(ws, r,
                 ["Broad biotope", "Habitat", "Species", "Scoring", "SQI",
@@ -843,6 +897,7 @@ def _sheet_habitats(wb, result, refs):
                   "habitat counts do not sum to the biotope total. SQI is "
                   f"withheld below {SQI_MIN_SPECIES} scoring species and the "
                   "count shown instead.").font = NOTE_FONT
+    ws.cell(row=r + 1, column=1, value=NATIONAL_POOL_NOTE).font = NOTE_FONT
     return ws
 
 
@@ -892,6 +947,7 @@ def _sheet_assemblages(wb, result, refs, thresholds):
                   "poor discriminatory value; exceeding the threshold is not on "
                   "its own sufficient to conclude national significance "
                   "(Webb et al., 2018).").font = NOTE_FONT
+    ws.cell(row=r + 1, column=1, value=NATIONAL_POOL_NOTE).font = NOTE_FONT
     return ws
 
 
@@ -924,6 +980,62 @@ def _sheet_saproxylic(wb, detail):
         ws.cell(row=r, column=1, value=note).font = NOTE_FONT
         r += 1
     return ws
+
+
+def _sheet_table(wb, sheet, title, sub, table, widths, bold_rows=()):
+    """A sheet laid out from (heads, rows, notes) -- the figures computed elsewhere."""
+    heads, rows, notes = table
+    ws = wb.create_sheet(sheet)
+    _header(ws, _title(ws, title, sub), heads, widths)
+    for row in rows:
+        ws.append(row)
+        if row and row[0] in bold_rows:
+            for col in range(1, len(heads) + 1):
+                ws.cell(row=ws.max_row, column=col).font = BOLD
+    r = ws.max_row + 2
+    for note in notes:
+        ws.cell(row=r, column=1, value=note).font = NOTE_FONT
+        r += 1
+    return ws
+
+
+def _sheet_taxonomic(wb, result, detail):
+    """Taxonomic summary (backlog E8b), from Examen.taxonomic_summary."""
+    try:
+        from Examen import taxonomic_summary as tx
+    except ImportError:  # pragma: no cover
+        import taxonomic_summary as tx
+    ts = tx.for_result(result, detail)
+    if ts is None or not ts.rows:
+        return None
+    return _sheet_table(wb, "Taxonomic summary", "Taxonomic summary",
+                        "Species with a conservation status in each group (Key Species, as on "
+                        "the Summary). Groups are orders, most taxa first.",
+                        ts.table(), [26, 52, 9, 16, 14],
+                        bold_rows=(tx.SAPROXYLIC_LABEL, tx.TOTAL_LABEL))
+
+
+def _sheet_compartments(wb, result, detail, project, jurisdiction):
+    """Figures per compartment (backlog E6), from Examen.compartments. Only written
+    when the survey's records name two or more compartments."""
+    try:
+        from Examen import compartments as cp
+    except ImportError:  # pragma: no cover
+        import compartments as cp
+    try:
+        res = cp.for_detail(result, detail, project, jurisdiction)
+    except Exception as e:  # noqa: BLE001 -- the extra sheet must not stop the export
+        print(f"[workbook_export] compartments: {e}")
+        return None
+    if res is None or not res.shown:
+        return None
+    flagged = "; ".join(r.name for r in res.flagged)
+    return _sheet_table(wb, "Compartments", "Compartments",
+                        f"{len(res.rows)} compartments from the records' sub-locations. "
+                        f"Threshold {res.threshold_pct:g}% of records"
+                        + (f"; below it: {flagged}." if flagged else "; none below it."),
+                        res.table(), [24, 10, 12, 10, 12, 9, 10, 9, 22],
+                        bold_rows=(cp.COMBINED,))
 
 
 def _sheet_guilds(wb, result):
@@ -1030,7 +1142,11 @@ def _mark_derived(wb, result, detail):
     nopan = getattr(result, "no_pantheon_tvks", set()) or set()
     if not (derived or nopan) or detail is None:
         return
-    by_name = {s.name: s.tvk for s in (getattr(detail, "species_list", None) or []) if s.tvk}
+    by_name = {}
+    for s in (getattr(detail, "species_list", None) or []):
+        if s.tvk:
+            by_name[s.name] = s.tvk
+            by_name[appendix_name(s)] = s.tvk
     for title in ("Key species", "Species appendix"):
         if title not in wb.sheetnames:
             continue
@@ -1107,6 +1223,8 @@ def export_workbook(result, detail, project, path,
     _sheet_summary(wb, result, detail, project, stamp)
     _sheet_key_species(wb, result, project, stamp)
     _sheet_appendix(wb, detail, result, stamp)
+    _sheet_taxonomic(wb, result, detail)
+    _sheet_compartments(wb, result, detail, project, jurisdiction)
     _sheet_habitats(wb, result, refs)
     _sheet_assemblages(wb, result, refs, thresholds)
     _sheet_saproxylic(wb, detail)

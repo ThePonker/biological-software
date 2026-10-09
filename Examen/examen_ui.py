@@ -1,8 +1,12 @@
 """
 Examen - Main Window
 
-Three-view species assessment tool replacing the Pantheon website.
-Views: Species Database, Site Analysis, Assessment Archive.
+Species assessment tool replacing the Pantheon website.
+Views: Species Database, Site Analysis.
+
+The freeze / Assessment Archive feature was retired on 9 Oct 2026 (backlog
+E13): the frozen record is the downloaded report. Anything held in examen.db
+is exported by scripts/export_examen_snapshots.py.
 Themed to match Observatum's Naturalist theme.
 
 Instantiates shared CodexRepository, PantheonRepository, and
@@ -22,8 +26,6 @@ from shared.display_format import mode_label
 
 from .species_database_view import SpeciesDatabaseView
 from .site_analysis_view import SiteAnalysisView
-from .assessment_archive_view import AssessmentArchiveView
-from .snapshot_manager import SnapshotManager
 
 
 # Naturalist palette
@@ -53,7 +55,6 @@ class ExamenWindow(QMainWindow):
         self._pantheon_repo = PantheonRepository()
         self._analysis_service = PantheonAnalysisService(
             self._pantheon_repo, self._codex_repo)
-        self._snapshot_mgr = SnapshotManager()
 
         self._setup_ui()
 
@@ -119,14 +120,10 @@ class ExamenWindow(QMainWindow):
 
         self.species_view = SpeciesDatabaseView(
             self._codex_repo, self._pantheon_repo)
-        self.analysis_view = SiteAnalysisView(
-            self._analysis_service, self._snapshot_mgr)
-        self.archive_view = AssessmentArchiveView(
-            self._analysis_service, self._snapshot_mgr)
+        self.analysis_view = SiteAnalysisView(self._analysis_service)
 
         self.tabs.addTab(self.species_view, "Species Database")
         self.tabs.addTab(self.analysis_view, "Site Analysis")
-        self.tabs.addTab(self.archive_view, "Assessment Archive")
 
         layout.addWidget(self.tabs, 1)
 
@@ -150,5 +147,4 @@ class ExamenWindow(QMainWindow):
     def closeEvent(self, event):
         self._codex_repo.close()
         self._pantheon_repo.close()
-        self._snapshot_mgr.close()
         super().closeEvent(event)

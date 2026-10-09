@@ -26,8 +26,20 @@ Analysis modes:
 Key species determination is INVERTEBRATE-ONLY, matching the design
 principle that SQS-related concepts apply only to invertebrates.
 A bird classified as CR does not get is_key=True via this repository.
+"Invertebrate" is UKSI's taxonomy (kingdom Animalia outside phylum Chordata) --
+the rule build_codex_db.py uses -- plus anything JNCC's designations call an
+invertebrate (CDX-1, 9 Oct 2026). It used to be the designations alone, so a
+species whose only status came from a review could never be Key.
+
+Species and broad group (9 Oct 2026). A species (UKSI rank Species) with no
+status of its own takes the status held by its sensu-lato / aggregate
+counterpart -- same binomial, rank 'Species sensu lato' or 'Species aggregate'.
+The status is marked (SpeciesStatus.status_held_at) and display_status says
+"status held at sensu lato", so a report never presents it as the species' own.
 """
 
+import os
+import re
 import sqlite3
 from pathlib import Path
 from dataclasses import dataclass, field
@@ -36,10 +48,118 @@ from typing import Optional
 
 import paths
 from shared.db_open import connect_ro  # D9: reference data, read-only
+from shared.repositories.pantheon_repository import PantheonRepository
 
 
 DB_PATH = paths.CODEX_DB
 PANTHEON_PATH = paths.PANTHEON_DB
+UKSI_PATH = paths.UKSI_DB
+
+# The invertebrate rule. scripts/build_codex_db.py applies the same SQL when it
+# imports SQS (it cannot import this module at build time; keep the two in step).
+UKSI_INVERTEBRATE_SQL = ("SELECT tvk FROM taxa WHERE LOWER(COALESCE(kingdom,'')) = 'animalia' "
+                         "AND LOWER(COALESCE(phylum,'')) != 'chordata'")
+
+# UKSI ranks that are the broad-group counterpart of a species, and how a report
+# names where the status is held.
+SENSU_LATO_RANKS = {"Species sensu lato": "sensu lato", "Species aggregate": "aggregate"}
+_SL_SUFFIX = re.compile(r"\s+(agg\.?|s\.\s?l\.?|sens\.\s?lat\.?|sensu lato|s\.\s?lat\.?)\s*$",
+                        re.IGNORECASE)
+
+
+def binomial_key(name):
+    """'Xanthogramma pedissequum agg.' -> 'xanthogramma pedissequum'."""
+    n = (name or "").strip()
+    while True:
+        m = _SL_SUFFIX.search(n)
+        if not m:
+            break
+        n = n[:m.start()]
+    return " ".join(n.lower().split())
+
+
+_UKSI_CACHE = {}
+
+
+def _uksi_cached(kind, uksi_path, loader):
+    """A UKSI-derived table, cached per file version (UKSI changes only on a swap)."""
+    try:
+        mt = os.path.getmtime(str(uksi_path))
+    except OSError:
+        mt = None
+    key = (kind, str(uksi_path), mt)
+    if key not in _UKSI_CACHE:
+        try:
+            _UKSI_CACHE[key] = loader() if mt is not None else None
+        except sqlite3.Error as e:
+            print(f"[codex_repository] UKSI {kind} unavailable: {e}")
+            _UKSI_CACHE[key] = None
+    return _UKSI_CACHE[key]
+
+
+def uksi_invertebrate_tvks(uksi_path=None):
+    """TVKs UKSI places in Animalia outside Chordata (empty set if unreadable)."""
+    uksi_path = str(uksi_path or UKSI_PATH)
+
+    def load():
+        c = connect_ro(uksi_path)
+        try:
+            return frozenset(r[0] for r in c.execute(UKSI_INVERTEBRATE_SQL))
+        finally:
+            c.close()
+    return _uksi_cached("invertebrates", uksi_path, load) or frozenset()
+
+
+def uksi_sensu_lato_map(uksi_path=None):
+    """{species_tvk: (counterpart_tvk, 'sensu lato' | 'aggregate')} from UKSI.
+
+    The counterpart has the same binomial (an "agg." or "s.l." suffix aside) and
+    rank 'Species sensu lato' or 'Species aggregate', or is the species' own
+    parent at one of those ranks. A slash aggregate ("A b/c") is a different
+    concept and is not used. Where a binomial names several species, the one in
+    the counterpart's genus is used. Sensu lato is preferred over aggregate.
+    """
+    uksi_path = str(uksi_path or UKSI_PATH)
+
+    def load():
+        c = connect_ro(uksi_path)
+        try:
+            ph = ",".join("?" * len(SENSU_LATO_RANKS))
+            broad = c.execute(f"SELECT tvk, scientific_name, rank, parent_tvk FROM taxa "
+                              f"WHERE rank IN ({ph})", list(SENSU_LATO_RANKS)).fetchall()
+            by_key = {}
+            for tvk, name, rank, parent in broad:
+                if "/" in (name or "") or "-group" in (name or ""):
+                    continue
+                by_key.setdefault(binomial_key(name), []).append(
+                    (tvk, SENSU_LATO_RANKS[rank], parent))
+            species = {}
+            keys = list(by_key)
+            for i in range(0, len(keys), 400):
+                batch = keys[i:i + 400]
+                ph = ",".join("?" * len(batch))
+                for tvk, name, parent in c.execute(
+                        f"SELECT tvk, scientific_name, parent_tvk FROM taxa WHERE rank = 'Species' "
+                        f"AND LOWER(scientific_name) IN ({ph})", batch):
+                    species.setdefault(binomial_key(name), []).append((tvk, parent))
+            out = {}
+            order = {"sensu lato": 0, "aggregate": 1}
+            for key, counterparts in by_key.items():
+                cands = species.get(key, [])
+                for sl_tvk, label, sl_parent in sorted(counterparts, key=lambda x: order[x[1]]):
+                    pick = cands if len(cands) == 1 else [s for s in cands if s[1] == sl_parent]
+                    for sp_tvk, _ in pick:
+                        out.setdefault(sp_tvk, (sl_tvk, label))
+            # A species whose UKSI parent is itself the aggregate / s.l. taxon.
+            for sp_tvk, parent, prank in c.execute(
+                    f"SELECT s.tvk, p.tvk, p.rank FROM taxa s JOIN taxa p ON s.parent_tvk = p.tvk "
+                    f"WHERE s.rank = 'Species' AND p.rank IN ({','.join('?' * len(SENSU_LATO_RANKS))})",
+                    list(SENSU_LATO_RANKS)):
+                out.setdefault(sp_tvk, (parent, SENSU_LATO_RANKS[prank]))
+            return out
+        finally:
+            c.close()
+    return _uksi_cached("sensu_lato", uksi_path, load) or {}
 
 
 # species linked to a review by status or account -- the stored reviews.species_count
@@ -218,6 +338,9 @@ class SpeciesStatus:
 
     # Invertebrate-only
     sqs: int = 0
+    # True when the score is derived from current status by Pantheon's rule
+    # because Pantheon published none (Codex Full only).
+    sqs_derived: bool = False
 
     # Profile text (may be None / empty)
     profile: Optional[str] = None
@@ -227,6 +350,15 @@ class SpeciesStatus:
     is_key: bool = False
     tier: KeySpeciesTier = KeySpeciesTier.NONE
     is_invertebrate: bool = False
+
+    # Where the statuses are not the species' own: "sensu lato" or "aggregate",
+    # and the TVK that holds them. Empty for a species' own statuses.
+    status_held_at: str = ""
+    status_from_tvk: str = ""
+
+    @property
+    def status_note(self) -> str:
+        return f"status held at {self.status_held_at}" if self.status_held_at else ""
 
     # ------------------------------------------------------------
     # Display helpers -- used by Observatum / Tabella / web Examen UI
@@ -257,6 +389,8 @@ class SpeciesStatus:
         # appendix cell is narrow, and "Legal" is accurate whichever it is.
         if self.legal_protection:
             parts.append(f"Legal ({len(self.legal_protection)})")
+        if parts and self.status_held_at:
+            parts.append(self.status_note)
         return ", ".join(parts) if parts else ""
 
     @property
@@ -282,13 +416,15 @@ class SpeciesStatus:
 # ============================================================
 class CodexRepository:
 
-    def __init__(self, db_path: str = None, pantheon_path: str = None):
+    def __init__(self, db_path: str = None, pantheon_path: str = None,
+                 uksi_path: str = None):
         self._db_path = str(db_path or DB_PATH)
         self._pantheon_path = str(pantheon_path or PANTHEON_PATH)
+        self._uksi_path = str(uksi_path or UKSI_PATH)
         self._conn = None
-        self._pan_conn = None
-        self._bridge = None
+        self._pan_repo_obj = None
         self._invert_tvks_cache = None
+        self._desig_invert_cache = None
 
     def _get_conn(self):
         if self._conn is None:
@@ -298,91 +434,106 @@ class CodexRepository:
             self._conn.row_factory = sqlite3.Row
         return self._conn
 
-    def _get_pantheon_conn(self):
-        if self._pan_conn is None:
+    def _pan_repo(self):
+        """pantheon.db through the bridge -- PantheonRepository's one rule (J2)."""
+        if self._pan_repo_obj is None:
             if not Path(self._pantheon_path).exists():
                 return None
-            self._pan_conn = connect_ro(self._pantheon_path)
-            self._pan_conn.row_factory = sqlite3.Row
-        return self._pan_conn
+            self._pan_repo_obj = PantheonRepository(
+                self._pantheon_path, codex_path=self._db_path, uksi_path=self._uksi_path)
+        return self._pan_repo_obj
 
     def close(self):
         if self._conn:
             self._conn.close()
             self._conn = None
-        if self._pan_conn:
-            self._pan_conn.close()
-            self._pan_conn = None
-        self._bridge = None
+        if self._pan_repo_obj:
+            self._pan_repo_obj.close()
+            self._pan_repo_obj = None
         self._invert_tvks_cache = None
 
     # ================================================================
     # Invertebrate TVK lookup (cached on first call)
     # ================================================================
     def _get_invert_tvks(self):
-        """Returns set of TVKs whose category is 'Invertebrate'."""
+        """TVKs that are invertebrates: UKSI's taxonomy (Animalia outside
+        Chordata, the build's rule), plus any TVK JNCC's designations categorise
+        as 'Invertebrate' (an old TVK UKSI no longer holds)."""
         if self._invert_tvks_cache is None:
+            self._invert_tvks_cache = (self._get_designated_invert_tvks()
+                                       | uksi_invertebrate_tvks(self._uksi_path))
+        return self._invert_tvks_cache
+
+    def _get_designated_invert_tvks(self):
+        """TVKs JNCC's designations categorise as 'Invertebrate' -- the old rule."""
+        if getattr(self, "_desig_invert_cache", None) is None:
             c = self._get_conn().cursor()
             c.execute("""SELECT DISTINCT tvk FROM designations
                          WHERE category = 'Invertebrate'""")
-            self._invert_tvks_cache = set(r[0] for r in c.fetchall())
-        return self._invert_tvks_cache
+            self._desig_invert_cache = frozenset(r[0] for r in c.fetchall())
+        return self._desig_invert_cache
 
     def is_invertebrate(self, tvk):
         """True if the TVK belongs to an invertebrate species."""
         return tvk in self._get_invert_tvks()
 
     # ================================================================
+    # Species and broad group (sensu lato / aggregate)
+    # ================================================================
+    def sensu_lato_counterpart(self, tvk):
+        """(counterpart_tvk, 'sensu lato' | 'aggregate') for a species, or None."""
+        return uksi_sensu_lato_map(self._uksi_path).get(tvk)
+
+    def sensu_lato_pairs(self, tvks):
+        """{broad_tvk: species_tvk} where BOTH are in `tvks` -- one species
+        recorded under two TVKs (the species and its s.l. / aggregate)."""
+        present = set(tvks)
+        sl_map = uksi_sensu_lato_map(self._uksi_path)
+        return {sl: sp for sp, (sl, _) in sl_map.items() if sp in present and sl in present}
+
+    def _status_rows(self, tvks):
+        """status_summary rows per TVK, with the s.l. fallback.
+
+        Returns ({tvk: [(track, value, detail, source, iucn), ...]},
+                 {tvk: (held_at_tvk, 'sensu lato' | 'aggregate')}).
+        A species with no row of its own takes its counterpart's rows.
+        """
+        def fetch(keys):
+            out = {}
+            c = self._get_conn().cursor()
+            for batch in _chunked(list(dict.fromkeys(keys)), 500):
+                ph = ",".join("?" * len(batch))
+                c.execute(f"""SELECT tvk, status_track, status_value, status_detail,
+                                     source, iucn_version
+                              FROM status_summary WHERE tvk IN ({ph})""", batch)
+                for row in c.fetchall():
+                    out.setdefault(row["tvk"], []).append((
+                        row["status_track"], row["status_value"], row["status_detail"],
+                        row["source"] or "", row["iucn_version"] or ""))
+            return out
+
+        rows = fetch(tvks)
+        sl_map = uksi_sensu_lato_map(self._uksi_path)
+        need = {t: sl_map[t] for t in tvks if t not in rows and t in sl_map}
+        held = {}
+        if need:
+            broad = fetch(v[0] for v in need.values())
+            for t, (sl_tvk, label) in need.items():
+                if sl_tvk in broad:
+                    rows[t] = broad[sl_tvk]
+                    held[t] = (sl_tvk, label)
+        return rows, held
+
+    # ================================================================
     # Single species
     # ================================================================
     def get_status_summary(self, tvk, mode=AnalysisMode.CODEX_FULL,
                            jurisdiction=DEFAULT_JURISDICTION):
-        if mode == AnalysisMode.PANTHEON_ONLY:
-            return self._pantheon_status(tvk, jurisdiction)
-
-        c = self._get_conn().cursor()
-        status = SpeciesStatus(tvk=tvk)
-        status.is_invertebrate = self.is_invertebrate(tvk)
-
-        c.execute("""SELECT status_track, status_value, status_detail,
-                            source, iucn_version
-                     FROM status_summary WHERE tvk = ?""", (tvk,))
-        for row in c.fetchall():
-            self._apply_track(
-                status,
-                row["status_track"],
-                row["status_value"],
-                row["status_detail"],
-                row["source"] or "",
-                row["iucn_version"] or "",
-            )
-
-        # SQS
-        c.execute("SELECT sqs FROM sqs_scores WHERE tvk = ?", (tvk,))
-        r = c.fetchone()
-        if r:
-            status.sqs = r["sqs"]
-
-        # Profile
-        c.execute("""SELECT profile_text, source FROM species_profiles
-                     WHERE tvk = ?""", (tvk,))
-        r = c.fetchone()
-        if r:
-            status.profile = r["profile_text"]
-            status.profile_source = r["source"]
-
-        # Classification (invertebrate-only)
-        status.tier = _classify(status, jurisdiction) if status.is_invertebrate else KeySpeciesTier.NONE
-        status.is_key = status.tier != KeySpeciesTier.NONE
-        return status
+        """One species -- the batch path, so the two cannot differ."""
+        return self.get_statuses_batch([tvk], mode, jurisdiction)[tvk]
 
     def get_sqs(self, tvk, mode=AnalysisMode.CODEX_FULL):
-        if mode == AnalysisMode.PANTHEON_ONLY:
-            return self._pantheon_sqs_single(tvk)
-        c = self._get_conn().cursor()
-        c.execute("SELECT sqs FROM sqs_scores WHERE tvk = ?", (tvk,))
-        r = c.fetchone()
-        return r["sqs"] if r else 0
+        return self.get_sqs_scores([tvk], mode).get(tvk, 0)
 
     def is_key_species(self, tvk, mode=AnalysisMode.CODEX_FULL):
         return self.get_status_summary(tvk, mode).is_key
@@ -422,37 +573,58 @@ class CodexRepository:
             return {}
         if mode == AnalysisMode.PANTHEON_ONLY:
             return self._pantheon_sqs_batch(tvks)
-        c = self._get_conn().cursor()
-        result = {}
-        for batch in _chunked(tvks, 500):
-            ph = ",".join("?" * len(batch))
-            c.execute(f"""SELECT tvk, sqs FROM sqs_scores WHERE tvk IN ({ph})
-                          AND source != 'derived'""", batch)
-            for row in c.fetchall():
-                result[row["tvk"]] = row["sqs"]
-        missing = [t for t in set(tvks) if t not in result]
+        result = self._stored_sqs(tvks)
+        missing = [t for t in dict.fromkeys(tvks) if t not in result]
         if missing:
             result.update(self._derive_sqs_batch(missing))
+        return result
+
+    def _stored_sqs(self, tvks):
+        c = self._get_conn().cursor()
+
+        def fetch(keys):
+            out = {}
+            for batch in _chunked(list(dict.fromkeys(keys)), 500):
+                ph = ",".join("?" * len(batch))
+                c.execute(f"""SELECT tvk, sqs FROM sqs_scores WHERE tvk IN ({ph})
+                              AND source != 'derived'""", batch)
+                for row in c.fetchall():
+                    out[row["tvk"]] = row["sqs"]
+            return out
+
+        result = fetch(tvks)
+        # Species and broad group (Wil's rule, 9 Oct 2026): a species with no
+        # stored score of its own takes its sensu lato / aggregate counterpart's.
+        # Pantheon's 2017 concept was usually the broad one (Nomada panzeri), and
+        # records moved onto the species must not lose the published score.
+        missing = [t for t in dict.fromkeys(tvks) if t not in result]
+        if missing:
+            sl_map = uksi_sensu_lato_map(self._uksi_path)
+            via = {t: sl_map[t][0] for t in missing if t in sl_map}
+            if via:
+                held = fetch(via.values())
+                for sp, sl in via.items():
+                    if sl in held:
+                        result[sp] = held[sl]
         return result
 
     def get_stored_sqs_tvks(self, tvks):
         """TVKs whose SQS is STORED -- Pantheon's published score or a manual entry --
         as opposed to derived live from the rule by get_sqs_scores."""
-        out = set()
         if not tvks:
-            return out
-        c = self._get_conn().cursor()
-        for batch in _chunked(list(tvks), 500):
-            ph = ",".join("?" * len(batch))
-            c.execute(f"SELECT tvk FROM sqs_scores WHERE tvk IN ({ph}) AND source != 'derived'", batch)
-            out.update(r[0] for r in c.fetchall())
-        return out
+            return set()
+        return set(self._stored_sqs(tvks))
 
     def _derive_sqs_batch(self, tvks):
         """Apply Pantheon's published rule to current Codex statuses.
 
         Invertebrates only -- SQS is an invertebrate construct, and a score for
-        a lichen would be arithmetic without meaning.
+        a lichen would be arithmetic without meaning. The scope is what it was
+        before CDX-1 widened "invertebrate": species in JNCC's invertebrate
+        designations, plus any other invertebrate Codex holds a status for (its
+        own, or held at sensu lato -- a review-only status). An invertebrate
+        with no status anywhere is not scored: that would put a derived 1 on
+        every species Pantheon lacks.
 
         Queries status_summary directly: get_statuses_batch calls
         get_sqs_scores, so routing through it would recurse.
@@ -468,22 +640,20 @@ class CodexRepository:
                 return {}
 
         invert = self._get_invert_tvks()
+        designated = self._get_designated_invert_tvks()
         candidates = [t for t in tvks if t in invert]
         if not candidates:
             return {}
-
-        c = self._get_conn().cursor()
-        tracks = {}
-        for batch in _chunked(candidates, 500):
-            ph = ",".join("?" * len(batch))
-            c.execute(f"""SELECT tvk, status_track, status_value
-                          FROM status_summary WHERE tvk IN ({ph})""", batch)
-            for row in c.fetchall():
-                tracks.setdefault(row["tvk"], {})[row["status_track"]] = row["status_value"]
+        rows, _held = self._status_rows(candidates)
 
         result = {}
         for tvk in candidates:
-            score = derive_from_tracks(tracks.get(tvk, {}))
+            if tvk not in rows and tvk not in designated:
+                continue
+            tracks = {}
+            for track, value, *_ in rows.get(tvk, []):
+                tracks[track] = value
+            score = derive_from_tracks(tracks)
             if score:          # 0 and 1 are not worth storing as "has a score"
                 result[tvk] = score
         return result
@@ -497,25 +667,13 @@ class CodexRepository:
 
         c = self._get_conn().cursor()
         invert_set = self._get_invert_tvks()
-
-        # Fetch all status_summary rows for the batch
-        track_data = {}  # {tvk: [(track, value, detail, source, iucn), ...]}
-        for batch in _chunked(tvks, 500):
-            ph = ",".join("?" * len(batch))
-            c.execute(f"""SELECT tvk, status_track, status_value, status_detail,
-                                source, iucn_version
-                         FROM status_summary WHERE tvk IN ({ph})""", batch)
-            for row in c.fetchall():
-                track_data.setdefault(row["tvk"], []).append((
-                    row["status_track"], row["status_value"], row["status_detail"],
-                    row["source"] or "", row["iucn_version"] or "",
-                ))
-
+        track_data, held = self._status_rows(tvks)
+        stored = self._stored_sqs(tvks)
         sqs_map = self.get_sqs_scores(tvks, mode)
 
         # Fetch profiles
         profile_map = {}
-        for batch in _chunked(tvks, 500):
+        for batch in _chunked(list(dict.fromkeys(tvks)), 500):
             ph = ",".join("?" * len(batch))
             c.execute(f"""SELECT tvk, profile_text, source FROM species_profiles
                          WHERE tvk IN ({ph})""", batch)
@@ -525,7 +683,10 @@ class CodexRepository:
         result = {}
         for tvk in tvks:
             status = SpeciesStatus(tvk=tvk, sqs=sqs_map.get(tvk, 0))
+            status.sqs_derived = tvk in sqs_map and tvk not in stored
             status.is_invertebrate = tvk in invert_set
+            if tvk in held:
+                status.status_from_tvk, status.status_held_at = held[tvk]
             for track, value, detail, source, iucn in track_data.get(tvk, []):
                 self._apply_track(status, track, value, detail, source, iucn)
             if tvk in profile_map:
@@ -550,19 +711,28 @@ class CodexRepository:
             t.sort(key=lambda s: (-s.sqs, s.tvk))
         return tiers
 
-    def compute_sqi(self, tvks, mode=AnalysisMode.CODEX_FULL):
-        """Compute SQI. Only invertebrates contribute (SQS is invert-only).
+    def compute_sqi(self, tvks, mode=AnalysisMode.CODEX_FULL,
+                    jurisdiction=DEFAULT_JURISDICTION):
+        """The SQI, exactly as the assessment computes it.
 
-        SQI = (sum of SQS) / (species with SQS) * 100
+        Delegates to PantheonAnalysisService -- the one implementation (EXA1):
+        SQI = sum of SQS / species analysed x 100, where species analysed are
+        those Pantheon holds (ecology or a score, through the bridge) plus any
+        scored from current status. It used to divide by scoring species only,
+        so Examen's project table showed Glory Park 120 against the report's 117.
         Reliable if at least 15 species have SQS scores.
         """
-        scores = self.get_sqs_scores(tvks, mode)
-        unique = set(tvks)
-        sqs_sum = sum(scores.values())
-        scoring = len(scores)
-        sqi = round(sqs_sum / scoring * 100) if scoring > 0 else 0
-        return {"sqi": sqi, "sqs_sum": sqs_sum, "scoring_species": scoring,
-                "total_species": len(unique), "reliable": scoring >= 15}
+        from shared.services.pantheon_analysis_service import PantheonAnalysisService
+        pan = self._pan_repo()
+        r = PantheonAnalysisService(pan, self).analyse(list(tvks), mode=mode,
+                                                         jurisdiction=jurisdiction)
+        o = r.overall_sqi
+        if o is None:
+            return {"sqi": 0, "sqs_sum": 0, "scoring_species": 0, "species_analysed": 0,
+                    "total_species": 0, "reliable": False}
+        return {"sqi": o.sqi, "sqs_sum": o.sqs_sum, "scoring_species": o.species_with_sqs,
+                "species_analysed": o.species_analysed, "total_species": r.total_species,
+                "reliable": o.reliable}
 
     def compare_modes(self, tvks):
         """Side-by-side Codex vs Pantheon-only comparison."""
@@ -643,6 +813,9 @@ class CodexRepository:
             "priority":          [_entry_to_dict(e) for e in status.priority],
 
             "sqs": status.sqs,
+            "sqs_derived": status.sqs_derived,
+            "status_held_at": status.status_held_at,
+            "status_from_tvk": status.status_from_tvk,
             "profile": status.profile,
             "profile_source": status.profile_source,
 
@@ -721,123 +894,34 @@ class CodexRepository:
             return None
 
     # ================================================================
-    # TVK Bridge (Pantheon old TVK -> current UKSI TVK)
+    # Pantheon-only internals -- through PantheonRepository, so the bridge
+    # rule (every bridged taxon, J2 incumbent first, NOTVK: never shadowing a
+    # populated taxon) is the one the ecology uses. Until 9 Oct 2026 this mode
+    # kept one name-matched Pantheon taxon per species, often an empty NOTVK:
+    # twin: Kent strict SQI 171 against the published 175 (INF1 / EXA6).
     # ================================================================
-    def _get_bridge(self):
-        """Load bridge mapping: {uksi_tvk: pantheon_tvk}."""
-        if self._bridge is None:
-            self._bridge = {}
-            try:
-                c = self._get_conn().cursor()
-                c.execute("""SELECT uksi_tvk, pantheon_tvk FROM tvk_bridge
-                             WHERE match_method = 'name'""")
-                for r in c.fetchall():
-                    self._bridge[r["uksi_tvk"]] = r["pantheon_tvk"]
-            except Exception as e:
-                print(f"[codex_repository] _get_bridge: {e}")  # I7: was silent
-        return self._bridge
-
-    def _to_pantheon_tvk(self, uksi_tvk):
-        bridge = self._get_bridge()
-        return bridge.get(uksi_tvk, uksi_tvk)
-
-    def _to_pantheon_tvks(self, uksi_tvks):
-        bridge = self._get_bridge()
-        return {tvk: bridge.get(tvk, tvk) for tvk in uksi_tvks}
-
-    # ================================================================
-    # Pantheon-only internals (bridge-aware, new-track-aware)
-    # ================================================================
-    def _pantheon_sqs_single(self, tvk):
-        pan = self._get_pantheon_conn()
-        if not pan:
-            return 0
-        pc = pan.cursor()
-        pan_tvk = self._to_pantheon_tvk(tvk)
-        pc.execute("SELECT sqs FROM sqs_scores WHERE tvk = ?", (pan_tvk,))
-        r = pc.fetchone()
-        return r["sqs"] if r else 0
-
     def _pantheon_sqs_batch(self, tvks):
-        pan = self._get_pantheon_conn()
-        if not pan:
-            return {}
-        pc = pan.cursor()
-        tvk_map = self._to_pantheon_tvks(tvks)
-        reverse = {v: k for k, v in tvk_map.items()}
-        pan_tvks = list(tvk_map.values())
-
-        result = {}
-        for batch in _chunked(pan_tvks, 500):
-            ph = ",".join("?" * len(batch))
-            pc.execute(f"SELECT tvk, sqs FROM sqs_scores WHERE tvk IN ({ph})", batch)
-            for r in pc.fetchall():
-                uksi_tvk = reverse.get(r["tvk"], r["tvk"])
-                result[uksi_tvk] = r["sqs"]
-        return result
-
-    def _pantheon_status(self, tvk, jurisdiction=DEFAULT_JURISDICTION):
-        """Single species Pantheon-only lookup. Uses Pantheon ecology DB,
-        maps via the bridge, routes legacy Pantheon status codes to new
-        track names."""
-        pan = self._get_pantheon_conn()
-        status = SpeciesStatus(tvk=tvk)
-        status.is_invertebrate = self.is_invertebrate(tvk)
-        if not pan:
-            return status
-        pc = pan.cursor()
-        pan_tvk = self._to_pantheon_tvk(tvk)
-
-        pc.execute("SELECT sqs FROM sqs_scores WHERE tvk = ?", (pan_tvk,))
-        r = pc.fetchone()
-        if r:
-            status.sqs = r["sqs"]
-
-        pc.execute("""SELECT reporting_category, abbreviation
-                      FROM conservation_status WHERE tvk = ?""", (pan_tvk,))
-        for row in pc.fetchall():
-            self._apply_pantheon_row(status, row["reporting_category"], row["abbreviation"])
-
-        status.tier = _classify(status, jurisdiction) if status.is_invertebrate else KeySpeciesTier.NONE
-        status.is_key = status.tier != KeySpeciesTier.NONE
-        return status
+        pan = self._pan_repo()
+        return pan.get_sqs_scores(list(tvks)) if pan else {}
 
     def _pantheon_statuses_batch(self, tvks, jurisdiction=DEFAULT_JURISDICTION):
-        pan = self._get_pantheon_conn()
-        if not pan:
-            return {tvk: SpeciesStatus(tvk=tvk) for tvk in tvks}
-
-        pc = pan.cursor()
-        tvk_map = self._to_pantheon_tvks(tvks)
-        reverse = {v: k for k, v in tvk_map.items()}
-        pan_tvks = list(tvk_map.values())
+        pan = self._pan_repo()
         invert_set = self._get_invert_tvks()
-
-        # SQS
-        sqs_map = {}
-        for batch in _chunked(pan_tvks, 500):
-            ph = ",".join("?" * len(batch))
-            pc.execute(f"SELECT tvk, sqs FROM sqs_scores WHERE tvk IN ({ph})", batch)
-            for r in pc.fetchall():
-                uksi_tvk = reverse.get(r["tvk"], r["tvk"])
-                sqs_map[uksi_tvk] = r["sqs"]
-
-        # Conservation status rows
-        con_data = {}
-        for batch in _chunked(pan_tvks, 500):
-            ph = ",".join("?" * len(batch))
-            pc.execute(f"""SELECT tvk, reporting_category, abbreviation
-                           FROM conservation_status WHERE tvk IN ({ph})""", batch)
-            for row in pc.fetchall():
-                uksi_tvk = reverse.get(row["tvk"], row["tvk"])
-                con_data.setdefault(uksi_tvk, []).append(
-                    (row["reporting_category"], row["abbreviation"]))
+        if not pan:
+            out = {}
+            for tvk in tvks:
+                s = SpeciesStatus(tvk=tvk)
+                s.is_invertebrate = tvk in invert_set
+                out[tvk] = s
+            return out
+        sqs_map = pan.get_sqs_scores(list(tvks))
+        con_data = pan.get_conservation_rows(list(tvks))
 
         result = {}
         for tvk in tvks:
             status = SpeciesStatus(tvk=tvk, sqs=sqs_map.get(tvk, 0))
             status.is_invertebrate = tvk in invert_set
-            for cat, abbr in con_data.get(tvk, []):
+            for cat, abbr in con_data.get(tvk, []):     # incumbent's rows first
                 self._apply_pantheon_row(status, cat, abbr)
             status.tier = _classify(status, jurisdiction) if status.is_invertebrate else KeySpeciesTier.NONE
             status.is_key = status.tier != KeySpeciesTier.NONE
@@ -854,7 +938,8 @@ class CodexRepository:
             return self._research_only
         out = set()
         try:
-            pan = self._get_pantheon_conn()
+            pan_repo = self._pan_repo()
+            pan = pan_repo._get_conn() if pan_repo is not None else None
             if pan is not None:
                 pan_tvks = [r[0] for r in pan.execute(
                     "SELECT DISTINCT tvk FROM conservation_status WHERE reporting_category = ?",
@@ -1020,7 +1105,25 @@ def _classify(status, jurisdiction=DEFAULT_JURISDICTION):
     return KeySpeciesTier.NONE
 
 
+_TIER_RANK = {KeySpeciesTier.RARE: 3, KeySpeciesTier.SCARCE: 2,
+              KeySpeciesTier.PRIORITY: 1, KeySpeciesTier.NONE: 0}
+
+
+def stronger_status(first, second):
+    """The stronger of two SpeciesStatus by Key tier; `first` on a tie.
+
+    For one species recorded under two TVKs (EXA14): pass the species' own
+    status first, so the s.s. status stands unless the s.l. one ranks higher.
+    """
+    if first is None:
+        return second
+    if second is None:
+        return first
+    return second if _TIER_RANK.get(second.tier, 0) > _TIER_RANK.get(first.tier, 0) else first
+
+
 def _chunked(lst, n):
+    lst = list(lst)
     for i in range(0, len(lst), n):
         yield lst[i:i + n]
 

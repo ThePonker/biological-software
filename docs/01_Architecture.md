@@ -97,7 +97,7 @@ implementation, and the shim is the small one.
 | `uksi.db` | Taxonomy — names, TVKs, sort codes, synonyms; `name_map`, `tvk_remap`, `taxon_qualifiers` | `build_uksi_from_release.py` (NHM *Simplified Copy*) |
 | `pantheon.db` | Ecology — biotopes, habitats, SATs, guilds, fidelity | `build_pantheon_db.py` **(missing)** |
 | `vc_lookup.db` | Vice-county boundaries | Shapefile import |
-| `examen.db` | Frozen assessments | Examen (fate undecided) |
+| `examen.db` | Frozen assessments -- **retired 9 Oct 2026** (E13); nothing reads or writes it now. Export: `scripts/export_examen_snapshots.py` | none (still backed up) |
 | `munia.db` | Project allocations, day logs | Munia |
 | `gamification.db` | Achievements | Observatum |
 

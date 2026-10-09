@@ -14,14 +14,31 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QFont
 
+from shared.species_lookup_entries import apply_confirmed
+
 from ...themes import theme
 from ...core.config import ButtonColors
+
+# Columns tried for the name as it was in the file when the wizard does not say which
+FALLBACK_NAME_COLUMNS = ['species_name', 'Species', 'species', 'Scientific Name',
+                         'scientific_name', 'scientificName', 'Taxon', 'taxon', 'Species Name']
+
+
+def original_name(row, name_columns=()) -> str:
+    """The species name as it was in the import file: the wizard's mapped column first
+    (IMP-5: a file whose species column was called e.g. 'Name' was never found)."""
+    raw = getattr(row, 'raw_data', None) or {}
+    for key in [c for c in name_columns if c] + FALLBACK_NAME_COLUMNS:
+        val = str(raw.get(key, '') or '').strip()
+        if val:
+            return val
+    return ''
 
 
 class SpeciesMatchReportDialog(QDialog):
     """Shows species matching results grouped by match type."""
 
-    def __init__(self, validated_rows, parent=None, uksi_model=None):
+    def __init__(self, validated_rows, parent=None, uksi_model=None, name_columns=()):
         super().__init__(parent)
         self.setWindowTitle("Species Matching Report")
         self.setMinimumSize(850, 550)
@@ -29,26 +46,22 @@ class SpeciesMatchReportDialog(QDialog):
 
         self._rows = validated_rows
         self._uksi_model = uksi_model
+        self._name_columns = [c for c in (name_columns or []) if c]
+        self._changed = 0
         self._match_data = []
         self._analyse_matches()
         self._setup_ui()
+
+    def changed_rows(self) -> int:
+        """How many rows a re-match changed (the wizard redraws its table when > 0)."""
+        return self._changed
 
     def _analyse_matches(self):
         """Analyse validated rows to build species-level match summary."""
         seen = {}  # original_name -> match info
 
         for row in self._rows:
-            # Get original name from raw_data
-            original = ''
-            if hasattr(row, 'raw_data') and row.raw_data:
-                # Try common CSV column names for species
-                for key in ['species_name', 'Species', 'species', 'Scientific Name',
-                            'scientific_name', 'Taxon', 'taxon', 'Species Name']:
-                    val = row.raw_data.get(key, '').strip()
-                    if val:
-                        original = val
-                        break
-
+            original = original_name(row, self._name_columns)
             if not original:
                 continue
 
@@ -98,8 +111,11 @@ class SpeciesMatchReportDialog(QDialog):
             return "cf. resolved"
         if 'agg' in notes_lower or 'sensu lato' in notes_lower:
             return "Aggregate"
-        if 'bulk lookup' in notes_lower or 'resolved via' in notes_lower:
+        if ('bulk lookup' in notes_lower or 'resolved via' in notes_lower
+                or 'by you' in notes_lower or 're-matched' in notes_lower):
             return "Manual resolution"
+        if 'synonym' in notes_lower:
+            return "Synonym"
         if 'alias' in notes_lower:
             return "Alias"
 
@@ -345,66 +361,33 @@ class SpeciesMatchReportDialog(QDialog):
         if not self._uksi_model:
             return
 
-        from .species_search_dialog import SpeciesSearchDialog
+        from .specimen_import_wizard.species_search_dialog import SpeciesSearchDialog
         dialog = SpeciesSearchDialog(
             parent=self,
             uksi_model=self._uksi_model,
             initial_text=original_name
         )
         dialog.setWindowTitle(f"Re-match: {original_name}")
-        result = dialog.exec()
+        accepted = dialog.exec() == QDialog.DialogCode.Accepted
         selected = dialog.get_selected_species()
-        if selected:
+        if accepted and selected:       # a click then Cancel is not a choice
             self._apply_rematch(original_name, selected)
 
-    def _apply_rematch(self, original_name: str, uksi_data: dict):
-        """Apply a new species match to all rows with this original name."""
-        new_name = uksi_data.get('scientific_name', '') or getattr(uksi_data, 'scientific_name', '')
-        new_tvk = uksi_data.get('tvk', '') or getattr(uksi_data, 'tvk', '')
-        new_common = uksi_data.get('common_name', '') or getattr(uksi_data, 'common_name', '')
-        new_order = uksi_data.get('order_name', '') or getattr(uksi_data, 'order_name', '')
-        new_family = uksi_data.get('family', '') or getattr(uksi_data, 'family', '')
-
-
+    def _apply_rematch(self, original_name_: str, uksi_data: dict):
+        """Apply a new species match to EVERY row with this original name (IMP-5: it stopped
+        after 3). Only the species error is replaced -- a bad date or grid ref stays an error."""
+        if not isinstance(uksi_data, dict):
+            uksi_data = {k: getattr(uksi_data, k, '') for k in
+                         ('scientific_name', 'tvk', 'common_name', 'order_name', 'family', 'rank')}
+        key = original_name_.strip().lower()
         count = 0
         for row in self._rows:
-            # Match by: current species_name on row, OR original CSV name in raw_data
-            row_name = (row.species_name or '').strip()
-            csv_name = ''
-            if hasattr(row, 'raw_data') and row.raw_data:
-                for key in ['species_name', 'Species', 'species', 'Scientific Name',
-                            'scientific_name', 'Taxon', 'taxon', 'Species Name']:
-                    val = row.raw_data.get(key, '').strip()
-                    if val:
-                        csv_name = val
-                        break
-
-            if count < 3 and csv_name and (
-                    csv_name.lower() == original_name.lower() or
-                    row_name.lower() == original_name.lower()):
-                row.species_name = new_name
-                row.species_tvk = new_tvk
-                row.common_name = new_common
-                row.order_name = new_order
-                row.family = new_family
-                row.import_notes = f"Re-matched: '{original_name}' → '{new_name}'"
-
-                # Clear old match info and set new message
-                row.error_message = ''
-                row.warnings = [f"Re-matched to '{new_name}'"]
-
-                # Update status -- with the row's own wizard's RowStatus. This used the stale
-                # dialogs/validation_worker.RowStatus, a different enum, so a re-matched row's
-                # status equalled neither VALID nor WARNING in its wizard (fixed 9 Oct, I4).
-                RowStatus = type(row.status)
-                if row.species_tvk:
-                    if row.warnings:
-                        row.status = RowStatus.WARNING
-                    else:
-                        row.status = RowStatus.VALID
-
-                count += 1
-
+            csv_name = original_name(row, self._name_columns)
+            if csv_name.lower() != key and (row.species_name or '').strip().lower() != key:
+                continue
+            apply_confirmed(row, uksi_data, csv_name or original_name_, "re-matched by you")
+            count += 1
+        self._changed += count
 
         # Re-analyse and refresh table
         self._match_data = []
@@ -413,12 +396,11 @@ class SpeciesMatchReportDialog(QDialog):
         self._populate_table()
 
         # Update summary
-        # Find and update the summary label
         for child in self.findChildren(QLabel):
             if 'species matched' in (child.text() or ''):
                 matched = sum(1 for m in self._match_data if m['match_type'] != 'Unmatched')
                 total = len(self._match_data)
-                child.setText(f"{matched}/{total} species matched ({count} specimens updated)")
+                child.setText(f"{matched}/{total} species matched ({count} rows updated)")
                 break
 
     def _export_csv(self):

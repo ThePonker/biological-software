@@ -51,7 +51,8 @@ def export_appendix(parent_widget, site_name: str, result, detail=None,
         jurisdiction: whose designations apply; others are greyed, as in the workbook
     """
     from .examen_data import in_taxonomic_order
-    from .workbook_export import _parts_from_string, _sqi_cell, status_cell, status_parts
+    from .workbook_export import (_parts_from_string, _sqi_cell, appendix_name, status_cell,
+                                  status_parts)
     if not HAS_OPENPYXL:
         QMessageBox.warning(parent_widget, "Examen",
                             "openpyxl required for Excel export.\npip install openpyxl")
@@ -126,7 +127,9 @@ def export_appendix(parent_widget, site_name: str, result, detail=None,
     if key_sorted:
         for k in key_sorted:
             tax = taxonomy.get(k.tvk, {})
-            values = [k.species_name, tax.get("common", ""),
+            name = (f"{k.species_name} ({k.recorded_note})"
+                    if getattr(k, "recorded_note", "") else k.species_name)
+            values = [name, tax.get("common", ""),
                       status_cell(status_parts(k, jurisdiction), jurisdiction),
                       sqs_cell(k.tvk, k.sqs), k.tier, k.broad_biotope, k.habitat,
                       k.family or tax.get("family", ""), tax.get("order", "")]
@@ -151,7 +154,7 @@ def export_appendix(parent_widget, site_name: str, result, detail=None,
         tax = taxonomy.get(sp.tvk, {})
         status = status_cell(_parts_from_string(
             getattr(sp, "status_full", "") or sp.status or "", jurisdiction), jurisdiction)
-        values = [sp.name, tax.get("common", ""), status, sqs_cell(sp.tvk, sp.sqs),
+        values = [appendix_name(sp), tax.get("common", ""), status, sqs_cell(sp.tvk, sp.sqs),
                   "", sp.broad_biotope or "", sp.habitat or "",
                   tax.get("family", ""), tax.get("order", "")]
         for col, val in enumerate(values, 1):

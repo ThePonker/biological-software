@@ -203,7 +203,7 @@ class AddSpecimenDialog(QDialog):
         self._loc_map = None
         try:
             import paths as _paths
-            from DataEntry.raster_map import RasterMiniMap, find_tiles_dir
+            from shared.maps.raster_map import RasterMiniMap, find_tiles_dir
             _tiles = find_tiles_dir(str(_paths.MAPS_DIR))
             _m = RasterMiniMap(_tiles, self._vc_service)
             if _m.has_data():
@@ -215,7 +215,7 @@ class AddSpecimenDialog(QDialog):
         if self._loc_map is None:
             try:
                 import paths as _paths
-                from DataEntry.vc_map import MiniMap
+                from shared.maps.vc_map import MiniMap
                 _g = str(_paths.VC_GEOJSON)
                 _m = MiniMap(_g, self._vc_service)
                 if _m.has_data():
@@ -834,7 +834,7 @@ class AddSpecimenDialog(QDialog):
         data['preparation_type'] = self.prep_combo.currentText().strip()
         data['condition'] = self.condition_combo.currentText().strip()
         data['storage_location'] = self.storage_combo.currentText().strip()
-        data['drawer_unit'] = self.drawer_edit.text().strip()
+        data['drawer_number'] = self.drawer_edit.text().strip()
 
         if self._selected_species:
             data['species_tvk'] = self._selected_species.get('tvk')

@@ -61,17 +61,21 @@ class DataEntryWidget(QWidget):
             print(f"[DataEntry] backup timer not started: {e}")
 
     def backup_now(self):
-        """Write the staging CSV. Safe to call at any time; never raises."""
+        """Write the staging CSV. Safe to call at any time; never raises. Returns the file
+        written, or None when it could not be (the Delete / Discard / Export-and-clear
+        prompts use that to warn, DE8)."""
         if self._conn is None:
-            return
+            return None
         try:
             from DataEntry import csv_backup
-            csv_backup.backup_staging(self._conn)
+            return csv_backup.backup_staging(self._conn)
         except Exception as e:
             print(f"[DataEntry] staging backup failed: {e}")
+            return None
 
     def backup_observations_now(self, *_):
-        """Write the observations CSV. Wired to the grid's committed signal."""
+        """Write the observations CSV. Wired to the grid's committed signal (DE5, 9 Oct
+        2026 -- it had never been connected)."""
         try:
             from DataEntry import csv_backup
             csv_backup.backup_staging(self._conn)
@@ -156,6 +160,7 @@ class DataEntryWidget(QWidget):
         if self._conn is not None and self._schema_error is None:
             self._jobs = JobsListPage(self._conn)
             self._jobs.job_opened.connect(self._open_job)
+            self._jobs.before_change = self.backup_now      # before Delete job (DE8)
             self._stack.addWidget(self._jobs)
 
             self._job_host = QWidget()
@@ -242,6 +247,8 @@ class DataEntryWidget(QWidget):
                              commit_cb, self._vc_service, self._geojson_path, self._tiles_dir, self._maps_dir)
         grid.finished.connect(self._on_job_finished)
         grid.committed.connect(self.committed)  # forward to the host app (reload Observation Data)
+        grid.committed.connect(self.backup_observations_now)   # observations CSV after commit (DE5)
+        grid.before_change = self.backup_now    # before Discard / Export-and-clear (DE8)
         self._job_layout.addWidget(grid, 1)
 
         self._stack.setCurrentIndex(1)

@@ -1,5 +1,7 @@
 from src.utils.constants import compute_taxonomic_sort_key
 import paths
+from shared.species_lookup import lookup_names
+from shared.species_lookup_entries import entries
 """
 Validation Worker for Specimen Import Wizard.
 
@@ -83,7 +85,7 @@ class ImportRow:
     specimen_code: str = ""
     preparation_type: str = ""
     storage_location: str = ""
-    drawer_unit: str = ""
+    drawer_number: str = ""
     condition: str = ""
     label_data: str = ""
     notes: str = ""
@@ -99,14 +101,12 @@ class ValidationWorker(QThread):
     finished = Signal(list)
 
     def __init__(self, rows: List[ImportRow], column_mapping: Dict[str, str],
-                 uksi_model, vc_db_path: str = None, main_db_path: str = None,
-                 species_aliases: Dict[str, dict] = None):
+                 uksi_model, vc_db_path: str = None, main_db_path: str = None):
         super().__init__()
         self.rows = rows
         self.column_mapping = column_mapping
         self.uksi_model = uksi_model
         self.vc_db_path = vc_db_path
-        self.species_aliases = species_aliases or {}
         self._cancelled = False
         self._vc_service = None
 
@@ -184,26 +184,12 @@ class ValidationWorker(QThread):
                 "specimen_code": raw.get(mapping.get("specimen_code", ""), "").strip(),
                 "preparation_type": raw.get(mapping.get("preparation_type", ""), "").strip(),
                 "storage_location": raw.get(mapping.get("storage_location", ""), "").strip(),
-                "drawer_unit": raw.get(mapping.get("drawer_unit", ""), "").strip(),
+                "drawer_number": raw.get(mapping.get("drawer_number", ""), "").strip(),
                 "condition": raw.get(mapping.get("condition", ""), "").strip(),
                 "label_data": raw.get(mapping.get("label_data", ""), "").strip(),
                 "notes": raw.get(mapping.get("notes", ""), "").strip(),
             })
         return pd.DataFrame(data)
-
-    def _normalize_species_name(self, name: str) -> dict:
-        """Parse cf./agg. qualifiers from species names."""
-        name = name.strip()
-        # Handle cf. (e.g. "Anthocoris cf. confusus")
-        import re
-        cf_match = re.match(r"^(\w+)\s+cf\.?\s+(\w+.*)$", name)
-        if cf_match:
-            return {"qualifier": "cf.", "cleaned": f"{cf_match.group(1)} {cf_match.group(2)}"}
-        # Handle agg. (e.g. "Bombus lucorum agg.")
-        agg_match = re.match(r"^(.+?)\s+agg\.?$", name)
-        if agg_match:
-            return {"qualifier": "agg.", "cleaned": agg_match.group(1).strip()}
-        return {"qualifier": None, "cleaned": name}
 
     def _batch_species_lookup(self, df: pd.DataFrame) -> pd.DataFrame:
         df["species_tvk"] = ""
@@ -226,133 +212,11 @@ class ValidationWorker(QThread):
         if not unique_species:
             return df
 
-        species_lookup = {}
-
-        # Check aliases first
-        for name in unique_species:
-            alias_key = name.lower().strip()
-            if alias_key in self.species_aliases:
-                alias = self.species_aliases[alias_key]
-                species_lookup[name] = {
-                    "tvk": alias.get("uksi_tvk", ""),
-                    "common_name": alias.get("uksi_common_name", ""),
-                    "order_name": alias.get("uksi_order", ""),
-                    "family": alias.get("uksi_family", ""),
-                    "matched_name": alias.get("uksi_name", name),
-                    "warning": "Matched via saved alias",
-                    "import_notes": f"Alias: {name} -> {alias.get('uksi_name', name)}"
-                }
-
-        # Batch exact match
-        remaining = [s for s in unique_species if s not in species_lookup]
-        if remaining and hasattr(self.uksi_model, "get_species_batch"):
-            batch_results = self.uksi_model.get_species_batch(remaining)
-            for name, result in batch_results.items():
-                if result:
-                    species_lookup[name] = {
-                        "tvk": result.tvk if hasattr(result, "tvk") else result.get("tvk", ""),
-                        "common_name": result.common_name if hasattr(result, "common_name") else result.get("common_name", ""),
-                        "order_name": result.order_name if hasattr(result, "order_name") else result.get("order_name", ""),
-                        "family": result.family if hasattr(result, "family") else result.get("family", ""),
-                        "matched_name": name,
-                        "warning": "",
-                        "import_notes": ""
-                    }
-
-        # Fuzzy search for remaining
-        still_missing = [s for s in unique_species if s not in species_lookup]
-        for name in still_missing:
-            if self._cancelled:
-                break
-            try:
-                results = self.uksi_model.search_species(name, limit=1)
-            except Exception as e:      # an error here used to leave the wizard hanging
-                species_lookup[name] = {"error": f"UKSI lookup error for {name}: {e}"}
-                continue
-            if results:
-                match = results[0]
-                species_lookup[name] = {
-                    "tvk": match.tvk,
-                    "common_name": match.common_name or "",
-                    "order_name": match.order_name or "",
-                    "family": match.family or "",
-                    "matched_name": match.scientific_name,
-                    "warning": f"Matched to '{match.scientific_name}'",
-                    "import_notes": f"Fuzzy: {name} -> {match.scientific_name}",
-                    "import_notes": f"Fuzzy: {name} -> {match.scientific_name}"
-                }
-            else:
-                species_lookup[name] = {"error": f"Species not found: {name}"}
-
-
-        # Retry failed lookups with cf./agg. handling
-        for name in unique_species:
-            parsed = self._normalize_species_name(name)
-            if parsed["qualifier"] is None:
-                continue
-            # For agg.: override with sensu lato TVK
-            if name in species_lookup and parsed["qualifier"] != "agg.":
-                if "error" not in species_lookup[name]:
-                    continue
-            cleaned = parsed["cleaned"]
-            try:
-                if parsed["qualifier"] == "agg.":
-                    if hasattr(self.uksi_model, "db") and self.uksi_model.db:
-                        agg_results = self.uksi_model.db.execute_uksi(
-                            "SELECT t.tvk, t.scientific_name, t.rank, t.kingdom, "
-                            "t.\"order\" as order_name, t.family, cn.common_name "
-                            "FROM taxa t LEFT JOIN common_names cn ON t.tvk = cn.tvk "
-                            "WHERE t.scientific_name LIKE ? "
-                            "AND (t.rank = 'Species sensu lato' OR t.rank = 'Species aggregate') "
-                            "ORDER BY CASE WHEN t.rank = 'Species sensu lato' THEN 0 ELSE 1 END "
-                            "LIMIT 1",
-                            (cleaned + "%",)
-                        )
-                        if agg_results:
-                            r = agg_results[0]
-                            species_lookup[name] = {
-                                "tvk": r["tvk"] or "",
-                                "common_name": (r["common_name"] if r["common_name"] else ""),
-                                "order_name": (r["order_name"] if r["order_name"] else ""),
-                                "family": (r["family"] if r["family"] else ""),
-                                "matched_name": r["scientific_name"] or cleaned,
-                                "warning": f"Aggregate matched to base species '{r['scientific_name']}'",
-                                "import_notes": f"Original: '{name}' -> matched to '{r['scientific_name']}'",
-                            }
-                            continue
-                # cf. or unmatched agg.: try cleaned name
-                if cleaned not in species_lookup or "error" in species_lookup.get(cleaned, {}):
-                    results = self.uksi_model.search_species(cleaned, limit=1)
-                    if results:
-                        match = results[0]
-                        matched_name = match.scientific_name
-                    else:
-                        continue
-                else:
-                    matched_name = species_lookup[cleaned].get("matched_name", cleaned)
-                    match = None
-                if parsed["qualifier"] == "cf.":
-                    species_lookup[name] = {
-                        "tvk": (match.tvk if match else species_lookup[cleaned]["tvk"]),
-                        "common_name": (match.common_name or "" if match else species_lookup[cleaned].get("common_name", "")),
-                        "order_name": (match.order_name or "" if match else species_lookup[cleaned].get("order_name", "")),
-                        "family": (match.family or "" if match else species_lookup[cleaned].get("family", "")),
-                        "matched_name": matched_name,
-                        "warning": f"cf. identification: matched to '{matched_name}' (uncertain ID)",
-                        "import_notes": f"Original: '{name}' (cf. = uncertain identification)",
-                    }
-                elif parsed["qualifier"] == "agg.":
-                    species_lookup[name] = {
-                        "tvk": (match.tvk if match else species_lookup[cleaned]["tvk"]),
-                        "common_name": (match.common_name or "" if match else species_lookup[cleaned].get("common_name", "")),
-                        "order_name": (match.order_name or "" if match else species_lookup[cleaned].get("order_name", "")),
-                        "family": (match.family or "" if match else species_lookup[cleaned].get("family", "")),
-                        "matched_name": matched_name,
-                        "warning": f"Aggregate matched to base species '{matched_name}'",
-                        "import_notes": f"Original: '{name}' -> matched to '{matched_name}'",
-                    }
-            except Exception as e:
-                print(f"[validation_worker] _batch_species_lookup: {e}")  # I7: was silent
+        # One rule set for all three wizards (shared/species_lookup.py): exact names and
+        # synonyms; anything else is an error naming the closest UKSI names, to be confirmed
+        # with Resolve Species. Saved aliases are no longer used.
+        species_lookup = entries(lookup_names(unique_species, self.uksi_model,
+                                              cancelled=lambda: self._cancelled))
 
         # Apply to DataFrame
         for idx, row in df.iterrows():
@@ -364,7 +228,7 @@ class ValidationWorker(QThread):
                 df.at[idx, "common_name"] = lookup.get("common_name", "")
                 df.at[idx, "order_name"] = lookup.get("order_name", "")
                 df.at[idx, "family"] = lookup.get("family", "")
-                df.at[idx, "matched_name"] = lookup.get("matched_name", name)
+                df.at[idx, "matched_name"] = lookup.get("species_name", name)   # UKSI's (IMP-15)
                 # Compute taxonomic sort key and superfamily
                 tvk = lookup.get("tvk", "")
                 if tvk:
@@ -531,7 +395,7 @@ class ValidationWorker(QThread):
             import_row.specimen_code = row.get("specimen_code", "") or ""
             import_row.preparation_type = row.get("preparation_type", "") or ""
             import_row.storage_location = row.get("storage_location", "") or ""
-            import_row.drawer_unit = row.get("drawer_unit", "") or ""
+            import_row.drawer_number = row.get("drawer_number", "") or ""
             import_row.condition = row.get("condition", "") or ""
             import_row.label_data = row.get("label_data", "") or ""
             import_row.notes = row.get("notes", "") or ""

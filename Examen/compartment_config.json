@@ -1,0 +1,4 @@
+{
+  "_comment": "Compartment analysis settings (backlog E6). Compartments holding fewer than min_share_pct of the survey's records are flagged in Examen and the reports. Edit here; no code change needed.",
+  "min_share_pct": 5
+}

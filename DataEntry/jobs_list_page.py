@@ -7,6 +7,10 @@ so more records can be added under the same project.
 
 Reads entry_jobs via staging_repo. Emits job_opened(job_id) when a job is opened. The
 canonical Personal job is pinned at the top and can't be deleted.
+
+Personal jobs exported for iRecord stay listed, "exported - awaiting iRecord", until
+Check iRecord return finds every record back and Wil closes them (DE7, 9 Oct 2026).
+Delete takes the staging CSV safety copy first (before_change, set by the widget; DE8).
 """
 from __future__ import annotations
 
@@ -150,6 +154,7 @@ class JobsListPage(QWidget):
     def __init__(self, conn: sqlite3.Connection, parent: Optional[QWidget] = None):
         super().__init__(parent)
         self._conn = conn
+        self.before_change = None   # safety copy before a delete: returns falsy on failure
         self._build_ui()
         self.refresh()
 
@@ -219,6 +224,13 @@ class JobsListPage(QWidget):
         self.btn_reopen.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_reopen.clicked.connect(self._reopen_selected)
         row.addWidget(self.btn_reopen)
+        self.btn_check = QPushButton("Check iRecord return")
+        self.btn_check.setToolTip("After an iRecord sync: are all of this exported job's records "
+                                  "back in Observatum? Close the job when they are.")
+        self.btn_check.setStyleSheet(theme.button_secondary_qss())
+        self.btn_check.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_check.clicked.connect(self._check_return)
+        row.addWidget(self.btn_check)
         self.btn_edit = QPushButton("Edit details")
         self.btn_edit.setToolTip("Change this job's name, project or client")
         self.btn_edit.setStyleSheet(
@@ -270,7 +282,8 @@ class JobsListPage(QWidget):
             self.table.setItem(r, 3, QTableWidgetItem(last))
             emb = j.get("embargo_until")
             status = j.get("status") or "active"
-            status_txt = status if status != "active" else ("embargo " + emb if emb else "")
+            status_txt = repo.STATUS_LABELS.get(status, status) if status != "active" \
+                else ("embargo " + emb if emb else "")
             self.table.setItem(r, 4, QTableWidgetItem(status_txt))
         if self.table.rowCount():
             self.table.selectRow(0)
@@ -293,8 +306,11 @@ class JobsListPage(QWidget):
         _, job_id, is_personal = self._selected()
         self.btn_open.setEnabled(job_id is not None)
         self.btn_edit.setEnabled(job_id is not None and not is_personal)
-        self.btn_reopen.setVisible(self.chk_done.isChecked())
+        awaiting = self._selected_status() == repo.AWAITING_IRECORD
+        self.btn_reopen.setVisible(self.chk_done.isChecked() or awaiting)
         self.btn_reopen.setEnabled(job_id is not None and self._selected_status() != "active")
+        self.btn_check.setVisible(awaiting)
+        self.btn_check.setEnabled(awaiting)
         # can't delete the canonical Personal job
         self.btn_delete.setEnabled(job_id is not None and not is_personal)
 
@@ -341,6 +357,14 @@ class JobsListPage(QWidget):
     def _confirm_reopen(self) -> bool:
         r, _, _ = self._selected()
         name = self.table.item(r, 0).text()
+        if self._selected_status() == repo.AWAITING_IRECORD:
+            return QMessageBox.question(
+                self, "Reopen job",
+                f"\u201c{name}\u201d was exported for iRecord and is waiting for its records "
+                "to come back.\n\nReopen it to edit? It will need exporting again, and anything "
+                "already imported into iRecord from the first file stays there.\n\nTo see "
+                "whether the records are back, use \u201cCheck iRecord return\u201d instead."
+            ) == QMessageBox.StandardButton.Yes
         return QMessageBox.question(
             self, "Reopen job",
             f"Reopen \u201c{name}\u201d to add more records?\n\n"
@@ -377,5 +401,24 @@ class JobsListPage(QWidget):
         msg += "\n\nThis removes only the staged working data \u2014 nothing already committed to Observatum."
         if QMessageBox.question(self, "Delete job", msg) != QMessageBox.StandardButton.Yes:
             return
+        if not self._safety_copy():
+            return
         repo.delete_job(self._conn, job_id)
         self.refresh()
+
+    def _safety_copy(self) -> bool:
+        """Staging CSV before a delete (DE8). False = stop (the copy failed, Wil said no)."""
+        if self.before_change is None or self.before_change():
+            return True
+        return QMessageBox.question(
+            self, "Safety copy failed",
+            "The staging safety copy (staging_backup.csv) could not be written.\n\n"
+            "Delete anyway?") == QMessageBox.StandardButton.Yes
+
+    def _check_return(self):
+        _, job_id, _ = self._selected()
+        if job_id is None or self._selected_status() != repo.AWAITING_IRECORD:
+            return
+        from DataEntry.irecord_return_dialog import check_return
+        if check_return(self, self._conn, job_id):
+            self.refresh()

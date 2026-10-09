@@ -559,7 +559,7 @@ class CommercialReportsDashboard(QScrollArea):
             msg += (f"\n\n\u26a0 {clash.get('observations', 0) + clash.get('contributed_observations', 0):,} "
                     "records already carry that project and client. The two will MERGE into one "
                     "project in Examen and here.")
-        msg += "\n\nObservatum is backed up first. Saved Examen snapshots keep the old name."
+        msg += "\n\nObservatum is backed up first."
         if QMessageBox.question(self, "Edit project / client", msg,
                                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                                 QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:

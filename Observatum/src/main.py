@@ -86,27 +86,52 @@ def main():
     
     splash.set_progress(90, "Loading recording scheme data...")
 
-    # Wait for RS background worker to finish before showing window
+    # Wait for RS background worker to finish before showing window. The window opens
+    # whatever happens: the worker always sets results_ready (error or not), there is a
+    # time limit, and any failure preparing a tab is reported, not left on the splash
+    # screen (review OBS-02 / SRCH20b, 9 Oct 2026).
+    import time
+    wait_started = time.monotonic()
+    MAX_WAIT_S = 120
+
     def check_and_show():
         rs_tab = window.recording_scheme_tab
         worker = getattr(rs_tab, '_data_worker', None)
-        if worker and hasattr(worker, 'results_ready') and not worker.results_ready.is_set():
+        if (worker and hasattr(worker, 'results_ready') and not worker.results_ready.is_set()
+                and time.monotonic() - wait_started < MAX_WAIT_S):
             # Still loading - update splash and check again
             app.processEvents()
             QTimer.singleShot(100, check_and_show)
             return
-        # Worker done (or no worker) - initialize RS with pre-loaded data
+        # Worker done (or no worker, or out of time) - prepare the tabs while hidden
         splash.set_progress(95, "Preparing interface...")
         app.processEvents()
-        # Trigger RS initialize so proxy connects while window is hidden
-        rs_tab.initialize(main_db_path, uksi_db_path)
-        # Also initialize IC tab while hidden (it's fast - 0.65s)
-        window.insect_collection_tab.initialize(main_db_path, uksi_db_path)
-        window._initialized_tabs.add(2)  # RS
-        window._initialized_tabs.add(3)  # IC
+        problems = []
+        if worker is not None and hasattr(worker, 'results_ready') and not worker.results_ready.is_set():
+            problems.append(f"Recording Scheme records were still loading after {MAX_WAIT_S} s; "
+                            "they will appear when ready.")
+        err = rs_tab.worker_error() if hasattr(rs_tab, 'worker_error') else None
+        if err:
+            rs_tab._load_error = err             # reported here; the tab won't repeat it
+            problems.append(f"Recording Scheme records could not be loaded:\n{err}")
+        for name, tab, idx in (("Recording Scheme", rs_tab, 2),
+                               ("Insect Collection", window.insect_collection_tab, 3)):
+            try:
+                tab.initialize(main_db_path, uksi_db_path)
+                window._initialized_tabs.add(idx)
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                problems.append(f"{name} could not be prepared:\n{e}")
         splash.set_progress(100, "Ready!")
         app.processEvents()
-        QTimer.singleShot(200, lambda: finish_and_show(splash, window))
+
+        def show():
+            finish_and_show(splash, window)
+            if problems:
+                from PySide6.QtWidgets import QMessageBox
+                QMessageBox.warning(window, "Observatum", "\n\n".join(problems))
+        QTimer.singleShot(200, show)
 
     check_and_show()
 

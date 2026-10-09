@@ -10,8 +10,8 @@ try:
     maps_dir = str(paths.MAPS_DIR)
 except Exception:
     maps_dir = os.path.join("data", "maps")
-from DataEntry.raster_map import find_tiles_dir
-from DataEntry.gb_basemap import gb_basemap_path, _BASENAME
+from shared.maps.raster_map import find_tiles_dir
+from shared.maps.gb_basemap import gb_basemap_path, _BASENAME
 
 tiles = find_tiles_dir(maps_dir)
 if not tiles:

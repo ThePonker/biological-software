@@ -6,21 +6,20 @@ with 5 sub-tabs: Overview, Habitats, Assemblages, Species, Conservation.
 """
 
 import csv
-import sqlite3
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QSplitter, QTableWidget, QTableWidgetItem, QHeaderView,
-    QTabWidget, QFileDialog, QMessageBox, QInputDialog, QCheckBox, QComboBox,
+    QTabWidget, QFileDialog, QMessageBox, QCheckBox, QComboBox,
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QColor
-from .examen_data import load_all_projects, load_project_detail, AnalysisMode
+from .examen_data import (load_all_projects, load_project_detail, AnalysisMode,
+                          AUTO_JURISDICTION, country_for_vc, resolve_jurisdiction)
 from .overview_tab import OverviewTab
 from .habitat_tab import HabitatTab
 from .assemblage_tab import AssemblageTab
 from .species_tab import SpeciesTab
 from .conservation_tab import ConservationTab
-import paths
 
 BG = "#f5f5f4"; SURFACE = "#ffffff"; TEXT_PRIMARY = "#1f2937"; TEXT_HEADING = "#4b5563"
 TEXT_SECONDARY = "#6b7280"; TEXT_MUTED = "#9ca3af"; BORDER = "#d1d5db"; SEPARATOR = "#e5e7eb"
@@ -48,9 +47,6 @@ TAB_STYLE = (
     "QTabBar::tab:hover:!selected { color: " + TEXT_SECONDARY + "; }")
 
 
-AUTO_JURISDICTION = "Auto (vice-county)"
-
-
 # ---- project table: display one thing, sort on another --------------------
 _PROJ_ROLE = int(Qt.ItemDataRole.UserRole)        # column 0: index into self._projects
 _SORT_ROLE = int(Qt.ItemDataRole.UserRole) + 1    # every column: the value to sort on
@@ -71,10 +67,9 @@ from shared.display_format import dmy as _dmy, mode_label  # noqa: E402
 
 class SiteAnalysisView(QWidget):
 
-    def __init__(self, analysis_service, snapshot_mgr):
+    def __init__(self, analysis_service):
         super().__init__()
         self._service = analysis_service
-        self._snapshots = snapshot_mgr
         self._projects = []; self._mode = AnalysisMode.CODEX_FULL
         self._current_detail = None; self._current_result = None
         self._current_site_name = ""
@@ -87,75 +82,20 @@ class SiteAnalysisView(QWidget):
         self._mode = mode; self._load_projects()
 
     # ── Jurisdiction ─────────────────────────────────────────────
-    # Watsonian vice-counties. VC is already on every record and derived from
-    # the grid reference, so the country can be read from the data rather than
-    # chosen from a menu that can be forgotten.
-    _VC_COUNTRY = ([("England", range(1, 35))] +
-                   [("Wales", [35])] +
-                   [("England", range(36, 41))] +
-                   [("Wales", range(41, 53))] +
-                   [("England", range(53, 71))] +
-                   [("Isle of Man", [71])] +
-                   [("Scotland", range(72, 113))])
-
+    # Resolved in examen_data, for the project table and the detail header
+    # alike, so the two cannot classify Key species under different rules (EXA2).
     @classmethod
     def _country_for_vc(cls, vc):
-        for country, rng in cls._VC_COUNTRY:
-            if vc in rng:
-                return country
-        return ""
-
-    def _derive_jurisdiction(self, proj):
-        """Commonest country across the project's records, or '' if unknown."""
-        if proj is None or not paths.OBSERVATUM_DB.exists():
-            return ""
-        where = "record_type='Commercial' AND project_name=?"
-        params = [proj.project_name]
-        if getattr(proj, "client", ""):
-            where += " AND client=?"
-            params.append(proj.client)
-        if getattr(proj, "survey_year", ""):
-            where += " AND substr(date,1,4)=?"
-            params.append(str(proj.survey_year))
-        try:
-            conn = sqlite3.connect(f"file:{paths.OBSERVATUM_DB}?mode=ro", uri=True)
-            rows = conn.execute(
-                f"""SELECT vc_number, COUNT(1) FROM assessment_records
-                    WHERE {where} AND vc_number IS NOT NULL AND vc_number != ''
-                    GROUP BY 1 ORDER BY 2 DESC""", params).fetchall()
-            conn.close()
-        except sqlite3.Error:
-            return ""
-        tally = {}
-        for vc, n in rows:
-            try:
-                country = self._country_for_vc(int(vc))
-            except (TypeError, ValueError):
-                continue
-            if country:
-                tally[country] = tally.get(country, 0) + n
-        if not tally:
-            return ""
-        return max(tally, key=tally.get)
+        return country_for_vc(vc)
 
     def _resolve_jurisdiction(self, proj):
         """The jurisdiction to assess under, and how it was arrived at."""
-        chosen = self.juris_combo.currentText()
-        if chosen != AUTO_JURISDICTION:
-            return chosen, "chosen"
-        derived = self._derive_jurisdiction(proj)
-        if derived in ("", "Isle of Man"):
-            # No usable vice-county, or a jurisdiction with no separate
-            # priority list. England is the documented default; say so rather
-            # than assert a country the records do not support.
-            return "England", ("default" if not derived else f"default, VC in {derived}")
-        return derived, "from vice-county"
+        return resolve_jurisdiction(proj, self.juris_combo.currentText())
 
     def _on_jurisdiction_changed(self, _text=None):
-        if self._current_result is not None:
-            self.detail_header.setText(
-                self.detail_header.text().split("   \u2014 assessed")[0]
-                + "   (re-select the project to apply the new jurisdiction)")
+        # The table's Key species follow the setting; the detail is cleared and
+        # the project re-selected to apply it there.
+        self._load_projects()
 
     def _on_pool_toggled(self, on):
         self._pool_years = on
@@ -196,8 +136,6 @@ class SiteAnalysisView(QWidget):
         import_btn.clicked.connect(self._on_import); toolbar.addWidget(import_btn)
         refresh_btn = QPushButton("Refresh"); refresh_btn.setStyleSheet(BTN_ACCENT)
         refresh_btn.clicked.connect(self._load_projects); toolbar.addWidget(refresh_btn)
-        self.freeze_btn = QPushButton("Freeze"); self.freeze_btn.setStyleSheet(BTN_PRIMARY)
-        self.freeze_btn.clicked.connect(self._on_freeze); self.freeze_btn.setEnabled(False); toolbar.addWidget(self.freeze_btn)
         self.appendix_btn = QPushButton("Export Appendix"); self.appendix_btn.setStyleSheet(BTN_OUTLINE)
         self.appendix_btn.setToolTip("One sheet: the species list, for checking.")
         self.appendix_btn.clicked.connect(self._on_export_appendix); self.appendix_btn.setEnabled(False); toolbar.addWidget(self.appendix_btn)
@@ -228,6 +166,8 @@ class SiteAnalysisView(QWidget):
         splitter = QSplitter(Qt.Orientation.Vertical)
         self.table = QTableWidget(); self.table.setColumnCount(10)
         self.table.setHorizontalHeaderLabels(["Project", "Year", "Client", "Sites", "Visits", "Species", "Key spp", "% Key", "SQI", "Dates"])
+        from .presentation import SQI_TOOLTIP
+        self.table.horizontalHeaderItem(8).setToolTip(SQI_TOOLTIP)    # the scale (E8)
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
@@ -279,11 +219,12 @@ class SiteAnalysisView(QWidget):
 
     def _load_projects(self):
         self._projects = load_all_projects(self._mode,
-                                           by_year=not self._pool_years)
+                                           by_year=not self._pool_years,
+                                           jurisdiction=self.juris_combo.currentText())
         # Sorting off while filling: with it on, setItem can re-sort mid-fill.
         self.table.setSortingEnabled(False)
         self.table.setRowCount(len(self._projects))
-        self.freeze_btn.setEnabled(False); self.appendix_btn.setEnabled(False)
+        self.appendix_btn.setEnabled(False)
         if hasattr(self, 'workbook_btn'): self.workbook_btn.setEnabled(False)
         if hasattr(self, 'pdf_btn'): self.pdf_btn.setEnabled(False)
         if hasattr(self, 'word_btn'): self.word_btn.setEnabled(False)
@@ -310,7 +251,9 @@ class SiteAnalysisView(QWidget):
             put(i, 4, str(p.visit_count), int(p.visit_count or 0))
             put(i, 5, str(p.species_count), int(p.species_count or 0))
             put(i, 6, str(p.key_species_count), int(p.key_species_count or 0),
-                colour=RED_STATUS if (p.key_species_count or 0) > 0 else None)
+                colour=RED_STATUS if (p.key_species_count or 0) > 0 else None,
+                tip=(f"Key species under {p.jurisdiction}" if getattr(p, "jurisdiction", "")
+                     else None))
             put(i, 7, f"{p.key_species_pct}%", float(p.key_species_pct or 0))
             # Pantheon's red triangle below 15 scoring species (backlog E9)
             weak = p.sqi > 0 and not p.sqi_reliable
@@ -336,37 +279,54 @@ class SiteAnalysisView(QWidget):
         _idx = _it.data(_PROJ_ROLE) if _it is not None else None
         if _idx is None or _idx >= len(self._projects): return
         proj = self._projects[_idx]
+        self._jurisdiction, how = self._resolve_jurisdiction(proj)
         detail = load_project_detail(proj.project_name, proj.client, self._mode,
-                                     survey_year=proj.survey_year or None)
+                                     survey_year=proj.survey_year or None,
+                                     jurisdiction=self._jurisdiction)
         if not detail: return
         self._current_detail = detail
         self._current_project = proj
         self._current_site_name = proj.display_name
-        tvks = [sp.tvk for sp in detail.species_list if sp.tvk]
+        # Every TVK recorded -- a species recorded as s.l. and s.s. is merged by
+        # the analysis, which needs both (EXA14).
+        tvks = list(getattr(detail, "recorded_tvks", None) or
+                    [sp.tvk for sp in detail.species_list if sp.tvk])
         names = {sp.tvk: sp.name for sp in detail.species_list if sp.tvk}
         sites_info = f" ({proj.site_count} sites)" if proj.site_count > 1 else ""
         title = (f"{proj.display_name} \u2014 {proj.client}{sites_info}"
                  if proj.survey_year else
                  f"{proj.project_name} \u2014 {proj.client}{sites_info} (all years pooled)")
-        self._jurisdiction, how = self._resolve_jurisdiction(proj)
         title += f"   \u2014 assessed under {self._jurisdiction} ({how})"
-        self._run_analysis(tvks, names, title, detail.site.visit_count)
+        # The species list was built from this analysis: reuse it, so the list,
+        # the tabs and the table row are one computation.
+        self._run_analysis(tvks, names, title, detail.site.visit_count,
+                           result=getattr(detail, "analysis", None))
 
-    def _run_analysis(self, tvks, names, title, visits=0):
+    def _run_analysis(self, tvks, names, title, visits=0, result=None):
         mode = self._mode if isinstance(self._mode, AnalysisMode) else AnalysisMode.CODEX_FULL
         juris = getattr(self, "_jurisdiction", "England")
         try:
-            try:
-                result = self._service.analyse(tvks, names, mode, juris)
-            except TypeError:
-                result = self._service.analyse(tvks, names, mode)
+            if result is None:
+                try:
+                    result = self._service.analyse(tvks, names, mode, juris)
+                except TypeError:
+                    result = self._service.analyse(tvks, names, mode)
             self._current_result = result
         except Exception as e:
             self.detail_header.setText(f"Analysis error: {e}"); return
         self.detail_header.setText(title)
-        self.freeze_btn.setEnabled(True); self.appendix_btn.setEnabled(True)
+        self.appendix_btn.setEnabled(True)
         self.workbook_btn.setEnabled(True); self.pdf_btn.setEnabled(True); self.word_btn.setEnabled(True)
         self.detail_tabs.show()
+        # Compartments (E6): computed once here, cached on the detail, read by the
+        # Overview and the workbook/PDF/Word exports.
+        if self._current_detail is not None:
+            try:
+                from .compartments import for_detail
+                for_detail(result, self._current_detail, self._current_project, juris,
+                           service=self._service)
+            except Exception as e:  # noqa: BLE001 -- the extra table must not stop the analysis
+                print(f"[Examen] compartments: {e}")
         taxonomy = self._load_taxonomy(tvks)
         fidelity = self._load_fidelity(tvks)
         self.overview_tab.set_result(result, self._current_detail, visits)
@@ -506,33 +466,6 @@ class SiteAnalysisView(QWidget):
             f"Written to:\n{path}\n\nThe Summary sheet records the Codex "
             "version, survey scope and jurisdiction the figures were computed "
             "against.")
-
-    def _on_freeze(self):
-        if not self._current_result: return
-        s = self._current_detail.site if self._current_detail else None
-        year, ok = QInputDialog.getInt(self, "Freeze Assessment", "Survey year:",
-            value=int(s.last_date[:4]) if s and s.last_date else 2026, minValue=2000, maxValue=2040)
-        if not ok: return
-        r = self._current_result
-        species_data = [(k.tvk, k.species_name, k.short_status, k.tier, k.sqs) for k in r.key_species]
-        if self._current_detail:
-            key_tvks = {k.tvk for k in r.key_species}
-            for sp in self._current_detail.species_list:
-                if sp.tvk and sp.tvk not in key_tvks: species_data.append((sp.tvk, sp.name, "", "", 0))
-        sqi = r.overall_sqi
-        metrics = {"sqi": sqi.sqi if sqi else 0, "sqi_reliable": sqi.reliable if sqi else True,
-                   "scoring_species": sqi.species_with_sqs if sqi else 0, "key_species_count": r.key_species_count,
-                   "key_species_pct": r.key_species_pct, "rare_count": r.rare_count,
-                   "scarce_count": r.scarce_count, "priority_count": r.priority_count}
-        try:
-            sid = self._snapshots.freeze_snapshot(
-                site_name=self._current_site_name or "Imported", project_name=s.project_name if s else "",
-                client=s.client if s else "", survey_year=year,
-                first_visit=s.first_date if s else "", last_visit=s.last_date if s else "",
-                visit_count=s.visit_count if s else 0, species_data=species_data,
-                metrics=metrics, analysis_mode=self._mode.value if hasattr(self._mode, 'value') else str(self._mode))
-            QMessageBox.information(self, "Examen", f"Frozen (ID {sid}). {len(species_data)} species.")
-        except Exception as e: QMessageBox.warning(self, "Examen", f"Freeze failed:\n{e}")
 
     def _export_csv(self):
         if not self._projects: return

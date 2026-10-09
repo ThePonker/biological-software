@@ -29,7 +29,7 @@ import paths
 
 # Try to import from config
 try:
-    from src.core.config import get_db_path
+    from src.core.config import get_db_path  # noqa: F401  (availability check / re-export)
     USE_CONFIG = True
 except ImportError:
     USE_CONFIG = False
@@ -187,7 +187,7 @@ class SpecimenRepository:
             'taxonomic_sort_key', 'taxon_group',
             'date_collected', 'grid_ref',
             'vice_county', 'vc_number', 'site_name', 'site_name_local', 'collector', 'determiner',
-            'sex', 'preparation_type', 'storage_location', 'drawer_unit',
+            'sex', 'preparation_type', 'storage_location', 'drawer_number',
             'condition', 'label_data', 'notes', 'import_notes', 'observation_id'
         }
         
@@ -232,7 +232,7 @@ class SpecimenRepository:
             'taxonomic_sort_key', 'taxon_group',
             'date_collected', 'grid_ref',
             'vice_county', 'vc_number', 'site_name', 'site_name_local', 'collector', 'determiner',
-            'sex', 'preparation_type', 'storage_location', 'drawer_unit',
+            'sex', 'preparation_type', 'storage_location', 'drawer_number',
             'condition', 'label_data', 'notes', 'import_notes', 'observation_id'
         }
         
@@ -653,7 +653,7 @@ class SpecimenRepository:
         """
         valid_columns = {
             'order_name', 'family', 'subfamily', 'collector', 'determiner',
-            'sex', 'preparation_type', 'storage_location', 'drawer_unit',
+            'sex', 'preparation_type', 'storage_location', 'drawer_number',
             'condition', 'vice_county'
         }
         
@@ -697,7 +697,7 @@ class SpecimenRepository:
             'taxonomic_sort_key', 'taxon_group',
             'date_collected', 'grid_ref',
             'vice_county', 'vc_number', 'site_name', 'site_name_local', 'collector', 'determiner',
-            'sex', 'preparation_type', 'storage_location', 'drawer_unit',
+            'sex', 'preparation_type', 'storage_location', 'drawer_number',
             'condition', 'label_data', 'notes', 'import_notes', 'observation_id',
             'created_at', 'updated_at'
         ]

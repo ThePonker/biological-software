@@ -3,7 +3,6 @@
 v2: aligned to Codex v5 / 11-track scheme.
 """
 
-import sqlite3
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QFrame,
     QScrollArea

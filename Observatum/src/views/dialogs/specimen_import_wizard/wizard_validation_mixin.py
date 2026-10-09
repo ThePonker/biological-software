@@ -83,7 +83,6 @@ class WizardValidationMixin:
             self.column_mapping,
             self.uksi_model,
             self.vc_db_path,
-            species_aliases=self.species_aliases
         )
         self.validation_worker.progress.connect(self._on_validation_progress)
         self.validation_worker.row_validated.connect(self._on_row_validated)
@@ -375,17 +374,24 @@ class WizardValidationMixin:
         if not row.species_name:
             errors.append("Species name is required")
         elif not row.species_tvk and self.uksi_model:
-            results = self.uksi_model.search_species(row.species_name, limit=1)
-            if results:
-                match = results[0]
-                row.species_tvk = match.tvk
-                row.common_name = match.common_name or ''
-                row.order_name = match.order_name or ''
-                row.family = match.family or ''
-                if match.scientific_name.lower() != row.species_name.lower():
-                    warnings.append(f"Matched to '{match.scientific_name}'")
+            # The same rules as validation (shared/species_lookup.py): a search hit is a
+            # suggestion, never a match
+            from shared.species_lookup import lookup_names
+            from shared.species_lookup_entries import entry
+            typed = row.species_name
+            e = entry(lookup_names([typed], self.uksi_model)[typed])
+            if "error" in e:
+                errors.append(e["error"])
             else:
-                errors.append(f"Species not found in UKSI: {row.species_name}")
+                row.species_name = e["species_name"]
+                row.species_tvk = e["tvk"]
+                row.common_name = e["common_name"]
+                row.order_name = e["order_name"]
+                row.family = e["family"]
+                if e["warning"]:
+                    warnings.append(e["warning"])
+                if e["import_notes"]:
+                    row.import_notes = e["import_notes"]
         
         # Validate date
         if not row.date_collected:
@@ -525,7 +531,7 @@ class WizardValidationMixin:
                 f"Found {len(species_errors)} unique species that could not be matched to UKSI.\n\n"
                 f"Would you like to resolve them now?\n\n"
                 f"* Yes: Open bulk resolution dialog to fix species matching\n"
-                f"* No: Continue and import without TVK for unmatched species",
+                f"* No: Leave them as errors (they will not be imported until resolved)",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.Yes
             )

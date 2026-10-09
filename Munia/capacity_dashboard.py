@@ -15,6 +15,7 @@ from Munia import munia_data as db
 from Munia.munia_data import BIZ_MONTHS, BIZ_LABELS
 
 FIELD_ROWS = ["Budget", "Quoted", "Accepted", "Remaining"]
+ACCEPTED_TIP = "Accepted and complete projects (both are won work)"
 TABLE_STYLE = (
     f"QTableWidget {{ background: {STONE_LIGHT}; border: 1px solid {STONE_BORDER}; "
     f'gridline-color: {STONE_BORDER}; font-family: "{BODY_FAMILY}"; font-size: 12px; }}'
@@ -63,6 +64,8 @@ class CapacityDashboard(QWidget):
             is_budget = row == 0
             item.setFont(QFont(BODY_FAMILY, 10, QFont.Bold if is_budget else QFont.Normal))
             item.setForeground(QBrush(QColor(MOSS_GREEN if is_budget else TEXT_MID)))
+            if label == "Accepted":
+                item.setToolTip(ACCEPTED_TIP)
             self.field_table.setItem(row, 0, item)
         self.field_table.setFixedHeight(164)
         self.field_table.setStyleSheet(TABLE_STYLE)
@@ -96,7 +99,7 @@ class CapacityDashboard(QWidget):
         field_cap = db.get_field_capacity(conn, year)
         cap_map = {c["month"]: c["field_budget"] for c in field_cap}
         f_quoted = db.get_field_totals_by_month(conn, year, ("quoted",))
-        f_accepted = db.get_field_totals_by_month(conn, year, ("accepted",))
+        f_accepted = db.get_field_totals_by_month(conn, year, db.COMMITTED_STATUSES)
         totals = [0.0, 0.0, 0.0, 0.0]
         for col_idx, cal_month in enumerate(BIZ_MONTHS):
             display_col = col_idx + 1  # +1 for label column
@@ -113,7 +116,7 @@ class CapacityDashboard(QWidget):
             self._set_field_cell(si, 13, val, si, bold=True)
         ann = db.get_annual_capacity(conn, year)
         q_ann = db.get_annual_totals(conn, year, ("quoted",))
-        a_ann = db.get_annual_totals(conn, year, ("accepted",))
+        a_ann = db.get_annual_totals(conn, year, db.COMMITTED_STATUSES)
         self.micro_row.refresh(ann.get("micro_budget", 0),
                                q_ann.get("micro", 0), a_ann.get("micro", 0))
         self.report_row.refresh(ann.get("report_budget", 0),
@@ -158,6 +161,7 @@ class _CompactCard(QFrame):
         self.budget_lbl = self._make("Budget: 0")
         self.quoted_lbl = self._make("Quoted: 0")
         self.accepted_lbl = self._make("Accepted: 0")
+        self.accepted_lbl.setToolTip(ACCEPTED_TIP)
         self.remain_lbl = self._make("Remaining: 0", bold=True)
         for w in (self.budget_lbl, self.quoted_lbl, self.accepted_lbl, self.remain_lbl):
             layout.addWidget(w)

@@ -14,10 +14,16 @@ from ...themes import theme
 from ...utils.date_utils import format_date_display
 from ...services.vc_lookup_service import VCLookupService
 from ..components import tick_column
+from ..observations.checked_records import CheckedByIdMixin
 
 
-class SchemeRecordModel(QAbstractTableModel):
-    """High-performance table model for recording scheme data with checkbox support."""
+class SchemeRecordModel(CheckedByIdMixin, QAbstractTableModel):
+    """High-performance table model for recording scheme data with checkbox support.
+
+    Ticks are held by record id (CheckedByIdMixin), so sorting never moves them (OBS-01).
+    """
+
+    _records_attr = "_records"
 
     # All possible columns - Format: (key, header, width, mandatory)
     ALL_COLUMNS = [
@@ -112,7 +118,7 @@ class SchemeRecordModel(QAbstractTableModel):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._records: List[Dict] = []
-        self._checked: set = set()  # Set of checked row indices
+        self._init_checked()          # ticks held by record id, not row (OBS-01)
         self._visible_columns: set = set()
         self._column_order: List[str] = []
         self._columns: List[tuple] = []  # Cached current columns
@@ -205,7 +211,7 @@ class SchemeRecordModel(QAbstractTableModel):
         # Checkbox column
         if col_key == 'checkbox':
             if role == Qt.ItemDataRole.CheckStateRole:
-                return Qt.CheckState.Checked if row in self._checked else Qt.CheckState.Unchecked
+                return Qt.CheckState.Checked if self.is_row_checked(row) else Qt.CheckState.Unchecked
             return None
 
         # Get value
@@ -269,11 +275,8 @@ class SchemeRecordModel(QAbstractTableModel):
         col_key = self._columns[index.column()][0]
 
         if col_key == 'checkbox' and role == Qt.ItemDataRole.CheckStateRole:
-            row = index.row()
-            if tick_column.is_checked(value):     # Qt may pass the plain int
-                self._checked.add(row)
-            else:
-                self._checked.discard(row)
+            # Qt may pass the plain int
+            self.set_row_checked(index.row(), tick_column.is_checked(value))
             self.dataChanged.emit(index, index, [role])
             return True
 
@@ -322,7 +325,7 @@ class SchemeRecordModel(QAbstractTableModel):
         """Set recording scheme data."""
         self.beginResetModel()
         self._records = records
-        self._checked.clear()
+        self._clear_checked()
         self.endResetModel()
 
     def refresh_common_name_setting(self):
@@ -356,21 +359,16 @@ class SchemeRecordModel(QAbstractTableModel):
             return self._records[row]
         return None
 
-    def get_checked_rows(self) -> List[int]:
-        """Get list of checked row indices."""
-        return sorted(self._checked)
+    # get_checked_rows / get_checked_ids / checked_count: CheckedByIdMixin
 
     def get_checked_records(self) -> List[Dict]:
-        """Get list of checked record data."""
-        return [self._records[row] for row in sorted(self._checked) if row < len(self._records)]
+        """The ticked records, in their current display order."""
+        return self.get_checked_items()
 
     def set_all_checked(self, checked: bool):
         """Check or uncheck all rows."""
         self.beginResetModel()
-        if checked:
-            self._checked = set(range(len(self._records)))
-        else:
-            self._checked.clear()
+        self._check_all_keys(checked)
         self.endResetModel()
 
     def get_column_widths(self) -> List[int]:
@@ -391,14 +389,6 @@ class SchemeRecordModel(QAbstractTableModel):
         if count <= 0:
             return False
         self.beginRemoveRows(parent, row, row + count - 1)
-        del self._records[row:row + count]
-        # Update checked indices
-        new_checked = set()
-        for idx in self._checked:
-            if idx < row:
-                new_checked.add(idx)
-            elif idx >= row + count:
-                new_checked.add(idx - count)
-        self._checked = new_checked
+        del self._records[row:row + count]     # ticks are by id, so nothing to renumber
         self.endRemoveRows()
         return True

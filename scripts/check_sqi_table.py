@@ -21,12 +21,14 @@ for p in ed.load_all_projects():
     d = ed.load_project_detail(p.project_name, p.client, survey_year=p.survey_year or None)
     if not d:
         continue
-    tvks = [s.tvk for s in d.species_list if s.tvk]
+    # Every TVK recorded: a species recorded as s.l. and s.s. is merged by the
+    # analysis, which needs both TVKs to do it (EXA14).
+    tvks = getattr(d, "recorded_tvks", None) or [s.tvk for s in d.species_list if s.tvk]
     r = svc.analyse(tvks)
     o = r.overall_sqi
     pub = getattr(r, "overall_sqi_published", None) or o
     rows[f"{p.project_name} {p.survey_year}"] = [
-        len(tvks), o.species_with_sqs, o.sqi, pub.species_with_sqs, pub.sqi,
+        r.total_species, o.species_with_sqs, o.sqi, pub.species_with_sqs, pub.sqi,
         p.key_species_count]
 
 old = {}

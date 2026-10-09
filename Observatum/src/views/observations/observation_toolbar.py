@@ -291,6 +291,10 @@ class ObservationToolbar(QFrame):
         if count > 0:
             self.selection_info.setText(f"{count} selected")
             self.selection_info.show()
+            # Any tick at all: the button clears them in one click (Wil, 9 Oct) --
+            # it used to stay "Select All" after ticking single records, so clearing
+            # needed Select All then Deselect All.
+            self.select_all_btn.setText("Deselect All")
             self.export_selected_btn.setEnabled(True)
             self.delete_selected_btn.setEnabled(True)
             self.mark_commercial_btn.setEnabled(True)

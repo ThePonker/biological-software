@@ -7,7 +7,7 @@ visual bars.
 """
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame,
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QScrollArea,
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
@@ -23,6 +23,17 @@ except ImportError:  # pragma: no cover -- degrade to "everything applies"
     _priority_applies = None
     _legal_applies = None
     StatusEntry = None
+
+# Code -> name pairs and the taxonomic summary: one home each, shared with the
+# species table and the exports (backlog E8, E8b).
+try:
+    from Examen.presentation import STATUS_NAMES as _N
+    from Examen import taxonomic_summary as _tx
+    from Examen.figure_table import figure_block
+except ImportError:  # pragma: no cover
+    from presentation import STATUS_NAMES as _N
+    import taxonomic_summary as _tx
+    from figure_table import figure_block
 
 
 def _priority_ok(value, jurisdiction):
@@ -51,26 +62,26 @@ NA_TEXT = TEXT_MUTED; NA_BAR = "#d9dce1"
 # are handled separately below rather than listed here.
 CATEGORIES = [
     ("Threat status (GB, 2001 IUCN)", [
-        ("CR", "Critically Endangered", RED_STATUS),
-        ("EN", "Endangered", RED_STATUS),
-        ("VU", "Vulnerable", "#d97706"),
-        ("NT", "Near Threatened", AMBER),
-        ("DD", "Data Deficient", AMBER),
+        ("CR", _N["CR"], RED_STATUS),
+        ("EN", _N["EN"], RED_STATUS),
+        ("VU", _N["VU"], "#d97706"),
+        ("NT", _N["NT"], AMBER),
+        ("DD", _N["DD"], AMBER),
     ]),
     ("Threat status (pre-2001)", [
-        ("RDB1", "Red Data Book 1", RED_STATUS),
-        ("RDB2", "Red Data Book 2", RED_STATUS),
-        ("RDB3", "Red Data Book 3", AMBER),
-        ("RDBK", "Red Data Book K", AMBER),
+        ("RDB1", _N["RDB1"], RED_STATUS),
+        ("RDB2", _N["RDB2"], RED_STATUS),
+        ("RDB3", _N["RDB3"], AMBER),
+        ("RDBK", _N["RDBK"], AMBER),
     ]),
     ("Rarity (current)", [
-        ("NR", "Nationally Rare", RED_STATUS),
-        ("NS", "Nationally Scarce", AMBER),
+        ("NR", _N["NR"], RED_STATUS),
+        ("NS", _N["NS"], AMBER),
     ]),
     ("Rarity (legacy)", [
-        ("Na", "Notable A", AMBER),
-        ("Nb", "Notable B", "#92774e"),
-        ("Notable", "Notable", "#92774e"),
+        ("Na", _N["Na"], AMBER),
+        ("Nb", _N["Nb"], "#92774e"),
+        ("Notable", _N["Notable"], "#92774e"),
     ]),
 ]
 
@@ -81,9 +92,22 @@ class ConservationTab(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._layout = QVBoxLayout(self)
+        # Scrolls: the taxonomic summary and the status groups together can be taller
+        # than the tab.
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.viewport().setAutoFillBackground(False)
+        inner = QWidget()
+        inner.setAutoFillBackground(False)
+        scroll.setWidget(inner)
+        outer.addWidget(scroll)
+        self._layout = QVBoxLayout(inner)
         self._layout.setContentsMargins(8, 12, 8, 8)
         self._layout.setSpacing(12)
+        self._layout.addStretch()
         self._widgets = []
         self._juris = "England"
 
@@ -118,8 +142,13 @@ class ConservationTab(QWidget):
                       f"({result.key_species_pct}%)")
         hdr.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
         hdr.setStyleSheet("color: " + ACCENT_DARK + ";")
-        self._layout.insertWidget(self._layout.count(), hdr)
-        self._widgets.append(hdr)
+        self._add(hdr)
+
+        # Taxonomic summary (E8b): taxa and species with status per order
+        ts = _tx.for_result(result, detail)
+        if ts is not None and ts.rows:
+            self._add(figure_block("Taxonomic summary", ts.table(),
+                                   bold_rows=(_tx.SAPROXYLIC_LABEL, _tx.TOTAL_LABEL)))
 
         for group_name, statuses in CATEGORIES:
             rows = [(code, label, colour, status_counts.get(code, 0))
@@ -142,6 +171,11 @@ class ConservationTab(QWidget):
             self._add_group(LEGAL_GROUP, rows)
 
         self._add_guilds(result)
+
+    def _add(self, w):
+        """Append a block above the closing stretch."""
+        self._layout.insertWidget(self._layout.count() - 1, w)
+        self._widgets.append(w)
 
     @staticmethod
     def _abbrev(jurisdiction):
@@ -228,8 +262,7 @@ class ConservationTab(QWidget):
                                "font-style: italic; border: none;")
             gl.addWidget(note)
 
-        self._layout.insertWidget(self._layout.count(), grp)
-        self._widgets.append(grp)
+        self._add(grp)
 
     def _add_guilds(self, result):
         if not (result.larval_guild_counts or result.adult_guild_counts):
@@ -253,5 +286,4 @@ class ConservationTab(QWidget):
                 gl_lbl.setStyleSheet("color: " + TEXT_SECONDARY + "; font-size: 11px; border: none;")
                 gfl.addWidget(gl_lbl)
 
-        self._layout.insertWidget(self._layout.count(), guild_frame)
-        self._widgets.append(guild_frame)
+        self._add(guild_frame)

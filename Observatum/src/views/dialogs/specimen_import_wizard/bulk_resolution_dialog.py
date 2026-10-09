@@ -3,7 +3,8 @@ Bulk Species Resolution Dialog for Specimen Import Wizard.
 
 Dialog for resolving multiple unmatched species at once.
 Shows all unique unmatched species names with search functionality
-and suggested matches. Allows batch resolution and saving of aliases.
+and suggested matches. Nothing is matched until the user applies a match.
+(Saving aliases was removed 9 Oct 2026: UKSI's synonyms cover them.)
 
 Split from specimen_import_wizard.py for maintainability.
 """
@@ -12,7 +13,7 @@ from typing import Dict, List
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QLineEdit, QListWidget, QListWidgetItem, QCheckBox
+    QLineEdit, QListWidget, QListWidgetItem
 )
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QColor
@@ -26,14 +27,13 @@ class BulkSpeciesResolutionDialog(QDialog):
     Dialog for resolving multiple unmatched species at once.
     
     Shows all unique unmatched species names with search functionality
-    and suggested matches. Allows batch resolution and saving of aliases.
+    and suggested matches.
     """
     
     def __init__(self, parent=None, uksi_model=None, unmatched_species: List[str] = None,
-                 alias_service=None, accent=None, accent_light=None, accent_dark=None):
+                 accent=None, accent_light=None, accent_dark=None):
         super().__init__(parent)
         self.uksi_model = uksi_model
-        self.alias_service = alias_service
         self.unmatched_species = unmatched_species or []
         
         # Tab colors for Collection
@@ -43,9 +43,6 @@ class BulkSpeciesResolutionDialog(QDialog):
         
         # Store resolutions: {original_name: {uksi_data}}
         self.resolutions: Dict[str, dict] = {}
-        
-        # Track which items to save as aliases
-        self.save_as_alias: Dict[str, bool] = {}
         
         self._search_timer = QTimer()
         self._search_timer.setSingleShot(True)
@@ -71,8 +68,8 @@ class BulkSpeciesResolutionDialog(QDialog):
         layout.addWidget(header)
         
         instructions = QLabel(
-            "For each species below, search for the correct UKSI name. "
-            "Check 'Save as alias' to remember the mapping for future imports."
+            "For each name below, choose the correct UKSI taxon from the suggestions, or search "
+            "for it. A name stays unmatched (and is not imported) until you apply a match."
         )
         instructions.setWordWrap(True)
         instructions.setStyleSheet(f"color: {t.get('text_secondary')};")
@@ -175,27 +172,6 @@ class BulkSpeciesResolutionDialog(QDialog):
         self.results_list.itemDoubleClicked.connect(self._on_result_double_clicked)
         right_panel.addWidget(self.results_list, 1)
         
-        # Save as alias checkbox
-        self.save_alias_checkbox = QCheckBox("Save as alias for future imports")
-        self.save_alias_checkbox.setChecked(False)
-        self.save_alias_checkbox.setStyleSheet(f"""
-            QCheckBox {{
-                spacing: 6px;
-                margin-top: 8px;
-            }}
-            QCheckBox::indicator {{
-                width: 14px;
-                height: 14px;
-                border-radius: 3px;
-                border: 2px solid {self._accent};
-            }}
-            QCheckBox::indicator:checked {{
-                background-color: {self._accent};
-                border: 2px solid {self._accent};
-            }}
-        """)
-        right_panel.addWidget(self.save_alias_checkbox)
-        
         # Apply button for current species (Moss Green - primary action)
         self.apply_btn = QPushButton("Apply Match →")
         self.apply_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -216,7 +192,7 @@ class BulkSpeciesResolutionDialog(QDialog):
         right_panel.addWidget(self.apply_btn)
         
         # Skip button (Secondary - Warm Gray outlined)
-        self.skip_btn = QPushButton("Skip (Import without TVK)")
+        self.skip_btn = QPushButton("Skip (leave unmatched)")
         self.skip_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.skip_btn.setStyleSheet(f"""
             QPushButton {{
@@ -288,8 +264,9 @@ class BulkSpeciesResolutionDialog(QDialog):
         species = current.data(Qt.ItemDataRole.UserRole)
         self.current_species_label.setText(f"Resolving: {species}")
         
-        # Pre-populate search with species name
-        self.search_input.setText(species)
+        # Pre-populate search with the name, without cf. / agg. (they defeat the search)
+        from shared.species_lookup import parse_qualifier
+        self.search_input.setText(parse_qualifier(species)[1])
         self._do_search()
         
         # Check if already resolved
@@ -323,8 +300,15 @@ class BulkSpeciesResolutionDialog(QDialog):
         
         self.results_list.clear()
         
-        # Search UKSI
+        # Search UKSI; when that finds nothing, the shared suggestions (synonyms, close
+        # spellings: 'Rutpela maculta' -> Rutpela maculata)
         results = self.uksi_model.search_species(text, limit=15)
+        if not results:
+            from shared.species_lookup import search_candidates
+            try:
+                results = search_candidates(self.uksi_model, text, 15)
+            except Exception as e:
+                print(f"[BulkSpeciesResolution] suggestions failed: {e}")
         
         # Also search for aggregate/sensu lato entries
         if hasattr(self, '_uksi_db') or (hasattr(self.uksi_model, 'db') and self.uksi_model.db):
@@ -382,7 +366,9 @@ class BulkSpeciesResolutionDialog(QDialog):
                 'common_name': result.common_name or '',
                 'order_name': result.order_name or '',
                 'family': result.family or '',
-                'subfamily': getattr(result, 'subfamily', '') or ''
+                'subfamily': getattr(result, 'subfamily', '') or '',
+                'kingdom': getattr(result, 'kingdom', '') or '',
+                'rank': getattr(result, 'rank', '') or '',
             })
             
             # Make scientific name italic
@@ -417,9 +403,6 @@ class BulkSpeciesResolutionDialog(QDialog):
         
         # Store resolution
         self.resolutions[original_species] = uksi_data
-        
-        # Store alias preference
-        self.save_as_alias[original_species] = self.save_alias_checkbox.isChecked()
         
         # Update UI - mark as resolved (success color)
         current_item.setForeground(QColor(t.get('success')))
@@ -496,8 +479,5 @@ class BulkSpeciesResolutionDialog(QDialog):
         return {k: v for k, v in self.resolutions.items() if not v.get('skipped')}
     
     def get_aliases_to_save(self) -> Dict[str, dict]:
-        """Get resolutions that should be saved as aliases."""
-        return {
-            k: v for k, v in self.resolutions.items()
-            if self.save_as_alias.get(k, False) and not v.get('skipped')
-        }
+        """Saved aliases are no longer written (9 Oct 2026); kept so old callers get {}."""
+        return {}

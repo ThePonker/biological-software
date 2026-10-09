@@ -93,7 +93,7 @@ class ObservationDetailMixin:
         from ...models.database import get_database
 
         uksi_model = getattr(self, '_uksi_model', None)
-        vc_service = getattr(self, '_vc_service', None)
+        vc_service = self._get_vc_service()
 
         dialog = EditObservationDialog(
             parent=self,
@@ -106,15 +106,25 @@ class ObservationDetailMixin:
             obs_data = dialog.get_observation_data()
             record_id = record.get('id')
             if record_id:
+                boundary_note, derived = "", {}
                 try:
                     import sqlite3
                     import paths
+                    # A changed grid ref takes its VC and lat/long from the new reference,
+                    # never the old ones (review OBS-03: SO539092 -> TQ5070 kept VC34)
+                    derived, boundary_note = self._derive_location_fields(
+                        obs_data.get('grid_ref'), record.get('grid_ref'), vc_service)
+                    if not derived:
+                        # Grid ref unchanged: leave its VC and lat/long as they are
+                        for k in ('vice_county', 'vc_number'):
+                            obs_data.pop(k, None)
                     conn = sqlite3.connect(str(paths.OBSERVATUM_DB))
                     allowed = {'species_name', 'species_tvk', 'common_name', 'family',
                                'order_name', 'date', 'site_name', 'grid_ref',
-                               'vice_county', 'vc_number', 'recorder', 'determiner',
-                               'comment'}
+                               'vice_county', 'vc_number', 'latitude', 'longitude',
+                               'geodetic_datum', 'recorder', 'determiner', 'comment'}
                     updates = {k: v for k, v in obs_data.items() if k in allowed and v is not None}
+                    updates.update(derived)         # may set NULLs: a VC that no longer applies
                     if updates:
                         set_parts = [f"{k} = ?" for k in updates]
                         values = list(updates.values()) + [record_id]
@@ -127,6 +137,66 @@ class ObservationDetailMixin:
                     self._load_data()
                 except Exception as e:
                     print(f"[ObservationTab] Error updating record: {e}")
+                if boundary_note:
+                    from PySide6.QtWidgets import QMessageBox
+                    if derived.get('vc_number'):
+                        boundary_note += (
+                            f"\n\nThe record has been given VC{derived['vc_number']} "
+                            f"{derived.get('vice_county') or ''}. "
+                            "Check this is right for where it was found.")
+                    QMessageBox.information(self, "Vice-county", boundary_note)
+
+    def _get_vc_service(self):
+        """The tab's VC lookup, made on first use (it was never set, so edits kept the old VC)."""
+        svc = getattr(self, '_vc_service', None)
+        if svc is None:
+            try:
+                from ...services.vc_lookup_service import VCLookupService
+                svc = VCLookupService()
+            except Exception as e:
+                print(f"[ObservationTab] VC lookup unavailable: {e}")
+                svc = None
+            self._vc_service = svc
+        return svc
+
+    @staticmethod
+    def _derive_location_fields(new_ref, old_ref, vc_service):
+        """Fields that follow from a changed grid ref, and any boundary note.
+
+        Returns ({}, "") when the reference is unchanged. Otherwise vice_county /
+        vc_number from VCLookupService.assess() and latitude / longitude (centre of
+        the square, WGS84) from shared.osgb -- the same as Data Entry's commit. A
+        reference with no VC (or an unreadable one) clears the old values rather than
+        leaving them on the record.
+        """
+        def norm(r):
+            return (r or "").upper().replace(" ", "")
+        if not new_ref or norm(new_ref) == norm(old_ref):
+            return {}, ""
+        from shared.osgb import gridref_to_wgs84
+        out = {}
+        ll = gridref_to_wgs84(norm(new_ref))
+        if ll:
+            out['latitude'], out['longitude'] = ll
+            out['geodetic_datum'] = 'WGS84'
+        else:
+            out['latitude'] = out['longitude'] = None    # unreadable: not the old position
+        if vc_service is None:
+            return out, ("The vice-county lookup is not available, so the vice-county "
+                         "was not updated for the new grid reference.")
+        try:
+            a = vc_service.assess(norm(new_ref))
+        except Exception as e:
+            print(f"[ObservationTab] VC assess failed for {new_ref}: {e}")
+            return out, ("The vice-county could not be worked out for the new grid "
+                         f"reference ({e}), so it was not updated.")
+        if a:
+            out['vice_county'] = a.get('vc_name')
+            out['vc_number'] = a.get('vc_number')
+            return out, a.get('note') or ""
+        out['vice_county'] = None      # no VC (sea, or not readable): don't keep the old one
+        out['vc_number'] = None
+        return out, ""
 
     def _on_detail_delete_requested(self, record: Dict):
         """Handle delete request from detail dialog."""

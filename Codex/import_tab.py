@@ -159,6 +159,7 @@ class ImportTab(QWidget):
 
         self.import_btn = QPushButton("Import into Codex")
         self.import_btn.setEnabled(False)
+        self.import_btn.setToolTip("Retired: use scripts\\import_status_review.py (see the message)")
         self.import_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {theme.ACCENT};
@@ -398,9 +399,20 @@ class ImportTab(QWidget):
     # ============================================================
     # Import
     # ============================================================
+    # F9 (9 Oct 2026): this tab wrote species accounts keyed on TVK alone, the old way.
+    # scripts/import_status_review.py is the one importer now (dry run, backup, review
+    # records keyed correctly), so the tab previews only.
+    RETIRED_MESSAGE = (
+        "Importing from this tab is retired.\n\n"
+        "Use the review importer instead, which dry-runs first and keys accounts correctly:\n\n"
+        "  py -3.14 scripts\\import_status_review.py REVIEW.xlsx --name \"...\" "
+        "--author \"...\" --date YYYY-MM-DD\n\n"
+        "then the same with --apply. This tab can still preview a file.")
+
     def _run_import(self):
-        if not self._preview_data:
-            return
+        from PySide6.QtWidgets import QMessageBox
+        QMessageBox.information(self, "Import Review", self.RETIRED_MESSAGE)
+        return
 
         total_status = (len(self._preview_data['new']) +
                         len(self._preview_data['updated']))

@@ -12,6 +12,11 @@ MICRO_MONTHS = {8, 9, 10}
 REPORT_MONTHS = {11, 12}
 SEASON_DAYS = 15
 
+# Work that is won: accepted, and accepted work that has since been done. Revenue
+# and days count both; marking a project Complete must not take it out of either
+# (review MUN-1: it dropped revenue from £65,540 to £55,142 and counted as Quoted).
+COMMITTED_STATUSES = ("accepted", "complete")
+
 def current_biz_year() -> int:
     from datetime import date
     t = date.today()
@@ -243,9 +248,36 @@ def get_annual_totals(conn, year: int, statuses: tuple) -> dict:
         (year, *statuses)).fetchone()
     return {"micro": row["micro"], "report": row["report"]}
 
-def get_accepted_field_total(conn, year: int) -> float:
+def get_accepted_field_total(conn, year: int,
+                             statuses: tuple = COMMITTED_STATUSES) -> float:
+    """Field days of won work (accepted + complete) in a business year."""
+    ph = ",".join("?" for _ in statuses)
     row = conn.execute(
         "SELECT COALESCE(SUM(fm.field_days), 0) AS t "
         "FROM project_field_months fm JOIN projects p ON fm.project_id = p.id "
-        "WHERE fm.year = ? AND p.status = 'accepted'", (year,)).fetchone()
+        f"WHERE fm.year = ? AND p.status IN ({ph})", (year, *statuses)).fetchone()
     return row["t"]
+
+
+def summarise_pipeline(projects: list) -> dict:
+    """Counts and quote values by status, and the revenue figures, for the summary card.
+
+    {'counts': {...}, 'values': {...}, 'confirmed': £ accepted + complete,
+     'lost': £ declined + no response, 'total': number of projects}
+    An unknown status counts as quoted.
+    """
+    keys = ("quoted", "accepted", "complete", "declined", "no_response")
+    counts = {k: 0 for k in keys}
+    values = {k: 0.0 for k in keys}
+    for p in projects:
+        st = p.get("status") or "quoted"
+        if st not in counts:
+            st = "quoted"
+        counts[st] += 1
+        values[st] += p.get("quote_value") or 0
+    return {
+        "counts": counts, "values": values,
+        "confirmed": sum(values[s] for s in COMMITTED_STATUSES),
+        "lost": values["declined"] + values["no_response"],
+        "total": len(projects),
+    }

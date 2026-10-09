@@ -232,6 +232,8 @@ class ObservationImportRow:
 
 # UKSI order -> iRecord taxon_group mapping
 from src.utils.constants import compute_taxonomic_sort_key
+from shared.species_lookup import lookup_names
+from shared.species_lookup_entries import entries
 
 ORDER_TO_GROUP = {
     'Coleoptera': 'insect - beetle (Coleoptera)',
@@ -342,7 +344,6 @@ class ObservationValidationWorker(QThread):
         uksi_model=None,
         vc_db_path: str = None,
         db_manager=None,
-        species_aliases: Dict = None,
     ):
         super().__init__()
         self.rows = rows
@@ -351,9 +352,7 @@ class ObservationValidationWorker(QThread):
         self.uksi_model = uksi_model
         self.vc_db_path = vc_db_path
         self.db_manager = db_manager
-        self.species_aliases = species_aliases or {}
         self._cancelled = False
-        self._lookup_failed = {}          # species name -> error, when the lookup itself failed (I7)
         self._vc_service = None
 
         self.valid_count = 0
@@ -467,6 +466,8 @@ class ObservationValidationWorker(QThread):
         date_from = self._parse_date(g("Date from")) or ""
         if not date_val and date_from:
             date_val = date_from
+        # IMP-3: the text that could not be read, for the row's error
+        date_raw = "" if date_val else (g("Date interpreted") or g("Date from"))
 
         grid_ref = g("Output map ref") or g("Original map ref")
         sensitive_map_ref = g("Sensitive output map ref")
@@ -487,6 +488,7 @@ class ObservationValidationWorker(QThread):
             "family": g("Family"),
             "taxon_rank": g("Rank"),
             "date": date_val,
+            "date_raw": date_raw,
             "date_from": date_from,
             "date_to": self._parse_date(g("Date to")) or "",
             "date_type": g("Date type") or "D",
@@ -541,7 +543,7 @@ class ObservationValidationWorker(QThread):
             return raw.get(col, "").strip() if col and raw.get(col) else ""
 
         date_raw = g("date")
-        date_val = self._parse_date(date_raw) if date_raw else ""
+        date_val = (self._parse_date(date_raw) or "") if date_raw else ""   # IMP-3: never None
 
         return {
             "irecord_id": None,
@@ -603,33 +605,6 @@ class ObservationValidationWorker(QThread):
             "import_notes": "",
         }
 
-    def _normalize_species_name(self, name: str) -> dict:
-        """Parse species name for cf./agg. qualifiers.
-        
-        Returns dict with:
-            cleaned: name with qualifier stripped
-            qualifier: 'cf.' or 'agg.' or None
-            original: original name
-        """
-        import re
-        result = {'original': name, 'cleaned': name, 'qualifier': None}
-        
-        # Check for cf. (e.g. "Anthocoris cf. confusus")
-        cf_match = re.match(r'^(\w+)\s+cf\.\s+(.+)$', name, re.IGNORECASE)
-        if cf_match:
-            result['cleaned'] = f"{cf_match.group(1)} {cf_match.group(2)}"
-            result['qualifier'] = 'cf.'
-            return result
-        
-        # Check for agg. (e.g. "Bombus lucorum agg.")
-        agg_match = re.match(r'^(.+?)\s+agg\.?\s*$', name, re.IGNORECASE)
-        if agg_match:
-            result['cleaned'] = agg_match.group(1).strip()
-            result['qualifier'] = 'agg.'
-            return result
-        
-        return result
-
     def _batch_species_lookup(self, df: pd.DataFrame) -> pd.DataFrame:
         """Batch lookup species in UKSI."""
         if not self.uksi_model:
@@ -653,182 +628,41 @@ class ObservationValidationWorker(QThread):
         if not needs_lookup:
             return df
 
-        species_lookup = {}
+        # One rule set for all three wizards (shared/species_lookup.py): exact names and
+        # synonyms only; anything else is an error naming the closest UKSI names, for the
+        # user to confirm with Resolve Species. Saved aliases are no longer used.
+        species_lookup = entries(lookup_names(needs_lookup, self.uksi_model,
+                                              cancelled=lambda: self._cancelled))
 
-        # Check aliases first
-        for name in needs_lookup:
-            alias_key = name.lower().strip()
-            if alias_key in self.species_aliases:
-                alias = self.species_aliases[alias_key]
-                species_lookup[name] = {
-                    "tvk": alias.get("uksi_tvk", ""),
-                    "common_name": alias.get("uksi_common_name", ""),
-                    "order_name": alias.get("uksi_order", ""),
-                    "family": alias.get("uksi_family", ""),
-                    "kingdom": "",
-                    "taxon_group": "",
-                    "rank": "",
-                    "matched_name": alias.get("uksi_name", name),
-                    "_alias": True,
-                }
-
-
-        # Batch exact match
-        if hasattr(self.uksi_model, "get_species_batch"):
-            batch_results = self.uksi_model.get_species_batch(needs_lookup)
-            for name, result in batch_results.items():
-                if result:
-                    species_lookup[name] = {
-                        "tvk": result.get("tvk", "") if isinstance(result, dict) else getattr(result, "tvk", ""),
-                        "common_name": result.get("common_name", "") if isinstance(result, dict) else getattr(result, "common_name", ""),
-                        "order_name": result.get("order_name", "") if isinstance(result, dict) else getattr(result, "order_name", ""),
-                        "family": result.get("family", "") if isinstance(result, dict) else getattr(result, "family", ""),
-                        "kingdom": result.get("kingdom", "") if isinstance(result, dict) else getattr(result, "kingdom", ""),
-                        "taxon_group": result.get("taxon_group", "") if isinstance(result, dict) else getattr(result, "taxon_group", ""),
-                        "rank": result.get("rank", "") if isinstance(result, dict) else getattr(result, "rank", ""),
-                        "matched_name": result.get("scientific_name", name) if isinstance(result, dict) else getattr(result, "scientific_name", name),
-                    }
-        else:
-            # Fallback to individual lookups
-            for name in needs_lookup:
-                if self._cancelled:
-                    break
-                try:
-                    results = self.uksi_model.search_species(name, limit=1)
-                    if results:
-                        match = results[0]
-                        species_lookup[name] = {
-                            "tvk": getattr(match, "tvk", "") or "",
-                            "common_name": getattr(match, "common_name", "") or "",
-                            "order_name": getattr(match, "order_name", "") or "",
-                            "family": getattr(match, "family", "") or "",
-                            "kingdom": getattr(match, "kingdom", "") or "",
-                            "taxon_group": getattr(match, "taxon_group", "") or "",
-                            "rank": getattr(match, "rank", "") or "",
-                            "matched_name": getattr(match, "scientific_name", name) or name,
-                        }
-                except Exception as e:                       # I7: not the same as "not found"
-                    print(f"[import] species lookup failed for {name!r}: {e}")
-                    self._lookup_failed[name] = str(e)
-
-        # Apply lookups to DataFrame
-
-        # Retry failed lookups with normalized names (handle cf./agg.)
-        found_names = set(species_lookup.keys())
-        for name in needs_lookup:
-            parsed = self._normalize_species_name(name)
-            if parsed["qualifier"] is None:
-                continue
-            # For agg.: override existing match with sensu lato TVK
-            # For cf.: skip if already matched
-            if name in found_names and parsed["qualifier"] != "agg.":
-                continue
-
-            cleaned = parsed['cleaned']
-            # Try cleaned name in existing results first
-            if cleaned in species_lookup and parsed["qualifier"] != "agg.":
-                species_lookup[name] = dict(species_lookup[cleaned])
-                species_lookup[name]['_qualifier'] = parsed['qualifier']
-                species_lookup[name]['_original'] = name
-                continue
-            
-            # For agg. species: search for aggregate/sensu lato rank in UKSI
-            # For cf. species: search for the base species
-            try:
-                if parsed["qualifier"] == "agg.":
-                    # Try direct DB query for sensu lato / aggregate rank
-                    if hasattr(self.uksi_model, "db") and self.uksi_model.db:
-                        agg_results = self.uksi_model.db.execute_uksi(
-                            "SELECT t.tvk, t.scientific_name, t.rank, t.kingdom, "
-                            "t.\"order\" as order_name, t.family, cn.common_name "
-                            "FROM taxa t LEFT JOIN common_names cn ON t.tvk = cn.tvk "
-                            "WHERE t.scientific_name LIKE ? "
-                            "AND (t.rank = 'Species sensu lato' OR t.rank = 'Species aggregate') "
-                            "ORDER BY CASE WHEN t.rank = 'Species sensu lato' THEN 0 ELSE 1 END "
-                            "LIMIT 1",
-                            (cleaned + "%",)
-                        )
-                        if agg_results:
-                            r = agg_results[0]
-                            species_lookup[name] = {
-                                "tvk": r["tvk"] or "",
-                                "common_name": (r["common_name"] if r["common_name"] else ""),
-                                "order_name": (r["order_name"] if r["order_name"] else ""),
-                                "family": (r["family"] if r["family"] else ""),
-                                "kingdom": (r["kingdom"] if r["kingdom"] else ""),
-                                "taxon_group": "",
-                                "rank": (r["rank"] if r["rank"] else ""),
-                                "matched_name": r["scientific_name"] or cleaned,
-                                "_qualifier": "agg.",
-                                "_original": name,
-                            }
-                            continue
-                # Fallback: search with cleaned name (works for cf. and unmatched agg.)
-                results = self.uksi_model.search_species(cleaned, limit=1)
-                if results:
-                    match = results[0]
-                    species_lookup[name] = {
-                        "tvk": getattr(match, "tvk", "") or "",
-                        "common_name": getattr(match, "common_name", "") or "",
-                        "order_name": getattr(match, "order_name", "") or "",
-                        "family": getattr(match, "family", "") or "",
-                        "kingdom": getattr(match, "kingdom", "") or "",
-                        "taxon_group": getattr(match, "taxon_group", "") or "",
-                        "rank": getattr(match, "rank", "") or "",
-                        "matched_name": getattr(match, "scientific_name", cleaned) or cleaned,
-                        "_qualifier": parsed["qualifier"],
-                        "_original": name,
-                    }
-            except Exception as e:
-                print(f"[validation_worker] _batch_species_lookup: {e}")  # I7: was silent
-
-        still_missing = []
         for idx, row in df.iterrows():
             species = row.get("species_name", "")
             if not species:
                 if self.import_mode != ImportMode.IRECORD_SYNC:
                     df.at[idx, "species_error"] = "Species name is required"
                 continue
-
-            if species in species_lookup:
-                info = species_lookup[species]
-                if self.import_mode != ImportMode.IRECORD_SYNC or not row.get("species_tvk"):
-                    df.at[idx, "species_tvk"] = info["tvk"]
-                    df.at[idx, "species_error"] = ""
-                    df.at[idx, "common_name"] = info["common_name"]
-                    df.at[idx, "order_name"] = info["order_name"]
-                    df.at[idx, "family"] = info["family"]
-                    df.at[idx, "kingdom"] = info["kingdom"]
-                    df.at[idx, "taxon_group"] = info["taxon_group"]
-                    df.at[idx, "taxon_rank"] = info["rank"]
-
-                    matched = info["matched_name"]
-                    if matched.lower() != species.lower():
-                        df.at[idx, "species_warning"] = f"Fuzzy matched to '{matched}'"
-                        df.at[idx, "import_notes"] = f"Fuzzy matched: '{species}' -> '{matched}'"
-
-                    # Handle cf./agg. qualifiers
-                    qualifier = info.get("_qualifier")
-                    if qualifier == "cf.":
-                        df.at[idx, "species_warning"] = f"cf. identification: matched to '{matched}' (uncertain ID)"
-                        df.at[idx, "import_notes"] = f"Original: '{species}' (cf. = uncertain identification)"
-                    elif qualifier == "agg.":
-                        if matched.lower() != species.lower():
-                            df.at[idx, "species_warning"] = f"Aggregate matched to base species '{matched}'"
-                            df.at[idx, "import_notes"] = f"Original: '{species}' -> matched to '{matched}'"
-            else:
-                still_missing.append(species)
-                failed = getattr(self, "_lookup_failed", {}).get(species)
-                if failed:
-                    why = f"Species lookup failed ({failed}) -- the name may well be in UKSI; re-run validation"
-                    if self.import_mode != ImportMode.IRECORD_SYNC:
-                        df.at[idx, "species_error"] = why
-                    else:
-                        df.at[idx, "species_warning"] = why
-                elif self.import_mode != ImportMode.IRECORD_SYNC:
-                    df.at[idx, "species_error"] = f"Species not found in UKSI: {species}"
-                else:
-                    df.at[idx, "species_warning"] = "Missing TVK - species not found in UKSI"
+            # iRecord rows that arrive with a TVK were not looked up (IMP-4: they were given
+            # the "Missing TVK" warning of any name in the file that was not matched)
+            if self.import_mode == ImportMode.IRECORD_SYNC and row.get("species_tvk"):
+                continue
+            info = species_lookup.get(species)
+            if info is None:                      # cancelled part-way
+                continue
+            if "error" in info:
+                if self.import_mode != ImportMode.IRECORD_SYNC:
+                    df.at[idx, "species_error"] = info["error"]
+                else:      # iRecord sync imports it without a TVK, as before
+                    df.at[idx, "species_warning"] = ("Missing TVK - " + info["error"]).split(
+                        " \u2014 confirm with Resolve Species")[0]
+                continue
+            df.at[idx, "species_name"] = info["species_name"]       # the UKSI name (IMP-15)
+            df.at[idx, "species_tvk"] = info["tvk"]
+            df.at[idx, "species_error"] = ""
+            for col, key in (("common_name", "common_name"), ("order_name", "order_name"),
+                             ("family", "family"), ("kingdom", "kingdom"), ("taxon_rank", "rank")):
+                df.at[idx, col] = info[key]
+            df.at[idx, "taxon_group"] = ""
+            df.at[idx, "species_warning"] = info["warning"]
+            df.at[idx, "import_notes"] = info["import_notes"]
 
         return df
 
@@ -879,11 +713,15 @@ class ObservationValidationWorker(QThread):
 
             if grid_ref in vc_lookup:
                 info = vc_lookup[grid_ref]
-                if "error" in info:
+                # IMP-1 (9 Oct 2026): get_vc_batch always returns an "error" key ("" when
+                # there is none), so testing for the key left every row without a VC
+                if info.get("error"):
                     df.at[idx, "vc_error"] = info["error"]
                 else:
-                    df.at[idx, "vc_number"] = info["vc_number"]
-                    df.at[idx, "vice_county"] = info.get("vc_name", "")
+                    df.at[idx, "vc_number"] = info.get("vc_number")
+                    df.at[idx, "vice_county"] = info.get("vc_name", "") or ""
+                    if info.get("warning"):          # boundary / coast / coarse-ref notes
+                        df.at[idx, "vc_warning"] = info["warning"]
 
         return df
 
@@ -1172,10 +1010,15 @@ class ObservationValidationWorker(QThread):
             if row_data.get("check_warning"):
                 warnings.append(row_data["check_warning"])
 
+            # IMP-3 (9 Oct 2026): an unreadable date was None in the table -- NaN to pandas,
+            # which is truthy -- so the row passed as valid and was saved with no date
+            date_ok = bool(_safe_get(row_data, "date", ""))
+            date_raw = _safe_get(row_data, "date_raw", "") or ""
+
             # Additional validation for personal uploads
             if self.import_mode != ImportMode.IRECORD_SYNC:
-                if not row_data.get("date"):
-                    errors.append("Date is required")
+                if not date_ok:
+                    errors.append(f"Unreadable date: '{date_raw}'" if date_raw else "Date is required")
                 if not row_data.get("recorder"):
                     errors.append("Recorder is required")
 
@@ -1191,8 +1034,8 @@ class ObservationValidationWorker(QThread):
                 # iRecord validation
                 if not row_data.get("species_name"):
                     errors.append("Missing species name")
-                if not row_data.get("date"):
-                    errors.append("Missing date")
+                if not date_ok:
+                    errors.append(f"Unreadable date: '{date_raw}'" if date_raw else "Missing date")
                 if not row_data.get("grid_ref"):
                     warnings.append("Missing grid reference")
 
@@ -1264,9 +1107,9 @@ class ObservationValidationWorker(QThread):
                 last_edited_date=_safe_get(row_data, "last_edited_date", ""),
                 is_duplicate=bool(row_data.get("is_duplicate", False)),
                 existing_record_id=_safe_get(row_data, "existing_record_id"),
-                import_notes=_safe_get(row_data, "import_notes", "") or
-                             _safe_get(row_data, "species_warning", "") or
-                             _safe_get(row_data, "warning", ""),
+                # The warnings are added to the stored note when the row is imported
+                # (_combine_import_notes); falling back to them here wrote them twice
+                import_notes=_safe_get(row_data, "import_notes", "") or "",
             )
 
             validated.append(import_row)

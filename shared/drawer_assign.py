@@ -10,7 +10,7 @@ preparation type where they are empty. Curator plans layouts; this records what 
     apply(conn, changes)                           # one transaction
 
 Rules:
-  * storage_location and drawer_unit are written on every ticked specimen -- ticking
+  * storage_location and drawer_number are written on every ticked specimen -- ticking
     one says "it is here" -- except that a specimen already recorded in a DIFFERENT
     drawer is refused by plan() (move it deliberately, with move=True).
   * condition and preparation_type are only filled where empty; a recorded value stays.
@@ -21,7 +21,7 @@ from __future__ import annotations
 import sqlite3
 from typing import Dict, Iterable, List, Optional, Tuple
 
-WRITABLE = ("storage_location", "drawer_unit", "condition", "preparation_type")
+WRITABLE = ("storage_location", "drawer_number", "condition", "preparation_type")
 
 
 def genus_of(species_name: str) -> str:
@@ -42,7 +42,7 @@ def load_specimens(conn: sqlite3.Connection, checklist=None) -> List[Dict]:
     cur.row_factory = sqlite3.Row          # this query only; the caller's connection is untouched
     rows = cur.execute(
         """SELECT id, species_name, order_name, family, date_collected, site_name, sex,
-                  storage_location, drawer_unit, condition, preparation_type,
+                  storage_location, drawer_number, condition, preparation_type,
                   taxonomic_sort_key
            FROM specimens
            ORDER BY CASE WHEN taxonomic_sort_key IS NULL THEN 1 ELSE 0 END,
@@ -70,7 +70,7 @@ def tree(specs: Iterable[Dict]) -> List[Tuple[str, List[Tuple[str, List[Tuple[st
 
 def elsewhere(spec: Dict, storage: str, drawer: str) -> bool:
     """Already recorded in a different drawer (or storage location)."""
-    s, d = (spec.get("storage_location") or "").strip(), (spec.get("drawer_unit") or "").strip()
+    s, d = (spec.get("storage_location") or "").strip(), (spec.get("drawer_number") or "").strip()
     if not s and not d:
         return False
     return (s, d) != ((storage or "").strip(), (drawer or "").strip())
@@ -91,8 +91,8 @@ def plan(specs: Iterable[Dict], ticked: Iterable[int], storage: str, drawer: str
             raise ValueError(f"no specimen {sid}")
         if elsewhere(s, storage, drawer) and not move:
             raise ValueError(f"specimen {sid} ({s.get('species_name')}) is recorded in "
-                             f"{s.get('storage_location') or ''} {s.get('drawer_unit') or ''}".strip())
-        for field, new in (("storage_location", storage), ("drawer_unit", drawer)):
+                             f"{s.get('storage_location') or ''} {s.get('drawer_number') or ''}".strip())
+        for field, new in (("storage_location", storage), ("drawer_number", drawer)):
             if new and (s.get(field) or "") != new:
                 changes.append((sid, field, s.get(field) or "", new))
         for field, new in (("condition", condition), ("preparation_type", preparation)):

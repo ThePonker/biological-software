@@ -140,6 +140,10 @@ class MapDataService:
         self._coord_cache[cache_key] = result
         return result
 
+    def year_to_band(self, year: Optional[int]) -> str:
+        """The time-period band name for a year (public; used by the native map, H3)."""
+        return self._year_to_band(year)
+
     def _year_to_band(self, year: Optional[int]) -> str:
         """Assign a year to a time period band name."""
         if year is None:

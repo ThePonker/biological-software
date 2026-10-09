@@ -90,6 +90,11 @@ class RecordingSchemeTab(QWidget):
         self._preload_records = None
         self._db = None
         self._all_records: List[Dict] = []  # Cache all records for filtering
+        # Results the poll timer has taken from the worker but not yet shown, and the
+        # last load error. _worker_results was read in initialize() but never defined,
+        # so startup could stop on the splash screen (review OBS-02 / SRCH20b).
+        self._worker_results = None
+        self._load_error: Optional[str] = None
         self._setup_ui()
         self._connect_signals()
     
@@ -424,11 +429,28 @@ class RecordingSchemeTab(QWidget):
             return
         # Results ready - stop polling and process immediately
         self._poll_timer.stop()
-        if self._data_worker.results is None:
+        results = self.take_worker_results()
+        if results is None:
+            err = getattr(self._data_worker, "error_message", None)
+            if err:
+                self._on_data_error(err)
             return
-        records, species_count = self._data_worker.results
-        self._data_worker.results = None
-        self._on_data_loaded(records, species_count)
+        self._on_data_loaded(*results)
+
+    def take_worker_results(self):
+        """(records, species_count) from the finished worker, once; else None."""
+        w = self._data_worker
+        if not w or not w.results_ready.is_set() or w.results is None:
+            return None
+        results, w.results = w.results, None
+        return results
+
+    def worker_error(self) -> Optional[str]:
+        """The error the last load raised, if it has finished with one."""
+        w = self._data_worker
+        if w and w.results_ready.is_set():
+            return getattr(w, "error_message", None)
+        return None
 
     def _on_data_loaded(self, records, species_count):
         """Handle data loaded from background worker."""
@@ -457,10 +479,16 @@ class RecordingSchemeTab(QWidget):
 
 
     def _on_data_error(self, error_msg):
-        """Handle error from background worker."""
+        """Handle error from background worker: say so, once, rather than show an empty table."""
         self._loading = False
-        if hasattr(self, '_stack'):
-            self._loading_label.setText(f"Error loading data: {error_msg}")
+        if self._load_error == error_msg:
+            return                          # the signal and the poll timer both report it
+        self._load_error = error_msg
+        print(f"[RecordingSchemeTab] Could not load records: {error_msg}")
+        if self._initialized and self.isVisible():
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Recording Scheme",
+                                f"The Recording Scheme records could not be loaded:\n\n{error_msg}")
 
 
     def _connect_proxy_after_load(self):
@@ -571,15 +599,22 @@ class RecordingSchemeTab(QWidget):
                 self._stack.setCurrentIndex(0)
             return
 
-        # If worker is still running, just wait for it (polling timer is active)
-        if self._data_worker and self._data_worker.isRunning():
+        # Worker finished but the poll timer has not collected yet: take the results now
+        results = self._worker_results or self.take_worker_results()
+        self._worker_results = None
+        if results is not None:
+            if getattr(self, "_poll_timer", None):
+                self._poll_timer.stop()
+            self._on_data_loaded(*results)
             return
 
-        # If stashed worker results exist (poll timer delivered), use them
-        if self._worker_results is not None:
-            records, species_count = self._worker_results
-            self._worker_results = None
-            self._on_data_loaded(records, species_count)
+        # Worker finished with an error: the window still opens; the error is shown
+        # (main.py at startup) and the table stays empty until a refresh
+        if self.worker_error():
+            return
+
+        # If worker is still running, just wait for it (polling timer is active)
+        if self._data_worker and self._data_worker.isRunning():
             return
 
         # No preload at all, load now
@@ -652,11 +687,13 @@ class RecordingSchemeTab(QWidget):
 
     def _on_export_all(self):
         """Export all recording scheme records to CSV."""
-        from ..models.database import get_database
+        # (9 Oct 2026: imported ..models.database, which does not exist, and called
+        # db.execute, which Database does not have -- both exports failed on first use)
         db = get_database()
         if not db:
             return
-        rows = db.execute("SELECT * FROM recording_scheme ORDER BY taxonomic_sort_key, species_name")
+        rows = [dict(r) for r in db.execute_main(
+            "SELECT * FROM recording_scheme ORDER BY taxonomic_sort_key, species_name")]
         if not rows:
             from PySide6.QtWidgets import QMessageBox
             QMessageBox.information(self, "No Data", "No recording scheme records to export.")
@@ -665,17 +702,12 @@ class RecordingSchemeTab(QWidget):
 
     def _on_export_selected(self):
         """Export the ticked recording scheme records to CSV (or the highlighted row if none)."""
-        from ..models.database import get_database
         db = get_database()
         if not db:
             return
-        ids = []
-        # Ticked rows are source-model rows, so no proxy mapping is needed (9 Oct 2026:
-        # this used the single highlighted row and ignored the ticks)
-        for row in self.table_model.get_checked_rows():
-            row_data = self.table_model.get_record_at_row(row)
-            if row_data and 'id' in row_data:
-                ids.append(row_data['id'])
+        # The ticked records by id: a sort between ticking and exporting cannot change
+        # which records go (OBS-01; before 9 Oct 2026 this used the highlighted row)
+        ids = list(self.table_model.get_checked_ids())
         selection = [] if ids else self.table_view.selectionModel().selectedRows()
         if not ids and not selection:
             from PySide6.QtWidgets import QMessageBox
@@ -690,11 +722,13 @@ class RecordingSchemeTab(QWidget):
                 ids.append(row_data['id'])
         if not ids:
             return
-        placeholders = ",".join(["?" for _ in ids])
-        rows = db.execute(
-            f"SELECT * FROM recording_scheme WHERE id IN ({placeholders}) ORDER BY taxonomic_sort_key, species_name",
-            tuple(ids)
-        )
+        rows = []
+        for i in range(0, len(ids), 900):                # stay under SQLite's variable limit
+            chunk = ids[i:i + 900]
+            placeholders = ",".join(["?" for _ in chunk])
+            rows.extend(dict(r) for r in db.execute_main(
+                f"SELECT * FROM recording_scheme WHERE id IN ({placeholders})", tuple(chunk)))
+        rows.sort(key=lambda r: (str(r.get("taxonomic_sort_key") or ""), str(r.get("species_name") or "")))
         self._export_rs_records(rows, "Export Selected Records")
 
     def _export_rs_records(self, rows, dialog_title: str):
@@ -753,8 +787,9 @@ class RecordingSchemeTab(QWidget):
                 writer = csv.writer(f)
                 writer.writerow([col[1] for col in export_columns])
                 for row in rows:
+                    rec = row if isinstance(row, dict) else dict(row)   # sqlite3.Row -> values
                     writer.writerow([
-                        row[col_key] if isinstance(row, dict) else getattr(row, col_key, '')
+                        '' if rec.get(col_key) is None else rec.get(col_key)
                         for col_key, _ in export_columns
                     ])
             QMessageBox.information(

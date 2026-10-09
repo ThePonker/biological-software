@@ -23,7 +23,9 @@ KEY_TABLE = ["Tier", "Order", "Family", "Species", "Common name", "Conservation 
 ACCOUNTS_NOTE = ("Accounts are the author's where written; otherwise the current published "
                  "review account, quoted and cited where its licence allows. \u201cThis survey\u201d "
                  "gives the number of individuals, places and months recorded.")
-SECTIONS = (("Habitats", "Habitats"),
+SECTIONS = (("Taxonomic summary", "Taxonomic summary"),
+            ("Compartments", "Compartments"),
+            ("Habitats", "Habitats"),
             ("Assemblages", "Specific assemblage types"),
             ("Saproxylic", "Saproxylic indices"),
             ("Guilds", "Feeding guilds"))

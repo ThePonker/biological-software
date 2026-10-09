@@ -17,6 +17,7 @@ from PySide6.QtCore import Signal
 
 from ...themes import theme
 from ...core.config import TabColors
+from shared.maps.grid_squares import GRID_LABELS
 
 
 class MapToolbar(QFrame):
@@ -83,8 +84,9 @@ class MapToolbar(QFrame):
         grid_group.addWidget(grid_label)
 
         self.grid_combo = QComboBox()
-        self.grid_combo.addItems(["10km", "1km"])
-        self.grid_combo.setCurrentText("10km")
+        for size, text in GRID_LABELS.items():   # hectad / tetrad / monad (H3)
+            self.grid_combo.addItem(text, size)
+        self.grid_combo.setCurrentIndex(0)
         self.grid_combo.currentTextChanged.connect(self.grid_changed.emit)
         grid_group.addWidget(self.grid_combo)
 
@@ -147,7 +149,8 @@ class MapToolbar(QFrame):
         layout.addWidget(self.filter_btn)
 
         # Export button
-        self.export_btn = QPushButton("Export Image")
+        self.export_btn = QPushButton("Export Atlas PNG")
+        self.export_btn.setToolTip("Save the map as shown, as an A4 page at 300 dpi")
         self.export_btn.setStyleSheet(f"""
             QPushButton {{
                 padding: 6px 12px;

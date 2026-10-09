@@ -1,5 +1,6 @@
 ﻿# Data and user databases — never in version control
 data/
+!tests/data/
 *.db
 *.db-wal
 *.db-shm

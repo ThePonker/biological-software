@@ -11,6 +11,18 @@ from typing import List, Dict, Optional
 
 PERSONAL_JOB_NAME = "Personal"
 
+# Personal jobs go to iRecord, not straight into Observatum (DE7, 9 Oct 2026): exported,
+# they wait for the records to come back by the iRecord sync, then are closed. Their rows
+# are kept throughout. Statuses: active / committed / discarded / exported (older) and:
+AWAITING_IRECORD = "awaiting_irecord"
+RETURNED_IRECORD = "irecord_returned"
+STATUS_LABELS = {
+    AWAITING_IRECORD: "exported \u2013 awaiting iRecord",
+    RETURNED_IRECORD: "back from iRecord \u2013 closed",
+}
+# jobs whose staged rows are not yet in Observatum (listed by default; counted as staged)
+PENDING_STATUSES = ("active", AWAITING_IRECORD)
+
 _CREATE_JOBS = """
 CREATE TABLE IF NOT EXISTS entry_jobs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -118,8 +130,10 @@ def is_personal(job: Dict) -> bool:
 
 
 def list_jobs(conn: sqlite3.Connection, include_done: bool = False) -> List[Dict]:
-    """Active jobs (canonical Personal pinned first, then most-recently-edited), with row counts."""
-    where = "" if include_done else "WHERE j.status='active'"
+    """Active jobs and those awaiting iRecord (canonical Personal pinned first, then
+    most-recently-edited), with row counts; include_done adds every other job."""
+    where = "" if include_done else \
+        f"WHERE j.status IN ({','.join(repr(x) for x in PENDING_STATUSES)})"
     rows = conn.execute(
         f"""
         SELECT j.*, COALESCE(c.n, 0) AS row_count

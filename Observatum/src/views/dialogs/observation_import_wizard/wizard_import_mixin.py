@@ -160,7 +160,9 @@ class WizardImportMixin:
         for row in import_rows:
             if row.status == RowStatus.ERROR and not include_errors:
                 continue
-            if skip_duplicates and row.is_duplicate and import_mode == ImportMode.PERSONAL_UPLOAD:
+            # IMP-8: Commercial uploads skip duplicates too (they were always re-inserted)
+            if skip_duplicates and row.is_duplicate and import_mode in (
+                    ImportMode.PERSONAL_UPLOAD, ImportMode.COMMERCIAL_UPLOAD):
                 continue
             rows_to_import.append(row)
         

@@ -46,7 +46,7 @@ class Specimen:
     sex: Optional[str] = None
     preparation_type: Optional[str] = None
     storage_location: Optional[str] = None
-    drawer_unit: Optional[str] = None
+    drawer_number: Optional[str] = None
     condition: Optional[str] = None
     label_data: Optional[str] = None
     notes: Optional[str] = None
@@ -116,7 +116,7 @@ class SpecimenModel:
                 order_name, family, subfamily,
                 date_collected, grid_ref, vice_county, vc_number, site_name,
                 collector, determiner, sex,
-                preparation_type, storage_location, drawer_unit, condition,
+                preparation_type, storage_location, drawer_number, condition,
                 label_data, notes, import_notes, observation_id,
                 created_at, updated_at
             ) VALUES (
@@ -148,7 +148,7 @@ class SpecimenModel:
             specimen.sex,
             specimen.preparation_type,
             specimen.storage_location,
-            specimen.drawer_unit,
+            specimen.drawer_number,
             specimen.condition,
             specimen.label_data,
             specimen.notes,
@@ -219,7 +219,7 @@ class SpecimenModel:
                 sex = ?,
                 preparation_type = ?,
                 storage_location = ?,
-                drawer_unit = ?,
+                drawer_number = ?,
                 condition = ?,
                 label_data = ?,
                 notes = ?,
@@ -247,7 +247,7 @@ class SpecimenModel:
             specimen.sex,
             specimen.preparation_type,
             specimen.storage_location,
-            specimen.drawer_unit,
+            specimen.drawer_number,
             specimen.condition,
             specimen.label_data,
             specimen.notes,
@@ -312,7 +312,7 @@ class SpecimenModel:
             sex=get_col('sex'),
             preparation_type=get_col('preparation_type'),
             storage_location=get_col('storage_location'),
-            drawer_unit=get_col('drawer_unit'),
+            drawer_number=get_col('drawer_number'),
             condition=get_col('condition'),
             label_data=get_col('label_data'),
             notes=get_col('notes'),

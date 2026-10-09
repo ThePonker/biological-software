@@ -8,7 +8,7 @@ from PySide6.QtCore import Qt
 from Munia.theme import (
     window_stylesheet, HEADING_FAMILY, BODY_FAMILY,
     TEXT_DARK, TEXT_MID, STONE_BORDER, STONE_LIGHT,
-    DUSTY_PURPLE, MOSS_GREEN, AMBER, FADED_CRIMSON, WARM_GRAY
+    DUSTY_PURPLE, MOSS_GREEN, AMBER, FADED_CRIMSON, WARM_GRAY, TEXT_LIGHT
 )
 from Munia import munia_data as db
 from Munia.capacity_dashboard import CapacityDashboard
@@ -109,22 +109,27 @@ class MuniaWindow(QMainWindow):
         sc.setContentsMargins(14, 8, 14, 8)
         sc.setSpacing(3)
         self.r_quoted = self._srow("0", "Quoted", DUSTY_PURPLE)
+        self.r_accepted = self._srow("0", "Accepted", MOSS_GREEN)
+        self.r_complete = self._srow("0", "Complete", TEXT_LIGHT)
         self.r_declined = self._srow("0", "Declined", FADED_CRIMSON)
         self.r_no_resp = self._srow("0", "No Response", WARM_GRAY)
         self.r_total = self._srow("0", "Total", TEXT_DARK)
-        for r in (self.r_quoted, self.r_declined, self.r_no_resp, self.r_total):
+        for r in (self.r_quoted, self.r_accepted, self.r_complete,
+                  self.r_declined, self.r_no_resp, self.r_total):
             sc.addLayout(r["layout"])
         sc.addSpacing(4)
         # Revenue hero row
         rev_row = QHBoxLayout()
         rev_row.setSpacing(16)
-        self.won_lbl = self._hero("Revenue confirmed", "\u00a30", MOSS_GREEN, rev_row)
+        # Accepted + complete (MUN-1: Complete used to drop out of revenue and days)
+        self.won_lbl = self._hero("Revenue confirmed (accepted + complete)", "\u00a30",
+                                  MOSS_GREEN, rev_row)
         self.lost_lbl = self._hero("Revenue lost", "\u00a30", FADED_CRIMSON, rev_row)
         rev_row.addStretch()
         sc.addLayout(rev_row)
         sc.addSpacing(4)
         # Confirmed days hero row
-        days_title = QLabel("Confirmed Days")
+        days_title = QLabel("Confirmed Days (accepted + complete)")
         days_title.setStyleSheet(
             f'font-family: "{BODY_FAMILY}"; font-size: 11px; '
             f"font-weight: bold; color: {TEXT_MID};")
@@ -194,30 +199,20 @@ class MuniaWindow(QMainWindow):
         self._refresh_summary(projects)
 
     def _refresh_summary(self, projects):
-        counts = {"quoted": 0, "accepted": 0, "declined": 0, "no_response": 0}
-        values = {"quoted": 0.0, "accepted": 0.0, "declined": 0.0, "no_response": 0.0}
-        for p in projects:
-            st = p.get("status", "quoted")
-            if st in counts:
-                counts[st] += 1
-                values[st] += p.get("quote_value", 0)
-            else:
-                counts["quoted"] += 1
-        self.r_quoted["count"].setText(str(counts["quoted"]))
-        self.r_quoted["label"].setText(
-            f"Quoted (\u00a3{values['quoted']:,.0f})")
-        self.r_declined["count"].setText(str(counts["declined"]))
-        self.r_declined["label"].setText(
-            f"Declined (\u00a3{values['declined']:,.0f})")
-        self.r_no_resp["count"].setText(str(counts["no_response"]))
-        self.r_no_resp["label"].setText(
-            f"No Response (\u00a3{values['no_response']:,.0f})")
-        self.r_total["count"].setText(str(len(projects)))
-        self.won_lbl.setText(f"\u00a3{values['accepted']:,.0f}")
-        lost = values["declined"] + values["no_response"]
-        self.lost_lbl.setText(f"\u00a3{lost:,.0f}")
+        s = db.summarise_pipeline(projects)
+        counts, values = s["counts"], s["values"]
+        for row, key, label in ((self.r_quoted, "quoted", "Quoted"),
+                                (self.r_accepted, "accepted", "Accepted"),
+                                (self.r_complete, "complete", "Complete"),
+                                (self.r_declined, "declined", "Declined"),
+                                (self.r_no_resp, "no_response", "No Response")):
+            row["count"].setText(str(counts[key]))
+            row["label"].setText(f"{label} (\u00a3{values[key]:,.0f})")
+        self.r_total["count"].setText(str(s["total"]))
+        self.won_lbl.setText(f"\u00a3{s['confirmed']:,.0f}")
+        self.lost_lbl.setText(f"\u00a3{s['lost']:,.0f}")
         a_field = db.get_accepted_field_total(self._conn, self._year)
-        a_ann = db.get_annual_totals(self._conn, self._year, ("accepted",))
+        a_ann = db.get_annual_totals(self._conn, self._year, db.COMMITTED_STATUSES)
         micro = a_ann.get("micro", 0)
         report = a_ann.get("report", 0)
         total_d = a_field + micro + report

@@ -11,7 +11,7 @@ print()
 print("curatorial fields filled, whole collection:")
 for label, col in (("Sex", "sex"), ("Preparation", "preparation_type"),
                    ("Condition", "condition"), ("Storage", "storage_location"),
-                   ("Drawer", "drawer_unit")):
+                   ("Drawer", "drawer_number")):
     n = c.execute(f"SELECT COUNT(1) FROM specimens "
                   f"WHERE TRIM(COALESCE({col},'')) != ''").fetchone()[0]
     print(f"  {label:12} {n:>5} of {total}  ({n / total * 100:.0f}%)")

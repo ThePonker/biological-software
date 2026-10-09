@@ -154,8 +154,16 @@ class SpeciesSearchDialog(QDialog):
         
         self.results_list.clear()
         
-        # Search UKSI
+        # Search UKSI; when that finds nothing, the shared suggestions (synonyms, close
+        # spellings: 'Rutpela maculta' -> Rutpela maculata)
+        from shared.species_lookup import parse_qualifier, search_candidates
+        text = parse_qualifier(text)[1]
         results = self.uksi_model.search_species(text, limit=20)
+        if not results:
+            try:
+                results = search_candidates(self.uksi_model, text, 20)
+            except Exception as e:
+                print(f"[SpeciesSearchDialog] suggestions failed: {e}")
         
         for result in results:
             # Format: "Scientific name - Common name (Family)"
@@ -174,6 +182,8 @@ class SpeciesSearchDialog(QDialog):
                 'common_name': result.common_name or '',
                 'order_name': result.order_name or '',
                 'family': result.family or '',
+                'kingdom': getattr(result, 'kingdom', '') or '',
+                'rank': getattr(result, 'rank', '') or '',
             })
             
             # Make scientific name italic

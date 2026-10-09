@@ -38,6 +38,8 @@ MUTED = RGBColor(0x6B, 0x72, 0x80) if HAS_DOCX else None
 NA_GREY = RGBColor(0x9C, 0xA3, 0xAF) if HAS_DOCX else None
 FONT = "Arial"
 TABLE_CM = {   # column widths per section, in cm (17.4 cm of text width)
+    "Taxonomic summary": [3.6, 7.4, 1.6, 2.4, 2.4],
+    "Compartments": [3.2, 1.5, 1.7, 1.5, 1.6, 1.4, 1.5, 1.4, 3.6],
     "Habitats": [3.6, 4.6, 1.8, 1.8, 2.0, 2.4],
     "Specific assemblage types": [3.8, 1.4, 1.4, 1.3, 1.7, 1.5, 1.9, 4.4],
     "Feeding guilds": [3.0, 8.0, 2.4],

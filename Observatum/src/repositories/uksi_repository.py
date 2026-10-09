@@ -27,7 +27,7 @@ from shared.db_open import connect_ro  # D9: reference data, read-only
 
 # Try to import from config
 try:
-    from src.core.config import get_db_path
+    from src.core.config import get_db_path  # noqa: F401  (availability check / re-export)
     USE_CONFIG = True
 except ImportError:
     USE_CONFIG = False

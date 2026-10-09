@@ -501,7 +501,7 @@ class RecordDetailDialog(QDialog):
                            ("Preparation", "preparation_type"),
                            ("Condition", "condition"),
                            ("Storage", "storage_location"),
-                           ("Drawer", "drawer_unit")):
+                           ("Drawer", "drawer_number")):
             raw = self.record.get(key)
             value = raw.strip() if isinstance(raw, str) else raw
             if value:

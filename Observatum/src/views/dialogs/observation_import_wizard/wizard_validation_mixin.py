@@ -8,7 +8,7 @@ inline editing, and revalidation methods.
 from typing import List
 
 from PySide6.QtWidgets import (
-    QTableWidgetItem, QHeaderView, QMessageBox, QInputDialog
+    QTableWidgetItem, QHeaderView, QMessageBox, QDialog
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QBrush
@@ -83,7 +83,6 @@ class WizardValidationMixin:
             uksi_model=self.uksi_model,
             vc_db_path=self.vc_db_path,
             db_manager=self.db,
-            species_aliases=self.species_aliases,
         )
         
         self.validation_worker.progress.connect(self._on_validation_progress)
@@ -310,24 +309,12 @@ class WizardValidationMixin:
         
         current_species = self.validation_table.item(table_row, 2).text()
         
-        text, ok = QInputDialog.getText(
-            self,
-            "Search Species",
-            "Enter species name to search:",
-            text=current_species
-        )
-        
-        if ok and text:
-            results = self.uksi_model.search_species(text, limit=10)
-            
-            if not results:
-                QMessageBox.information(self, "No Results", f"No species found matching '{text}'")
-                return
-            
-            # For simplicity, take the first match
-            # In a full implementation, show a selection dialog
-            match = results[0]
-            species_name = getattr(match, 'scientific_name', '')
+        # The user picks the species from the search results -- the first hit is not taken
+        # for them (9 Oct 2026: one rule set, a search hit is never a match)
+        from ..specimen_import_wizard.species_search_dialog import SpeciesSearchDialog
+        dialog = SpeciesSearchDialog(self, self.uksi_model, current_species)
+        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.get_selected_species():
+            species_name = dialog.get_selected_species().get('scientific_name', '')
             
             # Update table
             self.validation_table.item(table_row, 2).setText(species_name)
@@ -421,7 +408,6 @@ class WizardValidationMixin:
             uksi_model=self.uksi_model,
             vc_db_path=self.vc_db_path,
             db_manager=self.db,
-            species_aliases=self.species_aliases,
         )
         
         self.validation_worker.row_validated.connect(self._on_row_revalidated)
@@ -475,7 +461,14 @@ class WizardValidationMixin:
         status_item.setText(icon)
         status_item.setForeground(QBrush(QColor(color)))
         
-        if import_mode == ImportMode.PERSONAL_UPLOAD:
+        if import_mode == ImportMode.IRECORD_SYNC:
+            self.validation_table.item(table_row, 3).setText(row.species_name)
+            self.validation_table.item(table_row, 8).setText(row.error_message)
+        else:
+            # Species (it changes when a name is resolved or re-matched)
+            self.validation_table.blockSignals(True)
+            self.validation_table.item(table_row, 2).setText(row.species_name)
+            self.validation_table.blockSignals(False)
             # Update VC
             vc_text = f"VC{int(row.vc_number)}" if row.vc_number else ""
             self.validation_table.item(table_row, 5).setText(vc_text)
@@ -504,8 +497,10 @@ class WizardValidationMixin:
         if not hasattr(self, 'validated_rows') or not self.validated_rows:
             return
         
+        import_mode = self._get_selected_mode()
+        sync = import_mode == ImportMode.IRECORD_SYNC
         new_count = 0
-        update_count = 0
+        update_count = 0          # iRecord sync: records to update; uploads: duplicates found
         skip_count = 0
         
         for row in self.validated_rows:
@@ -513,6 +508,14 @@ class WizardValidationMixin:
                 skip_count += 1
             elif row.is_duplicate:
                 update_count += 1
+                if sync:
+                    continue
+                # IMP-8: in the upload modes a duplicate is never updated -- it is skipped
+                # (the default) or added again as its own record
+                if self._skips_duplicate(row, import_mode):
+                    skip_count += 1
+                else:
+                    new_count += 1
             else:
                 new_count += 1
         
@@ -521,28 +524,46 @@ class WizardValidationMixin:
         new_label = self.new_count_frame.findChildren(type(self.valid_label))[0]
         new_label.setText(str(new_count))
         
-        update_label = self.update_count_frame.findChildren(type(self.valid_label))[0]
-        update_label.setText(str(update_count))
+        update_labels = self.update_count_frame.findChildren(type(self.valid_label))
+        update_labels[0].setText(str(update_count))
+        if len(update_labels) > 1:
+            update_labels[1].setText("To Update" if sync else "Duplicates found")
         
         skip_label = self.skip_count_frame.findChildren(type(self.valid_label))[0]
         skip_label.setText(str(skip_count))
         
-        # Show/hide view updates button
-        self.view_updates_btn.setVisible(update_count > 0)
+        # "Update" is promised only where it happens: the iRecord sync (IMP-8)
+        self.view_updates_btn.setVisible(sync and update_count > 0)
         
-        # Show/hide skip duplicates checkbox based on mode
-        import_mode = self._get_selected_mode()
-        self.skip_duplicates_checkbox.setVisible(import_mode == ImportMode.PERSONAL_UPLOAD)
+        # Skip duplicates: both upload modes
+        self.skip_duplicates_checkbox.setVisible(not sync)
         self.include_errors_checkbox.setChecked(False)
         # Row handling radios control this now ? keep checkbox hidden
         self.include_errors_checkbox.setVisible(False)
 
+    def _skips_duplicate(self, row, import_mode) -> bool:
+        """True when this row will be left out as a duplicate (upload modes, box ticked)."""
+        return (import_mode in (ImportMode.PERSONAL_UPLOAD, ImportMode.COMMERCIAL_UPLOAD)
+                and row.is_duplicate and self.skip_duplicates_checkbox.isChecked())
+
     def _show_match_report(self):
-        """Show species match report dialog."""
+        """Show species match report dialog; re-matches show in the table afterwards."""
         try:
             from .species_match_report import SpeciesMatchReportDialog
             uksi = getattr(self, 'uksi_model', None)
-            dialog = SpeciesMatchReportDialog(self.validated_rows, self, uksi_model=uksi)
+            if self._get_selected_mode() == ImportMode.IRECORD_SYNC:
+                name_columns = ["Taxon"]
+            else:
+                name_columns = [self.column_mapping.get("species_name", "")]
+            dialog = SpeciesMatchReportDialog(self.validated_rows, self, uksi_model=uksi,
+                                              name_columns=name_columns)
             dialog.exec()
+            if dialog.changed_rows():
+                import_mode = self._get_selected_mode()
+                for i, r in enumerate(self.validated_rows):
+                    if i < self.validation_table.rowCount():
+                        self._update_table_row_display(i, r, import_mode)
+                self._update_validation_counts()
+                self._update_confirmation_counts()
         except Exception as e:
             print(f"Match report error: {e}")

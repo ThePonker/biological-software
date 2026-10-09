@@ -6,7 +6,6 @@ Broad Biotope → Habitat hierarchy with species counts, SQI per level,
 and fidelity scores (IEC, ERS, calcareous, acid mire etc.).
 """
 
-import sqlite3
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QTreeWidget, QTreeWidgetItem, QHeaderView, QTableWidget,
     QTableWidgetItem,
@@ -14,7 +13,14 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QColor
 import paths
-from shared.db_open import connect_ro  # D9: reference data, read-only
+try:
+    from Examen.presentation import SQI_TOOLTIP
+except ImportError:  # pragma: no cover
+    from presentation import SQI_TOOLTIP
+try:
+    from Examen.workbook_export import NATIONAL_POOL_NOTE
+except ImportError:  # pragma: no cover
+    from workbook_export import NATIONAL_POOL_NOTE
 
 BG = "#f5f5f4"; SURFACE = "#ffffff"; TEXT_PRIMARY = "#1f2937"; TEXT_HEADING = "#4b5563"
 TEXT_SECONDARY = "#6b7280"; TEXT_MUTED = "#9ca3af"; BORDER = "#d1d5db"; SEPARATOR = "#e5e7eb"
@@ -25,24 +31,23 @@ _ref_cache = {}  # Cached reference counts {type: {name: count}}
 
 
 def _load_reference_counts():
-    """One-time load of total species per biotope/habitat/SAT in Pantheon."""
+    """National species pool per biotope/habitat/SAT -- one load per session.
+
+    The workbook's own figure (workbook_export._reference_counts, which calls
+    PantheonRepository.national_pool_counts): distinct current UKSI species,
+    each counted once (EXA13). Used to count Pantheon taxa, so a merged species
+    counted two or three times.
+    """
     global _ref_cache
     if _ref_cache:
         return _ref_cache
     if not paths.PANTHEON_DB.exists():
         return {}
-    conn = connect_ro(str(paths.PANTHEON_DB))
-    c = conn.cursor()
-    _ref_cache["biotope"] = {}
-    c.execute("SELECT biotope, COUNT(DISTINCT tvk) FROM broad_biotope GROUP BY biotope")
-    for r in c.fetchall(): _ref_cache["biotope"][r[0]] = r[1]
-    _ref_cache["habitat"] = {}
-    c.execute("SELECT habitat, COUNT(DISTINCT tvk) FROM habitats GROUP BY habitat")
-    for r in c.fetchall(): _ref_cache["habitat"][r[0]] = r[1]
-    _ref_cache["sat"] = {}
-    c.execute("SELECT sat_name, COUNT(DISTINCT tvk) FROM specific_assemblage_types GROUP BY sat_name")
-    for r in c.fetchall(): _ref_cache["sat"][r[0]] = r[1]
-    conn.close()
+    try:
+        from Examen.workbook_export import _reference_counts
+    except ImportError:  # pragma: no cover
+        from workbook_export import _reference_counts
+    _ref_cache.update(_reference_counts())
     return _ref_cache
 
 
@@ -59,6 +64,8 @@ class HabitatTab(QWidget):
         self.tree = QTreeWidget()
         self.tree.setColumnCount(5)
         self.tree.setHeaderLabels(["Biotope / Habitat", "Species", "Scoring", "SQI", "% National Pool"])
+        self.tree.headerItem().setToolTip(3, SQI_TOOLTIP)    # the scale (E8)
+        self.tree.headerItem().setToolTip(4, NATIONAL_POOL_NOTE)
         self.tree.setAlternatingRowColors(True)
         hdr = self.tree.header()
         hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)

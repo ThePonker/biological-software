@@ -6,10 +6,17 @@ Detailed breakdowns moved to Habitats/Assemblages/Species/Conservation tabs.
 """
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame,
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QScrollArea,
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
+
+try:
+    from Examen.presentation import SQI_CAPTION, SQI_TOOLTIP
+    from Examen.figure_table import figure_block
+except ImportError:  # pragma: no cover
+    from presentation import SQI_CAPTION, SQI_TOOLTIP
+    from figure_table import figure_block
 
 BG = "#f5f5f4"; SURFACE = "#ffffff"; TEXT_PRIMARY = "#1f2937"
 TEXT_SECONDARY = "#6b7280"; TEXT_MUTED = "#9ca3af"; BORDER = "#d1d5db"
@@ -21,7 +28,18 @@ class OverviewTab(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        layout = QVBoxLayout(self)
+        # Scrolls once the compartment table makes the content taller than the tab.
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.viewport().setAutoFillBackground(False)
+        inner = QWidget()
+        inner.setAutoFillBackground(False)
+        scroll.setWidget(inner)
+        outer.addWidget(scroll)
+        layout = QVBoxLayout(inner)
         layout.setContentsMargins(16, 20, 16, 16)
         layout.setSpacing(16)
 
@@ -31,6 +49,7 @@ class OverviewTab(QWidget):
 
         # Hero SQI card (larger, prominent)
         self.sqi_card = self._hero_card("SQI", "-", "", ACCENT_DARK)
+        self.sqi_card.setToolTip(SQI_TOOLTIP)        # what the number means (E8)
         top_row.addWidget(self.sqi_card)
 
         # Key species card
@@ -42,6 +61,12 @@ class OverviewTab(QWidget):
         top_row.addWidget(self.total_card)
 
         layout.addLayout(top_row)
+
+        # The SQI scale, stated where the figure is shown (backlog E8)
+        self.sqi_caption = QLabel(SQI_CAPTION)
+        self.sqi_caption.setToolTip(SQI_TOOLTIP)
+        self.sqi_caption.setStyleSheet("color: " + TEXT_MUTED + "; font-size: 11px;")
+        layout.addWidget(self.sqi_caption)
 
         # Row 2: Summary sentence
         self.summary_sentence = QLabel("")
@@ -94,6 +119,10 @@ class OverviewTab(QWidget):
             "color: " + TEXT_SECONDARY + "; font-size: 12px; padding: 4px 0;")
         layout.addWidget(self.habitat_snapshot)
 
+        # Row 5: compartments (backlog E6) -- only when the records name 2+ of them
+        self._compartment_block = None
+        self._layout = layout
+
         layout.addStretch()
 
     def set_result(self, result, detail=None, visits=0):
@@ -122,9 +151,11 @@ class OverviewTab(QWidget):
                           str(result.key_species_count),
                           f"{result.key_species_pct}% of species recorded",
                           RED_STATUS if result.key_species_count > 0 else TEXT_MUTED)
+        # "Analysed": the SQI's divisor -- the workbook's figure (EXA5).
+        analysed = getattr(result, "species_analysed", 0) or result.species_in_pantheon
         self._update_hero(self.total_card,
                           str(result.total_species),
-                          f"{result.species_in_pantheon} in Pantheon",
+                          f"{analysed} analysed",
                           TEXT_PRIMARY)
 
         # Summary sentence. Built as whole sentences, then joined -- the old
@@ -157,9 +188,17 @@ class OverviewTab(QWidget):
         self._update_tier(self.scarce_label, str(result.scarce_count))
         self._update_tier(self.priority_label, str(result.priority_count))
         scoring = sqi.species_with_sqs if sqi else 0
+        held = result.species_in_pantheon
+        extra = analysed - held
         self.pantheon_label.setText(
-            f"{result.species_in_pantheon} species in Pantheon  |  "
-            f"{scoring} with SQS scores  |  {visits} visits")
+            f"{analysed} species analysed"
+            + (f" ({held} held by Pantheon, {extra} scored from current status)"
+               if extra > 0 else " (held by Pantheon)")
+            + f"  |  {scoring} with SQS scores  |  {visits} visits")
+        self.pantheon_label.setToolTip(
+            "Species analysed: those Pantheon holds (ecology or a published score, through "
+            "the TVK bridge), plus any Pantheon lacks that carry a score derived from current "
+            "status. The SQI divides by this figure.")
 
         # Saproxylic SQI and IEC (backlog E7): figures and thresholds side by side, no verdict
         try:
@@ -182,6 +221,8 @@ class OverviewTab(QWidget):
             print(f"[Examen] saproxylic indices: {e}")
             self.sap_label.setVisible(False)
 
+        self._show_compartments(detail)
+
         # Habitat snapshot — top biotopes only
         if result.biotope_counts:
             top = sorted(result.biotope_counts.items(), key=lambda x: -x[1])[:4]
@@ -191,6 +232,25 @@ class OverviewTab(QWidget):
                 + "     \u2192 see Habitats tab for full breakdown")
         else:
             self.habitat_snapshot.setText("")
+
+    def _show_compartments(self, detail):
+        """The compartment table computed by Examen.compartments (cached on the detail)."""
+        if self._compartment_block is not None:
+            self._compartment_block.deleteLater()
+            self._compartment_block = None
+        res = getattr(detail, "compartments", None)
+        if res is None or not res.shown:
+            return
+        try:
+            from Examen.compartments import COMBINED
+        except ImportError:  # pragma: no cover
+            from compartments import COMBINED
+        heads, rows, notes = res.table()
+        self._compartment_block = figure_block(
+            f"Compartments ({len(res.rows)}; threshold {res.threshold_pct:g}% of records)",
+            (heads, rows, notes), bold_rows=(COMBINED,), flag_col=len(heads) - 1,
+            head_tips={"SQI": SQI_TOOLTIP})
+        self._layout.insertWidget(self._layout.count() - 1, self._compartment_block)
 
     def _hero_card(self, title, value, subtitle, colour):
         card = QFrame()

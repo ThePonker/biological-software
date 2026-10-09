@@ -447,12 +447,16 @@ class WizardPagesMixin:
         from .species_match_report import SpeciesMatchReportDialog
         if hasattr(self, "validated_rows") and self.validated_rows:
             uksi = self.uksi_model if hasattr(self, 'uksi_model') else None
-            dialog = SpeciesMatchReportDialog(self.validated_rows, self, uksi_model=uksi)
+            dialog = SpeciesMatchReportDialog(
+                self.validated_rows, self, uksi_model=uksi,
+                name_columns=[self.column_mapping.get("species_name", "")])
             dialog.exec()
 
             # Refresh the validation table to show any re-matched species
             if hasattr(self, 'validation_model') and self.validation_model:
                 self.validation_model.layoutChanged.emit()
+            if dialog.changed_rows() and hasattr(self, '_update_validation_counts'):
+                self._update_validation_counts()
             # Update confirmation counts
             if hasattr(self, '_update_confirmation_counts'):
                 self._update_confirmation_counts()

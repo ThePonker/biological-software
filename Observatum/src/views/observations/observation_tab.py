@@ -562,8 +562,7 @@ class ObservationTab(
     def _on_data_changed(self, top_left, bottom_right, roles):
         """Handle checkbox changes - update selection count in toolbar."""
         if top_left.column() == 0:
-            checked_count = len(self.table_model.get_checked_rows())
-            self.toolbar.set_selected_count(checked_count)
+            self.toolbar.set_selected_count(self.table_model.checked_count())
 
     # =========================================================================
     # Import Methods
@@ -595,17 +594,13 @@ class ObservationTab(
 
     def _update_selection_count(self):
         """Update toolbar with current selection count."""
-        count = len(self.table_model._checked)
-        self.toolbar.set_selected_count(count)
+        self.toolbar.set_selected_count(self.table_model.checked_count())
 
     def _select_all_records(self, select: bool):
         """Select or deselect all visible (filtered) records."""
-        if select:
-            for proxy_row in range(self.sort_proxy.rowCount()):
-                source_index = self.sort_proxy.mapToSource(self.sort_proxy.index(proxy_row, 0))
-                self.table_model.setData(source_index, Qt.CheckState.Checked, Qt.ItemDataRole.CheckStateRole)
-        else:
-            self.table_model.set_all_checked(False)
+        # The model holds only the filtered records (filters replace its list), so
+        # "all" here is all that are shown
+        self.table_model.set_all_checked(bool(select))
         self._update_selection_count()
 
     def _mark_as_commercial(self):
@@ -614,13 +609,8 @@ class ObservationTab(
         from PySide6.QtWidgets import QDialog
         from ...models.database import get_database
 
-        checked_ids = []
-        for row_idx in sorted(self.table_model._checked):
-            if row_idx < len(self.table_model._observations):
-                obs = self.table_model._observations[row_idx]
-                obs_id = obs.id if hasattr(obs, "id") else obs.get("id")
-                if obs_id:
-                    checked_ids.append(obs_id)
+        # The ticked records by id -- ticks follow their records through a sort (OBS-01)
+        checked_ids = self.table_model.get_checked_ids()
 
         if not checked_ids:
             return
@@ -753,12 +743,18 @@ class ObservationTab(
 
 
     def _on_delete_selected(self):
-        """Delete checked observations after confirmation."""
+        """Delete the ticked observations after a confirmation that names them.
+
+        Acts on the ticked records by id, so a sort between ticking and deleting
+        cannot change which records go (OBS-01). observatum.db is backed up first
+        (a kept, named copy); if that fails nothing is deleted.
+        """
         from PySide6.QtWidgets import QMessageBox
         from ...models.database import get_database
+        from .checked_records import describe_records
 
-        checked = self.table_model.get_checked_observations()
-        checked_ids = [obs.get("id") for obs in checked if obs.get("id")]
+        checked = [o for o in self.table_model.get_checked_observations() if o.get("id")]
+        checked_ids = [o.get("id") for o in checked]
         if not checked_ids:
             QMessageBox.information(self, "Delete Selected", "No records are selected.")
             return
@@ -767,11 +763,24 @@ class ObservationTab(
         reply = QMessageBox.warning(
             self,
             "Delete Selected",
-            f"Permanently delete {count} observation{'s' if count != 1 else ''}?\n\nThis cannot be undone.",
+            f"Permanently delete {count} observation{'s' if count != 1 else ''}?\n\n"
+            f"{describe_records(checked)}\n\n"
+            "A backup of the database is taken first. This cannot be undone here.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
         if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        try:
+            from shared.backup_service import backup_main_only
+            backed_up = backup_main_only("pre-delete")
+        except Exception as e:
+            print(f"[ObservationTab] pre-delete backup unavailable: {e}")
+            backed_up = False
+        if not backed_up:
+            QMessageBox.critical(self, "Delete Not Done",
+                                 "The backup before deleting failed, so nothing has been deleted.")
             return
 
         db = get_database()
@@ -781,7 +790,7 @@ class ObservationTab(
                 f"DELETE FROM observations WHERE id IN ({placeholders})",
                 tuple(checked_ids),
             )
-            print(f"[ObservationTab] Deleted {count} records")
+            print(f"[ObservationTab] Deleted {count} records: ids {checked_ids[:20]}")
             self.table_model.set_all_checked(False)
             self._load_data()
             self._update_selection_count()

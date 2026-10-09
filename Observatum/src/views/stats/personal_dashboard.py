@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Signal
 
 try:
-    from PySide6.QtCharts import QChart, QChartView, QLineSeries, QValueAxis, QAreaSeries
+    from PySide6.QtCharts import QChart, QChartView, QLineSeries, QValueAxis, QAreaSeries  # noqa: F401  (availability check / re-export)
     CHARTS_AVAILABLE = True
 except ImportError:
     CHARTS_AVAILABLE = False

@@ -64,7 +64,8 @@ Examen/
 ├── import_species_dialog.py     Paste / import a list
 ├── manual_entry_dialog.py       DISABLED 6 Oct -- could empty Codex's
 │                                manual_entries; delete with backlog I8
-├── snapshot_manager.py          Freeze — fate undecided
+├── snapshot_manager.py          Freeze — RETIRED 9 Oct (E13); no longer imported,
+│                                to _archive with assessment_archive_view.py
 └── sat_thresholds.json          Verified against Pantheon's own output
 ```
 
@@ -249,7 +250,7 @@ Found and fixed 6 October, by static analysis:
 | E6 | Compartment analysis | 0.5 day |
 | E7 | Saproxylic SQI + IEC | ~3 days |
 | E8–E12 | Presentation, punctuation, palettes | ~1.5 days |
-| E13 | Decide the fate of freeze / snapshots | decision |
+| E13 | Freeze / snapshots retired (9 Oct); examen.db exported by `scripts/export_examen_snapshots.py` | done |
 
 **The SQI verdict needs deciding.** The Overview's summary sentence ends by
 calling a site *of national importance* at SQI ≥200, *regional* at ≥150, *of some

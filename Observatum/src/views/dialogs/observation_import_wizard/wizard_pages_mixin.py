@@ -21,118 +21,11 @@ from PySide6.QtCore import Qt, QDate
 from src.themes import theme
 
 
-class ModeOptionCard(QFrame):
-    """
-    A clickable card for mode selection with proper hover behavior.
-    The entire card highlights together when hovered or selected.
-    """
-    
-    def __init__(self, title: str, description: str, mode_id: str, accent_color: str, parent=None):
-        super().__init__(parent)
-        self.accent_color = accent_color
-        self.mode_id = mode_id
-        self._selected = False
-        self._on_clicked = None
-        
-        t = theme()
-        
-        self.setObjectName("modeCard")
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._update_style(False)
-        
-        layout = QHBoxLayout(self)
-        layout.setSpacing(16)
-        layout.setContentsMargins(16, 16, 16, 16)
-        
-        # Custom radio indicator (circle)
-        self.indicator = QLabel()
-        self.indicator.setFixedSize(20, 20)
-        self._update_indicator(False)
-        layout.addWidget(self.indicator)
-        
-        # Text content
-        text_layout = QVBoxLayout()
-        text_layout.setSpacing(4)
-        
-        self.title_label = QLabel(title)
-        self.title_label.setStyleSheet(f"""
-            font-weight: 600; 
-            font-size: 14px; 
-            color: {t.get('text_primary')};
-            background: transparent;
-            border: none;
-        """)
-        text_layout.addWidget(self.title_label)
-        
-        self.desc_label = QLabel(description)
-        self.desc_label.setStyleSheet(f"""
-            color: {t.get('text_secondary')}; 
-            font-size: 12px;
-            background: transparent;
-            border: none;
-        """)
-        self.desc_label.setWordWrap(True)
-        text_layout.addWidget(self.desc_label)
-        
-        layout.addLayout(text_layout, 1)
-    
-    def _update_style(self, selected: bool):
-        """Update card border and background based on selection state."""
-        t = theme()
-        border_color = self.accent_color if selected else t.get('border')
-        bg_color = t.get('surface')
-        
-        self.setStyleSheet(f"""
-            ModeOptionCard {{
-                background-color: {bg_color};
-                border: 2px solid {border_color};
-                border-radius: {t.get('radius_lg')};
-            }}
-            ModeOptionCard:hover {{
-                border-color: {self.accent_color};
-            }}
-        """)
-    
-    def _update_indicator(self, selected: bool):
-        """Update the radio indicator circle."""
-        t = theme()
-        
-        if selected:
-            # Filled circle with accent color
-            self.indicator.setStyleSheet(f"""
-                background-color: {self.accent_color};
-                border: 2px solid {self.accent_color};
-                border-radius: 6px;
-            """)
-        else:
-            # Empty circle with visible border
-            self.indicator.setStyleSheet(f"""
-                background-color: {t.get('surface')};
-                border: 2px solid {t.get('border_strong')};
-                border-radius: 6px;
-            """)
-    
-    def setSelected(self, selected: bool):
-        """Set the selection state of this card."""
-        self._selected = selected
-        self._update_style(selected)
-        self._update_indicator(selected)
-    
-    def isSelected(self) -> bool:
-        return self._selected
-    
-    def mousePressEvent(self, event):
-        """Handle click to select this card."""
-        if self._on_clicked:
-            self._on_clicked()
-        super().mousePressEvent(event)
-    
-    def setClickCallback(self, callback):
-        """Set callback for when card is clicked."""
-        self._on_clicked = callback
+from ..import_common.mode_option_card import ModeOptionCard  # noqa: F401  (C4: one copy)
+from ..import_common.progress_pages import ImportProgressPagesMixin
 
 
-class WizardPagesMixin:
+class WizardPagesMixin(ImportProgressPagesMixin):
     """Mixin providing page creation methods for ObservationImportWizard."""
     
     def _create_mode_selection_page(self):
@@ -662,6 +555,12 @@ class WizardPagesMixin:
         
         self.stack.addWidget(page)
     
+    def _on_skip_duplicates_toggled(self, _checked: bool):
+        """The counts and the Import button follow the skip-duplicates box (IMP-8)."""
+        if getattr(self, "validated_rows", None) and self.stack.currentIndex() == 4:
+            self._update_confirmation_counts()
+            self._update_step_ui()
+
     def _create_confirmation_page(self):
         """Step 5: Confirmation before import."""
         t = theme()
@@ -808,6 +707,7 @@ class WizardPagesMixin:
         self.skip_duplicates_checkbox = QCheckBox("Skip duplicate records (matching species + date + grid ref)")
         self.skip_duplicates_checkbox.setChecked(True)
         self.skip_duplicates_checkbox.setStyleSheet(f"color: {t.get('text_primary')};")
+        self.skip_duplicates_checkbox.toggled.connect(self._on_skip_duplicates_toggled)
         options_layout.addWidget(self.skip_duplicates_checkbox)
 
         # Include errors checkbox
@@ -816,116 +716,6 @@ class WizardPagesMixin:
         self.include_errors_checkbox.setVisible(False)
         
         layout.addWidget(self.options_frame)
-        
-        layout.addStretch()
-        
-        self.stack.addWidget(page)
-    
-    def _create_stat_card(self, label: str, value: str, color: str) -> QFrame:
-        """Create a stat card for confirmation page."""
-        t = theme()
-        
-        frame = QFrame()
-        frame.setStyleSheet(f"""
-            QFrame {{
-                background-color: {t.get('surface_alt')};
-                border-radius: {t.get('radius_md')};
-                padding: 12px 20px;
-            }}
-        """)
-        
-        layout = QVBoxLayout(frame)
-        layout.setSpacing(4)
-        layout.setContentsMargins(0, 0, 0, 0)
-        
-        value_label = QLabel(value)
-        value_label.setStyleSheet(f"font-size: 24px; font-weight: 700; color: {color};")
-        value_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        value_label.setObjectName("value_label")
-        layout.addWidget(value_label)
-        
-        name_label = QLabel(label)
-        name_label.setStyleSheet(f"font-size: 12px; color: {t.get('text_secondary')};")
-        name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(name_label)
-        
-        return frame
-    
-    def _create_import_page(self):
-        """Step 6: Import progress."""
-        t = theme()
-        
-        page = QWidget()
-        layout = QVBoxLayout(page)
-        layout.setSpacing(20)
-        layout.setContentsMargins(40, 40, 40, 40)
-        
-        layout.addStretch()
-        
-        # Status label
-        self.import_status_label = QLabel("Preparing import...")
-        self.import_status_label.setStyleSheet(f"font-size: 16px; color: {t.get('text_primary')};")
-        self.import_status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.import_status_label)
-        
-        # Progress bar
-        self.import_progress = QProgressBar()
-        self.import_progress.setStyleSheet(f"""
-            QProgressBar {{
-                border: 1px solid {t.get('border')};
-                border-radius: {t.get('radius_md')};
-                background-color: {t.get('surface_alt')};
-                text-align: center;
-                height: 28px;
-                font-weight: 600;
-            }}
-            QProgressBar::chunk {{
-                background-color: {self._accent};
-                border-radius: {t.get('radius_sm')};
-            }}
-        """)
-        self.import_progress.setMinimum(0)
-        self.import_progress.setMaximum(100)
-        layout.addWidget(self.import_progress)
-        
-        # Counts during import
-        self.import_counts_label = QLabel("")
-        self.import_counts_label.setStyleSheet(f"color: {t.get('text_secondary')};")
-        self.import_counts_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.import_counts_label)
-        
-        layout.addStretch()
-        
-        self.stack.addWidget(page)
-    
-    def _create_summary_page(self):
-        """Step 7: Import summary."""
-        t = theme()
-        
-        page = QWidget()
-        layout = QVBoxLayout(page)
-        layout.setSpacing(20)
-        layout.setContentsMargins(40, 40, 40, 40)
-        
-        layout.addStretch()
-        
-        # Icon
-        self.summary_icon = QLabel("✓")
-        self.summary_icon.setStyleSheet(f"font-size: 64px; color: {t.get('success')};")
-        self.summary_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.summary_icon)
-        
-        # Title
-        self.summary_title = QLabel("Import Complete!")
-        self.summary_title.setStyleSheet(f"font-size: 20px; font-weight: 600; color: {t.get('text_primary')};")
-        self.summary_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.summary_title)
-        
-        # Stats
-        self.summary_stats = QLabel("")
-        self.summary_stats.setStyleSheet(f"font-size: 14px; color: {t.get('text_secondary')};")
-        self.summary_stats.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.summary_stats)
         
         layout.addStretch()
         

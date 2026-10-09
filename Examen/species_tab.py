@@ -12,6 +12,12 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 
+# Status codes as names and the vernacular fallback (backlog E8): shared with the exports.
+try:
+    from Examen.presentation import status_name, vernacular, is_description, SQI_TOOLTIP
+except ImportError:  # pragma: no cover
+    from presentation import status_name, vernacular, is_description, SQI_TOOLTIP
+
 BG = "#f5f5f4"; SURFACE = "#ffffff"; TEXT_PRIMARY = "#1f2937"; TEXT_HEADING = "#4b5563"
 TEXT_SECONDARY = "#6b7280"; TEXT_MUTED = "#9ca3af"; BORDER = "#d1d5db"; SEPARATOR = "#e5e7eb"
 MOSS_GREEN = "#4a7c59"; ACCENT = "#7c6c9f"; ACCENT_DARK = "#5a4d78"
@@ -62,6 +68,9 @@ class SpeciesTab(QWidget):
             "QTableWidget { border: 1px solid " + BORDER + "; gridline-color: " + SEPARATOR + "; font-size: 11px; }"
             "QHeaderView::section { background: " + BG + "; border: none; border-bottom: 2px solid "
             + BORDER + "; padding: 5px; font-weight: bold; font-size: 11px; color: " + TEXT_HEADING + "; }")
+        self.table.horizontalHeaderItem(3).setToolTip(
+            "Species Quality Score: 1 common, 4 Nationally Scarce or Notable, 8 Nationally "
+            "Rare or Vulnerable, 16 Endangered, 32 Critically Endangered.\n\n" + SQI_TOOLTIP)
         layout.addWidget(self.table, 1)
 
     def set_result(self, result, detail=None, taxonomy=None):
@@ -69,13 +78,19 @@ class SpeciesTab(QWidget):
         self._all_species = []
         tax = taxonomy or {}
 
-        # Key species from result
+        # Key species from result. The full status names each legal instrument,
+        # as a non-key row's does (EXA10) -- the workbook's own string.
+        try:
+            from Examen.workbook_export import status_string
+        except ImportError:  # pragma: no cover
+            status_string = lambda k: k.status_display  # noqa: E731
         key_tvks = set()
         for k in result.key_species:
             t = tax.get(k.tvk, {})
             self._all_species.append({
                 "name": k.species_name, "common": t.get("common", ""),
-                "status": k.short_status, "sqs": k.sqs, "tier": k.tier,
+                "status": k.short_status, "status_full": status_string(k),
+                "sqs": k.sqs, "tier": k.tier,
                 "biotope": k.broad_biotope, "habitat": k.habitat,
                 "family": k.family or t.get("family", ""), "order": t.get("order", ""),
             })
@@ -89,7 +104,8 @@ class SpeciesTab(QWidget):
                 t = tax.get(sp.tvk, {})
                 self._all_species.append({
                     "name": sp.name, "common": t.get("common", ""),
-                    "status": sp.status, "sqs": sp.sqs, "tier": sp.tier,
+                    "status": sp.status, "status_full": getattr(sp, "status_full", ""),
+                    "sqs": sp.sqs, "tier": sp.tier,
                     "biotope": sp.broad_biotope, "habitat": sp.habitat,
                     "family": t.get("family", ""), "order": t.get("order", ""),
                 })
@@ -119,8 +135,17 @@ class SpeciesTab(QWidget):
         self.table.setRowCount(len(filtered))
         for i, sp in enumerate(filtered):
             self.table.setItem(i, 0, QTableWidgetItem(sp["name"]))
-            self.table.setItem(i, 1, QTableWidgetItem(sp["common"]))
-            si = QTableWidgetItem(sp["status"])
+            shown = vernacular(sp["common"], sp["family"], sp["order"])
+            ci = QTableWidgetItem(shown)
+            if is_description(sp["common"], shown):
+                # A group description, not a name: muted, and says so
+                ci.setForeground(QColor(TEXT_MUTED))
+                ci.setToolTip("No common name in UKSI; the group is described instead.")
+            self.table.setItem(i, 1, ci)
+            si = QTableWidgetItem(status_name(sp["status"]))
+            if sp["status"]:
+                si.setToolTip(f"{sp['status']}" + (f" \u2014 full status: {sp['status_full']}"
+                                                   if sp.get("status_full") else ""))
             if sp["tier"] == "Rare": si.setForeground(QColor(RED_STATUS))
             elif sp["tier"] == "Scarce": si.setForeground(QColor(AMBER))
             self.table.setItem(i, 2, si)

@@ -15,15 +15,18 @@ from ...core.config import TabColors
 from ...utils.date_utils import format_date_display
 from ...services.vc_lookup_service import VCLookupService
 from ..components import tick_column
+from .checked_records import CheckedByIdMixin
 
 # Custom role for sortable date values
 DATE_SORT_ROLE = Qt.ItemDataRole.UserRole + 100
 
 
-class ObservationTableModel(QAbstractTableModel):
+class ObservationTableModel(CheckedByIdMixin, QAbstractTableModel):
     """High-performance table model for observation data with checkbox support."""
 
     checked_changed = Signal()
+
+    _records_attr = "_observations"     # ticks held by record id (CheckedByIdMixin, OBS-01)
 
     # All possible columns - Format: (key, header, width, mandatory)
     ALL_COLUMNS = [
@@ -137,7 +140,7 @@ class ObservationTableModel(QAbstractTableModel):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._observations: List[Dict] = []
-        self._checked: set = set()
+        self._init_checked()
         self._visible_columns: set = set()
         self._column_order: List[str] = []
         self._columns: List[tuple] = []
@@ -237,21 +240,22 @@ class ObservationTableModel(QAbstractTableModel):
 
         # Checkbox column
         if col_key == 'checkbox':
+            ticked = self.is_row_checked(row)
             if role == Qt.ItemDataRole.CheckStateRole:
-                return Qt.CheckState.Checked if row in self._checked else Qt.CheckState.Unchecked
+                return Qt.CheckState.Checked if ticked else Qt.CheckState.Unchecked
             if role == Qt.ItemDataRole.DisplayRole:
-                return "✓" if row in self._checked else ""
+                return "✓" if ticked else ""
             if role == Qt.ItemDataRole.ForegroundRole:
-                if row in self._checked:
+                if ticked:
                     return QColor("#4a7c59")
             if role == Qt.ItemDataRole.FontRole:
-                if row in self._checked:
+                if ticked:
                     font = QFont()
                     font.setBold(True)
                     font.setPointSize(14)
                     return font
             if role == Qt.ItemDataRole.BackgroundRole:
-                if row in self._checked:
+                if ticked:
                     return QColor("#e8f0ea")
             if role == Qt.ItemDataRole.TextAlignmentRole:
                 return Qt.AlignmentFlag.AlignCenter
@@ -280,7 +284,7 @@ class ObservationTableModel(QAbstractTableModel):
 
         # Highlight entire row when checked
         if role == Qt.ItemDataRole.BackgroundRole:
-            if row in self._checked:
+            if self.is_row_checked(row):
                 return QColor("#e8f0ea")
             return None
 
@@ -328,11 +332,7 @@ class ObservationTableModel(QAbstractTableModel):
         col_key = self._columns[index.column()][0]
 
         if col_key == 'checkbox' and role == Qt.ItemDataRole.CheckStateRole:
-            row = index.row()
-            if tick_column.is_checked(value):
-                self._checked.add(row)
-            else:
-                self._checked.discard(row)
+            self.set_row_checked(index.row(), tick_column.is_checked(value))
             self.dataChanged.emit(index, index, [role])
             self.checked_changed.emit()
             return True
@@ -371,7 +371,7 @@ class ObservationTableModel(QAbstractTableModel):
         """Set observation data."""
         self.beginResetModel()
         self._observations = observations
-        self._checked.clear()
+        self._clear_checked()
         self.endResetModel()
 
     def set_observations_fast(self, observations: List, table_view=None, sort_proxy=None):
@@ -379,7 +379,7 @@ class ObservationTableModel(QAbstractTableModel):
 
         self.beginResetModel()
         self._observations = observations
-        self._checked.clear()
+        self._clear_checked()
         self.endResetModel()
 
     def refresh_common_name_setting(self):
@@ -414,31 +414,23 @@ class ObservationTableModel(QAbstractTableModel):
             return obs if isinstance(obs, dict) else obs.to_dict()
         return None
 
-    def get_checked_rows(self) -> List[int]:
-        """Get list of checked row indices."""
-        return sorted(self._checked)
+    # get_checked_rows / get_checked_ids / checked_count: CheckedByIdMixin
 
     def get_checked_observations(self) -> List[Dict]:
-        """Get list of checked observation data."""
-        observations = []
-        for row in self.get_checked_rows():
-            obs = self.get_observation_at_row(row)
-            if obs:
-                observations.append(obs)
-        return observations
+        """The ticked observations as dicts, in their current display order."""
+        return [obs if isinstance(obs, dict) else obs.to_dict()
+                for obs in self.get_checked_items()]
 
     def set_all_checked(self, checked: bool):
         """Check or uncheck all rows."""
-        if checked:
-            self._checked = set(range(len(self._observations)))
-        else:
-            self._checked.clear()
+        self._check_all_keys(checked)
         if self._observations:
             self.dataChanged.emit(
                 self.index(0, 0),
                 self.index(len(self._observations) - 1, 0),
                 [Qt.ItemDataRole.CheckStateRole]
             )
+        self.checked_changed.emit()
 
     def get_column_widths(self) -> List[int]:
         """Get list of column widths."""

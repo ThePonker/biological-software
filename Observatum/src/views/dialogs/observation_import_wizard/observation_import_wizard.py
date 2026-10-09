@@ -52,6 +52,7 @@ from .wizard_species_mixin import WizardSpeciesResolutionMixin
 
 from src.themes import theme
 from src.core.config import TabColors
+from shared.species_lookup import is_unresolved_error
 
 
 class ObservationImportWizard(
@@ -88,8 +89,6 @@ class ObservationImportWizard(
         super().__init__(parent)
         self.uksi_model = uksi_model
         self.db = db
-        self.species_aliases = {}
-        self._load_aliases()
         self.observation_model = observation_model
         self.vc_db_path = None
         
@@ -300,33 +299,14 @@ class ObservationImportWizard(
         """Reopen the bulk species resolution dialog."""
         unmatched = []
         for row in self.validated_rows:
-            if row.status == RowStatus.ERROR and row.error_message:
-                if "Species not found" in row.error_message:
-                    if row.species_name not in unmatched:
-                        unmatched.append(row.species_name)
+            if row.status == RowStatus.ERROR and is_unresolved_error(row.error_message):
+                if row.species_name not in unmatched:
+                    unmatched.append(row.species_name)
         if unmatched:
             self._prompt_resolve_unmatched()
         else:
             from PySide6.QtWidgets import QMessageBox
             QMessageBox.information(self, "No Errors", "No unmatched species to resolve.")
-
-    def _load_aliases(self):
-        """Load species aliases from database for validation."""
-        try:
-            from ....services.species_alias_service import SpeciesAliasService
-            alias_service = SpeciesAliasService(db_manager=self.db)
-            aliases = alias_service.get_all_aliases()
-            for alias in aliases:
-                key = alias["input_name"].lower().strip()
-                self.species_aliases[key] = {
-                    "uksi_name": alias["uksi_name"],
-                    "uksi_tvk": alias.get("uksi_tvk", ""),
-                    "uksi_common_name": alias.get("uksi_common_name", ""),
-                    "uksi_order": alias.get("uksi_order", ""),
-                    "uksi_family": alias.get("uksi_family", ""),
-                }
-        except Exception as e:
-            print(f"[ObsImportWizard] Error loading aliases: {e}")
 
     def _browse_existing_values(self, column: str, target_field):
         """Show popup with existing values for a database column."""
@@ -548,8 +528,9 @@ class ObservationImportWizard(
         if current == 4:  # Confirmation page
             # Hide "Never upload to iRecord" for iRecord Sync (data already in iRecord)
             self.never_upload_checkbox.setVisible(import_mode in (ImportMode.PERSONAL_UPLOAD, ImportMode.COMMERCIAL_UPLOAD))
-            # Only show skip duplicates for Personal mode
-            self.skip_duplicates_checkbox.setVisible(import_mode == ImportMode.PERSONAL_UPLOAD)
+            # Skip duplicates: both upload modes (IMP-8 -- Commercial always re-inserted them)
+            self.skip_duplicates_checkbox.setVisible(import_mode in (ImportMode.PERSONAL_UPLOAD,
+                                                                     ImportMode.COMMERCIAL_UPLOAD))
             # include_errors visibility handled by _update_confirmation_counts
             # Hide options frame entirely if no options visible
             has_visible_options = import_mode in (ImportMode.PERSONAL_UPLOAD, ImportMode.COMMERCIAL_UPLOAD)
@@ -557,7 +538,8 @@ class ObservationImportWizard(
         
         # Next button text and state
         if current == 4:
-            valid_count = sum(1 for r in self.validated_rows if r.status != RowStatus.ERROR)
+            valid_count = sum(1 for r in self.validated_rows if r.status != RowStatus.ERROR
+                              and not self._skips_duplicate(r, import_mode))
             skip_count = len(self.validated_rows) - valid_count
             if skip_count > 0:
                 self.next_btn.setText(f"Import {valid_count} Records ({skip_count} skipped)")

@@ -43,7 +43,7 @@ class SpecimenTableModel(QStandardItemModel):
         ('sex', 'Sex', 60, False),
         ('preparation_type', 'Prep Type', 80, False),
         ('storage_location', 'Storage', 100, False),
-        ('drawer_unit', 'Drawer', 70, False),
+        ('drawer_number', 'Drawer', 70, False),
         ('condition', 'Condition', 80, False),
         ('label_data', 'Label Data', 150, False),
         ('notes', 'Notes', 150, False),
@@ -58,7 +58,7 @@ class SpecimenTableModel(QStandardItemModel):
     DEFAULT_VISIBLE = [
         'id', 'specimen_code', 'species_tvk', 'common_name', 'order_name', 
         'family', 'subfamily', 'vice_county', 'vc_number', 'sex', 
-        'preparation_type', 'storage_location', 'drawer_unit', 'condition',
+        'preparation_type', 'storage_location', 'drawer_number', 'condition',
         'label_data', 'notes', 'import_notes', 'observation_id', 
         'created_at', 'updated_at'
     ]

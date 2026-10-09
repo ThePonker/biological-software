@@ -138,9 +138,9 @@ class ObservationStatsService:
         if len(digits) >= 4:
             e = int(digits[1])
             n = int(digits[len(digits)//2 + 1])
-            tetrad_letter = chr(ord('A') + (n // 2) * 5 + (e // 2))
-            if tetrad_letter > 'O':
-                tetrad_letter = chr(ord(tetrad_letter) + 1)
+            # DINTY: A-E run up the first 2 km column, then the next column (no O);
+            # the same scheme as shared/osgb.py. Rows-first was used before 9 Oct.
+            tetrad_letter = "ABCDEFGHIJKLMNPQRSTUVWXYZ"[(e // 2) * 5 + (n // 2)]
             result['tetrad'] = f"{result['hectad']}{tetrad_letter}"
         
         if len(digits) >= 4:

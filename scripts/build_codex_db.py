@@ -41,6 +41,28 @@ JNCC_DIR = str(paths.JNCC_DIR)
 import glob as _glob   # the newest designations workbook in JNCC_DIR, whatever its capitalisation
 _found = sorted(_glob.glob(os.path.join(JNCC_DIR, "*esignations-*.xlsx")))
 JNCC_XLSX = _found[-1] if _found else os.path.join(JNCC_DIR, "taxon-designations.xlsx")
+
+
+def jncc_date_of(path):
+    """Date of the JNCC spreadsheet actually loaded, as YYYY-MM-DD.
+
+    From the file name (taxon-designations-YYYYMMDD.xlsx, JNCC's own stamp), else
+    the file's modification date, else "unknown". Was hard-coded "2023-12-06", so
+    every report stated a list two and a half years older than the one loaded
+    (EXA3, 9 Oct 2026).
+    """
+    import re as _re
+    m = _re.search(r"designations-(\d{4})(\d{2})(\d{2})", os.path.basename(path or ""), _re.I)
+    if m:
+        y, mo, d = m.groups()
+        try:
+            return datetime(int(y), int(mo), int(d)).strftime("%Y-%m-%d")
+        except ValueError:
+            pass
+    try:
+        return datetime.fromtimestamp(os.path.getmtime(path)).strftime("%Y-%m-%d")
+    except (OSError, TypeError, ValueError):
+        return "unknown"
 PANTHEON_PATH = str(paths.PANTHEON_DB)
 UKSI_PATH = str(paths.UKSI_DB)
 
@@ -208,6 +230,12 @@ DESIG_TO_TRACK = {
     "Bird_RedList_GB_post2001-VU_NonBreeding":  ("threat_iucn_2001", "VU", "Non-breeding"),
     "Bird_RedList_GB_post2001-NT_NonBreeding":  ("threat_iucn_2001", "NT", "Non-breeding"),
     "Bird_RedList_GB_post2001-LC_NonBreeding":  ("threat_iucn_2001", "LC", "Non-breeding"),
+    # F2 (9 Oct 2026): bird codes that fell through unrouted
+    "Bird_RedList_GB_post2001-RE_Breeding":     ("threat_iucn_2001", "RE", "Breeding"),
+    "Bird_RedList_GB_post2001-EX_Breeding":     ("threat_iucn_2001", "EX", "Breeding"),
+    "Bird_RedList_GB_post2001-CR(PE)_Breeding": ("threat_iucn_2001", "CR", "Breeding"),
+    "Bird_RedList_GB_post2001-DD_Breeding":     ("threat_iucn_2001", "DD", "Breeding"),
+    "Bird_RedList_GB_post2001-DD_NonBreeding":  ("threat_iucn_2001", "DD", "Non-breeding"),
 
     # -----------------------------------------------------------------
     # THREAT ASSESSMENTS -- threat_iucn_legacy (pre-2001 systems)
@@ -242,6 +270,14 @@ DESIG_TO_TRACK = {
     "RedList_Global_post94-NT":     ("threat_global_iucn", "NT", "1994 IUCN"),
     "RedList_Global_post94-VU":     ("threat_global_iucn", "VU", "1994 IUCN"),
     "RedList_Global_post94-LR_CD":  ("threat_global_iucn", "NT", "1994 IUCN LR/cd"),
+    # F2 (9 Oct 2026): the rest of the 1994 global codes
+    "RedList_Global_post94-LR(cd)": ("threat_global_iucn", "NT", "1994 IUCN LR/cd"),
+    "RedList_Global_post94-LC":     ("threat_global_iucn", "LC", "1994 IUCN"),
+    "RedList_Global_post94-EN":     ("threat_global_iucn", "EN", "1994 IUCN"),
+    "RedList_Global_post94-CR":     ("threat_global_iucn", "CR", "1994 IUCN"),
+    "RedList_Global_post94-DD":     ("threat_global_iucn", "DD", "1994 IUCN"),
+    # Left unrouted on purpose: "WL" (duplicates RedList_GB_post2001-WL) and the two
+    # European Red List codes (Europe is neither GB nor global; there is no track for it).
 
     # -----------------------------------------------------------------
     # RARITY -- rarity_modern (IUCN-compatible hectad-based)
@@ -345,6 +381,7 @@ DESIG_TO_TRACK = {
 
     # Badgers
     "ProtOfBadgers1992":                ("legal_protection", "Protected", "Protection of Badgers Act 1992"),
+    "Protection_of_Badgers_Act_1992":   ("legal_protection", "Protected", "Protection of Badgers Act 1992"),
 
     # EU Habitats Directive
     "HabDir-A2":                        ("legal_protection", "Protected", "Habitats Directive Annex 2"),
@@ -786,6 +823,11 @@ def build_codex():
 
         pc.execute("SELECT tvk, species_name FROM species")
         pan_species = pc.fetchall()
+        # Species Pantheon published without a TVK are keyed NOTVK:<name> in
+        # pantheon.db (D5 / fault F26). For those, the NAMES pass looks up
+        # Pantheon's own preferred TVK instead of the key.
+        pc.execute("SELECT tvk, preferred_tvk FROM species WHERE tvk LIKE 'NOTVK:%'")
+        pan_pref_key = {t: p for t, p in pc.fetchall() if p}
 
         bridge_rows = []
         direct_match = 0
@@ -810,7 +852,7 @@ def build_codex():
                     continue            # left for the synonym pass, as before
                 target = exact
             else:
-                nmt = _names_current(pan_tvk) if nm_rec else None
+                nmt = _names_current(pan_pref_key.get(pan_tvk, pan_tvk)) if nm_rec else None
                 if nmt:
                     nm_name = uksi_taxon.get(nmt, ("", None))[0]
                     coarse = any(x in nm_name for x in _COARSE) or " " not in nm_name.strip()
@@ -1106,7 +1148,7 @@ def build_codex():
         ("version", "5.0"),
         ("build_date", now),
         ("jncc_source", JNCC_XLSX if os.path.exists(JNCC_XLSX) else "not found"),
-        ("jncc_date", "2023-12-06"),
+        ("jncc_date", jncc_date_of(JNCC_XLSX)),
         ("pantheon_source", PANTHEON_PATH if os.path.exists(PANTHEON_PATH) else "not found"),
         ("schema_version", "5"),
         ("bridge_species", str(bridge_count)),

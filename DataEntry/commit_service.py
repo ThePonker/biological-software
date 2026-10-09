@@ -17,8 +17,13 @@ from DataEntry import staging_repo as repo
 from DataEntry.write_service import _ALLOWED_FIELDS, CERTAINTY
 
 
-def build_kwargs_from_row(row: Dict, job: Dict, embargo_until: Optional[str] = None) -> Dict:
-    """Map one staging row + its job to Observatum Observation kwargs (pure)."""
+def build_kwargs_from_row(row: Dict, job: Dict, embargo_until: Optional[str] = None,
+                          taxonomy: Optional[Dict] = None) -> Dict:
+    """Map one staging row + its job to Observatum Observation kwargs (pure).
+
+    taxonomy: this row's TVK in shared.taxon_groups.taxonomy_for_tvks() -- kingdom, rank and
+    taxon group from UKSI (9 Oct 2026; commits wrote none of them before, 1,440 records).
+    Without it the group still comes from the row's own order and family."""
     try:
         qty = int(row.get("quantity"))
     except (TypeError, ValueError):
@@ -36,9 +41,10 @@ def build_kwargs_from_row(row: Dict, job: Dict, embargo_until: Optional[str] = N
     is_commercial = mode.lower().startswith("comm")
 
     from DataEntry import date_utils
-    from datetime import datetime
-    batch = 'DataEntry batch ' + datetime.now().isoformat(timespec='seconds')
-    iso_date = date_utils.to_iso(row.get("date")) or row.get("date")
+    from shared.taxon_groups import taxon_group
+    # a year or month-year commits as the period's first day with its date type (DE1)
+    iso_date = date_utils.start_iso(row.get("date")) or row.get("date")
+    tax = taxonomy or {}
 
     kwargs = {
         "species_name": (row.get("species_name") or "").strip(),
@@ -46,10 +52,12 @@ def build_kwargs_from_row(row: Dict, job: Dict, embargo_until: Optional[str] = N
         "common_name": row.get("common_name"),
         "order_name": row.get("order_name"),
         "family": row.get("family"),
-        "taxon_rank": row.get("taxon_rank"),
+        "taxon_rank": tax.get("taxon_rank") or row.get("taxon_rank"),
+        "kingdom": tax.get("kingdom"),
+        "taxon_group": tax.get("taxon_group") or taxon_group(row.get("order_name"), row.get("family")),
         "recorder_certainty": CERTAINTY,
         "date": iso_date,
-        "date_type": "D",
+        "date_type": date_utils.date_type(row.get("date")) or "D",
         "grid_ref": row.get("grid_ref") or None,
         "vice_county": row.get("vice_county") or None,
         "vc_number": vc_number,
@@ -78,10 +86,13 @@ def build_kwargs_from_row(row: Dict, job: Dict, embargo_until: Optional[str] = N
 
 def _eligibility(row: Dict) -> Optional[str]:
     """Return None if committable, else a reason string."""
+    from DataEntry import date_utils
     if not (row.get("species_name") or "").strip():
         return "no_species"
     if not (row.get("date") or "").strip():
         return "no_date"
+    if not date_utils.is_readable(row.get("date")):
+        return "bad_date"          # '31/02/2026', 'summer' -- stays in staging (DE1)
     return None
 
 
@@ -96,20 +107,33 @@ def precommit_issues(rows) -> Dict[str, list]:
     """What a commit would write with gaps or doubles in it (pure; backlog B8).
 
     rows: staging rows in grid order (repo.fetch_rows). Only rows commit would write
-    (species and date present) are checked. Returns {issue: [grid row numbers]} for
-    'no site', 'no grid ref', 'no TVK', and 'double' (each later copy of a repeated
-    entry, with the row it repeats), leaving out issues with no rows.
+    (species and date present) are checked, plus 'unreadable date' for rows with a species
+    and a date that cannot be read (those stay in staging). Returns {issue: [grid row
+    numbers]} for 'unreadable date', 'future date', 'no site', 'no grid ref', 'no VC',
+    'no recorder', 'no TVK', and 'double' (each later copy of a repeated entry, with the
+    row it repeats), leaving out issues with no rows.
     """
-    issues = {"no site": [], "no grid ref": [], "no TVK": [], "double": []}
+    from DataEntry import date_utils
+    issues = {"unreadable date": [], "future date": [], "no site": [], "no grid ref": [],
+              "no VC": [], "no recorder": [], "no TVK": [], "double": []}
     seen = {}
     for n, row in enumerate(rows, start=1):
-        if _eligibility(row) is not None:
+        why = _eligibility(row)
+        if why == "bad_date":
+            issues["unreadable date"].append(n)
+        if why is not None:
             continue
         blank = lambda k: not str(row.get(k) or "").strip()  # noqa: E731
+        if date_utils.is_future(row.get("date")):
+            issues["future date"].append(n)
         if blank("site_name"):
             issues["no site"].append(n)
         if blank("grid_ref"):
             issues["no grid ref"].append(n)
+        if blank("vc_number") and blank("vice_county"):
+            issues["no VC"].append(n)
+        if blank("recorder"):
+            issues["no recorder"].append(n)
         if blank("species_tvk"):
             issues["no TVK"].append(n)
         key = tuple(str(row.get(k) or "").strip().lower() for k in DOUBLE_KEY)
@@ -121,10 +145,14 @@ def precommit_issues(rows) -> Dict[str, list]:
 
 
 def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
-               observation_cls=None) -> Dict:
+               observation_cls=None, taxonomy: Optional[Dict] = None) -> Dict:
     """Write eligible staging rows into observations; delete the committed ones.
 
-    Rows missing species or date are left in staging and reported. Returns a summary dict.
+    Rows missing species or date, or with an unreadable date, are left in staging and
+    reported. taxonomy ({tvk: ...}, shared.taxon_groups.taxonomy_for_tvks) is looked up
+    when not given. A failure part-way stops the commit and is returned in 'error' with
+    how many were written before it (DE4) -- never raised after the first write.
+    Returns a summary dict.
     """
     if observation_cls is None:
         from src.models.observation import Observation as observation_cls  # noqa: N806
@@ -136,12 +164,22 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
     committed = 0
     skipped_species = 0
     skipped_date = 0
+    skipped_bad_date = 0
     unresolved = 0
     future = 0
+    error = None
+    taxonomy_error = None
     from DataEntry import date_utils
     from datetime import datetime
     batch = 'DataEntry batch ' + datetime.now().isoformat(timespec='seconds')
-    for row in repo.fetch_rows(conn, job["id"]):
+    rows = repo.fetch_rows(conn, job["id"])
+    if taxonomy is None:
+        try:
+            from shared.taxon_groups import taxonomy_for_tvks
+            taxonomy = taxonomy_for_tvks(r.get("species_tvk") for r in rows)
+        except Exception as e:          # commit without; say so (the backfill script fills later)
+            taxonomy, taxonomy_error = {}, str(e)
+    for row in rows:
         reason = _eligibility(row)
         if reason == "no_species":
             skipped_species += 1
@@ -149,24 +187,44 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
         if reason == "no_date":
             skipped_date += 1
             continue
+        if reason == "bad_date":
+            skipped_bad_date += 1
+            continue
+        tax = taxonomy.get(row.get("species_tvk") or "") or {}
+        try:
+            kwargs = build_kwargs_from_row(row, job, embargo_until, tax)
+            new_id = model.create(observation_cls(**kwargs))
+        except Exception as e:
+            error = f"{row.get('species_name')}: {e}"
+            break
+        if not new_id:
+            error = f"{row.get('species_name')}: Observatum did not return a record id"
+            break
         if not (row.get("species_tvk") or "").strip():
             unresolved += 1  # committed anyway (species_name is the required field), but flagged
         if date_utils.is_future(row.get("date")):
             future += 1
-        kwargs = build_kwargs_from_row(row, job, embargo_until)
-        new_id = model.create(observation_cls(**kwargs))
-        if new_id:
+        try:
             db.execute_main_write(
-                "UPDATE observations SET sub_location=?, trap_number=?, visit_number=?, import_notes=? WHERE id=?",
+                "UPDATE observations SET sub_location=?, trap_number=?, visit_number=?, import_notes=?, "
+                "superfamily=?, taxonomic_sort_key=? WHERE id=?",
                 (row.get("sub_location") or None, row.get("trap_number") or None,
-                 row.get("visit_number") or None, batch, new_id),
+                 row.get("visit_number") or None, batch,
+                 tax.get("superfamily"), tax.get("taxonomic_sort_key"), new_id),
             )
-        if new_id and kwargs.get("embargo_until"):
-            # The iRecord export excludes a record only when embargo_status is
-            # 'Active' AND embargo_until is in the future. Setting the date alone
-            # left the first committed batch uploadable (found 2 October 2026).
-            db.execute_main_write(
-                "UPDATE observations SET embargo_status='Active' WHERE id=?", (new_id,))
+            if kwargs.get("embargo_until"):
+                # The iRecord export excludes a record only when embargo_status is
+                # 'Active' AND embargo_until is in the future. Setting the date alone
+                # left the first committed batch uploadable (found 2 October 2026).
+                db.execute_main_write(
+                    "UPDATE observations SET embargo_status='Active' WHERE id=?", (new_id,))
+        except Exception as e:
+            # the record IS written: take it out of staging so a retry cannot double it
+            error = f"{row.get('species_name')} was written (id {new_id}) but its survey " \
+                    f"fields or embargo were not: {e}"
+            repo.delete_row(conn, row["id"])
+            committed += 1
+            break
         repo.delete_row(conn, row["id"])
         committed += 1
 
@@ -177,10 +235,13 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
         "committed": committed,
         "skipped_species": skipped_species,
         "skipped_date": skipped_date,
+        "skipped_bad_date": skipped_bad_date,
         "unresolved": unresolved,
         "future": future,
         "remaining": remaining,
         "batch": batch,
+        "error": error,
+        "taxonomy_error": taxonomy_error,
     }
 
 

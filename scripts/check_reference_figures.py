@@ -5,6 +5,9 @@ Compares the live databases with scripts/reference_figures.json:
   2. Every survey: species, key species, SQI, SQI on Pantheon's scores alone.
      Computed by check_sqi_table.py, run as a child process, so the SQI
      arithmetic stays in one place.
+  3. Every survey in Pantheon Only (strict) mode: SQI and key species, from
+     Examen's project table; and, in both modes, that the project table shows
+     the detail's own SQI and key-species count (EXA1 / EXA16, 9 Oct 2026).
 
 A figure that moved on purpose (new review, JNCC or UKSI update): update the
 JSON and docs/02_Current_State.md in the same commit, saying why.
@@ -75,10 +78,43 @@ if now:
             print(f"  ✗ {survey}: not found in Examen's project list")
             continue
         for field, want in figures.items():
-            compare(f"{survey[:30]} {field}", want, now[survey][SQI_FIELDS[field]])
+            if field in SQI_FIELDS:          # sqi_strict / key_strict: section 3
+                compare(f"{survey[:30]} {field}", want, now[survey][SQI_FIELDS[field]])
     extra = sorted(set(now) - set(ref["surveys"]))
     if extra:
         print(f"\n  New since the reference was frozen (not checked): {', '.join(extra)}")
+
+# 3. Strict mode, and the project table against the detail
+print(f"\n3. Pantheon Only mode; project table = detail{'':>8}{'frozen':>7} {'now':>7}")
+try:
+    sys.path[:0] = [ROOT, os.path.join(ROOT, "Observatum")]
+    from shared.repositories.codex_repository import AnalysisMode
+    from Examen import examen_data as ed
+    for mode in (AnalysisMode.CODEX_FULL, AnalysisMode.PANTHEON_ONLY):
+        strict = mode == AnalysisMode.PANTHEON_ONLY
+        for p in ed.load_all_projects(mode):
+            survey = f"{p.project_name} {p.survey_year}"
+            want = ref["surveys"].get(survey, {})
+            if strict:
+                for field, got in (("sqi_strict", p.sqi), ("key_strict", p.key_species_count)):
+                    if field in want:
+                        compare(f"{survey[:30]} {field}", want[field], got)
+            d = ed.load_project_detail(p.project_name, p.client, mode,
+                                       survey_year=p.survey_year or None,
+                                       jurisdiction=getattr(p, "jurisdiction", None))
+            a = getattr(d, "analysis", None)
+            if a is None:
+                continue
+            tag = "strict" if strict else "full"
+            if (p.sqi, p.key_species_count, p.species_count) != \
+                    (a.overall_sqi.sqi, a.key_species_count, a.total_species):
+                compare(f"{survey[:24]} table=detail ({tag})",
+                        (a.overall_sqi.sqi, a.key_species_count, a.total_species),
+                        (p.sqi, p.key_species_count, p.species_count))
+    print("  (table = detail checked for every survey in both modes; only differences listed)")
+except Exception as e:  # noqa: BLE001 -- a failed check is a failure, not a crash
+    failures += 1
+    print(f"  ✗ strict-mode / table check failed: {e}")
 
 print("\n" + ("ALL MATCH" if failures == 0 else f"{failures} FIGURE(S) DIFFER"))
 print("READ ONLY -- nothing has been changed.")

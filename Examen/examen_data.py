@@ -30,6 +30,16 @@ v4 changes (retained)
     and jurisdiction-aware.
   - The SQI arithmetic appeared in FOUR places. It is now one call to
     CodexRepository.compute_sqi.
+
+v6 changes (fix round, 9 Oct 2026)
+----------------------------------
+  - The project table, the species list and the detail all read ONE
+    PantheonAnalysisService.analyse result. The table had its own path
+    (compute_sqi dividing by scoring species, Key species always under England,
+    two TVKs of one species counted twice): Glory Park 120 against the report's
+    117 (EXA1, EXA2, EXA14).
+  - Jurisdiction (auto from vice-county, or chosen) is resolved here, for the
+    table and the detail header alike: resolve_jurisdiction.
   - Ecology lookups were one query per TVK -- over 1,500 round trips for a
     large project. Now batched via PantheonRepository.
   - Key-species percentage settled on TOTAL SPECIES RECORDED as the
@@ -97,6 +107,8 @@ class SiteSpecies:
     family: str = ""
     common_name: str = ""
     status_full: str = ""          # jurisdiction-named, for exports
+    note: str = ""                 # "recorded as s.l. and s.s." (EXA14)
+    status_note: str = ""          # "status held at sensu lato" (not its own)
 
 
 @dataclass
@@ -106,6 +118,15 @@ class SiteDetail:
     biotope_counts: dict = field(default_factory=dict)
     habitat_counts: dict = field(default_factory=dict)
     sat_counts: dict = field(default_factory=dict)
+    # Compartment analysis (backlog E6): computed once by Examen.compartments.for_detail
+    # and read from here by the Overview and the workbook.
+    compartments: object = None
+    # The AnalysisResult the list was built from, and its jurisdiction.
+    analysis: object = None
+    jurisdiction: str = ""
+    # Every TVK recorded, before a species' s.l. TVK was folded into it (EXA14).
+    # Analyse THESE, not the species list's TVKs, to reproduce `analysis`.
+    recorded_tvks: list = field(default_factory=list)
 
 
 @dataclass
@@ -130,6 +151,7 @@ class ProjectRecord:
     last_date: str = ""
     mode: str = "codex_full"
     survey_year: str = POOLED
+    jurisdiction: str = ""         # what the row's Key species were classified under
 
     @property
     def display_name(self):
@@ -201,7 +223,91 @@ def _has_record_type(conn):
 
 
 # ============================================================
-# Enrichment -- one path, both modes
+# Jurisdiction -- one rule for the project table and the detail (EXA2)
+# ============================================================
+
+AUTO_JURISDICTION = "Auto (vice-county)"
+DEFAULT_JURISDICTION = "England"
+
+# Watsonian vice-counties. VC is already on every record and derived from the
+# grid reference, so the country can be read from the data rather than chosen
+# from a menu that can be forgotten.
+_VC_COUNTRY = ([("England", range(1, 35))] +
+               [("Wales", [35])] +
+               [("England", range(36, 41))] +
+               [("Wales", range(41, 53))] +
+               [("England", range(53, 71))] +
+               [("Isle of Man", [71])] +
+               [("Scotland", range(72, 113))])
+
+
+def country_for_vc(vc):
+    for country, rng in _VC_COUNTRY:
+        if vc in rng:
+            return country
+    return ""
+
+
+def derive_jurisdiction(project_name, client="", survey_year=None, date_from=None,
+                        date_to=None):
+    """Commonest country across the project's records, or '' if unknown."""
+    if not project_name or not DB_PATH.exists():
+        return ""
+    where = "record_type='Commercial' AND project_name=?"
+    params = [project_name]
+    if client:
+        where += " AND client=?"
+        params.append(client)
+    sc, sp = _scope(date_from, date_to, survey_year)
+    try:
+        conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
+        try:
+            rows = conn.execute(
+                f"""SELECT vc_number, COUNT(1) FROM assessment_records
+                    WHERE {where}{sc} AND vc_number IS NOT NULL AND vc_number != ''
+                    GROUP BY 1 ORDER BY 2 DESC""", params + sp).fetchall()
+        finally:
+            conn.close()
+    except sqlite3.Error:
+        return ""
+    tally = {}
+    for vc, n in rows:
+        try:
+            country = country_for_vc(int(vc))
+        except (TypeError, ValueError):
+            continue
+        if country:
+            tally[country] = tally.get(country, 0) + n
+    if not tally:
+        return ""
+    return max(tally, key=tally.get)
+
+
+def resolve_jurisdiction(project, chosen=AUTO_JURISDICTION):
+    """(jurisdiction, how) -- the choice if one was made, else from the VCs.
+
+    project: anything with project_name / client / survey_year, or None (an
+    imported list: no records, so no vice-county). The project table and the
+    detail header both come here, so they cannot classify Key species under
+    different rules (EXA2).
+    """
+    if chosen and chosen != AUTO_JURISDICTION:
+        return chosen, "chosen"
+    derived = ""
+    if project is not None:
+        derived = derive_jurisdiction(getattr(project, "project_name", ""),
+                                      getattr(project, "client", ""),
+                                      getattr(project, "survey_year", "") or None)
+    if derived in ("", "Isle of Man"):
+        # No usable vice-county, or a jurisdiction with no separate priority
+        # list. England is the documented default; say so rather than assert a
+        # country the records do not support.
+        return DEFAULT_JURISDICTION, ("default" if not derived else f"default, VC in {derived}")
+    return derived, "from vice-county"
+
+
+# ============================================================
+# Analysis -- one path for the table, the detail and the exports
 # ============================================================
 
 def _full_status(st):
@@ -221,98 +327,48 @@ def _full_status(st):
              for e in legal]
     parts = [p.strip() for p in s.split(",")
              if p.strip() and not p.strip().startswith("Legal (")]
-    return ", ".join(parts + [f"Legal: {n}" for n in names if n])
+    note = getattr(st, "status_note", "") or ""
+    head = [p for p in parts if p != note]
+    return ", ".join(head + [f"Legal: {n}" for n in names if n] + ([note] if note else []))
 
 
-def _load_status_data(tvks, mode=AnalysisMode.CODEX_FULL):
-    """Conservation status + SQS per TVK, via CodexRepository.
+def analysis_service():
+    """A PantheonAnalysisService on fresh repositories -- what the detail view uses."""
+    from shared.services.pantheon_analysis_service import PantheonAnalysisService
+    return PantheonAnalysisService(PantheonRepository(), CodexRepository())
 
-    Both CODEX_FULL and PANTHEON_ONLY go through the same repository call, so
-    the two modes cannot classify by different rules. Jurisdiction filtering
-    (England by default) is applied inside the repository.
 
-    Returns {tvk: {"sqs": int, "short_status": str, "tier": str}}.
-    """
-    if not tvks:
-        return {}
+def _analyse(tvks, mode, jurisdiction, names=None, service=None):
+    """The analysis the detail view shows, or None if it cannot be run."""
     try:
-        repo = CodexRepository()
-        statuses = repo.get_statuses_batch(tvks, mode)
-        scores = repo.get_sqs_scores(tvks, mode)
+        svc = service or analysis_service()
+        return svc.analyse(list(tvks), names or {}, mode, jurisdiction)
     except Exception as e:  # noqa: BLE001 -- degrade to unenriched, but say so
-        print(f"[examen_data] enrichment failed: {e}")
-        return {}
-
-    result = {}
-    for tvk in tvks:
-        st = statuses.get(tvk)
-        tier = getattr(st, "tier", None) if st else None
-        tier_s = str(getattr(tier, "value", tier or "")).strip()
-        result[tvk] = {
-            "sqs": scores.get(tvk, 0) or 0,
-            "short_status": (getattr(st, "short_status", "") or "") if st else "",
-            "display_status": _full_status(st),
-            "tier": "" if tier_s.lower() in ("none", "") else tier_s,
-        }
-    return result
+        print(f"[examen_data] analysis failed: {e}")
+        return None
 
 
-def _load_pantheon_ecology(tvks):
-    """Biotopes and habitats per TVK, batched.
-
-    Previously one query per TVK -- over 1,500 round trips for a large project.
-    """
-    if not tvks:
-        return {}
-    try:
-        repo = PantheonRepository()
-        biotopes = repo.get_broad_biotopes(tvks)
-        habitats = repo.get_habitats(tvks)
-        sats = repo.get_sats(tvks)
-        repo.close()
-    except Exception as e:  # noqa: BLE001
-        print(f"[examen_data] Pantheon ecology unavailable: {e}")
-        return {}
-
-    result = {}
-    for tvk in tvks:
-        b = biotopes.get(tvk, [])
-        h = habitats.get(tvk, [])
-        result[tvk] = {
-            "biotope": ", ".join(b[:2]),
-            "habitat": ", ".join(h[:2]),
-            "biotopes": b,
-            "habitats": h,
-            "sats": sats.get(tvk, []),
-        }
-    return result
-
-
-def _apply_metrics(record, tvks, species_list, mode):
-    """Fill SQI and key-species counts on a SiteRecord / ProjectRecord.
-
-    The single place the SQI is computed -- it previously appeared in four.
-    CodexRepository.compute_sqi owns the arithmetic and the 15-species
-    reliability threshold.
-    """
-    if tvks:
-        try:
-            sqi = CodexRepository().compute_sqi(tvks, mode)
-            record.sqi = sqi["sqi"]
-            record.sqi_reliable = sqi["reliable"]
-            record.species_with_sqs = sqi["scoring_species"]
-        except Exception as e:  # noqa: BLE001
-            print(f"[examen_data] SQI failed: {e}")
-
-    key = [s for s in species_list if s.tier]
-    record.key_species_count = len(key)
-    record.rare_count = sum(1 for s in key if s.tier == "Rare")
-    record.scarce_count = sum(1 for s in key if s.tier == "Scarce")
-    record.priority_count = sum(1 for s in key if s.tier == "Priority")
+def _apply_metrics(record, result):
+    """Fill species, SQI and key-species figures on a SiteRecord / ProjectRecord
+    from an AnalysisResult -- the same object the Overview reads, so the table
+    and the detail cannot disagree (EXA1, EXA2, EXA14)."""
+    if result is None:
+        return
+    o = result.overall_sqi
+    if o is not None:
+        record.sqi = o.sqi
+        record.sqi_reliable = o.reliable
+        record.species_with_sqs = o.species_with_sqs
+    # Species: one per TVK, a species recorded as s.l. and s.s. once -- the
+    # Overview's count.
+    record.species_count = result.total_species
+    record.key_species_count = result.key_species_count
+    record.rare_count = result.rare_count
+    record.scarce_count = result.scarce_count
+    record.priority_count = result.priority_count
     # Denominator is total species recorded, matching Wil's reports:
     # "34 ... equates to 7.8% of the species from the survey" = 34/433.
-    if record.species_count > 0:
-        record.key_species_pct = round(len(key) / record.species_count * 100, 1)
+    record.key_species_pct = result.key_species_pct
 
 
 def load_taxonomy(tvks):
@@ -382,31 +438,67 @@ def in_taxonomic_order(items, tvk=lambda x: x.tvk, name=lambda x: x.name):
     return sorted(items, key=lambda x: (keys.get(tvk(x), UNSORTED), (name(x) or "").lower()))
 
 
-def _build_species_list(species_rows, mode):
-    """(species_list, biotope_counts, habitat_counts, tvks) from grouped rows."""
-    tvk_map = {r[1]: (r[0], r[2]) for r in species_rows if r[1]}
-    tvks = list(tvk_map)
-    enrichment = _load_status_data(tvks, mode)
-    ecology = _load_pantheon_ecology(tvks)
+def _build_species_list(species_rows, mode, jurisdiction=DEFAULT_JURISDICTION,
+                        service=None):
+    """(species_list, biotope_counts, habitat_counts, recorded_tvks, result).
+
+    recorded_tvks is every TVK recorded, before the merge below -- what to pass
+    to PantheonAnalysisService.analyse to reproduce `result`.
+
+    Every figure on a row comes from the analysis result, so the list, the
+    Overview and the exports agree. A species recorded under its own TVK and
+    its s.l. / aggregate counterpart is one row (the species TVK), its records
+    summed, noted "recorded as s.l. and s.s." (EXA14).
+    """
+    try:
+        from shared.services.pantheon_analysis_service import RECORDED_SL_SS
+    except ImportError:  # pragma: no cover
+        RECORDED_SL_SS = "recorded as s.l. and s.s."
+    tvk_map = {}
+    for name, tvk, count in species_rows:
+        if not tvk:
+            continue
+        if tvk in tvk_map:              # one TVK under two names: one species
+            tvk_map[tvk] = (tvk_map[tvk][0], tvk_map[tvk][1] + count)
+        else:
+            tvk_map[tvk] = (name, count)
+    all_tvks = list(tvk_map)
+    names = {t: v[0] for t, v in tvk_map.items()}
+    result = _analyse(all_tvks, mode, jurisdiction, names, service)
+    merged = dict(getattr(result, "merged_tvks", {}) or {}) if result else {}
+    folded = {}
+    for broad, sp in merged.items():
+        folded[sp] = folded.get(sp, 0) + tvk_map[broad][1]
+    tvks = [t for t in all_tvks if t not in merged]
     taxonomy = load_taxonomy(tvks)
+
+    statuses = getattr(result, "statuses", {}) if result else {}
+    sqs = getattr(result, "sqs_by_tvk", {}) if result else {}
+    bios = getattr(result, "biotopes_by_tvk", {}) if result else {}
+    habs = getattr(result, "habitats_by_tvk", {}) if result else {}
 
     species_list, biotope_counts, habitat_counts = [], {}, {}
     for tvk in tvks:
         name, count = tvk_map[tvk]
-        cd = enrichment.get(tvk, {})
-        pd = ecology.get(tvk, {})
+        st = statuses.get(tvk)
+        tier = getattr(st, "tier", None) if st else None
+        tier_s = str(getattr(tier, "value", tier or "")).strip()
+        b, h = bios.get(tvk, []), habs.get(tvk, [])
         tx = taxonomy.get(tvk, {})
         species_list.append(SiteSpecies(
-            name=name, tvk=tvk, count=count, sqs=cd.get("sqs", 0),
-            status=cd.get("short_status", ""), status_full=cd.get("display_status", ""),
-            tier=cd.get("tier", ""),
-            broad_biotope=pd.get("biotope", ""), habitat=pd.get("habitat", ""),
+            name=name, tvk=tvk, count=count + folded.get(tvk, 0), sqs=sqs.get(tvk, 0) or 0,
+            status=(getattr(st, "short_status", "") or "") if st else "",
+            status_full=_full_status(st),
+            tier="" if tier_s.lower() in ("none", "") else tier_s,
+            broad_biotope=", ".join(b[:2]), habitat=", ".join(h[:2]),
             order_name=tx.get("order", ""), family=tx.get("family", ""),
-            common_name=tx.get("common", "")))
-        for b in pd.get("biotopes", []):
-            biotope_counts[b] = biotope_counts.get(b, 0) + 1
-        for h in pd.get("habitats", []):
-            habitat_counts[h] = habitat_counts.get(h, 0) + 1
+            common_name=tx.get("common", ""),
+            note=RECORDED_SL_SS if tvk in folded else "",
+            status_note=(getattr(st, "status_note", "") or "") if st else ""))
+        for x in b:
+            biotope_counts[x] = biotope_counts.get(x, 0) + 1
+        for x in h:
+            habitat_counts[x] = habitat_counts.get(x, 0) + 1
 
     species_list.sort(key=lambda s: (-s.sqs if s.tier else 0, s.name))
     # Species with no TVK cannot be analysed; they are listed last so the
@@ -414,7 +506,7 @@ def _build_species_list(species_rows, mode):
     for r in species_rows:
         if not r[1]:
             species_list.append(SiteSpecies(name=r[0], tvk="", count=r[2]))
-    return species_list, biotope_counts, habitat_counts, tvks
+    return species_list, biotope_counts, habitat_counts, all_tvks, result
 
 
 def _accumulation(conn, where, params):
@@ -435,7 +527,7 @@ def _accumulation(conn, where, params):
 # ============================================================
 
 def load_all_sites(mode=AnalysisMode.CODEX_FULL, date_from=None, date_to=None,
-                   survey_year=None):
+                   survey_year=None, jurisdiction=DEFAULT_JURISDICTION):
     if not DB_PATH.exists():
         return []
     conn = _connect()
@@ -459,12 +551,13 @@ def load_all_sites(mode=AnalysisMode.CODEX_FULL, date_from=None, date_to=None,
         record_count=r[3], species_count=r[4], visit_count=r[5],
         first_date=r[6] or "", last_date=r[7] or "", mode=mode.value,
         survey_year=str(survey_year or POOLED)) for r in rows]
-    _enrich_sites(sites, mode, date_from, date_to, survey_year)
+    _enrich_sites(sites, mode, date_from, date_to, survey_year, jurisdiction)
     return sites
 
 
 def load_site_detail(site_name, project_name="", mode=AnalysisMode.CODEX_FULL,
-                     date_from=None, date_to=None, survey_year=None):
+                     date_from=None, date_to=None, survey_year=None,
+                     jurisdiction=DEFAULT_JURISDICTION):
     if not DB_PATH.exists():
         return None
     sc, sp = _scope(date_from, date_to, survey_year)
@@ -500,15 +593,18 @@ def load_site_detail(site_name, project_name="", mode=AnalysisMode.CODEX_FULL,
     finally:
         conn.close()
 
-    species_list, bio, hab, tvks = _build_species_list(species_rows, mode)
+    species_list, bio, hab, tvks, result = _build_species_list(species_rows, mode, jurisdiction)
     detail = SiteDetail(site=site, species_list=species_list,
-                        biotope_counts=bio, habitat_counts=hab)
-    _apply_metrics(site, tvks, species_list, mode)
+                        biotope_counts=bio, habitat_counts=hab,
+                        analysis=result, jurisdiction=jurisdiction, recorded_tvks=tvks)
+    _apply_metrics(site, result)
     return detail
 
 
-def _enrich_sites(sites, mode, date_from=None, date_to=None, survey_year=None):
+def _enrich_sites(sites, mode, date_from=None, date_to=None, survey_year=None,
+                  jurisdiction=DEFAULT_JURISDICTION):
     sc, sp = _scope(date_from, date_to, survey_year)
+    service = analysis_service()
     conn = _connect()
     try:
         for site in sites:
@@ -521,13 +617,8 @@ def _enrich_sites(sites, mode, date_from=None, date_to=None, survey_year=None):
                 f"""SELECT DISTINCT species_tvk FROM assessment_records WHERE {where}{sc}
                     AND species_tvk IS NOT NULL AND species_tvk != ''""",
                 params + sp)]
-            if not tvks:
-                continue
-            enrichment = _load_status_data(tvks, mode)
-            stub = [SiteSpecies(name="", tvk=t,
-                                tier=enrichment.get(t, {}).get("tier", ""))
-                    for t in tvks]
-            _apply_metrics(site, tvks, stub, mode)
+            if tvks:
+                _apply_metrics(site, _analyse(tvks, mode, jurisdiction, service=service))
     finally:
         conn.close()
 
@@ -537,16 +628,22 @@ def _enrich_sites(sites, mode, date_from=None, date_to=None, survey_year=None):
 # ============================================================
 
 def load_all_projects(mode=AnalysisMode.CODEX_FULL, date_from=None, date_to=None,
-                      by_year=True):
+                      by_year=True, jurisdiction=AUTO_JURISDICTION):
     """Commercial projects, one row per survey year by default.
 
     by_year=True   one row per project per year -- a survey, which is what a
                    report covers
     by_year=False  one row per project, all years pooled
+    jurisdiction   AUTO_JURISDICTION (from each project's vice-counties) or a
+                   country -- resolved per row exactly as the detail header does
 
     A project may span several surveys: Bicester Graven Hill holds 2023 and 2025
     under one name, and pooling them produces a species list that corresponds to
     no report.
+
+    Each row's figures come from the same analysis the detail view runs
+    (PantheonAnalysisService.analyse), so the table, the Overview and the
+    exports show one SQI, one key-species count and one species count.
     """
     if not DB_PATH.exists():
         return []
@@ -577,15 +674,24 @@ def load_all_projects(mode=AnalysisMode.CODEX_FULL, date_from=None, date_to=None
         visit_count=r[6], first_date=r[7] or "", last_date=r[8] or "",
         site_names=sorted(set(r[9].split(",") if r[9] else [])),
         mode=mode.value) for r in rows]
-    _enrich_projects(projects, mode, date_from, date_to)
+    _enrich_projects(projects, mode, date_from, date_to, jurisdiction)
     return projects
 
 
 def load_project_detail(project_name, client="", mode=AnalysisMode.CODEX_FULL,
-                        date_from=None, date_to=None, survey_year=None):
-    """All species across all sites in a project, scoped to a survey year."""
+                        date_from=None, date_to=None, survey_year=None,
+                        jurisdiction=None):
+    """All species across all sites in a project, scoped to a survey year.
+
+    jurisdiction: a country, or None / AUTO_JURISDICTION to read it from the
+    records' vice-counties (resolve_jurisdiction).
+    """
     if not DB_PATH.exists():
         return None
+    if not jurisdiction or jurisdiction == AUTO_JURISDICTION:
+        from types import SimpleNamespace
+        jurisdiction, _how = resolve_jurisdiction(SimpleNamespace(
+            project_name=project_name, client=client, survey_year=survey_year or ""))
     sc, sp = _scope(date_from, date_to, survey_year)
     where = "record_type = 'Commercial' AND project_name = ?"
     params = [project_name]
@@ -620,14 +726,17 @@ def load_project_detail(project_name, client="", mode=AnalysisMode.CODEX_FULL,
     finally:
         conn.close()
 
-    species_list, bio, hab, tvks = _build_species_list(species_rows, mode)
+    species_list, bio, hab, tvks, result = _build_species_list(species_rows, mode, jurisdiction)
     detail = SiteDetail(site=site, species_list=species_list,
-                        biotope_counts=bio, habitat_counts=hab)
-    _apply_metrics(site, tvks, species_list, mode)
+                        biotope_counts=bio, habitat_counts=hab,
+                        analysis=result, jurisdiction=jurisdiction, recorded_tvks=tvks)
+    _apply_metrics(site, result)
     return detail
 
 
-def _enrich_projects(projects, mode, date_from=None, date_to=None):
+def _enrich_projects(projects, mode, date_from=None, date_to=None,
+                     jurisdiction=AUTO_JURISDICTION):
+    service = analysis_service()
     conn = _connect()
     try:
         for proj in projects:
@@ -642,12 +751,9 @@ def _enrich_projects(projects, mode, date_from=None, date_to=None):
                 f"""SELECT DISTINCT species_tvk FROM assessment_records WHERE {where}{sc}
                     AND species_tvk IS NOT NULL AND species_tvk != ''""",
                 params + sp)]
+            proj.jurisdiction, _how = resolve_jurisdiction(proj, jurisdiction)
             if not tvks:
                 continue
-            enrichment = _load_status_data(tvks, mode)
-            stub = [SiteSpecies(name="", tvk=t,
-                                tier=enrichment.get(t, {}).get("tier", ""))
-                    for t in tvks]
-            _apply_metrics(proj, tvks, stub, mode)
+            _apply_metrics(proj, _analyse(tvks, mode, proj.jurisdiction, service=service))
     finally:
         conn.close()

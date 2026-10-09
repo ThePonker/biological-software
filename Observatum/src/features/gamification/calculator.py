@@ -29,7 +29,7 @@ from shared.db_open import connect_ro  # D9: reference data, read-only
 
 # Try to import Paths from config
 try:
-    from src.core.config import Paths
+    from src.core.config import Paths  # noqa: F401  (availability check / re-export)
     USE_CONFIG = True
 except ImportError:
     USE_CONFIG = False

@@ -68,3 +68,15 @@ def test_data_entry_commit_sets_latlong_from_the_grid_ref():
     assert kw["geodetic_datum"] == "WGS84"
     kw = build_kwargs_from_row({"species_name": "x", "date": "2026-06-01"}, {"mode": "Personal"})
     assert "latitude" not in kw
+
+
+def test_stats_service_tetrads_match_shared_osgb():
+    """observation_stats_service lettered tetrads rows-first until 9 Oct (H-agent finding)."""
+    import sys as _sys
+    _sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Observatum"))
+    from src.services.observation_stats_service import ObservationStatsService
+    for ref in ("SP5182", "SP5283", "SP5880", "SP5089", "SP5988", "TL184735"):
+        tet = ObservationStatsService._extract_grid_squares(None, ref)["tetrad"]
+        e0, n0, size = osgb.gridref_to_en(tet)
+        e, n, _ = osgb.gridref_to_en(ref)
+        assert size == 2000 and e0 <= e < e0 + 2000 and n0 <= n < n0 + 2000, (ref, tet)

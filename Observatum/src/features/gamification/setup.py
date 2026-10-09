@@ -12,7 +12,7 @@ from typing import Optional
 
 # Try to import from config
 try:
-    from src.core.config import Paths
+    from src.core.config import Paths  # noqa: F401  (availability check / re-export)
     USE_CONFIG = True
 except ImportError:
     USE_CONFIG = False

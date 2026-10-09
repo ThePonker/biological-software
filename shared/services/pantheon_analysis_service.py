@@ -97,6 +97,15 @@ class KeySpeciesEntry:
     threat_legacy: str = ""
     priority: list = field(default_factory=list)
     legal: list = field(default_factory=list)
+    # "status held at sensu lato" when the status is the broad group's, not the
+    # species' own; RECORDED_SL_SS when the survey recorded both TVKs.
+    status_note: str = ""
+    recorded_note: str = ""
+
+
+# The note a report gives a species recorded under its own TVK and its s.l. /
+# aggregate counterpart, counted once (EXA14).
+RECORDED_SL_SS = "recorded as s.l. and s.s."
 
 
 @dataclass
@@ -142,6 +151,22 @@ class AnalysisResult:
     overall_sqi_published: object = None
     no_pantheon_tvks: set = field(default_factory=set)
 
+    # "Analysed" (EXA5): species_in_pantheon is the species Pantheon holds (any
+    # ecology or SQS row through the bridge); species_analysed is the SQI's
+    # divisor -- those plus any species scored from current status only.
+    species_analysed: int = 0
+    in_pantheon_tvks: set = field(default_factory=set)
+    # Distinct species in at least one SAT (EXA4) -- not the sum of sat_counts.
+    stenotopic_count: int = 0
+    # {broad_tvk: species_tvk}: one species recorded under two TVKs (EXA14).
+    merged_tvks: dict = field(default_factory=dict)
+    # Per-species figures after the merge, for the species list.
+    sqs_by_tvk: dict = field(default_factory=dict)
+    statuses: dict = field(default_factory=dict)
+    biotopes_by_tvk: dict = field(default_factory=dict)
+    habitats_by_tvk: dict = field(default_factory=dict)
+    sats_by_tvk: dict = field(default_factory=dict)
+
 
 @dataclass
 class ComparisonResult:
@@ -169,67 +194,123 @@ class PantheonAnalysisService:
                       Ministers' list carries no weight in an English planning
                       determination, and the reverse. Rarity and threat are
                       GB-wide and unaffected.
+
+        One species recorded under two TVKs -- the species and its sensu-lato /
+        aggregate counterpart (EXA14) -- is counted once, under the species TVK:
+        ecology unioned, the stronger status, the species' own SQS else the
+        counterpart's (J2: the species is the incumbent). result.merged_tvks
+        records {broad_tvk: species_tvk}. Different species stay separate.
         """
         if not tvks:
             return AnalysisResult(jurisdiction=jurisdiction)
 
-        unique_tvks = list(set(tvks))
+        all_tvks = list(dict.fromkeys(t for t in tvks if t))
         names = species_names or {}
+        merged = {}
+        if self._codex is not None and hasattr(self._codex, "sensu_lato_pairs"):
+            merged = self._codex.sensu_lato_pairs(all_tvks)
+        unique_tvks = [t for t in all_tvks if t not in merged]
         result = AnalysisResult(total_species=len(unique_tvks), mode=mode.value,
                                 jurisdiction=jurisdiction)
+        result.merged_tvks = dict(merged)
 
         # Conservation + SQS (mode-dependent)
         if self._codex:
-            sqs_scores = self._codex.get_sqs_scores(unique_tvks, mode)
+            sqs_scores = self._codex.get_sqs_scores(all_tvks, mode)
             try:
                 codex_statuses = self._codex.get_statuses_batch(
-                    unique_tvks, mode, jurisdiction)
+                    all_tvks, mode, jurisdiction)
             except TypeError:
                 # Older CodexRepository without the jurisdiction parameter.
-                codex_statuses = self._codex.get_statuses_batch(unique_tvks, mode)
+                codex_statuses = self._codex.get_statuses_batch(all_tvks, mode)
         else:
-            sqs_scores = self._pantheon.get_sqs_scores(unique_tvks)
+            sqs_scores = self._pantheon.get_sqs_scores(all_tvks)
             codex_statuses = None
 
         # Ecology (always Pantheon, mode-independent)
-        biotopes = self._pantheon.get_broad_biotopes(unique_tvks)
-        habitats = self._pantheon.get_habitats(unique_tvks)
-        sats = self._pantheon.get_sats(unique_tvks)
-        guilds = self._pantheon.get_feeding_guilds(unique_tvks)
-
-        result.species_in_pantheon = len(
-            set(sqs_scores.keys()) | set(biotopes.keys())
-        )
-        result.species_with_sqs = len(sqs_scores)
+        biotopes = self._pantheon.get_broad_biotopes(all_tvks)
+        habitats = self._pantheon.get_habitats(all_tvks)
+        sats = self._pantheon.get_sats(all_tvks)
+        guilds = self._pantheon.get_feeding_guilds(all_tvks)
+        held = (self._pantheon.held_by_pantheon(all_tvks)
+                if hasattr(self._pantheon, "held_by_pantheon")
+                else set(sqs_scores) | set(biotopes) | set(habitats))
 
         # Which scores Pantheon published, which were derived from the rule (Codex
         # Full gap-fill). Both bases are reported; neither is hidden. (Decision 7.)
         derived = set()
         if self._codex is not None and hasattr(self._codex, "get_stored_sqs_tvks") \
                 and mode != AnalysisMode.PANTHEON_ONLY:
-            derived = set(sqs_scores) - self._codex.get_stored_sqs_tvks(unique_tvks)
+            derived = set(sqs_scores) - self._codex.get_stored_sqs_tvks(all_tvks)
+
+        # Fold each broad-group TVK into its species (EXA14).
+        for broad, sp in merged.items():
+            for d in (biotopes, habitats, sats):
+                vals = list(d.get(sp, []))
+                vals += [v for v in d.pop(broad, []) if v not in vals]
+                if vals:
+                    d[sp] = vals
+            g = dict(guilds.get(sp, {}))
+            for stage, guild in guilds.pop(broad, {}).items():
+                if not g.get(stage):
+                    g[stage] = guild
+            if g:
+                guilds[sp] = g
+            # J2 with the species as incumbent: its published score, else the
+            # broad group's published score; a derived score only where neither
+            # has one (derived is a gap-fill, never a rival to a published score).
+            pick = next((t for t in (sp, broad) if t in sqs_scores and t not in derived),
+                        next((t for t in (sp, broad) if t in sqs_scores), None))
+            if pick is not None:
+                sqs_scores[sp] = sqs_scores[pick]
+                if pick in derived:
+                    derived.add(sp)
+                else:
+                    derived.discard(sp)
+            sqs_scores.pop(broad, None)
+            derived.discard(broad)
+            if broad in held:
+                held.add(sp)
+            held.discard(broad)
+            if codex_statuses:
+                try:
+                    from shared.repositories.codex_repository import stronger_status
+                except ImportError:  # pragma: no cover
+                    stronger_status = lambda a, b: a  # noqa: E731
+                codex_statuses[sp] = stronger_status(codex_statuses.get(sp),
+                                                     codex_statuses.pop(broad, None))
+
         result.derived_sqs_tvks = derived
-        # SQI denominator (Pantheon's definition): every species analysed --
-        # scored, or in Pantheon with ecology but no score (counts 0).
-        self._sqi_pool = set(sqs_scores) | set(biotopes) | set(habitats)
+        result.sqs_by_tvk = dict(sqs_scores)
+        result.statuses = codex_statuses or {}
+        result.biotopes_by_tvk, result.habitats_by_tvk = biotopes, habitats
+        result.sats_by_tvk = sats
+
+        # "Analysed" -- ONE definition (EXA5). Species Pantheon holds (any
+        # ecology or SQS row, through the bridge) are "in Pantheon"; the SQI
+        # divides by those plus any species scored from current status, so a
+        # score in the numerator always has its species in the denominator and
+        # scoring <= analysed. Pantheon's definition (Glory Park 144 / 123 = 117).
+        result.in_pantheon_tvks = held & set(unique_tvks)
+        result.species_in_pantheon = len(result.in_pantheon_tvks)
+        pool = result.in_pantheon_tvks | set(sqs_scores)
+        result.species_analysed = len(pool)
+        result.species_with_sqs = len(sqs_scores)
+        result.no_pantheon_tvks = set(unique_tvks) - result.in_pantheon_tvks
         result.overall_sqi_published = self._calc_sqi(
             "Overall (Pantheon scores)", unique_tvks,
             {t: s for t, s in sqs_scores.items() if t not in derived},
-            pool=(set(sqs_scores) - derived) | set(biotopes) | set(habitats))
-        # A derived score is not Pantheon data: such a species is not "in Pantheon".
-        result.species_in_pantheon = len((set(sqs_scores) - derived) | set(biotopes.keys()))
-        result.no_pantheon_tvks = set(unique_tvks) - (
-            (set(sqs_scores) - derived) | set(biotopes) | set(habitats))
+            pool=result.in_pantheon_tvks | (set(sqs_scores) - derived))
 
         # SQI
-        result.overall_sqi = self._calc_sqi("Overall", unique_tvks, sqs_scores)
+        result.overall_sqi = self._calc_sqi("Overall", unique_tvks, sqs_scores, pool)
 
         for label, tvk_set in self._group_by(biotopes).items():
-            result.biotope_sqi.append(self._calc_sqi(label, tvk_set, sqs_scores))
+            result.biotope_sqi.append(self._calc_sqi(label, tvk_set, sqs_scores, pool))
         result.biotope_counts = {b: len(s) for b, s in self._group_by(biotopes).items()}
 
         for label, tvk_set in self._group_by(habitats).items():
-            result.habitat_sqi.append(self._calc_sqi(label, tvk_set, sqs_scores))
+            result.habitat_sqi.append(self._calc_sqi(label, tvk_set, sqs_scores, pool))
         result.habitat_counts = {h: len(s) for h, s in self._group_by(habitats).items()}
 
         # Biotope x habitat, per species -- only pairs this sample actually
@@ -248,13 +329,15 @@ class PantheonAnalysisService:
             bio: {hab: len(tvks_) for hab, tvks_ in habs.items()}
             for bio, habs in pairs.items()}
         result.biotope_habitat_sqi = {
-            bio: {hab: self._calc_sqi(f"{bio} / {hab}", tvks_, sqs_scores)
+            bio: {hab: self._calc_sqi(f"{bio} / {hab}", tvks_, sqs_scores, pool)
                   for hab, tvks_ in habs.items()}
             for bio, habs in pairs.items()}
 
         for label, tvk_set in self._group_by(sats).items():
-            result.sat_sqi.append(self._calc_sqi(label, tvk_set, sqs_scores))
+            result.sat_sqi.append(self._calc_sqi(label, tvk_set, sqs_scores, pool))
         result.sat_counts = {s: len(t) for s, t in self._group_by(sats).items()}
+        # Stenotopic species: each species once, however many SATs it is in (EXA4).
+        result.stenotopic_count = len({t for t, v in sats.items() if v})
 
         # Key species
         if codex_statuses:
@@ -275,7 +358,7 @@ class PantheonAnalysisService:
                     tvk=tvk, species_name=sp_name, family=family,
                     status_display=cs.display_status,
                     short_status=cs.short_status,
-                    tier=cs.tier.value, sqs=cs.sqs,
+                    tier=cs.tier.value, sqs=sqs_scores.get(tvk, 0),
                     broad_biotope=", ".join(tvk_bios[:2]),
                     habitat=", ".join(tvk_habs[:2]),
                     rarity=(cs.rarity_modern.value if cs.rarity_modern
@@ -285,6 +368,8 @@ class PantheonAnalysisService:
                                    if cs.threat_iucn_legacy else ""),
                     priority=[e.value for e in (cs.priority or [])],
                     legal=[(e.detail or e.value) for e in (cs.legal_protection or [])],
+                    status_note=getattr(cs, "status_note", "") or "",
+                    recorded_note=(RECORDED_SL_SS if tvk in merged.values() else ""),
                 ))
         else:
             statuses = self._pantheon.get_conservation_statuses(unique_tvks)
@@ -357,12 +442,14 @@ class PantheonAnalysisService:
                 for site, tvks in site_species.items()}
 
     def _calc_sqi(self, label, tvks_or_set, sqs_scores, pool=None):
+        """The one SQI calculation (EXA1): CodexRepository.compute_sqi, the
+        project table and every export come here. `pool` is the species
+        analysed; a scored species always counts as analysed."""
         tvk_set = tvks_or_set if isinstance(tvks_or_set, set) else set(tvks_or_set)
         sqi = SQIResult(label=label)
         sqi.species_total = len(tvk_set)
-        pool = pool if pool is not None else getattr(self, "_sqi_pool", None)
-        if pool is not None:
-            sqi.species_analysed = len({t for t in tvk_set if t in pool or t in sqs_scores})
+        pool = pool if pool is not None else set(sqs_scores)
+        sqi.species_analysed = len({t for t in tvk_set if t in pool or t in sqs_scores})
         for tvk in tvk_set:
             if tvk in sqs_scores:
                 sqi.species_with_sqs += 1

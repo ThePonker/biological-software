@@ -18,6 +18,7 @@ from PySide6.QtCore import Qt
 # Import from refactored packages
 from .home import HomeTab
 from .observations import ObservationTab
+from .contributed import ContributedTab
 from .scheme import RecordingSchemeTab
 from .collection import InsectCollectionTab
 from .stats import StatsReportsTab
@@ -43,6 +44,7 @@ class MainWindow(QMainWindow):
     Tabs:
     - Home: Quick entry form and recent activity
     - Observation Data: Personal and commercial records
+    - Contributed: Records other people sent (read-only)
     - Recording Scheme: Cerambycidae recording scheme data
     - Insect Collection: Specimen database
     - Stats/Reports: Statistics and report generation
@@ -121,6 +123,10 @@ class MainWindow(QMainWindow):
 
         self.observation_tab = ObservationTab()
         self.tabs.addTab(self.observation_tab, "Observation Data")
+
+        # Contributed records (other people's) -- read-only browse, backlog K1
+        self.contributed_tab = ContributedTab()
+        self.tabs.addTab(self.contributed_tab, "Contributed")
 
         self.recording_scheme_tab = RecordingSchemeTab()
         self.tabs.addTab(self.recording_scheme_tab, "Recording Scheme")
@@ -722,6 +728,7 @@ class MainWindow(QMainWindow):
         tabs_with_theme = [
             self.home_tab,
             self.observation_tab,
+            self.contributed_tab,
             self.recording_scheme_tab,
             self.insect_collection_tab,
             self.stats_reports_tab,
@@ -901,6 +908,8 @@ class MainWindow(QMainWindow):
                 self.observation_tab.initialize()
                 if hasattr(self.observation_tab, '_enable_sorting_on_first_view'):
                     self.observation_tab._enable_sorting_on_first_view()
+            elif w is self.contributed_tab:
+                self.contributed_tab.initialize()
             elif w is self.recording_scheme_tab:
                 self.recording_scheme_tab.initialize(self._main_db_path, self._uksi_db_path)
                 # Sorting enabled after async data load completes (in _on_data_loaded)
@@ -1035,6 +1044,12 @@ class MainWindow(QMainWindow):
                 self.observation_tab.refresh()
         except Exception as e:
             print(f"Warning: Could not refresh Observation tab: {e}")
+
+        if getattr(self.contributed_tab, '_initialized', False):
+            try:
+                self.contributed_tab.refresh()
+            except Exception as e:
+                print(f"Warning: Could not refresh Contributed tab: {e}")
 
         self.set_status("Database connected successfully")
 

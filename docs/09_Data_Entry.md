@@ -50,7 +50,8 @@ occupies that space for a serious specialist recorder.
 **Staging model.** Two tables in `observatum.db`:
 
 - `entry_jobs` — id, name, mode, client, project, embargo_until, status
-  (`active` / `committed` / `discarded`), notes, timestamps
+  (`active` / `committed` / `discarded` / `exported`, and for Personal jobs
+  `awaiting_irecord` / `irecord_returned` — §7b), notes, timestamps
 - `entry_staging` — one row per record in progress, carrying species and taxon
   fields, the three survey columns, context fields and job-level fields
 
@@ -155,11 +156,26 @@ prints a `setGeometry` warning; the fix is to trim card or column widths.
 |---|---|---|
 | WAL + `synchronous=FULL`, per-edit commit | every keystroke | continuous |
 | `staging_backup.csv` (+prev) | all staging jobs | job close, 15-min timer, commit, app close |
-| `observations_backup.csv` (+prev) | observations | after commit |
+| `observations_backup.csv` (+prev) | observations | after commit (connected 9 Oct 2026 — it never ran before) |
 | `backup_service` pre-commit | whole database | before every commit — **blocks the commit if it fails** |
 
 CSVs go outside OneDrive, to avoid sync churn on files rewritten every fifteen
-minutes.
+minutes. The staging CSV is also written **before** Delete job, Discard job and
+Export-and-clear; if it cannot be written, Data Entry asks before going on (9 Oct 2026).
+
+**A commit that fails part-way** stops at the failing row and says how many records were
+written (they are in Observatum under the batch stamp; the rest stay in staging), and
+Observation Data is refreshed. A record written whose follow-up fields failed is still
+taken out of staging, so a retry cannot double it.
+
+**What a commit writes (9 Oct 2026).** Besides the grid's fields: `taxon_group`,
+`kingdom`, `taxon_rank`, `superfamily` and `taxonomic_sort_key` from UKSI for the TVK
+(`shared/taxon_groups.py`; before this, 1,440 committed records had no taxon group), and
+the date type from what was typed. A year alone ("2026") commits as 2026-01-01 with date
+type `Y`; a month and year ("06/2026", "Jun 2026") as the 1st with `O`. Dates that cannot
+be read ("31/02/2026", "summer") are tinted in the cell, listed by Check before commit and
+left in staging. Check before commit also lists future dates, rows with no recorder and
+rows with no vice-county. The VC clears when the grid ref is cleared or cannot be read.
 
 **Undo.** Every committed row carries `DataEntry batch <ISO timestamp>` in
 `import_notes`. `scripts/entry_batches.py` lists batches and removes one by exact
@@ -201,6 +217,24 @@ iRecord export -- by the **exact** Project and Client strings. So:
 - **Comments** typed in the grid are written on commit from 8 October; before that
   they were dropped (fault F31).
 
+## 7b. Personal jobs go to iRecord (9 Oct 2026)
+
+Personal records are iRecord-first, so a Personal job has no Commit. Its button is
+**Export for iRecord**: a CSV in iRecord's import layout — Species, TVK (only when it is a
+current UKSI taxon), Date (05/06/2026, Jun 2026 or 2026), Grid reference, Location name,
+Recorder(s), Determiner, Abundance, Stage, Sex ("Not recorded" left blank), Sample
+method, Comment. A row with a species but no readable date blocks the export. The job is
+then **exported – awaiting iRecord**: its rows are kept, it stays on the Jobs list, and the
+standing Personal job is renamed "Personal – exported dd/mm/yyyy" so a fresh one takes its
+place.
+
+After importing the file into iRecord and running Observatum's iRecord sync, select the
+job and choose **Check iRecord return**. Each row is matched to an observation that now
+carries an iRecord ID: same TVK (or name), date and grid ref, and recorder — a second pass
+without the recorder catches names iRecord writes differently, and says how many. When
+all are back the job can be closed (`irecord_returned`; rows kept, no longer counted as
+staged); otherwise the missing rows are listed. Commercial jobs commit as before.
+
 ## 8. Not yet built
 
 **Clicker count-mode** (backlog B1). A configurable keystroke increments the
@@ -230,9 +264,9 @@ the wrong database if the distinction is forgotten.
 **Row insert below the new-row marker does not work** (B5). Committed, incomplete,
 there is a workaround.
 
-**Personal records are deliberately not routed through staging.** The established
-path is spreadsheet → iRecord → Observatum, and staging them locally would invert
-which system is authoritative and risk duplicates on sync-back.
+**Personal records are never committed from staging.** The established path is
+spreadsheet → iRecord → Observatum; a Personal job is exported for iRecord and checked
+back instead (§7b), so the sync-back cannot duplicate it.
 
 ---
 

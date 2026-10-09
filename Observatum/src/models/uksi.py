@@ -460,7 +460,7 @@ class UKSIModel:
             FROM taxa t
             LEFT JOIN common_names cn ON t.tvk = cn.tvk
             WHERE t.tvk = ?
-            ORDER BY CASE WHEN cn.common_name GLOB '[A-Z]*' THEN 0 ELSE 1 END
+            ORDER BY cn.preferred DESC, CASE WHEN cn.common_name GLOB '[A-Z]*' THEN 0 ELSE 1 END, LENGTH(cn.common_name)  -- C2: the preferred name
             LIMIT 1
         """
         results = self.db.execute_uksi(query, (tvk,))
@@ -532,7 +532,7 @@ class UKSIModel:
             FROM taxa t
             LEFT JOIN common_names cn ON t.tvk = cn.tvk
             WHERE t.scientific_name = ?
-            ORDER BY CASE WHEN cn.common_name GLOB '[A-Z]*' THEN 0 ELSE 1 END
+            ORDER BY cn.preferred DESC, CASE WHEN cn.common_name GLOB '[A-Z]*' THEN 0 ELSE 1 END, LENGTH(cn.common_name)  -- C2: the preferred name
             LIMIT 1
         """
         results = self.db.execute_uksi(query, (scientific_name,))
@@ -652,7 +652,7 @@ class UKSIModel:
             FROM taxa t
             LEFT JOIN common_names cn ON t.tvk = cn.tvk
             WHERE LOWER(t.scientific_name) IN ({placeholders})
-            ORDER BY t.scientific_name, CASE WHEN cn.common_name GLOB '[A-Z]*' THEN 0 ELSE 1 END
+            ORDER BY t.scientific_name, cn.preferred DESC, CASE WHEN cn.common_name GLOB '[A-Z]*' THEN 0 ELSE 1 END, LENGTH(cn.common_name)  -- C2
         """
         
         try:

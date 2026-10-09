@@ -14,6 +14,10 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QColor
+try:
+    from Examen.presentation import SQI_TOOLTIP
+except ImportError:  # pragma: no cover
+    from presentation import SQI_TOOLTIP
 
 BG = "#f5f5f4"; SURFACE = "#ffffff"; TEXT_HEADING = "#4b5563"
 TEXT_SECONDARY = "#6b7280"; TEXT_MUTED = "#9ca3af"; BORDER = "#d1d5db"; SEPARATOR = "#e5e7eb"
@@ -59,6 +63,12 @@ class AssemblageTab(QWidget):
         self.table.setHorizontalHeaderLabels([
             "Assemblage Type", "Species", "Scoring", "SQI", "% National Pool",
             "FC Threshold", "PtT %"])
+        self.table.horizontalHeaderItem(3).setToolTip(SQI_TOOLTIP)    # the scale (E8)
+        try:
+            from Examen.workbook_export import NATIONAL_POOL_NOTE
+        except ImportError:  # pragma: no cover
+            from workbook_export import NATIONAL_POOL_NOTE
+        self.table.horizontalHeaderItem(4).setToolTip(NATIONAL_POOL_NOTE)
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.table.setAlternatingRowColors(True)
         self.table.setStyleSheet(
@@ -139,6 +149,9 @@ class AssemblageTab(QWidget):
         self.table.resizeColumnsToContents()
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         summary = f"{len(rows)} SATs represented"
+        n_sten = getattr(result, "stenotopic_count", None)
+        if n_sten is not None:
+            summary += f"  |  {n_sten} stenotopic species (each counted once)"
         if favourable:
             summary += (f"  |  {len(favourable)} at Favourable Condition: "
                         + "; ".join(f"{n} ({c} species, {t} required)"

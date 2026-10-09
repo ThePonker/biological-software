@@ -303,7 +303,7 @@ def generate_specimens(count=80):
             'sex': random.choice([None, 'Male', 'Female']),
             'preparation_type': random.choice(prep_types),
             'storage_location': f"Cabinet {random.randint(1, 5)}",
-            'drawer_unit': f"Unit {random.randint(1, 20)}",
+            'drawer_number': f"Unit {random.randint(1, 20)}",
             'condition': random.choices(conditions, weights=[40, 35, 20, 5])[0],
             'import_notes': None,
         }
@@ -388,12 +388,12 @@ def insert_specimens(cursor, records):
         INSERT INTO specimens (
             specimen_code, species_name, species_tvk, common_name, order_name, family, subfamily,
             date_collected, grid_ref, vice_county, vc_number, site_name,
-            collector, determiner, sex, preparation_type, storage_location, drawer_unit, condition,
+            collector, determiner, sex, preparation_type, storage_location, drawer_number, condition,
             import_notes
         ) VALUES (
             :specimen_code, :species_name, :species_tvk, :common_name, :order_name, :family, :subfamily,
             :date_collected, :grid_ref, :vice_county, :vc_number, :site_name,
-            :collector, :determiner, :sex, :preparation_type, :storage_location, :drawer_unit, :condition,
+            :collector, :determiner, :sex, :preparation_type, :storage_location, :drawer_number, :condition,
             :import_notes
         )
     """, records)

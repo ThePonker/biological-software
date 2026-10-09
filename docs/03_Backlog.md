@@ -1,28 +1,37 @@
 # Backlog
 
-## Updated 9 October 2026
+## Updated 9 October 2026 (late evening)
 ## Check this before starting a session.
 
 ---
 
 ## Next
 
+*Late 9 Oct: the full suite review (`claude/32_Suite_Review_20261009.md` in the project,
+~140 findings) and its first fix round are done and tested by Wil (steps 1-10; Munia skipped).
+Fixed: OBS-01/02/03, EXA1-10/13/14, INF1-3, CDX-1, IMP-1/2/3/4/5/8/14/15/17, SRCH5, OBS-12 (export
+part), DE1/2/4/5/7/8, MUN-1/2, plus species-over-s.l. rule (status, Pantheon data and SQS fall
+back to the s.l. / aggregate), "Deselect All" after single ticks. Data: taxonomy backfill
+(41,892 values), 54 s.l. records moved to species. Codex rebuilt (JNCC date 2026-06-09).*
+
 | | Item | Size |
 |---|---|---|
-| 0 | ~~**I7b**~~ ✅ **Done 9 Oct** — scheme + specimen import repairs and the scheme data repair (F40). Wil to test one scheme and one specimen import with real files. Next: E7 (`41` Part 2), photos/geo (Part 3) | test |
-| 1 | **F11** — email Chris Raper (c.raper@nhm.ac.uk): the 24 British beetles the July 2025 UKSI flags redundant, and any copy newer than July 2025 | 10 min |
-| 2 | **F14** — remaining (search and Lector only): build fix for the 366 CONFLICT carried synonyms; exclusions for NAMES errors (*Lamia*); add to the F11 email. Bridge part done 8 Oct | ~0.5 day |
-| 3 | **G13** — your own accounts for the five survey key species with none: *Oligota apicata*, *Xysticus luctuosus*, *Liocyrtusa minuta*, *Chiasmia clathrata*, *Zophomyia temula* | ~1 hr |
-| 4 | **E16** — decide the SQI verdict wording | decision |
-| 5 | **D3** — merge `main` → `stable` | 15 minutes |
-| 5b | **B8** — built 8 Oct; test on the next restart: commit a job with a blank site and a doubled row, expect "Check before commit" | 5 min test |
-| 6 | ~~**I7, I8, D9**~~ ✅ **Done 9 Oct** (~25 min) — dead code retired, silent errors reporting, reference DBs read-only. Wil: run `_oneoff/retire_dead_code_20261009.py`; 4 Data Entry files still to land. I9 (duplicated UI components) still open | test |
+| 1 | **Shared fuzzy species search** for every species box (review SRCH15-19, incl. Examen Species Database, Codex, filter bars, Lector) -- typo-tolerant, synonyms, common names via UKSI | L |
+| 2 | **Filter Wizard** on Recording Scheme and Insect Collection, and the filter bars (OBS-06, SRCH1-4, 7-13) | M |
+| 3 | **One taxon grouping** in `shared/taxon_groups.py` used by stats, mapping, filters and the import wizards (SRCH14, MAP10) | M |
+| 4 | **Mapping selection**: several species, genus/family/order/group, richness style, real VC/recorder/site/source filters, legend (MAP1-9, SRCH18) | L |
+| 5 | Remaining Tier 2 of the review (Observatum, imports, Data Entry, Lector LEC1 Word/PDF export, Spider Extract SPD1-3, Curator, Atrium) | M-L each |
+| 6 | Munia: test MUN-1/2 when needed | 10 min |
+| 7 | F43 Melanotus records on the fungus TVK; Ashen Bank / Ashenbank, Ranscombe site names | S |
+| 8 | Photos (A8/A8b) -- discuss `31_Photo_Workflow_Discussion.md` | discussion |
+| 9 | D3 merge `main` -> `stable`; F6 Welsh S7 comparison (download pending); F11 Chris Raper (parked) | - |
 
 ---
 
 ## A. Insect Collection
 
-**A1. Bulk curatorial editor — HIGH.** 0.5–1 day. Of 2,745 specimens: condition
+**A1. Bulk curatorial editor.** ✅ Built 8 Oct ("Drawer in hand…"); only the checklist-order
+question below is open, parked by Wil. *Original:* 0.5–1 day. Of 2,745 specimens: condition
 8, storage 2, drawer 0, preparation 204. Those are properties of a tray, not a
 specimen — select everything in a drawer, set Storage and Drawer once.
 Per-record editing is not viable. Never touches biological data.
@@ -40,16 +49,17 @@ UKSI's sort code -- alphabetical by genus within a family (Carabidae: *Abax*,
 Sex is the exception: it needs the animal under the scope, and is being worked
 through by hand (602 so far).
 
-**A2. Verify curatorial edit on existing specimens.** Small. May already be
+**A2. Verify curatorial edit on existing specimens.** ✅ Tested by Wil 9 Oct: saves and reloads. Small. May already be
 closed by the Session 29 dialog work — test by editing one and confirming it
 saves and reloads.
 
 **A3. `label_data` composition from the record.** 0.5 day. Deferred.
 
-**A4. `drawer_unit` → `drawer_number` rename.** 0.5 day. The UI already says
+**A4. `drawer_unit` → `drawer_number` rename.** ✅ Done 9 Oct -- code in 16 files;
+the database column via `_oneoff/rename_drawer_column_20261009.py` (backup first). 0.5 day. The UI already says
 Drawer Number. Column empty, no data risk; touches four files plus reset scripts.
 
-**A5. Two specimens without a TVK.** Minutes. *Phoracantha recurva* (id 1263) and
+**A5. Two specimens without a TVK.** ✅ Closed by decision 8 Oct (not in the July 2025 UKSI). Minutes. *Phoracantha recurva* (id 1263) and
 *Oberea linearis* (id 1356) — both longhorns. With no TVK they get no sort key
 and stay invisible to the sidebar. *8 Oct:* **neither is in the July 2025 UKSI.**
 Left as they are by decision; set them when a UKSI release includes them.
@@ -170,10 +180,12 @@ columns, marked "(UKSI 2023)", only if Codex can't be opened). Report workbooks 
 sent out keep the Codex data of their day: re-export any that matter. *Original:* 0.5–1 day. **Raised in value:**
 generated workbooks bake in Codex data that now predates five corrections.
 
-**C2. Route wizards through `_get_preferred_common_name()`.** Small. Safe since
+**C2. Route wizards through `_get_preferred_common_name()`.** ✅ Done 9 Oct -- the three UKSI
+common-name queries in `models/uksi.py` now order preferred first, then capitalised, then shortest. Small. Safe since
 the Session 28 fix.
 
-**C3. 175 rows with doubled import notes.** Cosmetic. A one-line UPDATE whenever
+**C3. 175 rows with doubled import notes.** ✅ Script 9 Oct -- `_oneoff/fix_doubled_import_notes_20261009.py`
+(drops a " | " segment only when identical to the one before; dry run, backup). Cosmetic. A one-line UPDATE whenever
 it matters.
 
 **C4. Merge the three import wizards — WINTER.** 3–5 days, mostly testing against
@@ -182,6 +194,21 @@ mixins in up to four versions, and the species lookup three times (complexity
 54–71, the hardest code in the suite). Every change to species matching -- a UKSI
 update, kept taxa, synonyms -- must be made three times. The biggest
 maintainability gain available; pays off most at the next UKSI release.
+**Stage 1 done 9 Oct:** one species lookup, `shared/species_lookup.py`, called by all
+three validation workers; the wizards' differences are kept as named options
+(`SPECIMEN`, `OBSERVATION`, `SCHEME`) and their wordings side by side in
+`shared/species_lookup_entries.py`. Proved identical on 559 names x 6 import modes
+against the real uksi.db, every field of every row (`tests/golden/`,
+`test_species_lookup_characterisation.py`; skipped if uksi.db is a different copy --
+re-record with `tests\species_lookup_harness.py --write`). **Stage 2 partly done:** the mode card,
+progress / summary pages, validation table model and problem export are one copy each
+in `Observatum/src/views/dialogs/import_common/`. **Left:** the validation, file and
+import mixins (genuinely different, 10–50% alike -- not a mechanical merge); then decide
+whether the wizards should agree on the differences listed in `species_lookup_entries.py`
+(e.g. the observation wizard never searches UKSI for an unmatched name; specimen lets a
+saved alias beat an exact name, observation the reverse; only observation reads "CF." /
+"AGG.", only specimen and scheme read "cf" without its dot). Also seen: specimen and scheme
+accept a loose top search hit with only a warning ("Ab" -> *Populus alba*).
 
 ---
 
@@ -202,7 +229,14 @@ that changes data** — re-run the two `robocopy /MIR` lines in `01_Architecture
 spreadsheet. Procedure in `01_Architecture.md` §5. The Access extractor is no
 longer needed.
 
-**D5. Reconstruct `build_pantheon_db.py`.** ~1 day. Open since March. Pantheon
+**D5. Reconstruct `build_pantheon_db.py`.** ✅ Built 9 Oct -- `scripts/build_pantheon_db.py`
+reproduces the March `pantheon.db` table for table from the 3.7.4 CSVs (checked row by row in
+legacy mode against UKSI 2023), except: the **1,114** species Pantheon gives without a TVK
+(797 with only a preferred name) are keyed `NOTVK:<name>` instead of one blank key (F26).
+Codex's bridge resolves those via Pantheon's preferred TVK, then name and synonym: 1,092 bridge,
+758 UKSI taxa get Pantheon ecology for the first time, 5 gain an SQS, no existing SQS changes
+(incumbent rule). All 9 research-only rows of F5 now bridge. `--out` builds to a file;
+`--replace` backs up, retires the old file to `_archive`, swaps in. Then rebuild Codex. *Original:* ~1 day. Open since March. Pantheon
 has not moved since 2017, so this is insurance rather than need -- **except** that
 the current `pantheon.db` stored every species without a TVK under one blank key
 (fault F26), losing their ecology. The rebuild must key those on name. Source: the
@@ -213,7 +247,10 @@ keep them; not in git, so check they are on the `D:\` copy).
 §1): 57 static hits → 2 real crashes and one wrong-data export, all three fixed; the
 rest dead code or guarded (into I8 / I7b). pyflakes finds no undefined names.
 
-**D7. Rebuild-twice-and-compare check.** 0.5 day. Build Codex into two files and
+**D7. Rebuild-twice-and-compare check.** ✅ Done 9 Oct -- `scripts/check_codex_repeatable.py`
+builds Codex from copies of the live file twice, in separate processes with different hash
+seeds, and compares every table: **identical**. Part 2 lists what the next real rebuild will
+change versus live (on 9 Oct: the 37 F2 rows). Live codex.db only read. 0.5 day. Build Codex into two files and
 diff them; any difference means something is order-dependent. Would have caught
 the collapse tiebreak in April, and converts the version-stamping promise from an
 assumption into a tested fact.
@@ -291,7 +328,10 @@ SQI arithmetic consolidated, but the **two parallel enrichment paths remain**:
 the project table comes from `examen_data`, the detail tabs from
 `PantheonAnalysisService`. That is the cause of any remaining figure mismatch.
 
-**E6. Compartment analysis.** 0.5 day. Maps onto `sub_location`, already captured
+**E6. Compartment analysis.** ✅ Built 9 Oct -- `Examen/compartments.py`, threshold in
+`compartment_config.json` (5%): per `sub_location` records, species, key, SQI (each run through
+the same `analyse`), below-threshold flagged; Overview, workbook sheet, PDF/Word; shown with 2+
+compartments. **No real record has a `sub_location` yet** -- tested on a simulated split. 0.5 day. Maps onto `sub_location`, already captured
 by Data Entry. Standard practice — the 2025 Bicester report gives seven
 compartments with their own counts and a stated 5% threshold, which is a worked
 specification.
@@ -322,13 +362,20 @@ SQI needs 40+ qualifying species, a complete list, and equal attention to common
 and rare species. IEC is cumulative across all surveys of a site, post-1950
 records only, so every value is a minimum.
 
-**E8. Presentation items.** ~1 day total. Several are now delivered in the
+**E8. Presentation items.** ✅ Outstanding three done 9 Oct (`Examen/presentation.py`): status
+names not codes (code in tooltip); common-name fallback from family/order ("A ground beetle",
+greyed; also in the workbook key-species and appendix columns -- say if reports should not
+carry it); SQI scale caption and tooltips. ~1 day total. Several are now delivered in the
 workbook and want carrying into the on-screen views: SQI at biotope and habitat
 level, Key and Rare Key percentages, stenotopic count, status definitions.
 Outstanding: the conservation column as species names not codes; vernacular
 fallback ("A spider"); explicit SQI scale labelling.
 
-**E8b. Taxonomic summary table.** Small. Group | sub-groups | Taxa | Spp. with
+**E8b. Taxonomic summary table.** ✅ Built 9 Oct -- `Examen/taxonomic_summary.py`: order |
+main families | taxa | with status | %, plus "All saproxylic beetles" and "All groups"; "with
+status" is the Summary's own key-species set. Conservation tab, workbook, PDF/Word. Kent Deadwood:
+393 taxa, 75 with status (19.1%), matching the Summary. It exposed 10 "Melanotus" records on the
+*fungus* genus TVK (BMSSYS0000020490) and non-invertebrates in that survey. Small. Group | sub-groups | Taxa | Spp. with
 status | % with status, including "all saproxylic beetles" as a row. Standard
 practice (EMG2 Table 2) and it shows where the interest sits.
 
@@ -347,7 +394,12 @@ of total species recorded.
 **E12. Views hardcode their own colour palettes.** 0.5 day. Six files define
 their own constants rather than using `theme()`, contrary to coding rule 6.
 
-**E13. Decide the fate of freeze / snapshots.** The case for stored state has
+**E13. Decide the fate of freeze / snapshots.** ✅ **Decided and done 9 Oct:** retired.
+The Freeze button and the Assessment Archive tab are gone; `snapshot_manager.py` and
+`assessment_archive_view.py` go to `_archive` (`_oneoff/retire_e13_h1_20261009.py`).
+`scripts/export_examen_snapshots.py` writes each stored assessment to a workbook under
+`_archive/examen_snapshots_<YYYYMMDD>/` (dry run by default, `--write` to write). The
+March copy of `examen.db` checked held **no** assessments. History: the case for stored state has
 weakened — jurisdiction filtering now handles the main exclusion automatically,
 and Session 26 decided the frozen record is the downloaded report. But
 `examen.db` holds historical assessments that would need a home.
@@ -427,7 +479,10 @@ Damselfly", "Banded Demoiselle", "Black Darter" and others sit in the
 scientific-name column. Part of the 68 that resolve by no route. Few enough to
 hand-map.
 
-**F2. Unrouted designation codes.** 0.5 day. 1,519 rows across 16 codes reach no
+**F2. Unrouted designation codes.** ✅ Routed 9 Oct (`DESIG_TO_TRACK`): bird GB post-2001
+RE/EX/CR(PE)/DD, Global post-94 LR(cd)/LC/EN/CR/DD, Badgers Act. WL and European Red List left
+unrouted on purpose. Takes effect at the next Codex rebuild: +37 status rows, invertebrates only
+*Vertigo* ×4, *Margaritifera*, *Myxas*. 0.5 day. 1,519 rows across 16 codes reach no
 track. Most is deliberate, but European Red List, bird breeding-season RE/DD and
 some Global pre-94 codes fall through unmapped.
 
@@ -436,12 +491,14 @@ plant entries carry GB abbreviations (`RedList_GB_post2001-EX`) despite an
 England source, so they route to `threat_iucn_2001` rather than
 `red_list_england`. JNCC's labelling, not a fault here. Vascular plants only.
 
-**F4. The *Hylaeus annularis* group.** For an entomologist. Three segregates
+**F4. The *Hylaeus annularis* group.** ✅ Wil 9 Oct: score 8 by the rule -- already so in
+the current Codex (`get_sqs` = 8, RDB 3). Nothing to change. For an entomologist. Three segregates
 carried SQS 8; the incumbent carries 1 while holding RDB 3, which the published
 rule scores at 8. Under incumbent-wins it stays at 1 and the disagreement remains
 visible as a Pantheon-vs-rule case rather than being silently patched.
 
-**F5. Nine research-only rows with no TVK.** Small, after D5. *Re-measured 8 Oct:*
+**F5. Nine research-only rows with no TVK.** ✅ Resolved by D5 once `pantheon.db` and Codex
+are rebuilt: all nine (*Blepharita adusta*, *Spilosoma luteum*, *Xanthia icteritia*…) bridge. Small, after D5. *Re-measured 8 Oct:*
 of Pantheon's 72 research-only rows, 63 have a TVK and all are bridged (62 current
 TVKs after the *Euxoa* merge). The other 9 have no TVK in `pantheon.db` (fault F26),
 so which species they are can only be read from the Pantheon source CSVs. Until
@@ -453,6 +510,7 @@ Cinnabar is key at a Welsh site.
 *Researched 8 Oct (`39_Research_Notes.md` §2):* no — the Welsh S42/S7 lists carry no
 research-only flag; Cinnabar is on S7. Current behaviour is correct by the letter.
 A new Welsh S7 spreadsheet (Mar/May 2026) exists — download it to compare with Codex.
+*9 Oct:* link given to Wil; save as `data\reference\section-7-wales-2026.xlsx`, then compare.
 
 **F7. Fallback by name for unbridged record TVKs.** 0.5 day, **probably not needed**:
 the NAMES-by-key bridge (8 Oct) fixed *Nomada panzeri* and 17 other same-name cases.
@@ -463,7 +521,8 @@ Steve A. Lane. `import_status_review.py --licence-only --licence "Open Governmen
 Licence v3.0"` sets it (command in `39_Research_Notes.md` §3) — **to run, apps closed.**
 New imports take `--licence` directly.
 
-**F9. Retire Codex Manager's Import Review tab.** ~30 min. Writes accounts keyed on
+**F9. Retire Codex Manager's Import Review tab.** ✅ Done 9 Oct -- the tab's Import button
+now explains and points to `import_status_review.py`; nothing written. ~30 min. Writes accounts keyed on
 TVK alone, the old way. `import_status_review.py` is now the one importer. Remove
 the tab's import or have it call the script.
 
@@ -560,7 +619,7 @@ from eight reports (four layouts: heading + paragraph, numbered paragraph,
 appendix accounts, a Word table), verbatim, survey sentences held back.
 `scripts/import_own_profiles.py` skips any species that already has one.
 
-**G4. Scope.** Profiles only for species with a conservation status, or groups of
+**G4. Scope.** ✅ Wil 9 Oct: **any species, as he chooses.** *Was:* profiles only for species with a conservation status, or groups of
 interest such as Cerambycidae. Disagreement with a published status goes in your
 account — **no override field**.
 
@@ -573,7 +632,9 @@ received, permission, import batch); `assessment_records` view for Examen;
 `scripts/import_contributed.py` (columns by heading, UKSI matching, `--replace`).
 Stats, mapping and iRecord never see contributed data.
 
-**K1. Contributed tab in Observatum.** ~20–30 min. Read-only browse by
+**K1. Contributed tab in Observatum.** ✅ Built 9 Oct -- read-only tab after Observation Data:
+tree contributor › project › batch with counts, free-text filter, sortable table
+(`views/contributed/`, `repositories/contributed_repository.py`). ~20–30 min. Read-only browse by
 collaborator, project and batch.
 
 **K2. Credit in reports.** ✅ Done with E21 (8 Oct).
@@ -581,6 +642,16 @@ collaborator, project and batch.
 ---
 
 ## H. Mapping tab
+
+**H1–H6.** ✅ Built 9 Oct. The Mapping tab draws its own map (`shared/maps/grid_map.py`) in place
+of the Leaflet/WebEngine one (`map_widget.py` retired): hectad / tetrad / monad squares
+(a record only in squares at least as fine as its grid ref; the coarse ones counted on the map),
+presence / density / date classes, click a square for its records, A4 300 dpi atlas PNG, species
+search by any words of scientific or common name (UKSI common names too). The five Data Entry map
+modules moved to `shared/maps/`; **the DataEntry shims land when Wil is not entering data**.
+Found and fixed: `observation_stats_service` lettered tetrads rows-first (counts were right, labels
+wrong). Not yet seen with the real coastline files (not in the test copy). The "decade" period
+option was never implemented.
 
 **H1. Adopt the Data Entry map widgets.** 0.5 day. `raster_map`, `vc_map`,
 `species_dist_map`, `gb_basemap`, `_panzoom` are built and proven.
@@ -638,7 +709,9 @@ shared function with the Helmert shift) instead of their own maths.
 **I4. Remove the stale wizard set.** ✅ Done 9 Oct -- the five files go to `_archive` with I8.
 `species_match_report_dialog.py` now uses the row's own `RowStatus` (see F41).
 
-**I5. `ruff.toml` + pre-commit hook.** So the lint counts stop growing.
+**I5. `ruff.toml` + pre-commit hook.** ✅ Done 9 Oct -- pyflakes rules only (F, E9; F541/F841
+off for now), whole tree clean; `scripts/install_git_hooks.py` installs a hook that lints the staged
+.py files (skips with a message if ruff is missing). So the lint counts stop growing.
 
 **I6. Tests for the pure functions.** ✅ Done 8 Oct — `tests/test_pure_functions.py`,
 102 tests, no database touched, under a second: date utils, SQS derivation (every

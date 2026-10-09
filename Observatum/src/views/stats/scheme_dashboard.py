@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Signal, Qt, QSortFilterProxyModel, QAbstractTableModel, QModelIndex
 
 try:
-    from PySide6.QtCharts import QChart, QChartView, QBarSeries, QBarSet, QValueAxis, QBarCategoryAxis
+    from PySide6.QtCharts import QChart, QChartView, QBarSeries, QBarSet, QValueAxis, QBarCategoryAxis  # noqa: F401  (availability check / re-export)
     CHARTS_AVAILABLE = True
 except ImportError:
     CHARTS_AVAILABLE = False
