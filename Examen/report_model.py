@@ -25,6 +25,7 @@ ACCOUNTS_NOTE = ("Accounts are the author's where written; otherwise the current
                  "gives the number of individuals, places and months recorded.")
 SECTIONS = (("Habitats", "Habitats"),
             ("Assemblages", "Specific assemblage types"),
+            ("Saproxylic", "Saproxylic indices"),
             ("Guilds", "Feeding guilds"))
 
 

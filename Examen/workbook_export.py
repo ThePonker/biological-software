@@ -895,6 +895,37 @@ def _sheet_assemblages(wb, result, refs, thresholds):
     return ws
 
 
+def _sheet_saproxylic(wb, detail):
+    """Saproxylic SQI and IEC (backlog E7). Only written when listed species occur."""
+    try:
+        from Examen.saproxylic import assess, band_text
+    except ImportError:  # pragma: no cover
+        from saproxylic import assess, band_text
+    sap = assess(getattr(detail, "species_list", None) or [])
+    if not sap.n_scored and not sap.n_iec:
+        return None
+    ws = wb.create_sheet("Saproxylic")
+    caution = "" if sap.reliable else f" Fewer than {sap.min_species} listed species: treat with caution."
+    r = _title(ws, "Saproxylic indices",
+               f"Saproxylic Quality Index {sap.sqi:g} ({sap.sqs_total} \u00f7 {sap.n_scored} species "
+               f"\u00d7 100); Index of Ecological Continuity {sap.iec} from {sap.n_iec} species."
+               + caution)
+    r = _header(ws, r, ["Species", "Saproxylic score", "IEC", "Status (list)"], [40, 16, 10, 16])
+    for row in sap.rows:
+        ws.append([row["species"], row["sqi_score"] if row["sqi_score"] else "-",
+                   row["iec"] or "-", row["status"] or "-"])
+    r = ws.max_row + 2
+    for note in (
+            "Thresholds, shown side by side rather than as a verdict: " + band_text(sap),
+            "The IEC is cumulative across all surveys of a site and counts post-1950 records "
+            "only, so the figure for one survey is a minimum.",
+            sap.citation + " Species list as compiled by W. Heeney from khepri.uk, updated "
+            "from Alexander's revision; names matched to the current UKSI."):
+        ws.cell(row=r, column=1, value=note).font = NOTE_FONT
+        r += 1
+    return ws
+
+
 def _sheet_guilds(wb, result):
     ws = wb.create_sheet("Guilds")
     r = _title(ws, "Feeding guilds", "Composition of the recorded assemblage.")
@@ -1078,6 +1109,7 @@ def export_workbook(result, detail, project, path,
     _sheet_appendix(wb, detail, result, stamp)
     _sheet_habitats(wb, result, refs)
     _sheet_assemblages(wb, result, refs, thresholds)
+    _sheet_saproxylic(wb, detail)
     _sheet_guilds(wb, result)
     _sheet_status(wb)
 

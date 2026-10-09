@@ -1,0 +1,15 @@
+{
+  "_comment": "Saproxylic index settings (backlog E7). Thresholds are shown side by side in Examen and the reports, never as a single verdict. Edit values here; no code change needed.",
+  "min_species": 40,
+  "sqi_thresholds": [
+    {"source": "Alexander", "value": 300, "label": "a top British site"},
+    {"source": "Fowles et al. (1999)", "value": 500, "label": "national importance"},
+    {"source": "Fowles et al. (1999)", "value": 590, "label": "international importance"}
+  ],
+  "iec_thresholds": [
+    {"value": 15, "label": "regional importance"},
+    {"value": 25, "label": "national importance"},
+    {"value": 80, "label": "international importance"}
+  ],
+  "citation": "SQI after Fowles, Alexander & Key (1999); IEC after Alexander (2004); scores as revised by Alexander (BENHS)."
+}

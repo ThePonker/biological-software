@@ -78,6 +78,15 @@ class OverviewTab(QWidget):
 
         layout.addWidget(tier_frame)
 
+        # Row 3b: saproxylic indices (backlog E7) -- shown only when listed species occur
+        self.sap_label = QLabel("")
+        self.sap_label.setWordWrap(True)
+        self.sap_label.setStyleSheet(
+            "color: " + TEXT_PRIMARY + "; font-size: 12px; padding: 10px 16px; "
+            "background: " + ACCENT_LIGHT + "; border: 1px solid " + BORDER + "; border-radius: 8px;")
+        self.sap_label.setVisible(False)
+        layout.addWidget(self.sap_label)
+
         # Row 4: Quick habitat snapshot (top 3 biotopes as simple chips)
         self.habitat_snapshot = QLabel("")
         self.habitat_snapshot.setWordWrap(True)
@@ -151,6 +160,27 @@ class OverviewTab(QWidget):
         self.pantheon_label.setText(
             f"{result.species_in_pantheon} species in Pantheon  |  "
             f"{scoring} with SQS scores  |  {visits} visits")
+
+        # Saproxylic SQI and IEC (backlog E7): figures and thresholds side by side, no verdict
+        try:
+            try:
+                from Examen.saproxylic import assess, band_text
+            except ImportError:  # pragma: no cover
+                from saproxylic import assess, band_text
+            sap = assess(getattr(detail, "species_list", None) or [])
+            if sap.n_scored:
+                self.sap_label.setText(
+                    f"<b>Saproxylic SQI {sap.sqi:g}</b> from {sap.n_scored} listed species"
+                    + ("" if sap.reliable else
+                       f" <span style='color:{RED_STATUS}'>▲ fewer than {sap.min_species}</span>")
+                    + f" &nbsp;|&nbsp; <b>IEC {sap.iec}</b> from {sap.n_iec} species"
+                    + f"<br><span style='color:{TEXT_SECONDARY}'>{band_text(sap)}</span>")
+                self.sap_label.setVisible(True)
+            else:
+                self.sap_label.setVisible(False)
+        except Exception as e:  # never let the extra figure break the Overview
+            print(f"[Examen] saproxylic indices: {e}")
+            self.sap_label.setVisible(False)
 
         # Habitat snapshot — top biotopes only
         if result.biotope_counts:
