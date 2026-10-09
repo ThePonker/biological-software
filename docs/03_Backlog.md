@@ -1,6 +1,6 @@
 # Backlog
 
-## Updated 8 October 2026
+## Updated 9 October 2026
 ## Check this before starting a session.
 
 ---
@@ -9,6 +9,7 @@
 
 | | Item | Size |
 |---|---|---|
+| 0 | **I7b** — scheme + specimen import repairs. Fully planned in `41_Groundwork_Notes_20261009.md` Part 1 (~2.5 days); run its read-only measurement queries first. Then E7 (Part 2), photos/geo (Part 3) | ~2.5 days |
 | 1 | **F11** — email Chris Raper (c.raper@nhm.ac.uk): the 24 British beetles the July 2025 UKSI flags redundant, and any copy newer than July 2025 | 10 min |
 | 2 | **F14** — remaining (search and Lector only): build fix for the 366 CONFLICT carried synonyms; exclusions for NAMES errors (*Lamia*); add to the F11 email. Bridge part done 8 Oct | ~0.5 day |
 | 3 | **G13** — your own accounts for the five survey key species with none: *Oligota apicata*, *Xysticus luctuosus*, *Liocyrtusa minuta*, *Chiasmia clathrata*, *Zophomyia temula* | ~1 hr |
@@ -176,7 +177,7 @@ maintainability gain available; pays off most at the next UKSI release.
 **D1. Reconfigure the offline server.** Unscoped; documentation lost. The proper
 answer to single-machine risk.
 
-**D2. External drive copy** — ✅ **DONE** (26 September). `D:\BiologicalSoftware_Offsite`,
+**D2. External drive copy** — ✅ **DONE** (26 September; last refreshed 9 October, 0 failed). `D:\BiologicalSoftware_Offsite`,
 3.8 GB, verified by `integrity_check` on the copy. **Refresh after any session
 that changes data** — re-run the two `robocopy /MIR` lines in `01_Architecture.md`
 §7; only changes copy.
@@ -214,6 +215,19 @@ default for UKSI, Codex and Pantheon.
 8 Oct. The script now maps each old TVK through `build_codex_db._tvk_translator`
 (tvk_remap, then name_map — imported, not copied) and lists a species whose current
 TVK already holds a status under "MOVED", not under "RESTORE".
+
+**D11. Tidy iRecord's double submissions — LATER (Wil, 9 Oct).** ~1 hr in iRecord.
+iRecord holds 635 sightings twice (an app sample sent twice: same external key and
+content, two iRecord numbers) -- the root cause of F38 and of 35 of the 283 copies in
+F39. The sync now copes, but the doubles still sit in iRecord and in every iRecord
+download. List: `scripts/_oneoff/irecord_duplicate_submissions_20261008.csv`; delete the
+second number of each pair in iRecord.
+
+**D12. Next iRecord sync — check it (no hurry; Wil may add few records over winter).**
+Restart Observatum first, sync, then `scripts/_oneoff/check_irecord_sync_20261009.py`.
+Expect no added copies, the 36 key-only records given their iRecord ID, twins 0 apart
+from the known pair. Then retire `observatum_pre_sync_20261009.db` (backups folder) to
+`_archive`.
 
 **D8. Laptop / second-machine access.** Unscoped. **SQLite over a syncing folder
 from two machines risks corruption.** Options: strict one-at-a-time; export a job
@@ -427,7 +441,7 @@ A new Welsh S7 spreadsheet (Mar/May 2026) exists — download it to compare with
 the NAMES-by-key bridge (8 Oct) fixed *Nomada panzeri* and 17 other same-name cases.
 Keep only if another split turns up with no bridge.
 
-**F8. NECR702 licence.** Checked 8 Oct: OGL v3.0, © Natural England 2026, author
+**F8. NECR702 licence.** ✅ Confirmed set 9 Oct (dry run: "Already set"). Checked 8 Oct: OGL v3.0, © Natural England 2026, author
 Steve A. Lane. `import_status_review.py --licence-only --licence "Open Government
 Licence v3.0"` sets it (command in `39_Research_Notes.md` §3) — **to run, apps closed.**
 New imports take `--licence` directly.
