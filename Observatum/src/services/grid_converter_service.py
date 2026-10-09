@@ -22,12 +22,11 @@ Prerequisites:
 from typing import Optional, Tuple
 import re
 
-try:
-    from OSGridConverter import grid2latlong, latlong2grid
-    HAS_OSGRID = True
-except ImportError:
-    HAS_OSGRID = False
-    print("[GridConverterService] WARNING: OSGridConverter not installed. Run: pip install OSGridConverter")
+# 9 Oct 2026 (I3c): conversions now go through shared.osgb (OS Helmert, within 5 m on
+# the OS test points). OSGridConverter's grid -> lat/long put map squares up to 1.4 km
+# out away from 2 deg W (about 200 m in Kent); it is no longer used.
+from shared import osgb as _osgb
+HAS_OSGRID = True
 
 
 class GridConverterService:
@@ -107,8 +106,10 @@ class GridConverterService:
             return None, None
         
         try:
-            result = grid2latlong(normalized)
-            return round(result.latitude, 6), round(result.longitude, 6)
+            # The point the ref names: its south-west corner (callers pass full
+            # 10-figure refs for square corners, so this is exact to 1 m)
+            lat, lon = _osgb.gridref_to_wgs84(normalized, at="corner")
+            return lat, lon
         except Exception as e:
             print(f"[GridConverterService] Error converting {grid_ref}: {e}")
             return None, None
@@ -133,11 +134,8 @@ class GridConverterService:
             return None
         
         try:
-            result = latlong2grid(latitude, longitude)
-            grid_str = str(result)
-            
-            # OSGridConverter returns with spaces, remove them
-            grid_str = grid_str.replace(' ', '')
+            e, n = _osgb.wgs84_to_osgb_en(latitude, longitude)
+            grid_str = _osgb.en_to_gridref(e, n, 10) or ""
             
             # Format is "XX12345678" - 2 letters + digits
             letters = grid_str[:2]

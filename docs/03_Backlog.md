@@ -279,7 +279,7 @@ by Data Entry. Standard practice — the 2025 Bicester report gives seven
 compartments with their own counts and a stated 5% threshold, which is a worked
 specification.
 
-**E7. Saproxylic SQI + IEC.** ~3 days. **Neither exists in the software**, and the
+**E7. Saproxylic SQI + IEC.** ✅ **Done 9 Oct** -- `Examen/saproxylic.py`, list `Examen/reference/saproxylic_scores.csv` (Wil's compiled list, 605 scored, IEC from Alexander's BENHS revision; synonym links checked online, 4 doubtful left out), thresholds in `saproxylic_config.json` (Alexander 300; Fowles 500/590; IEC 15/25/80, side by side). Overview line, workbook sheet, Word/PDF section. Used for Slade Green. *Original note:* neither existed in the software, and the
 Kent Deadwood report uses both.
 
 The SQI list is **598 species**, not 605 — *"excluding Pseudovadonia livida

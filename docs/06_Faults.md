@@ -142,6 +142,15 @@ VC boundaries for references finer than 1 km in boundary squares; flag a square 
 straddles the boundary instead of choosing silently.
 
 ### F30. Imported records' latitude/longitude ~110 m off
+**Fixed 9 Oct 2026.** One converter, `shared/osgb.py` (OS Helmert; within 5 m of all 40 OS
+test points, median ~2 m), used by the import wizard, Data Entry's maps and the Mapping
+tab. A grid ref's point is the CENTRE of its square (iRecord uses the same: 14,688 of its
+records match). `_oneoff/fix_latlong_20261009.py` moved the 3,334 no-shift records (3,332
+commercial + 2 iRecord) to the centre with the shift, 107-130 m; backup `pre-latlong-fix`.
+**Correction to the text below:** `grid_converter_service` (OSGridConverter) is *not* sound
+-- its grid -> lat/long is up to 1.4 km out away from 2 deg W (~200 m in Kent), and the
+Mapping tab drew squares with it; now routed through `shared/osgb.py`. Still open: 1,301
+records have a grid ref but no lat/long (Data Entry commits don't set it).
 *Found 8 October 2026 by the I3 test.* The import wizard's `_osgb36_to_wgs84` (and
 `DataEntry/osgb.lonlat_to_en`, its inverse) omit the OSGB36 → WGS84 datum shift: the
 result is OSGB36 latitude/longitude labelled WGS84. Measured against pyproj on all

@@ -1066,9 +1066,13 @@ class ObservationValidationWorker(QThread):
                         parsed = self._vc_service.parse_grid_ref(row["grid_ref"])
                         if parsed:
                             easting, northing, precision = parsed
-                            lat, lon = _osgb36_to_wgs84(easting, northing)
+                            # Centre of the square, with the OSGB36 -> WGS84 shift (9 Oct
+                            # 2026, F30). _osgb36_to_wgs84 used the corner and no shift.
+                            from shared.osgb import gridref_to_wgs84
+                            lat, lon = gridref_to_wgs84(row["grid_ref"])
                             df.at[idx, "latitude"] = lat
                             df.at[idx, "longitude"] = lon
+                            df.at[idx, "geodetic_datum"] = "WGS84"
                             if not row.get("grid_precision"):
                                 df.at[idx, "grid_precision"] = precision
                 except Exception:
