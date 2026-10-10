@@ -251,6 +251,35 @@ Record each review's licence; OGL accounts are quoted in reports, others are
 internal reference. Codex Manager's Import Review tab writes the old way -- **do
 not use it** (backlog F9).
 
+### BRC provisional atlases (species accounts only)
+
+The Biological Records Centre's provisional atlases (NORA, 1970s–2003) and two
+later scheme atlases (soldierflies 2018; Cox's seed and leaf beetles 2007, Word
+supplement) are loaded as **accounts-only reviews**: `tracks_assessed` =
+`accounts`, an empty `statuses.csv`, nothing written to `status_summary`.
+Folders: `data\reviews\<group>_brc_atlas_<year>\` (also `_ite_`, `_cox_`, `_bsbi_`).
+
+- **Text is re-read from the page images** (tesseract, 400 dpi, black and
+  white); the PDFs' own scanned text is too broken to use. Each account is
+  compared with that scanned text as a second reading.
+- **Scanning slips are corrected only where both readings agree**, or where an
+  italic Latin slip ("Popiilts spp.") leads to exactly one UKSI name. Anything
+  else is left as printed. `extracted\extraction_check.csv` lists every name
+  match, every correction and every unconfirmed word, per account.
+- **Names** resolve as for reviews (TVK, name, synonym), plus near-misses within
+  the atlas's family/order; a synonym of an aggregate goes to the species it is
+  named after (species wins). Two printed names that are now one species are
+  kept as one account, each part headed "[As printed: …]".
+- **Licence:** NERC copyright, free for personal research with citation;
+  recorded as internal reference, so the Examen workbook cites the atlas rather
+  than quoting it. Observatum shows the text in full.
+- **Order:** accounts show newest first, so an atlas account sits under any
+  later review's account for the same species.
+- Load: `py -3.14 scripts\load_atlases.py` (dry run), then `--apply` -- one
+  backup, then `load_review.py` on each atlas not yet in Codex.
+- Extraction scripts: `scripts\_oneoff\atlas_extraction\` (need tesseract;
+  run in Claude's workspace, kept as the record of how the text was made).
+
 ### Keeping every status the newest review's
 
 JNCC's spreadsheet does not enforce it. After any review load or JNCC update run

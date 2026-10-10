@@ -45,6 +45,11 @@ ap.add_argument("--add-accounts", action="store_true",
                 help="add accounts missing from a review already loaded; statuses untouched")
 ap.add_argument("--add-statuses", action="store_true",
                 help="add statuses to a review already loaded (e.g. as accounts only); accounts untouched")
+ap.add_argument("--replace-accounts", action="store_true",
+                help="accounts-only review already loaded: replace all its accounts with accounts.csv "
+                     "(a re-extracted atlas); refused if the review wrote any status")
+ap.add_argument("--backup-done", metavar="PATH",
+                help="a codex.db backup already taken for this batch (load_atlases.py); not repeated")
 a = ap.parse_args()
 
 ex = os.path.join(a.folder, "extracted")
@@ -66,7 +71,17 @@ uksi = sqlite3.connect(f"file:{paths.UKSI_DB}?mode=ro", uri=True)
 codex = sqlite3.connect(str(paths.CODEX_DB))
 c = codex.cursor()
 existing = c.execute("SELECT id FROM reviews WHERE review_name=?", (review["review_name"],)).fetchone()
-if a.add_accounts:
+if a.replace_accounts:
+    if not existing:
+        sys.exit(f"\n  x --replace-accounts: no review named {review['review_name']!r} -- nothing written")
+    if c.execute("SELECT 1 FROM manual_entries WHERE review_id=?", (existing[0],)).fetchone():
+        sys.exit(f"\n  x --replace-accounts: review #{existing[0]} wrote statuses -- not an accounts-only "
+                 "review; nothing written")
+    held = c.execute("SELECT COUNT(1) FROM species_profiles WHERE review_id=?", (existing[0],)).fetchone()[0]
+    print(f"  replacing the {held} accounts of review #{existing[0]}; no statuses involved")
+    a.add_accounts = True                        # same path as adding, with nothing treated as held
+    have = set()
+elif a.add_accounts:
     if not existing:
         sys.exit(f"\n  x --add-accounts: no review named {review['review_name']!r} -- nothing written")
     have = {t for (t,) in c.execute("SELECT tvk FROM species_profiles WHERE review_id=?", (existing[0],))}
@@ -211,7 +226,10 @@ if not a.apply:
     print("\n  DRY RUN -- nothing has been changed. Re-run with --apply to write.\n")
     sys.exit(0)
 
-print(f"\n  backup: {backup(paths.CODEX_DB, 'codex')}")
+if a.backup_done and os.path.exists(a.backup_done):
+    print(f"\n  backup: {a.backup_done} (taken once for this batch)")
+else:
+    print(f"\n  backup: {backup(paths.CODEX_DB, 'codex')}")
 try:
     if a.add_statuses or a.add_accounts:
         rid = existing[0]
@@ -231,6 +249,9 @@ try:
                          VALUES (?,?,?,?,NULL,?,?,?,?,?)""",
                       (p["tvk"], p["name"], tr, v, source, date, "review-load", p["note"] or None, rid))
             apply_status(c, p["tvk"], tr, v, None, source, date)
+    if a.replace_accounts:
+        c.execute("DELETE FROM species_profiles WHERE review_id=?", (rid,))
+        c.execute("UPDATE reviews SET species_count=? WHERE id=?", (len(acc_plan), rid))
     for tvk, name, text in acc_plan:
         c.execute("DELETE FROM species_profiles WHERE tvk=? AND review_id=?", (tvk, rid))
         c.execute("""INSERT INTO species_profiles (tvk, review_id, species_name, profile_text, source,
