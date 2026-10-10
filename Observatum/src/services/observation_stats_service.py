@@ -686,12 +686,17 @@ class ObservationStatsService:
             # =============================================
             # ORDER CURVE DATA (per taxon_group accumulation)
             # =============================================
+            # The group is the stored label, else ours from order/family (shared/taxon_groups.py,
+            # 10 Oct 2026): records with a blank taxon_group -- every Data Entry commit until 9
+            # Oct -- were left out, so Commercial Beetles read 552 against Coleoptera 651.
+            from shared.taxon_groups import group_sql
+            grp = group_sql()
             curve_query = f"""
-                SELECT taxon_group, species_name,
+                SELECT {grp} AS taxon_group, species_name,
                        CAST(SUBSTR(MIN(date), 1, 4) AS INTEGER) as first_year,
                        record_type
                 FROM observations
-                WHERE taxon_group IS NOT NULL AND taxon_group != ''
+                WHERE {grp} IS NOT NULL
                 AND species_tvk IS NOT NULL
                 AND date IS NOT NULL AND date != ''
                 {exclusion}

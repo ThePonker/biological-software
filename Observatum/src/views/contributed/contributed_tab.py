@@ -20,6 +20,7 @@ from ...repositories.contributed_repository import (
     COLUMNS, fetch_records, has_table, list_groups, open_ro,
 )
 from ...themes import theme
+from ..components.filter_debounce import debounce_text
 from ..components.filter_styles import get_input_style
 
 ACCENT, ACCENT_LIGHT = TabColors.OBSERVATION, TabColors.OBSERVATION_LIGHT
@@ -57,7 +58,7 @@ class ContributedTab(QWidget):
         self.search_edit.setClearButtonEnabled(True)
         self.search_edit.setFixedWidth(320)
         self.search_edit.setStyleSheet(get_input_style())
-        self.search_edit.textChanged.connect(self._load_records)
+        debounce_text(self.search_edit, self._load_records)   # once typing pauses
         bl.addWidget(self.search_edit)
         note = QLabel("Read only - records other people sent you. Not in stats, maps or iRecord.")
         note.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {t.font_size('sm')}; "

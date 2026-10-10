@@ -1,6 +1,6 @@
 # Faults
 
-## Updated 9 October 2026
+## Updated 10 October 2026
 ## Open faults carry an action. Closed ones are kept in brief, because knowing
 ## what has already gone wrong is how the rules in `05` were earned.
 
@@ -12,6 +12,15 @@
 The Data Entry build and four months of work sit on `main` only. The branching
 discipline exists precisely so `stable` can be the field-season tool.
 **Action:** merge once the staging jobs are committed and proven — backlog D3.
+
+### F45. Records and species counted differently from screen to screen (OBS-18)
+Home showed 24,962 records while Observation Data showed 24,824: Observation Data
+hides 138 rows by the "exclude incomplete species" setting (genus-only, agg., s.l.),
+and Home, Mapping, Species lookup and achievements ignore it. The Recording Scheme
+has its own five chips, honoured only on its tab and dashboard. The setting also
+misses "Genus sp." (it tests for a space), family-only names, hybrids and subspecies.
+**Action:** backlog A (spec in `claude/38`): one counting rule per data source,
+applied everywhere, tables dimming rather than hiding.
 
 ### F22. The July 2025 UKSI flags 24 British beetles redundant
 No current replacement for *Nialus varians*, *Trichonotulus scrofa*, *Subrinus
@@ -26,10 +35,11 @@ accepted combination. **Action:** raise with Chris Raper -- backlog F11.
 TVKs on 42 observations; one review account (*Tetartopeus ciceronii*) unloadable.
 No survey figure affected now. **Action:** a newer UKSI -- backlog F11, F13.
 
-### F24. Reference databases opened read-write
-97 connections, 13 read-only. Nothing in the code stops a view writing to Codex
+### F24. Reference databases opened read-write — FIXED 9 Oct
+97 connections, 13 read-only. Nothing in the code stopped a view writing to Codex
 or UKSI; the Examen manual-entry route (closed below) is where that broke.
-**Action:** backlog D9.
+**Fixed 9 Oct (backlog D9):** every app connection to UKSI, Codex, Pantheon and the
+VC lookup goes through `shared/db_open.connect_ro()`; a stray write fails.
 
 ### F25. `uksi.synonyms` maps other species' old names to the wrong taxon — FIXED 9 Oct
 **Fixed 9 Oct 2026, 16:28:** `scripts/fix_uksi_synonyms.py` (backlog F14) removed 403 rows
@@ -405,6 +415,27 @@ normalises; the data does not. **Action:** backlog A7.
 ---
 
 ## Closed — the ones worth remembering
+
+### F44. Multi-part vice-counties drawn from one ring -- FIXED 10 Oct
+`convert_vc_shapefile.py` wrote each multi-part VC as one polygon whose extra
+parts became "holes", and the loader kept only the first ring: 40 of 112 VCs
+(every one with islands or detached parts) drew partly or wrongly -- VC1 West
+Cornwall showed as a triangle in the new County view. The loader now rebuilds the
+parts and the converter writes MultiPolygons. `scripts/check_vc_outlines.py`
+compares every VC's drawn area and extent with the shapefile: 0 of 112 wrong on the
+test copy; on the PC 1 (VC45: The Smalls stored as a 2-3 point ring in the older
+2 MB geojson and dropped -- rebuild that file, backlog L34).
+
+### Filter boxes reloaded on every keystroke -- FIXED 10 Oct
+Typing in a filter bar reloaded the table per character, Clear All and saved
+filters reloaded several times, and the scheme loader copied every row to an
+unused signal. Now: 350 ms debounce, one reload, no copy; county firsts 2.07 s ->
+0.019 s with `idx_scheme_tvk_vc_date` (`scripts/add_filter_indexes.py`).
+
+### Toolbar "Clear Filters" did not clear on Recording Scheme or Collection -- FIXED 10 Oct
+On the Scheme it cleared only the bar (the wizard stayed on); on the Collection it
+did nothing. Both now clear bar + wizard + saved choice in one reload; the toolbar
+button is hidden and the bar's Clear All (beside Species) is the one button.
 
 ### F36. Commercial Data Entry jobs could be committed with no project
 *Found 8 October 2026 (Commercial Reports' new drill-in).* The New job dialog checked

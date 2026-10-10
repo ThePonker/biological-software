@@ -206,6 +206,21 @@ class StatsReportsTab(QWidget):
         """Refresh all dashboards."""
         self._refresh_current_dashboard()
 
+    def mark_stale(self):
+        """Records changed elsewhere: the next visit to each dashboard re-reads.
+
+        Personal / Commercial / All load once and then skip refresh() (the
+        _dashboard_refreshed guard), so after a delete, edit, commit or drawer save
+        they kept the old figures until restart (review OBS-10). The caller
+        invalidates the stats services; this clears the guards and refreshes the
+        dashboard on screen.
+        """
+        for d in (self.personal_dashboard, self.commercial_stats_dashboard,
+                  self.all_stats_dashboard):
+            d._dashboard_refreshed = False
+        if self.isVisible():
+            self._refresh_current_dashboard()
+
     def _on_scheme_species_selected(self, species_name: str):
         """Forward species selection from scheme dashboard to main window."""
         self.navigate_to_scheme.emit(species_name)

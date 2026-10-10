@@ -8,7 +8,6 @@ different validation rules and column mappings for each.
 import os
 import sys
 from dataclasses import dataclass, field
-from datetime import datetime
 from enum import Enum
 import paths  # noqa: F401  (sets up the suite paths)
 from pathlib import Path
@@ -137,7 +136,7 @@ NBN_ATLAS_COLUMNS = {
     'basisOfRecord', 'occurrenceStatus', 'occurrenceRemarks', 'vitality',
     'individualCount', 'organismQuantity', 'organismQuantityType',
     'sex', 'lifeStage', 'behavior', 'preparations',
-    'datasetID', 'datasetName', 'institutionCode',
+    'datasetID', 'datasetName', 'institutionCode', 'recordedBy',
     'dcterms:license', 'dcterms:rightsHolder',
     # Human-readable format (alternative NBN Atlas format)
     'NBN Atlas record ID', 'Occurrence ID', 'Licence', 'rightsHolder',
@@ -461,10 +460,8 @@ class SchemeValidationWorker(QThread):
             "genus": raw.get('Genus', '').strip(),
             "taxon_author": raw.get('Species authority', '').strip() or raw.get('Taxon author', '').strip(),
             "taxon_rank": raw.get('Rank', '').strip(),
-            # Date
-            "date": self._parse_irecord_date(raw),
-            "date_type": raw.get('Date type', 'D').strip() or 'D',
-            "_date_note": self._last_date_note,
+            # Date (the file's own date type when it gives one: iRecord's codes are ours)
+            **self._irecord_date_fields(raw),
             # Location
             "grid_ref": grid_ref.upper().replace(" ", "") if grid_ref else "",
             "site_name": raw.get('Site name', '').strip(),
@@ -482,8 +479,8 @@ class SchemeValidationWorker(QThread):
             # Occurrence
             "sex": raw.get('Sex', '').strip(),
             "stage": raw.get('Stage', '').strip(),
-            "quantity": self._parse_count(raw.get('Count of sex or stage', ''))[0] or 1,
-            "organism_quantity": self._parse_count(raw.get('Count of sex or stage', ''))[1] or "",
+            "quantity": self._quantity(raw.get('Count of sex or stage', ''))[0],
+            "organism_quantity": self._quantity(raw.get('Count of sex or stage', ''))[1] or "",
             "zero_abundance": 1 if raw.get('Zero abundance', '').upper() == 'TRUE' else 0,
             "method": raw.get('Sample method', '').strip(),
             "sensitive": 1 if raw.get('Sensitive', '').upper() == 'TRUE' else 0,
@@ -525,22 +522,23 @@ class SchemeValidationWorker(QThread):
         """Extract data from NBN Atlas format (supports Darwin Core and human-readable columns)."""
         g = lambda *keys: self._get_nbn_value(raw, *keys)
         
-        # Parse date - try multiple column names, fall back to year
+        # Date: eventDate (with eventDateEnd, a range), else year / month / day. A year or a
+        # range is stored with its date type (Y, DD ...), not as an exact day (IMP-12)
         date_str = g('eventDate', 'Event Date', 'verbatimEventDate')
-        if not date_str:
-            date_str = g('year')
-        if date_str:
-            parsed_date = self._parse_date(date_str)
-            _date_note = self._last_date_note
-        else:
-            parsed_date = ''
-            _date_note = ''
-        
+        end_str = g('eventDateEnd', 'Event Date End')
+        if date_str and end_str and end_str != date_str:
+            date_str = f"{date_str}/{end_str}"
+        if not date_str and g('year'):
+            date_str = "-".join(x.zfill(2) for x in (g('year'), g('month'), g('day')) if x)
+            if g('day') and not g('month'):
+                date_str = g('year')
+        date_fields = self._date_fields(date_str)
+
         return {
             "row_idx": idx,
             "row_number": row_num,
             "source_type": "NBN Atlas",
-            "_date_note": _date_note,
+            **date_fields,
             "source": g('datasetName', 'Data provider', 'Dataset name') or 'NBN Atlas',
             # IDs
             "nbn_atlas_id": g('recordID', 'NBN Atlas record ID'),
@@ -562,9 +560,6 @@ class SchemeValidationWorker(QThread):
             "order_name": g('order', 'Order'),
             "family": g('family', 'Family'),
             "genus": g('genus', 'Genus'),
-            # Date
-            "date": parsed_date,
-            "date_type": "D",
             # Location
             "grid_ref": g('gridReference', 'Grid reference').upper().replace(" ", ""),
             "site_name": g('locality', 'Locality'),
@@ -579,14 +574,14 @@ class SchemeValidationWorker(QThread):
             "location_id": g('locationID'),
             "georeference_verification_status": g('georeferenceVerificationStatus'),
             # People
-            "recorder": g('Recorder'),  # Darwin Core doesn't have recorder directly
+            "recorder": g('recordedBy', 'Recorder'),     # Darwin Core recordedBy (IMP-12: was dropped)
             "determiner": g('identifiedBy', 'Determiner'),
             # Occurrence
             "sex": g('sex', 'Sex'),
             "stage": g('lifeStage', 'Life stage'),
-            "quantity": (self._parse_count(g('individualCount', 'Individual count'))[0]
-                         or self._parse_count(g('organismQuantity'))[0] or 1),
-            "individual_count": self._parse_count(g('individualCount', 'Individual count'))[0],
+            "quantity": self._quantity(g('individualCount', 'Individual count') or g('organismQuantity'))[0],
+            "individual_count": self._quantity(g('individualCount', 'Individual count'))[0]
+                                if g('individualCount', 'Individual count') else None,
             "organism_quantity": g('organismQuantity'),
             "organism_quantity_type": g('organismQuantityType'),
             "occurrence_remarks": g('occurrenceRemarks', 'Occurrence remarks'),
@@ -612,27 +607,20 @@ class SchemeValidationWorker(QThread):
         """Extract data from generic CSV using column mapping."""
         mapping = self.column_mapping
         date_str = raw.get(mapping.get('date', ''), '').strip()
-        if date_str:
-            parsed_date = self._parse_date(date_str)
-            _date_note = self._last_date_note
-        else:
-            parsed_date = ''
-            _date_note = ''
+        qty = raw.get(mapping.get('quantity', ''), '')
 
         return {
             "row_idx": idx,
             "row_number": row_num,
             "source_type": "Generic",
-            "_date_note": _date_note,
             "source": "CSV Import",
             # Species
             "species_name": raw.get(mapping.get('species_name', ''), '').strip(),
             "species_tvk": "",
             "common_name": "",
-            # Date
-            "date": parsed_date,
+            # Date: date, date_type, _date_note, date_error (unreadable, future -- IMP-13)
+            **self._date_fields(date_str),
             "date_raw": date_str,  # Keep original for error messages
-            "date_type": "D",
             # Location
             "grid_ref": raw.get(mapping.get('grid_ref', ''), '').strip().upper().replace(" ", ""),
             "site_name": raw.get(mapping.get('site_name', ''), '').strip(),
@@ -644,8 +632,8 @@ class SchemeValidationWorker(QThread):
             # Occurrence
             "sex": raw.get(mapping.get('sex', ''), '').strip(),
             "stage": raw.get(mapping.get('stage', ''), '').strip(),
-            "quantity": self._parse_count(raw.get(mapping.get('quantity', ''), ''))[0] or 1,
-            "organism_quantity": self._parse_count(raw.get(mapping.get('quantity', ''), ''))[1] or "",
+            "quantity": self._quantity(qty)[0],
+            "organism_quantity": self._quantity(qty)[1] or "",
             "comment": raw.get(mapping.get('comment', ''), '').strip(),
             # For batch processing
             "species_error": "",
@@ -752,51 +740,9 @@ class SchemeValidationWorker(QThread):
         if not needs_lookup:
             return df
 
-        # Batch lookup
-        if hasattr(self._vc_service, "get_vc_batch"):
-            vc_lookup = self._vc_service.get_vc_batch(needs_lookup)
-        else:
-            # Fallback to individual lookups
-            vc_lookup = {}
-            total_grids = len(needs_lookup)
-            for _gi, grid in enumerate(needs_lookup):
-                if self._cancelled:
-                    break
-                if _gi % 200 == 0 and total_grids > 0:
-                    _pct = 0.30 + (_gi / total_grids) * 0.20
-                    self.progress.emit(int(len(self.rows) * _pct), len(self.rows))
-                try:
-                    is_valid, msg = self._vc_service.validate_grid_ref(grid)
-                    if is_valid:
-                        result = self._vc_service.get_vc_from_grid_ref(grid)
-                        if result:
-                            vc_lookup[grid] = {
-                                "vc_number": result[0],
-                                "vc_name": result[1],
-                                "warning": "",
-                                "error": ""
-                            }
-                        else:
-                            vc_lookup[grid] = {
-                                "vc_number": None,
-                                "vc_name": "",
-                                "warning": "Could not determine Vice County",
-                                "error": ""
-                            }
-                    else:
-                        vc_lookup[grid] = {
-                            "vc_number": None,
-                            "vc_name": "",
-                            "warning": "",
-                            "error": f"Invalid grid reference: {msg}"
-                        }
-                except Exception as e:
-                    vc_lookup[grid] = {
-                        "vc_number": None,
-                        "vc_name": "",
-                        "warning": "",
-                        "error": f"VC lookup error: {str(e)}"
-                    }
+        # Batch lookup -- 2 km tetrads (SP46Q) included (IMP-13, 10 Oct 2026)
+        from shared.import_core import vc_for_grid_refs
+        vc_lookup = vc_for_grid_refs(self._vc_service, needs_lookup)
 
         # Apply VC lookup results to DataFrame
         def apply_vc(row):
@@ -999,8 +945,8 @@ class SchemeValidationWorker(QThread):
             validated_row.recorder_certainty = row_data.get("recorder_certainty", "")
 
             # Date
-            validated_row.date = row_data.get("date", "")
-            validated_row.date_type = row_data.get("date_type", "D")
+            validated_row.date = _safe_str(row_data, "date")
+            validated_row.date_type = _safe_str(row_data, "date_type") or "D"
 
             # Location
             validated_row.grid_ref = row_data.get("grid_ref", "")
@@ -1039,7 +985,8 @@ class SchemeValidationWorker(QThread):
             # Occurrence
             validated_row.sex = row_data.get("sex", "")
             validated_row.stage = row_data.get("stage", "")
-            validated_row.quantity = row_data.get("quantity", 1) or 1
+            q = _safe_int(row_data, "quantity")
+            validated_row.quantity = 1 if q is None else q          # a count of 0 stays 0 (IMP-12)
             validated_row.individual_count = _safe_int(row_data, "individual_count")
             validated_row.organism_quantity = row_data.get("organism_quantity", "")
             validated_row.organism_quantity_type = row_data.get("organism_quantity_type", "")
@@ -1080,7 +1027,7 @@ class SchemeValidationWorker(QThread):
                 if warning:
                     notes = warning
             validated_row.import_notes = notes
-            date_note = row_data.get("_date_note", "")
+            date_note = _safe_str(row_data, "_date_note")
             if date_note:
                 if validated_row.import_notes:
                     validated_row.import_notes += f"; {date_note}"
@@ -1098,12 +1045,19 @@ class SchemeValidationWorker(QThread):
                 errors.append(row_data["vc_error"])
             if row_data.get("dup_error"):
                 errors.append(row_data["dup_error"])
+            # An unreadable or future date is an error in every mode (IMP-13): it used to be
+            # saved blank (NaN read as a date) or as given
+            date_error = _safe_str(row_data, "date_error")
+            if date_error:
+                errors.append(date_error)
 
             # Collect warnings from batch processing
             if row_data.get("species_warning"):
                 warnings.append(row_data["species_warning"])
             if row_data.get("vc_warning"):
                 warnings.append(row_data["vc_warning"])
+            if validated_row.quantity == 0 and not validated_row.zero_abundance:
+                warnings.append("Count of 0 -- imported as a record with quantity 0")
 
             # Filter non-species records (genus-only, subgenus, family-level)
             if validated_row.species_name:
@@ -1122,12 +1076,8 @@ class SchemeValidationWorker(QThread):
                 # Strict validation for generic imports
                 if not validated_row.species_name:
                     errors.append("Species name is required")
-                if not validated_row.date:
-                    date_raw = row_data.get("date_raw", "")
-                    if date_raw:
-                        errors.append(f"Invalid date format: {date_raw}")
-                    else:
-                        errors.append("Date is required")
+                if not validated_row.date and not date_error:
+                    errors.append("Date is required")
                 if not validated_row.grid_ref:
                     errors.append("Grid reference is required")
                 if (validated_row.species_name and not validated_row.species_tvk
@@ -1139,9 +1089,8 @@ class SchemeValidationWorker(QThread):
                     errors.append("Missing species name")
                 if not validated_row.species_tvk and not row_data.get("species_error"):
                     warnings.append("Missing TVK - will attempt UKSI lookup")
-                if not validated_row.date:
-                    if not row_data.get("_date_note"):
-                        warnings.append("Missing date")
+                if not validated_row.date and not date_error:
+                    warnings.append("Missing date")
                 if not validated_row.grid_ref:
                     warnings.append("Missing grid reference")
 
@@ -1181,71 +1130,36 @@ class SchemeValidationWorker(QThread):
 
         return validated_rows
 
-    def _parse_irecord_date(self, raw: dict) -> str:
-        """Parse date from iRecord row, trying multiple columns."""
-        self._last_date_note = ""
+    def _date_fields(self, text: str) -> Dict[str, str]:
+        """date / date_type / _date_note / date_error for one date as written (10 Oct 2026).
+
+        One reader for every mode (shared.import_core.parse_record_date): a year, a month or
+        a range keeps its date type (Y, O, DD ...) instead of becoming an exact day (IMP-12);
+        '6.vi.2021' is read; a date still to come is an error (IMP-13)."""
+        from shared.import_core import parse_record_date
+        p = parse_record_date(text)
+        return {"date": p.date, "date_type": p.date_type or "D", "_date_note": p.note,
+                "date_error": p.error}
+
+    def _irecord_date_fields(self, raw: dict) -> Dict[str, str]:
+        """iRecord: 'Date interpreted', else 'Date from'; iRecord's own 'Date type' is kept."""
+        found = self._date_fields("")
         for col in ('Date interpreted', 'Date from'):
-            val = raw.get(col, '').strip()
+            val = (raw.get(col) or '').strip()
             if val:
-                result = self._parse_date(val)
-                if result:
-                    return result
-        return ''
+                found = self._date_fields(val)
+                if found["date"]:
+                    break
+        file_type = (raw.get('Date type') or '').strip()
+        if found["date"] and file_type:
+            found["date_type"] = file_type
+        return found
 
-    def _parse_date(self, date_str: str) -> Optional[str]:
-        """Parse various date formats to ISO format (YYYY-MM-DD).
-        
-        Handles NBN Atlas date ranges (2024-05-01/2024-05-15) by taking
-        the start date, and vague dates (2024, 2024-05) by padding.
-        Sets self._last_date_note with details of any transformation.
-        """
-        self._last_date_note = ""
-        if not date_str:
-            return None
-
-        date_str = date_str.strip()
-        original = date_str
-
-        # Handle ISO 8601 date ranges: "2024-05-01/2024-05-15" → take start date
-        if '/' in date_str:
-            parts = date_str.split('/')
-            if len(parts) == 2 and len(parts[0]) >= 4 and parts[0][0].isdigit():
-                date_str = parts[0].strip()
-                self._last_date_note = f"Date interpreted: '{original}' -> {date_str}"
-
-        # Handle vague dates: year only or year-month
-        import re
-        if re.match(r'^\d{4}$', date_str):
-            self._last_date_note = f"Date interpreted: '{original}' -> {date_str}-01-01"
-            return f"{date_str}-01-01"
-        if re.match(r'^\d{4}-\d{2}$', date_str):
-            self._last_date_note = f"Date interpreted: '{original}' -> {date_str}-01"
-            return f"{date_str}-01"
-
-        formats = [
-            "%d/%m/%Y",
-            "%d-%m-%Y",
-            "%Y-%m-%d",
-            "%d/%m/%y",
-            "%d-%m-%y",
-            "%Y/%m/%d",
-            "%d %b %Y",
-            "%d %B %Y",
-        ]
-
-        for fmt in formats:
-            try:
-                dt = datetime.strptime(date_str, fmt)
-                return dt.strftime("%Y-%m-%d")
-            except ValueError:
-                continue
-
-        return None
-
-    def _parse_count(self, value):
-        """(number, original text) -- 'c.20' is 20, not 1, and the text is kept (9 Oct 2026)."""
-        from shared.import_core import parse_quantity
-        return parse_quantity(value)
+    def _quantity(self, value):
+        """(number, original text): 'c.20' is 20 and the text is kept (9 Oct); a count of 0
+        stays 0 and no count at all is 1 (IMP-12, 10 Oct 2026)."""
+        from shared.import_core import quantity_or_default
+        return quantity_or_default(value)
 
     def _parse_int(self, value: str) -> Optional[int]:
         """Safely parse string to int."""

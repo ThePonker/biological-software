@@ -32,7 +32,10 @@ def _ddmmyyyy(s):
 class SpeciesAccountsPanel(QFrame):
     edit_requested = Signal()
 
-    def __init__(self, tvk, species_name, accent, accent_light, accent_dark, parent=None):
+    def __init__(self, tvk, species_name, accent, accent_light, accent_dark, parent=None,
+                 scroll=True):
+        """scroll=False lays the accounts out at full height, for hosts that already
+        scroll (the Stats/Reports species lookup)."""
         super().__init__(parent)
         self._tvk = (tvk or "").strip() or None
         self._name = (species_name or "").strip() or None
@@ -62,16 +65,19 @@ class SpeciesAccountsPanel(QFrame):
         head.addWidget(self._btn)
         outer.addLayout(head)
 
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._body = QWidget()
         self._body_layout = QVBoxLayout(self._body)
         self._body_layout.setContentsMargins(0, 0, 4, 0)
         self._body_layout.setSpacing(8)
-        scroll.setWidget(self._body)
-        outer.addWidget(scroll, 1)
+        if scroll:
+            area = QScrollArea()
+            area.setWidgetResizable(True)
+            area.setFrameShape(QFrame.Shape.NoFrame)
+            area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            area.setWidget(self._body)
+            outer.addWidget(area, 1)
+        else:
+            outer.addWidget(self._body)
 
         self.refresh()
 

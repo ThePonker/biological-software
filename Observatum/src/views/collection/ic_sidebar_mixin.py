@@ -88,16 +88,23 @@ class ICSidebarMixin:
             self.data_changed.emit()
 
     def _on_detail_delete_requested(self, specimen: dict):
-        """Handle delete request from detail dialog."""
+        """Handle delete request from detail dialog (already confirmed there).
+
+        observatum.db is backed up first, as every delete is (OBS-04); if that fails
+        nothing is deleted.
+        """
+        from ..components.delete_guard import backup_before_delete
         specimen_id = specimen.get('id')
-        if specimen_id:
-            if self._specimen_repo:
-                self._specimen_repo.delete(specimen_id)
-                self.data_changed.emit()
-            elif self._specimen_model:
-                self._specimen_model.delete_specimen(specimen_id)
-            self._load_data()
-            self.data_changed.emit()
+        if not specimen_id or not backup_before_delete(self, "Delete Specimen"):
+            return
+        if self._specimen_repo:
+            self._specimen_repo.delete(specimen_id)
+        elif self._specimen_model:
+            self._specimen_model.delete_specimen(specimen_id)
+        print(f"[InsectCollectionTab] Deleted specimen id {specimen_id} "
+              f"({specimen.get('species_name')})")
+        self._load_data()
+        self.data_changed.emit()
 
     def _on_profile_requested(self, specimen: dict):
         """Handle profile view/create request from detail dialog."""
@@ -125,10 +132,10 @@ class ICSidebarMixin:
         self.navigate_to_observations.emit(species_name)
 
     def _on_navigate_to_collection(self, species_name: str):
-        """Handle navigation within Collection tab — apply species filter."""
-        self.filters.set_species_filter(species_name)
-        self.toolbar.set_filters_visible(True)
-        self._load_data()
+        """Handle navigation within Collection tab — this species alone (OBS-08)."""
+        self.clear_wizard_filters()
+        self.filters.set_species_filter(species_name)   # applies it: one reload
+        self.toolbar.set_filters_visible(True)          # (a second _load_data here doubled it)
 
     # ── Sidebar init / refresh / toggle ─────────────────────────────
 

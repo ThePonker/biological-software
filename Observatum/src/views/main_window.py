@@ -231,6 +231,13 @@ class MainWindow(QMainWindow):
             self.insect_collection_tab.data_changed.connect(self._mark_data_changed)
         except AttributeError:
             pass
+        # Deletes / edits / Mark Commercial on the data tabs and the scheme dashboard (OBS-10)
+        self.observation_tab.records_changed.connect(self._mark_data_changed)
+        self.recording_scheme_tab.records_changed.connect(self._mark_data_changed)
+        _sd = getattr(self.stats_reports_tab, 'scheme_dashboard', None)
+        if _sd is not None and hasattr(_sd, 'scheme_records_changed'):
+            _sd.scheme_records_changed.connect(self._mark_data_changed)
+            _sd.scheme_records_changed.connect(self._refresh_scheme_tab_if_loaded)
 
     def _get_stats_data_type(self) -> str:
         """Get data type filter based on active stats sub-tab."""
@@ -280,13 +287,10 @@ class MainWindow(QMainWindow):
         """Navigate to the Observation Data tab and filter by species."""
         self.tabs.setCurrentWidget(self.observation_tab)
         if species_filter:
-            # Apply species filter using the new method
-            if hasattr(self.observation_tab, 'filter_bar') and hasattr(self.observation_tab.filter_bar, 'set_species_filter'):
-                self.observation_tab.filter_bar.set_species_filter(species_filter)
-                # Sync toolbar button state
-                if hasattr(self.observation_tab, 'toolbar') and hasattr(self.observation_tab.toolbar, 'set_filters_visible'):
-                    self.observation_tab.toolbar.set_filters_visible(True)
-                self.observation_tab._apply_current_filters()
+            # This species alone -- no filter bar, wizard or pinned-project filter left
+            # over from before (OBS-08: Rutpela showed 0 of its 62 records)
+            if hasattr(self.observation_tab, 'show_species'):
+                self.observation_tab.show_species(species_filter)
             elif hasattr(self.observation_tab, 'filter_by_species'):
                 self.observation_tab.filter_by_species(species_filter)
         else:
@@ -391,6 +395,8 @@ class MainWindow(QMainWindow):
         if family_name:
             if hasattr(self.observation_tab, 'filter_bar'):
                 self.observation_tab.filter_bar.clear_filters()
+            if hasattr(self.observation_tab, 'clear_wizard_filters'):   # OBS-08
+                self.observation_tab.clear_wizard_filters()
             self._apply_data_type_filter()
             if hasattr(self.observation_tab, 'toolbar') and hasattr(self.observation_tab.toolbar, 'set_filters_visible'):
                 self.observation_tab.toolbar.set_filters_visible(True)
@@ -405,6 +411,8 @@ class MainWindow(QMainWindow):
             # First clear any existing filters so only order is active
             if hasattr(self.observation_tab, 'filter_bar'):
                 self.observation_tab.filter_bar.clear_filters()
+            if hasattr(self.observation_tab, 'clear_wizard_filters'):   # OBS-08
+                self.observation_tab.clear_wizard_filters()
             self._apply_data_type_filter()
             # Show the filter bar
             if hasattr(self.observation_tab, 'toolbar') and hasattr(self.observation_tab.toolbar, 'set_filters_visible'):
@@ -454,11 +462,13 @@ class MainWindow(QMainWindow):
         if species_filter:
             # Apply species filter using the new method
             if hasattr(self.insect_collection_tab, 'filters') and hasattr(self.insect_collection_tab.filters, 'set_species_filter'):
+                if hasattr(self.insect_collection_tab, 'clear_wizard_filters'):   # OBS-08
+                    self.insect_collection_tab.clear_wizard_filters()
+                # applies the filter: one reload (a second _load_data here doubled it)
                 self.insect_collection_tab.filters.set_species_filter(species_filter)
                 # Sync toolbar button state
                 if hasattr(self.insect_collection_tab, 'toolbar') and hasattr(self.insect_collection_tab.toolbar, 'set_filters_visible'):
                     self.insect_collection_tab.toolbar.set_filters_visible(True)
-                self.insect_collection_tab._load_data()
             elif hasattr(self.insect_collection_tab, 'filters') and hasattr(self.insect_collection_tab.filters, 'species_edit'):
                 self.insect_collection_tab.filters.species_edit.setText(species_filter)
                 self.insect_collection_tab.filters._emit_filters()
@@ -466,6 +476,8 @@ class MainWindow(QMainWindow):
     def _navigate_to_scheme_tab(self, species_filter: str = ""):
         """Navigate to the Recording Scheme tab and filter by species."""
         self.tabs.setCurrentWidget(self.recording_scheme_tab)
+        if hasattr(self.recording_scheme_tab, 'clear_wizard_filters'):   # OBS-08
+            self.recording_scheme_tab.clear_wizard_filters()
         if species_filter:
             # Use direct filter with exact match for faster query
             filters = {'species': species_filter, 'species_exact': True}
@@ -486,6 +498,8 @@ class MainWindow(QMainWindow):
     def _navigate_to_scheme_tab_with_vc(self, species_filter: str, vc_number: int):
         """Navigate to the Recording Scheme tab and filter by species and vice county."""
         self.tabs.setCurrentWidget(self.recording_scheme_tab)
+        if hasattr(self.recording_scheme_tab, 'clear_wizard_filters'):   # OBS-08
+            self.recording_scheme_tab.clear_wizard_filters()
         # Use direct filter with exact match for faster query
         filters = {'species_exact': True}
         if species_filter:
@@ -837,7 +851,15 @@ class MainWindow(QMainWindow):
                 dialog.navigate_to_collection.connect(
                     lambda sp: (dialog.close(), self._navigate_to_collection_tab(sp))
                 )
+                # Edit / Delete did nothing from the collection dashboard (OBS-04):
+                # hand them to the Insect Collection tab, which owns specimen edits
+                ic = self.insect_collection_tab
+                ic.initialize(self._main_db_path, self._uksi_db_path)   # no-op once loaded
+                ic._current_detail_dialog = dialog
+                dialog.edit_requested.connect(ic._on_detail_edit_requested)
+                dialog.delete_requested.connect(ic._on_detail_delete_requested)
                 dialog.exec()
+                ic._current_detail_dialog = None
         except Exception as e:
             print(f"[MainWindow] Error showing specimen detail: {e}")
 
@@ -1062,6 +1084,10 @@ class MainWindow(QMainWindow):
             from PySide6.QtCore import QTimer
             QTimer.singleShot(100, self._apply_filter_settings_after_show)
             QTimer.singleShot(150, self.showMaximized)
+            # build the shared species-search index (about a second) before the first
+            # keystroke needs it -- in the background, once the window is up
+            from shared.species_search import warm_up
+            QTimer.singleShot(2000, warm_up)
 
     def _apply_filter_settings_after_show(self):
         """Apply filter visibility settings after window is shown."""
@@ -1087,6 +1113,10 @@ class MainWindow(QMainWindow):
             self.insect_collection_tab.filters.setVisible(True)
             self.insect_collection_tab.toolbar.filter_btn.setChecked(True)
 
+    def _refresh_scheme_tab_if_loaded(self):
+        if getattr(self.recording_scheme_tab, '_initialized', False):
+            self.recording_scheme_tab.refresh()
+
     def _mark_data_changed(self, *args):
         """Mark that data was changed during this session and invalidate stats."""
         self._data_changed = True
@@ -1099,6 +1129,16 @@ class MainWindow(QMainWindow):
             get_specimen_stats().invalidate()
         except Exception:
             pass
+        # Figures on screen follow the change (review OBS-10: Stats kept its first
+        # load until restart; Home only refreshed after Quick Entry or an import)
+        try:
+            self.stats_reports_tab.mark_stale()
+        except Exception as e:
+            print(f"[MainWindow] stats refresh after a change failed: {e}")
+        try:
+            self.home_tab.refresh_data()
+        except Exception as e:
+            print(f"[MainWindow] Home refresh after a change failed: {e}")
 
     def closeEvent(self, event):
         """Handle window close with optional CSV backup."""
@@ -1119,9 +1159,12 @@ class MainWindow(QMainWindow):
 
             if backup_enabled and backup_path:
                 from PySide6.QtWidgets import QMessageBox
+                # It asked this even when nothing had changed (review OBS-25)
+                changed = ("Data was changed during this session." if self._data_changed
+                           else "No data was changed in this session.")
                 reply = QMessageBox.question(
                     self, "CSV Safety Backup",
-                    "Data was changed during this session.\n\n"
+                    f"{changed}\n\n"
                     "Would you like to export CSV backups before closing?",
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
                 )
@@ -1233,5 +1276,7 @@ def _claude_wire_obs_refresh(mw):
                     break
         if obs is not None:
             de.committed.connect(obs.refresh)
+        if hasattr(mw, "_mark_data_changed"):
+            de.committed.connect(mw._mark_data_changed)   # Home / Stats follow a commit (OBS-10)
     except Exception:
         pass

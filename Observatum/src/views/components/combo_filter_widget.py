@@ -71,6 +71,10 @@ class ComboFilterWidget(QWidget):
             QLineEdit:focus {{
                 border: 1px solid {self._accent_color};
             }}
+            QLineEdit:disabled {{
+                background-color: {t.get('surface_alt')};
+                color: {t.get('text_muted')};
+            }}
         """)
     
     def _apply_button_style(self):
@@ -93,6 +97,10 @@ class ComboFilterWidget(QWidget):
             QPushButton:pressed {{
                 background-color: {self._accent_color};
                 color: white;
+            }}
+            QPushButton:disabled {{
+                background-color: {t.get('surface_alt')};
+                color: {t.get('text_muted')};
             }}
         """)
     
@@ -224,6 +232,15 @@ class ComboFilterWidget(QWidget):
             return self._items[self._current_index][1]
         return None
     
+    def set_unavailable(self, reason: str = ""):
+        """Grey the filter out and say why (reason ""): enable it again. A disabled
+        widget looked exactly like an enabled one -- the styles had no :disabled rule
+        (Wil 10 Oct: scheme Subfamily showed "All" as if active)."""
+        self.setEnabled(not reason)
+        self.setToolTip(reason)
+        self.display.setToolTip(reason)
+        self.dropdown_btn.setToolTip(reason or "Select option")
+
     def setAccentColor(self, color: str):
         """Update the accent color and refresh styles."""
         self._accent_color = color

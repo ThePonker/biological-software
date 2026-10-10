@@ -335,7 +335,9 @@ class ProjectForm(QWidget):
             months.append({"month": cal_month, "field_days": v})
         return months
     def _on_save(self):
+        from PySide6.QtWidgets import QMessageBox
         if not self.name_edit.text().strip():
+            QMessageBox.warning(self, "Munia", "Give the project a name before saving.")
             return
         self._save_current_alloc()
         data = {
@@ -346,11 +348,22 @@ class ProjectForm(QWidget):
             "status": self.status_combo.currentData(),
             "quote_value": self.quote_spin.value(),
         }
-        if self._editing_id:
-            db.update_project(self._conn, self._editing_id, data)
-            pid = self._editing_id
-        else:
-            pid = db.add_project(self._conn, data)
+        if data["end_year"] < data["start_year"]:
+            QMessageBox.warning(self, "Munia", "The end year is before the start year.")
+            return
+        try:
+            if self._editing_id:
+                db.update_project(self._conn, self._editing_id, data)
+                pid = self._editing_id
+            else:
+                pid = db.add_project(self._conn, data)
+        except Exception as e:  # noqa: BLE001 -- MUN-3: a duplicate name (or any failure) is said
+            try:
+                self._conn.rollback()
+            except Exception:  # noqa: BLE001
+                pass
+            QMessageBox.warning(self, "Project not saved", str(e))
+            return
         for yr, alloc in self._alloc_cache.items():
             db.set_project_field_months(self._conn, pid, yr, alloc["field_months"])
             db.set_project_annual_days(self._conn, pid, yr, {

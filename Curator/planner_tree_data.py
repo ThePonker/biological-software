@@ -6,7 +6,6 @@ for building the tree: Order → Superfamily → Family → Subfamily → Genus 
 """
 
 import json
-import sqlite3
 import sys; sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.parent))
 import paths
 from pathlib import Path
@@ -29,6 +28,9 @@ class TaxonNode:
     my_species_count: int = 0
     children: list = field(default_factory=list)
     in_collection: bool = False
+    # Specimens determined only to this rank (e.g. "Leiopus" sp.): counted here
+    # and in every rank above, never under a species (CUR-2).
+    own_specimen_count: int = 0
 
 
 
@@ -60,11 +62,9 @@ def load_taxonomic_tree(order_name: str, my_specimens_only: bool = True) -> Taxo
     Structure: Order → [Suborder →] Superfamily → Family → Subfamily → Genus → Species
     Suborder nodes inserted when suborder data available (UKSI or JSON).
     """
-    my_fams, my_gen, my_sp, fam_counts, sp_counts = _load_specimen_data(order_name)
+    my_fams, my_gen, my_sp, fam_counts, sp_counts, gen_counts = _load_specimen_data(order_name)
 
     sf_lookup = _load_superfamily_map()
-    uksi_fam_totals, uksi_gen_totals = _load_uksi_total_counts(order_name)
-    uksi_fam_totals, uksi_gen_totals = _load_uksi_total_counts(order_name)
     uksi_fam_totals, uksi_gen_totals = _load_uksi_total_counts(order_name)
     families = _load_uksi_families(order_name)
     subfams_by_fam = _load_uksi_subfamilies(order_name)
@@ -99,7 +99,7 @@ def load_taxonomic_tree(order_name: str, my_specimens_only: bool = True) -> Taxo
                 fam_name, fam_sort, common_names, fam_counts, my_fams,
                 subfams_by_fam, gen_by_fam, gen_to_subfam, sp_by_gen,
                 sp_counts, my_gen, my_sp, my_specimens_only,
-                uksi_fam_totals, uksi_gen_totals)
+                uksi_fam_totals, uksi_gen_totals, gen_counts)
 
             if sf_node is not None:
                 sf_node.children.append(fam_node)
@@ -121,13 +121,25 @@ def load_taxonomic_tree(order_name: str, my_specimens_only: bool = True) -> Taxo
         for _, node in built_nodes:
             root.children.append(node)
 
+    # Every rank carries its counts -- order, suborder and superfamily included,
+    # not only families and below (CUR-2).
+    _aggregate_specimen_counts(root)
+    _set_species_counts(root)
     return root
+
+
+def _set_species_counts(node):
+    """species_count on every rank above species: the species shown under it."""
+    if node.rank == "Species":
+        return 1
+    node.species_count = sum(_set_species_counts(c) for c in node.children)
+    return node.species_count
 
 
 def _build_family_node(fam_name, fam_sort, common_names, fam_counts, my_fams,
                        subfams_by_fam, gen_by_fam, gen_to_subfam, sp_by_gen,
                        sp_counts, my_gen, my_sp, my_only,
-                       uksi_fam_totals=None, uksi_gen_totals=None):
+                       uksi_fam_totals=None, uksi_gen_totals=None, gen_counts=None):
     """Build a single family node with its subfamily/genus/species children."""
     fam_node = TaxonNode(
         name=fam_name, rank="Family", sort_key=fam_sort,
@@ -158,13 +170,13 @@ def _build_family_node(fam_name, fam_sort, common_names, fam_counts, my_fams,
         )
         _add_genera_to_node(subfam_node, sf_genera, sp_by_gen,
                             common_names, sp_counts, my_gen, my_sp, my_only,
-                            uksi_gen_totals)
+                            uksi_gen_totals, gen_counts)
         if subfam_node.children or not my_only:
             fam_node.children.append(subfam_node)
 
     _add_genera_to_node(fam_node, unassigned_genera, sp_by_gen,
                         common_names, sp_counts, my_gen, my_sp, my_only,
-                        uksi_gen_totals)
+                        uksi_gen_totals, gen_counts)
     fam_node.species_count = _count_species(fam_node)
     _aggregate_specimen_counts(fam_node)
     return fam_node
@@ -209,7 +221,7 @@ def _assemble_with_suborders(root, built_nodes, suborder_map):
 
 def _add_genera_to_node(parent_node, genera, sp_by_gen, common_names,
                          sp_counts, my_gen, my_sp, my_only,
-                         uksi_gen_totals=None):
+                         uksi_gen_totals=None, gen_counts=None):
     """Add genus → species nodes under a parent (family or subfamily)."""
     for gen_name, gen_sort in genera:
         if my_only and gen_name not in my_gen:
@@ -218,6 +230,7 @@ def _add_genera_to_node(parent_node, genera, sp_by_gen, common_names,
             name=gen_name, rank="Genus", sort_key=gen_sort,
             uksi_species_count=(uksi_gen_totals or {}).get(gen_name, 0),
             in_collection=gen_name in my_gen,
+            own_specimen_count=(gen_counts or {}).get(gen_name, 0),
         )
         species = sp_by_gen.get(gen_name, [])
         for sp_name, sp_sort in species:
@@ -229,7 +242,7 @@ def _add_genera_to_node(parent_node, genera, sp_by_gen, common_names,
                 specimen_count=sp_counts.get(sp_name, 0),
                 in_collection=sp_name in my_sp,
             ))
-        if gen_node.children or not my_only:
+        if gen_node.children or gen_node.own_specimen_count or not my_only:
             parent_node.children.append(gen_node)
 
 
@@ -239,7 +252,7 @@ def _aggregate_specimen_counts(node):
     if node.rank == "Species":
         node.my_species_count = 1 if node.specimen_count > 0 else 0
         return node.specimen_count, node.my_species_count
-    total_specimens = 0
+    total_specimens = node.own_specimen_count
     total_my_species = 0
     for child in node.children:
         sp, ms = _aggregate_specimen_counts(child)
@@ -262,22 +275,74 @@ def _count_species(node):
 # =========================================================================
 
 def _load_specimen_data(order_name):
+    """The collection's specimens of one order, placed on UKSI names by TVK (CUR-2).
+
+    Returns (families, genera, species, family_counts, species_counts,
+    genus_counts). A specimen is placed by its TVK: a species TVK on that
+    taxon's current UKSI name; an aggregate / s.l. TVK on its own name, which
+    the species node of the same name shows (as before); a genus TVK on the
+    genus (genus_counts). With no TVK, or one UKSI does not hold, the stored
+    name is matched to a UKSI species name ignoring case. Exact name matching
+    lost 4 specimens ("Malthodes Marginatus", "lasioglossum minutissimum" x2,
+    "Leiopus").
+    """
     families, genera, species = set(), set(), set()
-    family_counts, species_counts = {}, {}
+    family_counts, species_counts, genus_counts = {}, {}, {}
     if not DB_PATH.exists():
-        return families, genera, species, family_counts, species_counts
-    conn = sqlite3.connect(str(DB_PATH))
-    c = conn.cursor()
-    c.execute("SELECT family, COUNT(*) FROM specimens WHERE order_name = ? AND family IS NOT NULL GROUP BY family", (order_name,))
-    for r in c.fetchall():
-        families.add(r[0]); family_counts[r[0]] = r[1]
-    c.execute("SELECT species_name, COUNT(*) FROM specimens WHERE order_name = ? AND species_name IS NOT NULL GROUP BY species_name", (order_name,))
-    for r in c.fetchall():
-        species.add(r[0]); species_counts[r[0]] = r[1]
-        parts = r[0].split()
-        if parts: genera.add(parts[0])
-    conn.close()
-    return families, genera, species, family_counts, species_counts
+        return families, genera, species, family_counts, species_counts, genus_counts
+    conn = connect_ro(str(DB_PATH))
+    try:
+        rows = conn.execute(
+            "SELECT species_name, species_tvk, family, COUNT(*) FROM specimens "
+            "WHERE order_name = ? GROUP BY species_name, species_tvk, family",
+            (order_name,)).fetchall()
+    finally:
+        conn.close()
+
+    by_tvk, by_name = {}, {}
+    if UKSI_PATH.exists():
+        u = connect_ro(str(UKSI_PATH))
+        try:
+            tvks = sorted({r[1] for r in rows if r[1]})
+            for i in range(0, len(tvks), 500):
+                batch = tvks[i:i + 500]
+                ph = ",".join("?" * len(batch))
+                for tvk, name, rank, genus, family in u.execute(
+                        f"SELECT tvk, scientific_name, rank, genus, family FROM taxa "
+                        f"WHERE tvk IN ({ph})", batch):
+                    by_tvk[tvk] = (name, rank, genus, family)
+            for name, genus, family in u.execute(
+                    "SELECT scientific_name, genus, family FROM taxa "
+                    "WHERE \"order\" = ? AND rank = 'Species'", (order_name,)):
+                by_name.setdefault((name or "").lower(), (name, "Species", genus, family))
+        finally:
+            u.close()
+
+    for name, tvk, fam, n in rows:
+        hit = by_tvk.get(tvk) if tvk else None
+        if hit is None and name:
+            hit = by_name.get(name.strip().lower())
+        if hit is None:
+            # Not placeable on UKSI: counted under its stored name, as before.
+            hit = (name, "Species", (name or "").split()[0] if name else "", fam)
+        uname, rank, genus, ufam = hit
+        family = ufam or fam
+        if family:
+            families.add(family)
+            family_counts[family] = family_counts.get(family, 0) + n
+        if rank == "Genus":
+            genus = genus or uname
+            genera.add(genus)
+            genus_counts[genus] = genus_counts.get(genus, 0) + n
+            continue
+        if not uname:
+            continue
+        species.add(uname)
+        species_counts[uname] = species_counts.get(uname, 0) + n
+        genus = genus or uname.split()[0]
+        if genus:
+            genera.add(genus)
+    return families, genera, species, family_counts, species_counts, genus_counts
 
 
 def _load_superfamily_map():
@@ -441,12 +506,21 @@ def _load_common_names():
     """Load common names from bundled JSON + UKSI species names."""
     result = {}
     family_names_path = Path(__file__).parent / "family_common_names.json"
+    from .planner_data import note_config_problem
     if family_names_path.exists():
-        with open(family_names_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        try:
+            with open(family_names_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, ValueError) as e:
+            note_config_problem(f"{family_names_path.name} could not be read ({e}): "
+                                "no family common names.")
+            data = {}
         for k, v in data.items():
             if not k.startswith("_"):
                 result[k] = v
+    else:
+        note_config_problem(f"{family_names_path.name} is missing from the Curator folder: "
+                            "no family common names on labels.")
     if UKSI_PATH.exists():
         conn = connect_ro(str(UKSI_PATH))
         c = conn.cursor()

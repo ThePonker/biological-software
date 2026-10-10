@@ -8,7 +8,7 @@ whatever the number of rows.
 """
 from typing import List, Optional
 
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, Signal
 from PySide6.QtGui import QColor
 
 from ..row_status import RowStatus
@@ -19,11 +19,17 @@ class ImportValidationTableModel(QAbstractTableModel):
     MESSAGE_COLUMN: Optional[int] = None        # shown in full as a tooltip
     COLOURED_COLUMNS = (0,)                     # drawn in the row's status colour
     EDITABLE_COLUMNS = ()
+    EDIT_FIELDS: dict = {}                      # {column: row attribute} an edit writes to
+
+    # (row index, attribute, new text) -- a cell the user edited. The row is marked as edited
+    # and keeps its old status until it is revalidated.
+    row_edited = Signal(int, str, str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._data: list = []
         self._theme_colors = {}
+        self.editable = True                    # a wizard turns editing off where it can't be used
 
     def set_theme_colors(self, success: str, warning: str, error: str):
         """Set theme colors for status display."""
@@ -89,7 +95,7 @@ class ImportValidationTableModel(QAbstractTableModel):
             if role == Qt.DisplayRole:
                 return "..." if col_idx == 0 else ""
             return None
-        if role == Qt.DisplayRole:
+        if role in (Qt.DisplayRole, Qt.EditRole):
             return self._get_display_value(row, col_idx)
         if role == Qt.ForegroundRole:
             if col_idx in self.COLOURED_COLUMNS:
@@ -113,6 +119,25 @@ class ImportValidationTableModel(QAbstractTableModel):
     def flags(self, index: QModelIndex) -> Qt.ItemFlags:
         if not index.isValid():
             return Qt.NoItemFlags
-        if index.column() in self.EDITABLE_COLUMNS:
+        if self.editable and index.column() in self.EDITABLE_COLUMNS:
             return Qt.ItemIsEnabled | Qt.ItemIsSelectable | Qt.ItemIsEditable
         return Qt.ItemIsEnabled | Qt.ItemIsSelectable
+
+    def setData(self, index: QModelIndex, value, role: int = Qt.EditRole) -> bool:
+        """Keep an inline edit (IMP-6, 10 Oct 2026). The model had no setData, so Qt threw
+        every edit of Date, Grid Ref or Site away the moment the cell closed."""
+        if role != Qt.EditRole or not index.isValid() or not self.editable:
+            return False
+        attr = self.EDIT_FIELDS.get(index.column())
+        row = self.get_row(index.row())
+        if not attr or row is None:
+            return False
+        text = "" if value is None else str(value).strip()
+        if attr == "grid_ref":
+            text = text.upper().replace(" ", "")
+        if text == (getattr(row, attr, "") or ""):
+            return False
+        setattr(row, attr, text)
+        self.dataChanged.emit(index, index, [Qt.DisplayRole, Qt.EditRole])
+        self.row_edited.emit(index.row(), attr, text)
+        return True

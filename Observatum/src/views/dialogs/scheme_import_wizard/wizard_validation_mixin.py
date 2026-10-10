@@ -8,123 +8,21 @@ filtering, table population, and inline editing.
 import csv
 from typing import List
 
-from PySide6.QtWidgets import (
-    QApplication,
-    QFileDialog, QDialog, QVBoxLayout,
-    QHBoxLayout, QLineEdit, QPushButton, QMessageBox
-)
-from PySide6.QtCore import Qt, QModelIndex
+from PySide6.QtWidgets import QApplication, QFileDialog, QDialog, QMessageBox
+from PySide6.QtCore import QModelIndex
 
 from shared.species_lookup import is_unresolved_error
 from shared.species_lookup_entries import apply_confirmed
 
 from .validation_worker import SchemeImportRow, RowStatus, SchemeValidationWorker, SchemeImportMode
 from .validation_table_model import SchemeValidationTableModel
+# The species picker the other two wizards use (IMP-6: this wizard's own copy called a
+# search_species the UKSI model does not have)
+from ..specimen_import_wizard.species_search_dialog import SpeciesSearchDialog
 from src.themes import theme
 
-
-class SpeciesSearchDialog(QDialog):
-    """Dialog for searching UKSI species."""
-
-    def __init__(self, parent, uksi_model, current_name: str = ""):
-        super().__init__(parent)
-        self.uksi_model = uksi_model
-        self.selected_species = None
-        self._setup_ui(current_name)
-
-    def _setup_ui(self, current_name: str):
-        t = theme()
-
-        self.setWindowTitle("Search Species")
-        self.setMinimumSize(500, 400)
-        self.setModal(True)
-
-        layout = QVBoxLayout(self)
-        layout.setSpacing(16)
-
-        # Search input
-        search_layout = QHBoxLayout()
-        self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Type species name...")
-        self.search_input.setText(current_name)
-        self.search_input.textChanged.connect(self._on_search)
-        search_layout.addWidget(self.search_input, 1)
-        layout.addLayout(search_layout)
-
-        # Results list
-        from PySide6.QtWidgets import QListWidget
-        self.results_list = QListWidget()
-        self.results_list.itemDoubleClicked.connect(self._on_select)
-        layout.addWidget(self.results_list, 1)
-
-        # Buttons
-        btn_layout = QHBoxLayout()
-        btn_layout.addStretch()
-
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        cancel_btn.clicked.connect(self.reject)
-        btn_layout.addWidget(cancel_btn)
-
-        select_btn = QPushButton("Select")
-        select_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        select_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {t.get('success')};
-                color: white;
-                border: none;
-                padding: 8px 16px;
-                border-radius: 4px;
-            }}
-        """)
-        select_btn.clicked.connect(self._on_select)
-        btn_layout.addWidget(select_btn)
-
-        layout.addLayout(btn_layout)
-
-        # Initial search
-        if current_name:
-            self._on_search(current_name)
-
-    def _on_search(self, text: str):
-        """Search UKSI for species."""
-        self.results_list.clear()
-
-        if not text or len(text) < 2:
-            return
-
-        if not self.uksi_model:
-            return
-
-        try:
-            results = self.uksi_model.search_species(text, limit=50)
-            for species in results:
-                name = getattr(species, 'scientific_name', str(species))
-                common = getattr(species, 'common_name', '')
-                tvk = getattr(species, 'tvk', '')
-
-                display = f"{name}"
-                if common:
-                    display += f" ({common})"
-
-                from PySide6.QtWidgets import QListWidgetItem
-                item = QListWidgetItem(display)
-                item.setData(Qt.ItemDataRole.UserRole, {
-                    'scientific_name': name,
-                    'common_name': common,
-                    'tvk': tvk,
-                    'species': species
-                })
-                self.results_list.addItem(item)
-        except Exception as e:
-            print(f"Species search error: {e}")
-
-    def _on_select(self):
-        """Select the current species."""
-        current = self.results_list.currentItem()
-        if current:
-            self.selected_species = current.data(Qt.ItemDataRole.UserRole)
-            self.accept()
+# Table edits that the validation worker reads back from the file row (generic CSV mode)
+_EDIT_TO_MAPPED_FIELD = {"date": "date", "grid_ref": "grid_ref", "site_name": "site_name"}
 
 
 class WizardValidationMixin:
@@ -185,6 +83,11 @@ class WizardValidationMixin:
                 error=t.get('error')
             )
             self.validation_table.setModel(self.validation_model)
+            self.validation_model.row_edited.connect(self._on_model_row_edited)
+        # Edits are read back from the file row, which only the generic CSV mode maps;
+        # iRecord and NBN rows are the source's records (IMP-6, 10 Oct 2026)
+        self.validation_model.editable = self._get_selected_mode() == SchemeImportMode.GENERIC_CSV
+        self._edited_row_indices.clear()
         
         # Pre-allocate rows for incremental population
         self.validation_model.pre_allocate(len(self.raw_rows))
@@ -283,41 +186,46 @@ class WizardValidationMixin:
         self._on_cell_double_clicked(row, col)
     
     def _on_cell_double_clicked(self, row: int, col: int):
-        """Handle double-click for species search."""
-        if col == 2:  # Species column
-            if row < len(self.validated_rows):
-                current_name = self.validated_rows[row].species_name
-                dialog = SpeciesSearchDialog(self, self.uksi_model, current_name)
-                if dialog.exec() == QDialog.DialogCode.Accepted and dialog.selected_species:
-                    species_data = dialog.selected_species
-                    # Update the row
-                    self.validated_rows[row].species_name = species_data['scientific_name']
-                    self.validated_rows[row].species_tvk = species_data['tvk']
-                    self.validated_rows[row].common_name = species_data['common_name']
+        """Double-click on Species: pick the UKSI taxon (IMP-6, 10 Oct 2026).
 
-                    # Update table
-                    self.validation_table.item(row, 2).setText(species_data['scientific_name'])
+        It crashed -- QTableView has no item() -- and its search called a method the UKSI
+        model does not have. The pick is applied as Resolve Species does: the UKSI name and
+        TVK, the species error removed and any other error kept."""
+        if col != 2 or not (0 <= row < len(self.validated_rows)):
+            return
+        target = self.validated_rows[row]
+        original = target.species_name or ""
+        dialog = SpeciesSearchDialog(self, self.uksi_model, initial_text=original)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        picked = dialog.get_selected_species()
+        if not picked or not picked.get("tvk"):
+            return
+        # (the file row keeps the name as written: a revalidation re-applies the pick, so the
+        # import note still says what the file had)
+        apply_confirmed(target, picked, original, "picked by you")
+        if getattr(self, "validation_model", None) is not None:
+            self.validation_model.update_row(row, target)
+        self._refresh_after_species_change()
 
-                    # Mark for revalidation
-                    self._edited_row_indices.add(row)
+    def _on_model_row_edited(self, row_idx: int, attr: str, text: str):
+        """A Date, Grid Ref or Site cell was edited (IMP-6). The edit is kept on the row and in
+        the file row the worker reads; the row is revalidated before it can be imported."""
+        if not (0 <= row_idx < len(self.validated_rows)):
+            return
+        col = self._get_column_mapping().get(_EDIT_TO_MAPPED_FIELD.get(attr, ""))
+        if col:
+            self.validated_rows[row_idx].raw_data[col] = text
+        self._edited_row_indices.add(row_idx)
+        self.next_btn.setEnabled(False)             # until the edits are revalidated
+        if hasattr(self, "revalidate_btn"):
+            self.revalidate_btn.setEnabled(True)
 
     def _on_cell_changed(self, row: int, col: int):
-        """Handle cell edits."""
-        if col in [2, 3, 4, 5]:  # Species, Date, Grid Ref, Site
-            if row < len(self.validated_rows):
-                item = self.validation_table.item(row, col)
-                if item:
-                    value = item.text()
-                    if col == 2:
-                        self.validated_rows[row].species_name = value
-                    elif col == 3:
-                        self.validated_rows[row].date = value
-                    elif col == 4:
-                        self.validated_rows[row].grid_ref = value
-                    elif col == 5:
-                        self.validated_rows[row].site_name = value
-
-                    self._edited_row_indices.add(row)
+        """Kept for old callers; edits now arrive through the model (row_edited)."""
+        attr = SchemeValidationTableModel.EDIT_FIELDS.get(col)
+        if attr and 0 <= row < len(self.validated_rows):
+            self._on_model_row_edited(row, attr, getattr(self.validated_rows[row], attr, ""))
 
     def _apply_filter(self):
         """Apply filter to validation table."""
@@ -337,47 +245,57 @@ class WizardValidationMixin:
             self.validation_table.setRowHidden(i, not show)
 
     def _revalidate_edited_rows(self):
-        """Revalidate rows that were edited."""
+        """Revalidate rows that were edited (IMP-6, 10 Oct 2026).
+
+        It used to put the rows it was given back in place -- the worker's results went
+        nowhere -- so an edit was never checked and the row kept its old status."""
         if not self._edited_row_indices:
             QMessageBox.information(self, "No Changes", "No rows have been edited.")
             return
 
         import_mode = self._get_selected_mode()
         column_mapping = self._get_column_mapping()
-
-        # Create a mini-worker for revalidation
-        rows_to_revalidate = [self.validated_rows[i] for i in self._edited_row_indices]
+        indices = sorted(self._edited_row_indices)
+        old_rows = [self.validated_rows[i] for i in indices]
 
         worker = SchemeValidationWorker(
-            rows=rows_to_revalidate,
+            rows=old_rows,
             column_mapping=column_mapping,
             import_mode=import_mode,
             uksi_model=self.uksi_model,
             vc_db_path=self.vc_db_path,
             db_manager=self.db,
         )
+        results = []
+        worker.finished.connect(lambda rows: results.extend(rows))
+        worker.run()                                  # synchronously: a handful of rows
 
-        # Run synchronously for small batches
-        worker.run()
+        for orig_idx, old, new in zip(indices, old_rows, results):
+            # A species picked by hand stays picked if the name alone does not match
+            if (old.species_tvk and not new.species_tvk and new.status == RowStatus.ERROR
+                    and is_unresolved_error(new.error_message)):
+                apply_confirmed(new, {"scientific_name": old.species_name, "tvk": old.species_tvk,
+                                      "common_name": old.common_name, "order_name": old.order_name,
+                                      "family": old.family, "kingdom": old.kingdom,
+                                      "rank": old.taxon_rank}, new.species_name, "picked by you")
+            self.validated_rows[orig_idx] = new
+        if hasattr(self, 'validation_model') and self.validation_model:
+            self.validation_model.set_data(self.validated_rows)
+        self._apply_filter()
 
-        # Update validated rows and table
-        for orig_idx, row in zip(self._edited_row_indices, worker.rows):
-            self.validated_rows[orig_idx] = row
-            self._on_row_validated(orig_idx, row)
-
-        # Recalculate counts
         valid = sum(1 for r in self.validated_rows if r.status == RowStatus.VALID)
         warnings = sum(1 for r in self.validated_rows if r.status == RowStatus.WARNING)
         errors = sum(1 for r in self.validated_rows if r.status == RowStatus.ERROR)
-
         self._on_counts_updated(valid, warnings, errors)
 
-        # Clear edited indices
         self._edited_row_indices.clear()
+        self.next_btn.setEnabled(True)
+        if hasattr(self, "resolve_species_btn"):
+            self.resolve_species_btn.setVisible(bool(self._get_unmatched_species()))
 
         QMessageBox.information(
             self, "Revalidation Complete",
-            f"Revalidated {len(rows_to_revalidate)} row(s).\n"
+            f"Revalidated {len(results)} row(s).\n"
             f"Valid: {valid}, Warnings: {warnings}, Errors: {errors}"
         )
 
@@ -427,20 +345,17 @@ class WizardValidationMixin:
             QMessageBox.critical(self, "Export Error", f"Error exporting: {str(e)}")
 
     def _update_confirmation_counts(self):
-        """Update confirmation page - now just logs counts since we use simpler layout."""
-        new_count = sum(1 for r in self.validated_rows
-                       if r.status != RowStatus.ERROR and not r.is_duplicate)
-        duplicate_count = sum(1 for r in self.validated_rows
-                             if r.status != RowStatus.ERROR and r.is_duplicate)
-        error_count = sum(1 for r in self.validated_rows if r.status == RowStatus.ERROR)
-        
-        # Log counts for debugging (stat cards removed in new layout)
-        print(f"Import counts - New: {new_count}, Duplicates: {duplicate_count}, Errors: {error_count}")
-        
-        # Update import status label if it exists
-        if hasattr(self, 'import_status_label'):
-            self.import_status_label.setText(
-                f"Ready to import {new_count} records ({duplicate_count} duplicates, {error_count} errors)")
+        """'Ready to import' on the confirmation page, following its boxes (IMP-9/16)."""
+        if not hasattr(self, "import_errors_checkbox"):
+            return
+        rows, counts = self._rows_for_import()
+        updates = sum(1 for r in rows if r.is_duplicate and r.existing_record_id)
+        left_out = sum(counts.values())
+        if hasattr(self, 'confirm_status_label'):
+            self.confirm_status_label.setText(
+                f"Ready to import {len(rows) - updates} new record(s)"
+                + (f", update {updates} held" if updates else "")
+                + (f"; {left_out} row(s) left out" if left_out else ""))
 
     def _show_duplicate_preview(self):
         """Show dialog with duplicate records."""

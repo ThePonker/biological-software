@@ -15,6 +15,7 @@ class ValidationTableModel(ImportValidationTableModel):
     COLUMNS = ["Status", "Row", "Species", "Date", "Grid Ref", "VC", "Location", "Message"]
     MESSAGE_COLUMN = 7
     EDITABLE_COLUMNS = (3, 4, 6)                 # Date, Grid Ref, Location
+    EDIT_FIELDS = {3: "date_collected", 4: "grid_ref", 6: "site_name"}
 
     def _get_display_value(self, row: ImportRow, col: int) -> str:
         if col == 0:  # Status

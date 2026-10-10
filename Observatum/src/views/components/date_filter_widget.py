@@ -19,6 +19,9 @@ from PySide6.QtCore import Signal, QDate, Qt
 
 from ...themes import theme
 
+# Earliest year a date box accepts. Was 1900; scheme records go back to 1500 (OBS-14)
+MIN_YEAR = 1000
+
 
 class DateFilterWidget(QWidget):
     """Custom date filter with text input, calendar popup, and day increment buttons.
@@ -164,6 +167,7 @@ class DateFilterWidget(QWidget):
         
         # Create calendar widget for popup
         self._calendar = QCalendarWidget()
+        self._calendar.setMinimumDate(QDate(MIN_YEAR, 1, 1))
         self._calendar.setWindowFlags(Qt.WindowType.Popup)
         self._calendar.clicked.connect(self._on_calendar_clicked)
         self._style_calendar()
@@ -255,7 +259,7 @@ class DateFilterWidget(QWidget):
         
         # Try to parse the date
         date = QDate.fromString(text, "dd/MM/yyyy")
-        if date.isValid() and date.year() >= 1900:
+        if date.isValid() and date.year() >= MIN_YEAR:
             self._current_date = date
             self.dateChanged.emit(date)
         else:
@@ -278,7 +282,7 @@ class DateFilterWidget(QWidget):
         """Subtract one day from the current date."""
         if self._current_date:
             new_date = self._current_date.addDays(-1)
-            if new_date.year() >= 1900:
+            if new_date.year() >= MIN_YEAR:
                 self._set_date(new_date)
         elif self._navigate_to_date:
             self._set_date(self._navigate_to_date)
@@ -314,14 +318,18 @@ class DateFilterWidget(QWidget):
         """Set the current date.
         
         Args:
-            date: The date to set. If invalid or before 1900, clears the field.
+            date: The date to set. If invalid or before MIN_YEAR, clears the field.
         """
-        if date.isValid() and date.year() >= 1900:
+        if date.isValid() and date.year() >= MIN_YEAR:
             self._set_date(date)
         else:
             self._current_date = None
             self.date_input.clear()
     
+    def setIsoDate(self, text):
+        """Set from 'yyyy-MM-dd' text (a saved filter); empty or unreadable clears."""
+        self.setDate(QDate.fromString(str(text or ''), "yyyy-MM-dd"))
+
     def clear(self):
         """Clear the date."""
         self._current_date = None

@@ -134,6 +134,26 @@ Callers pass current UKSI TVKs and need know nothing about it.
 
 **Rule: any join between Pantheon and anything else goes through the bridge.**
 
+### 4a. Taxon groups — one grouping (10 October 2026)
+
+`shared/taxon_groups.py` is the only taxon-group rule. Records carry iRecord's
+label in `taxon_group` ("insect - beetle (Coleoptera)") on observations,
+recording_scheme and specimens. A label that arrived with the record (iRecord,
+NBN/iRecord-format scheme files) is kept; otherwise it is worked out from UKSI by
+TVK (family → order → class → phylum → kingdom; blank rather than a guess) by the
+three import wizards, Data Entry commit and Quick Entry. Old blanks:
+`scripts/backfill_taxon_groups.py` (dry run; `--apply`; `--relabel` corrects
+labels the suite itself wrote).
+
+- **Stats curves** show the short labels and merges in `CURVE_LABELS` /
+  `CURVE_MERGES` (`group_label`, `merge_curve_groups`).
+- **Filtering / Mapping** use `group_sql()` / `group_filter_sql()`: the stored
+  label, else one from order and family. The Filter Wizard's *Taxon group* box
+  (key `group`; shown on a tab only once that tab applies it -- so far Observation
+  Data) uses it; its key `taxon_group` is the **Order** box.
+- **Not this grouping:** Examen's Pantheon groups (assemblage types from
+  `pantheon.db`) and the gamification colour groups.
+
 ---
 
 ## 5. Rebuild chains

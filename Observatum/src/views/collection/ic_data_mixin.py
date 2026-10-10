@@ -82,11 +82,15 @@ class ICDataMixin:
                     if col:
                         filters[col] = fv
 
+            # The Filter Wizard's filters, re-queried on every load (they used to be
+            # one-off "extra" filters, lost on the next reload -- SRCH9)
+            wizard_ids = None
+            if getattr(self, '_wizard_filters', None):
+                wizard_ids = self.filter_wizard.matching_ids(self._wizard_filters)
+
             # Use repository for filtered queries if it has the method
             if self._specimen_repo and hasattr(self._specimen_repo, 'get_filtered'):
                 specimens = self._specimen_repo.get_filtered(filters)
-                species_count = self._specimen_repo.count_unique_species(filters)
-                self.toolbar.set_counts(species_count, len(specimens))
             else:
                 # Fallback to model or repository.get_all()
                 if self._specimen_repo and hasattr(self._specimen_repo, 'get_all'):
@@ -99,16 +103,21 @@ class ICDataMixin:
                 if filters:
                     specimens = self._apply_filters(specimens, filters)
 
-                species_names = set()
-                for s in specimens:
-                    name = _get_attr(s, 'species_name', '')
-                    if name:
-                        species_names.add(name)
-                species_count = len(species_names)
-                self.toolbar.set_counts(species_count, len(specimens))
+            if wizard_ids is not None:
+                specimens = [s for s in specimens if _get_attr(s, 'id') in wizard_ids]
+
+            species_names = set()
+            for s in specimens:
+                name = _get_attr(s, 'species_name', '')
+                if name:
+                    species_names.add(name)
+            species_count = len(species_names)
+            self.toolbar.set_counts(species_count, len(specimens))
 
             self.table_model.set_specimens(specimens)
             self._connect_proxy_after_load()
+            if hasattr(self, 'filter_wizard'):
+                self.filter_wizard.refresh_tab_values()
 
             # Update column widths after data load
             header = self.table_view.horizontalHeader()
@@ -132,11 +141,13 @@ class ICDataMixin:
         """Apply filters to specimen list (fallback when not using repository)."""
         result = specimens
 
-        if filters.get('species'):
-            search = filters['species'].lower()
-            result = [s for s in result if
-                      search in (_get_attr(s, 'species_name', '') or '').lower() or
-                      search in (_get_attr(s, 'common_name', '') or '').lower()]
+        if filters.get('species'):   # by TVK through the shared species search (10 Oct 2026)
+            from shared.species_filter import species_filter
+            sf = species_filter(filters['species'],
+                                {_get_attr(s, 'species_tvk', '') or '' for s in result})
+            result = [s for s in result if sf.matches(
+                _get_attr(s, 'species_tvk', '') or '', _get_attr(s, 'species_name', '') or '',
+                _get_attr(s, 'common_name', '') or '')]
 
         if filters.get('location'):
             search = filters['location'].lower()

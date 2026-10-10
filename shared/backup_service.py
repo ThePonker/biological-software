@@ -19,10 +19,11 @@ Layout (single location, outside OneDrive):
 
 Two tiers, because the databases change at very different rates:
 
-    WORKING    observatum, munia, examen, gamification   ~115 MB
+    WORKING    observatum, munia, examen, gamification, lector   ~125 MB
                changes daily -> copied on close and before every commit
-    REFERENCE  codex, pantheon, uksi, vc_lookup          ~172 MB
+    REFERENCE  codex, pantheon, uksi, vc_lookup, vc_splits      ~265 MB
                changes once or twice a year -> copied on demand after a rebuild
+    (lector.db and vc_splits.db added 10 Oct 2026, review INF4)
 
 Rotation is current -> previous before each write, so two generations exist and the
 footprint is fixed. One generation is not enough: if a database is damaged and the
@@ -70,10 +71,10 @@ EXPIRED = "_expired"          # retired files: moved here, never deleted
 KEEP_PER_LABEL = 5          # ~120 MB each for observatum.db; 5 x labels keeps disk use modest
 
 # Databases that change with use.
-WORKING_DBS = ("OBSERVATUM_DB", "MUNIA_DB", "EXAMEN_DB", "GAMIFICATION_DB")
+WORKING_DBS = ("OBSERVATUM_DB", "MUNIA_DB", "EXAMEN_DB", "GAMIFICATION_DB", "LECTOR_DB")
 
 # Databases that only change on a rebuild.
-REFERENCE_DBS = ("CODEX_DB", "PANTHEON_DB", "UKSI_DB", "VC_LOOKUP_DB")
+REFERENCE_DBS = ("CODEX_DB", "PANTHEON_DB", "UKSI_DB", "VC_LOOKUP_DB", "VC_SPLITS_DB")
 
 
 def _paths_module():

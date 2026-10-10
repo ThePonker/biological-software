@@ -1,11 +1,15 @@
 """
 Codex Manager — Main Window
 
-Four-tab interface for managing conservation status data:
+Two tabs:
   1. Reviews — browse loaded reviews
-  2. Import — import new reviews from CSV
-  3. Species — search and view species statuses
-  4. Unresolved — manage species that failed UKSI resolution
+  2. Species — search and view species statuses
+
+Reviews are loaded by scripts/import_status_review.py (dry run, backup, then
+--apply), never from this window. The Import Review tab (preview-only since F9,
+with its own drifted resolution rules) and the Unresolved tab (read a CSV only
+that importer wrote, so it could never fill) were retired 10 Oct 2026 (CDX-3):
+_archive/codex_tabs_20261010/.
 """
 
 from PySide6.QtWidgets import (
@@ -16,9 +20,11 @@ from PySide6.QtGui import QFont
 
 from . import theme
 from .reviews_tab import ReviewsTab
-from .import_tab import ImportTab
 from .species_tab import SpeciesTab
-from .unresolved_tab import UnresolvedTab
+
+# Where reviews come from now (CDX-3): shown under the tabs.
+IMPORT_NOTE = ("New reviews are loaded with scripts\\import_status_review.py "
+               "(dry run first, then --apply; it backs up codex.db), not from this window.")
 
 
 class CodexManager(QMainWindow):
@@ -85,22 +91,20 @@ class CodexManager(QMainWindow):
         """)
 
         self.reviews_tab = ReviewsTab()
-        self.import_tab = ImportTab()
         self.species_tab = SpeciesTab()
-        self.unresolved_tab = UnresolvedTab()
 
         self.tabs.addTab(self.reviews_tab, "Reviews")
-        self.tabs.addTab(self.import_tab, "Import Review")
         self.tabs.addTab(self.species_tab, "Species Search")
-        self.tabs.addTab(self.unresolved_tab, "Unresolved")
 
         # Refresh data when switching tabs
         self.tabs.currentChanged.connect(self._on_tab_changed)
 
-        # Signal: import completed → refresh reviews + species
-        self.import_tab.import_completed.connect(self._on_import_completed)
-
         layout.addWidget(self.tabs, 1)
+
+        note = QLabel(IMPORT_NOTE)
+        note.setWordWrap(True)
+        note.setStyleSheet(f"color: {theme.TEXT_SECONDARY}; font-size: 11px; padding: 4px 20px;")
+        layout.addWidget(note)
 
         # Status bar
         self.status_bar = QStatusBar()
@@ -114,15 +118,7 @@ class CodexManager(QMainWindow):
     def _on_tab_changed(self, index):
         if index == 0:
             self.reviews_tab.refresh()
-        elif index == 2:
-            pass  # species tab searches on demand
-        elif index == 3:
-            self.unresolved_tab.refresh()
-
-    def _on_import_completed(self):
-        self.reviews_tab.refresh()
-        self._update_status()
-        self.tabs.setCurrentIndex(0)  # Switch to reviews tab
+        # index 1: the species tab searches on demand
 
     def _update_status(self):
         try:

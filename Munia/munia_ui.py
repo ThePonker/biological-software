@@ -210,6 +210,15 @@ class MuniaWindow(QMainWindow):
             row["label"].setText(f"{label} (\u00a3{values[key]:,.0f})")
         self.r_total["count"].setText(str(s["total"]))
         self.won_lbl.setText(f"\u00a3{s['confirmed']:,.0f}")
+        # MUN-4: multi-year projects are counted in full in every year they span
+        if s.get("multi_year_count"):
+            self.won_lbl.setText(self.won_lbl.text() + " *")
+            self.won_lbl.setToolTip(
+                f"* includes \u00a3{s['multi_year_confirmed']:,.0f} from "
+                f"{s['multi_year_count']} multi-year project(s), counted in full in "
+                "every business year they span (not apportioned).")
+        else:
+            self.won_lbl.setToolTip("")
         self.lost_lbl.setText(f"\u00a3{s['lost']:,.0f}")
         a_field = db.get_accepted_field_total(self._conn, self._year)
         a_ann = db.get_annual_totals(self._conn, self._year, db.COMMITTED_STATUSES)

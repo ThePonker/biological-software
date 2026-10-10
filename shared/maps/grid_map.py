@@ -200,9 +200,13 @@ class GridMap(PanZoomMixin, QWidget):
             r = self._square_rect(fit, label)
             if r is not None:
                 # an outline on a square a few pixels wide hides its colour: fill only
-                p.setPen(edge_pen if r.width() >= 6 * k else Qt.PenStyle.NoPen)
-                p.setBrush(QBrush(QColor(sq.get("fill") or theme.CLAY)))
-                p.drawRect(r)
+                pen = edge_pen if r.width() >= 6 * k else Qt.PenStyle.NoPen
+                if sq.get("fills"):
+                    draw_split(p, r, sq["fills"], pen)
+                else:
+                    p.setPen(pen)
+                    p.setBrush(QBrush(QColor(sq.get("fill") or theme.CLAY)))
+                    p.drawRect(r)
         if self._selected:
             r = self._square_rect(fit, self._selected)
             if r is not None:
@@ -250,9 +254,9 @@ class GridMap(PanZoomMixin, QWidget):
             sq = self._squares.get(label) if label else None
             if sq:
                 n = sq.get("count", 0)
-                QToolTip.showText(e.globalPosition().toPoint(),
-                                  f"{label}: {n} record{'s' if n != 1 else ''}"
-                                  + (f" ({sq['years']})" if sq.get("years") else ""), self)
+                tip = sq.get("tip") or (f"{label}: {n} record{'s' if n != 1 else ''}"
+                                        + (f" ({sq['years']})" if sq.get("years") else ""))
+                QToolTip.showText(e.globalPosition().toPoint(), tip, self)
             else:
                 QToolTip.hideText()
 
@@ -294,7 +298,7 @@ class GridMap(PanZoomMixin, QWidget):
         p.setPen(QPen(QColor(theme.LINE), 0.8 * k))
         p.setBrush(Qt.BrushStyle.NoBrush)
         p.drawRect(box)
-        self._draw_legend(p, legend, margin, bottom + 4 * mm, mm, k)
+        self._draw_legend(p, legend, margin, bottom + 4 * mm, mm, k, w - margin)
         p.setFont(_font(7))
         p.setPen(QColor(theme.MUTED))
         credit = (footer + "   " if footer else "") + \
@@ -306,17 +310,47 @@ class GridMap(PanZoomMixin, QWidget):
         return img
 
     @staticmethod
-    def _draw_legend(p, legend, x, y, mm, k):
+    def _draw_legend(p, legend, x, y, mm, k, right=None):
+        """Swatches in a row, wrapping onto a second row (y + 6 mm) past `right`."""
         p.setFont(_font(8))
+        x0 = x
         for colour, label in legend:
-            p.setPen(QPen(QColor(theme.INK), 0.4 * k))
-            p.setBrush(QBrush(QColor(colour)))
-            p.drawRect(QRectF(x, y, 4 * mm, 4 * mm))
+            need = 5.5 * mm + p.fontMetrics().horizontalAdvance(label)
+            if right is not None and x > x0 and x + need > right:
+                x, y = x0, y + 6 * mm
+            sw = QRectF(x, y, 4 * mm, 4 * mm)
+            if isinstance(colour, (tuple, list)):       # a split (overlap) swatch
+                draw_split(p, sw, colour, QPen(QColor(theme.INK), 0.4 * k))
+            else:
+                p.setPen(QPen(QColor(theme.INK), 0.4 * k))
+                p.setBrush(QBrush(QColor(colour)))
+                p.drawRect(sw)
             p.setPen(QColor(theme.INK))
             text_w = p.fontMetrics().horizontalAdvance(label)
             p.drawText(QRectF(x + 5.5 * mm, y - 1 * mm, text_w + 2 * mm, 6 * mm),
                        int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter), label)
             x += 5.5 * mm + text_w + 8 * mm
+
+
+def draw_split(p: QPainter, r: QRectF, colours, pen):
+    """A square shared by several taxa: two colours as diagonal halves (upper left, lower
+    right), three or more as equal upright stripes; then the outline (pen) round it all."""
+    cols = [QColor(c) for c in colours] or [QColor(theme.CLAY)]
+    p.setPen(Qt.PenStyle.NoPen)
+    if len(cols) == 2:
+        tl, tr, bl, br = r.topLeft(), r.topRight(), r.bottomLeft(), r.bottomRight()
+        p.setBrush(QBrush(cols[0]))
+        p.drawPolygon(QPolygonF([tl, tr, bl]))
+        p.setBrush(QBrush(cols[1]))
+        p.drawPolygon(QPolygonF([tr, br, bl]))
+    else:
+        w = r.width() / len(cols)
+        for i, c in enumerate(cols):
+            p.setBrush(QBrush(c))
+            p.drawRect(QRectF(r.x() + i * w, r.y(), w, r.height()))
+    p.setPen(pen)
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    p.drawRect(r)
 
 
 def _font(pt: int, bold: bool = False, italic: bool = False) -> QFont:

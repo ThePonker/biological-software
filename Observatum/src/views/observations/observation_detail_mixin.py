@@ -135,6 +135,7 @@ class ObservationDetailMixin:
                         conn.commit()
                     conn.close()
                     self._load_data()
+                    self.records_changed.emit()
                 except Exception as e:
                     print(f"[ObservationTab] Error updating record: {e}")
                 if boundary_note:
@@ -199,15 +200,20 @@ class ObservationDetailMixin:
         return out, ""
 
     def _on_detail_delete_requested(self, record: Dict):
-        """Handle delete request from detail dialog."""
+        """Handle delete request from detail dialog (already confirmed there).
+
+        observatum.db is backed up first, as every delete is (OBS-04).
+        """
+        from ..components.delete_guard import backup_before_delete
         record_id = record.get('id')
-        if record_id:
+        if record_id and backup_before_delete(self, "Delete Observation"):
             try:
                 if self._obs_repo:
                     self._obs_repo.delete(record_id)
                 elif self._observation_model:
                     self._observation_model.delete(record_id)
                 self._load_data()
+                self.records_changed.emit()
             except Exception as e:
                 print(f"[ObservationTab] Error deleting record: {e}")
 
@@ -233,11 +239,8 @@ class ObservationDetailMixin:
 
     def _on_navigate_to_observations(self, species_name: str):
         """Handle navigation within Observation tab - apply species filter."""
-        # Apply species filter to this tab
-        self.filter_bar.set_species_filter(species_name)
-        # Sync toolbar button state
-        self.toolbar.set_filters_visible(True)
-        self._apply_current_filters()
+        # This species alone: no filter left over from before (OBS-08)
+        self.show_species(species_name)
 
     def _on_navigate_to_collection(self, species_name: str):
         """Handle navigation to Insect Collection tab."""

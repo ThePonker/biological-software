@@ -48,8 +48,10 @@ class StatusFilterDialog(QDialog):
         self._accent_color = accent_color or "#5f8575"
         self._current = current_values or {}
         
-        self._status_list = status_list or VERIFICATION_STATUSES
-        self._type_list = type_list or RECORD_TYPES
+        # The wizard passes the values in this tab's own records (OBS-15, SRCH12); an empty
+        # list means the tab has none (no section shown). None = the old fixed lists.
+        self._status_list = VERIFICATION_STATUSES if status_list is None else list(status_list)
+        self._type_list = RECORD_TYPES if type_list is None else list(type_list)
         
         self.setWindowTitle("Filter by Status")
         self.setMinimumWidth(450)
@@ -95,10 +97,12 @@ class StatusFilterDialog(QDialog):
         
         # === VERIFICATION STATUS SECTION ===
         status_section = self._create_status_section()
+        status_section.setVisible(bool(self._status_list))
         layout.addWidget(status_section)
         
         # === RECORD TYPE SECTION ===
         type_section = self._create_type_section()
+        type_section.setVisible(bool(self._type_list))
         layout.addWidget(type_section)
         
         layout.addStretch()
@@ -262,9 +266,11 @@ class StatusFilterDialog(QDialog):
             return
         
         # Verification status
+        by_fold = {k.casefold(): cb for k, cb in self._status_checkboxes.items()}
         for status in self._current.get('verification_status', []):
-            if status in self._status_checkboxes:
-                self._status_checkboxes[status].setChecked(True)
+            cb = by_fold.get(str(status).casefold())
+            if cb is not None:
+                cb.setChecked(True)
         
         # Record type
         for rec_type in self._current.get('record_type', []):

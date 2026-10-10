@@ -91,6 +91,15 @@ class ThemeManager(QObject):
     def available_themes(self) -> list:
         """Get list of available theme names."""
         return ['Naturalist']
+
+    def set_theme(self, name: str) -> bool:
+        """Switch theme; True only if it changed.
+
+        Settings > Appearance called this and it did not exist (review OBS-20: an
+        AttributeError on any change of the combo). One theme exists, so there is
+        nothing to switch to and this returns False.
+        """
+        return False          # single-theme mode: nothing else to load
     
     # =========================================================================
     # Preset Styles - Common component styles

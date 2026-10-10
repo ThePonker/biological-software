@@ -64,7 +64,7 @@ def test_tab_takes_finished_worker_results_directly(qapp, tmp_path, monkeypatch)
     tab._data_worker = w
     monkeypatch.setattr(rst, "get_database", lambda: None)
     monkeypatch.setattr(tab.filter_bar, "initialize_with_database", lambda db: None)
-    monkeypatch.setattr(tab, "_load_wizard_tab_data", lambda: None)
+    monkeypatch.setattr(tab.filter_wizard, "refresh_tab_values", lambda: None)   # was _load_wizard_tab_data (10 Oct)
     tab.initialize(str(db))
     assert tab.table_model.rowCount() == 1
 

@@ -146,7 +146,23 @@ def get_projects_for_year(conn, year: int) -> list[dict]:
         "ORDER BY project_name", (year, year)).fetchall()
     return [dict(r) for r in rows]
 
+class DuplicateProjectName(ValueError):
+    """A project of this name already starts in this business year (MUN-3)."""
+
+
+def _check_unique_name(conn, start_year, name, exclude_id=None):
+    row = conn.execute(
+        "SELECT id FROM projects WHERE start_year = ? AND project_name = ? AND id IS NOT ?",
+        (start_year, name, exclude_id)).fetchone()
+    if row:
+        raise DuplicateProjectName(
+            f"A project called \u201c{name}\u201d already starts in {start_year}/{start_year + 1}. "
+            "Choose another name (e.g. add the site or phase).")
+
+
 def add_project(conn, data: dict) -> int:
+    """Raises DuplicateProjectName if the name is taken in that start year."""
+    _check_unique_name(conn, data["start_year"], data["project_name"])
     cur = conn.execute(
         "INSERT INTO projects (start_year, end_year, project_name, client, "
         "status, quote_value) VALUES (?, ?, ?, ?, ?, ?)",
@@ -162,6 +178,12 @@ def update_project(conn, project_id: int, data: dict):
     sets = {k: v for k, v in data.items() if k in allowed}
     if not sets:
         return
+    if "project_name" in sets or "start_year" in sets:
+        cur = conn.execute("SELECT start_year, project_name FROM projects WHERE id = ?",
+                           (project_id,)).fetchone()
+        if cur is not None:
+            _check_unique_name(conn, sets.get("start_year", cur[0]),
+                               sets.get("project_name", cur[1]), exclude_id=project_id)
     clause = ", ".join(f"{k} = ?" for k in sets)
     conn.execute(f"UPDATE projects SET {clause} WHERE id = ?",
                  [*sets.values(), project_id])
@@ -275,9 +297,18 @@ def summarise_pipeline(projects: list) -> dict:
             st = "quoted"
         counts[st] += 1
         values[st] += p.get("quote_value") or 0
+    # MUN-4: a project spanning several business years carries one quote value,
+    # and is counted in full in every year it spans. How to apportion it is
+    # Wil's decision (docs/03_Backlog.md); until then the summary says how much
+    # of each figure is such projects.
+    multi = [p for p in projects
+             if (p.get("end_year") or 0) > (p.get("start_year") or 0)]
     return {
         "counts": counts, "values": values,
         "confirmed": sum(values[s] for s in COMMITTED_STATUSES),
         "lost": values["declined"] + values["no_response"],
         "total": len(projects),
+        "multi_year_count": len(multi),
+        "multi_year_confirmed": sum(p.get("quote_value") or 0 for p in multi
+                                    if (p.get("status") or "quoted") in COMMITTED_STATUSES),
     }

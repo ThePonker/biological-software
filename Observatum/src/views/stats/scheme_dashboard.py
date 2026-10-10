@@ -810,7 +810,11 @@ class SearchableSpeciesTable(QFrame):
 
     def _apply_filters(self):
         """Apply search filter."""
-        search_text = self.search_box.text().lower()
+        search_text = self.search_box.text().strip()
+        allowed = None
+        if search_text:   # the shared species search: typing slips, old and common names
+            from shared.species_filter import filter_names
+            allowed = filter_names(search_text, (i.get('species', '') for i in self._all_data))
 
         filtered_data = []
         for item in self._all_data:
@@ -819,7 +823,7 @@ class SearchableSpeciesTable(QFrame):
             vc_count = item.get('vc_count', 0)
 
             # Search filter
-            if search_text and search_text not in species:
+            if allowed is not None and item.get('species', '') not in allowed:
                 continue
 
             # Capitalize only genus (first word), keep rest lowercase
@@ -1185,6 +1189,7 @@ class SchemeDashboard(QScrollArea):
     species_selected = Signal(str)  # Emits species name to navigate to filtered data
     species_vc_selected = Signal(str, int)  # Emits species name and VC number
     data_filters_changed = Signal()  # Emitted when exclusion filters toggled
+    scheme_records_changed = Signal()  # a record was edited or deleted from a detail dialog
     record_selected = Signal(int)  # Emits record_id when clicked to navigate to specific record
     vc_details_requested = Signal(str)  # Emits species name to show VC details dialog
 
@@ -1759,12 +1764,11 @@ class SchemeDashboard(QScrollArea):
             table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             table.setShowGrid(False)
             
-            # Store record IDs for click handling
-            record_ids = []
-            
+            # The record id rides on each row (column 0, UserRole): the table can be
+            # sorted, so a row number is not a position in `results` (review 10 Oct)
+            table.setSortingEnabled(False)
             for row_idx, row in enumerate(results):
                 record_id = row['id']
-                record_ids.append(record_id)
                 
                 date_raw = row['date'] or ''
                 # Format date as dd/mm/yyyy
@@ -1779,15 +1783,18 @@ class SchemeDashboard(QScrollArea):
                 status = row['verification_status'] or ''
                 source = row['source'] or ''
                 
-                table.setItem(row_idx, 0, QTableWidgetItem(format_date(date_raw)))
+                date_item = QTableWidgetItem(format_date(date_raw))
+                date_item.setData(Qt.ItemDataRole.UserRole, record_id)
+                table.setItem(row_idx, 0, date_item)
                 table.setItem(row_idx, 1, QTableWidgetItem(location))
                 table.setItem(row_idx, 2, QTableWidgetItem(grid_ref))
                 table.setItem(row_idx, 3, QTableWidgetItem(recorder))
                 table.setItem(row_idx, 4, QTableWidgetItem(status))
                 table.setItem(row_idx, 5, QTableWidgetItem(source))
             
+            table.setSortingEnabled(True)
             # Connect double-click to open record detail
-            table.doubleClicked.connect(lambda idx: self._on_record_table_double_clicked(idx, record_ids, species_name, vc_number))
+            table.doubleClicked.connect(lambda idx, _t=table: self._on_record_table_double_clicked(idx, _t, species_name, vc_number))
             
             layout.addWidget(table, 1)
             
@@ -1860,16 +1867,17 @@ class SchemeDashboard(QScrollArea):
             import traceback
             traceback.print_exc()
 
-    def _on_record_table_double_clicked(self, index, record_ids: list, species_name: str, vc_number: int):
-        """Handle double-click on a record row to show full detail dialog."""
+    def _on_record_table_double_clicked(self, index, table, species_name: str, vc_number: int):
+        """Handle double-click on a record row to show full detail dialog. The record id
+        is read from the clicked row itself (column 0, UserRole), so sorting can't send
+        Edit / Delete to another record."""
         from ...services.recording_scheme_stats_service import get_recording_scheme_stats
         from ...models.database import get_database
         from ..dialogs import SchemeRecordDetailDialog
         
-        row = index.row()
-        if row >= 0 and row < len(record_ids):
-            record_id = record_ids[row]
-            
+        item = table.item(index.row(), 0) if index.row() >= 0 else None
+        record_id = item.data(Qt.ItemDataRole.UserRole) if item is not None else None
+        if record_id is not None:
             try:
                 stats_service = get_recording_scheme_stats()
                 stats_service.initialize(get_database())
@@ -1888,6 +1896,9 @@ class SchemeDashboard(QScrollArea):
                     record['verification'] = record.get('verification_status', '')
                     
                     dialog = SchemeRecordDetailDialog(record, parent=self)
+                    # Edit / Delete did nothing here (OBS-04)
+                    from ..scheme.scheme_record_actions import wire_scheme_detail
+                    wire_scheme_detail(dialog, self, self.scheme_records_changed.emit)
                     dialog.exec()
                     
             except Exception as e:

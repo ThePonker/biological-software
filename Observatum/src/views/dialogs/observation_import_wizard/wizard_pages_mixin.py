@@ -556,7 +556,8 @@ class WizardPagesMixin(ImportProgressPagesMixin):
         self.stack.addWidget(page)
     
     def _on_skip_duplicates_toggled(self, _checked: bool):
-        """The counts and the Import button follow the skip-duplicates box (IMP-8)."""
+        """The counts and the Import button follow the skip-duplicates box (IMP-8) and the
+        Row handling choice (IMP-9)."""
         if getattr(self, "validated_rows", None) and self.stack.currentIndex() == 4:
             self._update_confirmation_counts()
             self._update_step_ui()
@@ -660,6 +661,10 @@ class WizardPagesMixin(ImportProgressPagesMixin):
 
         # Alias for compatibility with import mixin
         self.import_warnings_radio = self.import_warnings_checkbox
+        # The counts and the Import button follow the choice (IMP-9, 10 Oct 2026)
+        for radio in (self.import_all_checkbox, self.import_valid_only_checkbox,
+                      self.import_warnings_checkbox):
+            radio.toggled.connect(self._on_skip_duplicates_toggled)
 
         summary_layout.addWidget(error_group)
 
@@ -710,10 +715,8 @@ class WizardPagesMixin(ImportProgressPagesMixin):
         self.skip_duplicates_checkbox.toggled.connect(self._on_skip_duplicates_toggled)
         options_layout.addWidget(self.skip_duplicates_checkbox)
 
-        # Include errors checkbox
-        # Hidden ? row handling radio buttons handle this
-        self.include_errors_checkbox = QCheckBox("")
-        self.include_errors_checkbox.setVisible(False)
+        # (The hidden, parentless "include errors" box is gone -- IMP-18: it was never shown
+        # or ticked, and errors were imported only when it was; the Row handling radios decide.)
         
         layout.addWidget(self.options_frame)
         

@@ -1,19 +1,62 @@
 """Atrium - Suite Launcher UI
 
-System tray icon with themed popup panel. Five main app buttons with
-Flauna silhouette icons. Utility row for Codex Manager + Generate Workbook.
-Always-on-top pin toggle. Draggable header.
+System tray icon with themed popup panel. App buttons (Observatum, Examen,
+Curator, Munia, Lector) with Flauna silhouette icons; a utility row
+for Codex Manager. A click on an app that is already open brings its window
+forward instead of starting a second copy (ATR-1). An app that closes with an
+error within a few seconds of its launch is reported in a message box. Always-on-top
+pin toggle. Draggable header.
 """
 
 from pathlib import Path
 from PySide6.QtWidgets import (
     QSystemTrayIcon, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QFrame, QMenu, QApplication,
+    QPushButton, QFrame, QMenu, QApplication, QMessageBox,
 )
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont, QIcon, QPixmap, QCursor, QColor, QPainter
 
-from Atrium.process_manager import APPS, launch_app, is_running, running_count
+from Atrium.process_manager import (
+    APPS, launch_app, is_running, running_count, FAILED, ALREADY_RUNNING, LAUNCHED,
+    EARLY_EXIT_SECONDS, early_exit_code,
+)
+
+_POLL_MS = 250
+
+
+def launch_and_report(app, parent=None):
+    """Launch (or bring forward) an app; say so when it cannot be started, or when
+    it ends with an error within EARLY_EXIT_SECONDS of starting."""
+    result, message = launch_app(app)
+    if result == FAILED:
+        QMessageBox.warning(parent, "Atrium", message)
+    elif result == ALREADY_RUNNING and parent is not None:
+        parent.setToolTip(message)
+    elif result == LAUNCHED:
+        watch_start(app, parent)
+    return result
+
+
+def watch_start(app, parent=None, polls: int = int(EARLY_EXIT_SECONDS * 1000 / _POLL_MS)):
+    """Look at the new process every _POLL_MS for EARLY_EXIT_SECONDS; if it has ended
+    with a non-zero code, say so (the app's console is hidden, so nothing else would)."""
+    proc = app.process
+
+    def check(left=polls):
+        if app.process is not proc:
+            return                                   # relaunched meanwhile
+        code = early_exit_code(app)
+        if code is not None:
+            QMessageBox.warning(
+                parent if parent is not None and parent.isVisible() else None, "Atrium",
+                f"{app.name} closed straight after starting (exit code {code}).\n\n"
+                f"To see the error message, start it from a command window "
+                f"(as its .bat file does).")
+            return
+        if left > 1 and proc is not None and proc.poll() is None:
+            QTimer.singleShot(_POLL_MS, lambda: check(left - 1))
+
+    QTimer.singleShot(_POLL_MS, check)
 
 ASSETS = Path(__file__).resolve().parent / "assets"
 
@@ -109,15 +152,15 @@ class AppButton(QFrame):
             f"border-radius: 4px; background: transparent; border: none;")
         layout.addWidget(self.status_dot)
 
-    def update_status(self):
-        running = is_running(self._app)
+    def update_status(self, windows=None):
+        running = is_running(self._app, windows)
         colour = MOSS if running else "transparent"
         self.status_dot.setStyleSheet(
             f"border-radius: 4px; background: {colour}; border: none;")
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
-            launch_app(self._app)
+            launch_and_report(self._app, self)
             QTimer.singleShot(500, self.update_status)
         super().mousePressEvent(event)
 
@@ -272,8 +315,9 @@ class AtriumPanel(QWidget):
         """)
         al.addWidget(section)
 
-        # Only the 5 main apps (exclude Generate Tabella and Codex from main list)
-        main_app_names = {"Observatum", "Curator", "Munia"}   # Tabella retired 2026-10-07
+        # Every app except Codex, which is in the Tools row (Tabella retired 2026-10-07;
+        # Examen and Lector added 2026-10-10, ATR-1; Data Entry is used inside Observatum)
+        main_app_names = {"Observatum", "Examen", "Curator", "Munia", "Lector"}
         self._buttons = []
         for app in APPS:
             if app.name in main_app_names:
@@ -382,8 +426,10 @@ class AtriumPanel(QWidget):
         self.show()
 
     def refresh_status(self):
+        from Atrium.process_manager import _visible_windows
+        windows = _visible_windows()
         for btn in self._buttons:
-            btn.update_status()
+            btn.update_status(windows)
         count = running_count()
         if count:
             self.running_label.setText(f"{count} running")
@@ -413,13 +459,9 @@ class AtriumPanel(QWidget):
     def _on_codex(self):
         for app in APPS:
             if app.name == "Codex":
-                launch_app(app)
+                launch_and_report(app, self)
                 QTimer.singleShot(500, self.refresh_status)
                 return
-
-    def _on_generate(self):
-        from Atrium.process_manager import _run_generator
-        _run_generator()
 
 
 class AtriumApp:

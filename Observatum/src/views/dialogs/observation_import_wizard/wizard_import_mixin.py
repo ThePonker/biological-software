@@ -145,31 +145,41 @@ class WizardImportMixin:
         skip_duplicates = self.skip_duplicates_checkbox.isChecked() if import_mode in [ImportMode.PERSONAL_UPLOAD, ImportMode.COMMERCIAL_UPLOAD] else False
         never_upload = self.never_upload_checkbox.isChecked() if import_mode in [ImportMode.PERSONAL_UPLOAD, ImportMode.COMMERCIAL_UPLOAD] else False
         
-        # Filter rows to import
+        # Which rows go in: the "Row handling" choice on the confirmation page. "Import all
+        # rows including errors" used to import none of them -- it also needed a hidden box
+        # that was never ticked (IMP-9, 10 Oct 2026). Every row left out is counted, by
+        # reason, for the summary (IMP-16).
+        handling = self._row_handling()
+        counts = dict.fromkeys(("new", "updated", "unchanged", "duplicates_skipped",
+                                "errors_left_out", "warnings_left_out", "failed"), 0)
         rows_to_import = []
-        include_errors = getattr(self, "_include_errors_at_import", False)
-        # Determine which rows to import based on user selection
-        if hasattr(self, 'import_valid_only_checkbox') and self.import_valid_only_checkbox.isChecked():
-            import_rows = [r for r in self.validated_rows if r.status == RowStatus.VALID]
-        elif hasattr(self, 'import_warnings_checkbox') and self.import_warnings_checkbox.isChecked():
-            import_rows = self.validated_rows  # Import everything
-        else:
-            # Default: import valid + warning, skip errors
-            import_rows = [r for r in self.validated_rows if r.status != RowStatus.ERROR]
-
-        for row in import_rows:
-            if row.status == RowStatus.ERROR and not include_errors:
+        for row in self.validated_rows:
+            if row.status == RowStatus.ERROR and handling != "everything":
+                counts["errors_left_out"] += 1
+                continue
+            if row.status == RowStatus.WARNING and handling == "valid_only":
+                counts["warnings_left_out"] += 1
                 continue
             # IMP-8: Commercial uploads skip duplicates too (they were always re-inserted)
             if skip_duplicates and row.is_duplicate and import_mode in (
                     ImportMode.PERSONAL_UPLOAD, ImportMode.COMMERCIAL_UPLOAD):
+                counts["duplicates_skipped"] += 1
                 continue
             rows_to_import.append(row)
+        self._summary_counts = counts
         
         if not rows_to_import:
             QMessageBox.warning(self, "No Data", "No valid rows to import.")
             return
         
+        # Taxon group (and kingdom) from each row's FINAL species when blank -- a species
+        # picked by hand came with none (IMP-10). A label from the file is kept, and a
+        # re-sync never sends one of ours over the stored iRecord label.
+        from shared.taxon_groups import fill_blank_groups
+        fill_blank_groups(r for r in rows_to_import
+                          if not (import_mode == ImportMode.IRECORD_SYNC and r.is_duplicate
+                                  and r.existing_record_id))
+
         self.imported_count = 0
         self.updated_count = 0
         self.skipped_count = 0
@@ -232,7 +242,7 @@ class WizardImportMixin:
                 obs_data = self._row_to_observation_dict(row, import_mode)
                 result = self._update_observation(row.existing_record_id, obs_data)
                 if result == 'skipped':
-                    self.skipped_count += 1
+                    counts["unchanged"] += 1
                 elif result:
                     self.updated_count += 1
                 else:
@@ -247,6 +257,10 @@ class WizardImportMixin:
                     )
                     QApplication.processEvents()
             
+            counts["new"], counts["updated"], counts["failed"] = (
+                self.imported_count, self.updated_count, self.error_count)
+            self.skipped_count = (counts["unchanged"] + counts["duplicates_skipped"]
+                                  + counts["errors_left_out"] + counts["warnings_left_out"])
             self.import_status_label.setText("Import complete!")
             self.import_status_label.setStyleSheet(f"color: {t.get('success')}; font-weight: 600;")
             
@@ -468,7 +482,8 @@ class WizardImportMixin:
             # Occurrence
             'sex': row.sex or None,
             'stage': row.stage or None,
-            'quantity': row.quantity or 1,
+            'quantity': 1 if row.quantity is None else row.quantity,     # 0 stays 0 (IMP-12)
+            'organism_quantity': getattr(row, 'organism_quantity', '') or None,   # 'c.20' as written
             'zero_abundance': row.zero_abundance,
             'method': row.method or None,
             
@@ -741,38 +756,44 @@ class WizardImportMixin:
             self._note_import_error(obs_data, e)
             return False
     
+    def _row_handling(self) -> str:
+        """'valid_only', 'all_but_errors' (the default) or 'everything' -- the radios on the
+        confirmation page."""
+        if getattr(self, "import_valid_only_checkbox", None) and self.import_valid_only_checkbox.isChecked():
+            return "valid_only"
+        if getattr(self, "import_warnings_checkbox", None) and self.import_warnings_checkbox.isChecked():
+            return "everything"              # "Import all rows including errors"
+        return "all_but_errors"
+
+    SUMMARY_ORDER = (("new", "New records"), ("updated", "Updated records"),
+                     ("unchanged", "Already up to date (not changed)"),
+                     ("duplicates_skipped", "Duplicates skipped"),
+                     ("errors_left_out", "Rows with errors, not imported"),
+                     ("warnings_left_out", "Rows with warnings, not imported"),
+                     ("failed", "Could not be written"))
+
     def _update_summary(self):
-        """Update the summary page with final counts."""
+        """The summary page: every row of the file in exactly one line (IMP-16, 10 Oct 2026).
+
+        It used to report 'Skipped (errors)' as the file's rows less those imported, so
+        duplicates left out and records already up to date were all called errors."""
+        from shared.import_core import summary_lines
         t = theme()
-
-        # Calculate skipped (errors not imported)
-        total_rows = len(self.validated_rows) if hasattr(self, "validated_rows") else 0
-        imported_total = self.imported_count + self.updated_count
-        skipped = total_rows - imported_total - self.error_count
-        if skipped < 0:
-            skipped = 0
-
-        summary_parts = [
-            f"New records: {self.imported_count}",
-            f"Updated records: {self.updated_count}",
-        ]
-        if skipped > 0:
-            summary_parts.append(f"Skipped (errors): {skipped}")
-        if self.error_count > 0:
-            summary_parts.append(f"Import errors: {self.error_count}")
-
-        self.summary_stats.setText("\n".join(summary_parts))
+        counts = dict(getattr(self, "_summary_counts", {}) or {})
+        counts.update(new=self.imported_count, updated=self.updated_count, failed=self.error_count)
+        left_out = sum(counts.get(k, 0) for k in ("unchanged", "duplicates_skipped",
+                                                  "errors_left_out", "warnings_left_out"))
+        self.summary_stats.setText("\n".join(summary_lines(counts, self.SUMMARY_ORDER)))
 
         if self.error_count > 0:
             self.summary_icon.setText("\u26A0")
             self.summary_icon.setStyleSheet(f"font-size: 64px; color: {t.get('warning')};")
             self.summary_title.setText("Import Complete with Errors")
-        elif skipped > 0:
+        elif left_out > 0:
             self.summary_icon.setText("\u2713")
             self.summary_icon.setStyleSheet(f"font-size: 64px; color: {t.get('success')};")
-            self.summary_title.setText(f"Import Complete ({skipped} rows skipped)")
+            self.summary_title.setText(f"Import Complete ({left_out} rows not imported)")
         else:
             self.summary_icon.setText("\u2713")
             self.summary_icon.setStyleSheet(f"font-size: 64px; color: {t.get('success')};")
             self.summary_title.setText("Import Complete!")
-

@@ -138,45 +138,37 @@ class InfoService:
             return (0, 0, len(rows))
         return count_sexes(r[0] for r in rows)
 
-    def conservation(self, tvk: str) -> str:
-        """Compact conservation summary from codex status_summary, or '' if none/unavailable."""
-        if not tvk:
+    def conservation(self, tvk: str, vc_number=None) -> str:
+        """Compact conservation summary (the chips' labels), or '' if none/unavailable."""
+        if not tvk or self._codex_conn() is None:
             return ""
-        conn = self._codex_conn()
-        if conn is None:
-            return ""
-        try:
-            rows = conn.execute(
-                "SELECT status_track, status_value, status_detail FROM status_summary WHERE tvk=?",
-                (tvk,),
-            ).fetchall()
-        except sqlite3.Error:
-            return ""
-        by: Dict[str, Tuple[str, str]] = {}
-        for track, value, detail in rows:
-            by.setdefault(track, (value, detail))
-        parts = []
-        if "threat_iucn_2001" in by:
-            parts.append(by["threat_iucn_2001"][0])
-        elif "threat_iucn_legacy" in by:
-            parts.append(by["threat_iucn_legacy"][0])
-        if "rarity_modern" in by:
-            parts.append(by["rarity_modern"][0])
-        elif "rarity_legacy" in by:
-            parts.append(by["rarity_legacy"][0])
-        if "bocc" in by:
-            parts.append("BoCC " + (by["bocc"][0] or ""))
-        if "priority" in by:
-            det = by["priority"][1]
-            parts.append("Priority" + (f" ({det})" if det else ""))
-        if "legal_protection" in by:
-            det = by["legal_protection"][1]
-            parts.append("Protected" + (f" ({det})" if det else ""))
-        parts = [p for p in parts if p and p.strip()]
-        return "   ".join(parts) if parts else "No conservation status"
+        labels = [label for label, _ in self.conservation_chips(tvk, vc_number)]
+        return "   ".join(labels) if labels else "No conservation status"
 
-    def conservation_chips(self, tvk: str):
-        """List of (label, kind) for coloured chips. kind in threat/rarity/priority/legal/other."""
+    @staticmethod
+    def jurisdiction_for_vc(vc_number) -> str:
+        """The country whose priority list and legal instruments apply at this VC.
+
+        Examen's rule (examen_data.country_for_vc, review EXA2). No readable VC -> England,
+        Examen's default. Before 10 Oct the chips took whichever priority row came first,
+        so an Oxfordshire record could show 'NI Priority Species' (review DE6).
+        """
+        try:
+            from Examen.examen_data import country_for_vc, DEFAULT_JURISDICTION
+        except Exception:
+            return "England"
+        try:
+            return country_for_vc(int(vc_number)) or DEFAULT_JURISDICTION
+        except (TypeError, ValueError):
+            return DEFAULT_JURISDICTION
+
+    def conservation_chips(self, tvk: str, vc_number=None):
+        """List of (label, kind) for coloured chips. kind in threat/rarity/priority/legal/other.
+
+        Priority listings and NI-only legal instruments are shown only where they apply:
+        the record's country from its vice-county (jurisdiction_for_vc), filtered by the
+        same rules as Codex/Examen's Key-species decision. Threat and rarity are GB-wide.
+        """
         if not tvk:
             return []
         conn = self._codex_conn()
@@ -184,14 +176,26 @@ class InfoService:
             return []
         try:
             rows = conn.execute(
-                "SELECT status_track, status_value, status_detail FROM status_summary WHERE tvk=?",
+                "SELECT status_track, status_value, status_detail FROM status_summary WHERE tvk=? "
+                "ORDER BY rowid",
                 (tvk,),
             ).fetchall()
         except sqlite3.Error:
             return []
+        from types import SimpleNamespace
+        from shared.repositories.codex_repository import _legal_applies, _priority_applies
+        where = self.jurisdiction_for_vc(vc_number)
         by: Dict[str, Tuple[str, str]] = {}
+        priority, legal = [], []
         for track, value, detail in rows:
-            by.setdefault(track, (value, detail))
+            if track == "priority":
+                if _priority_applies(value, where):
+                    priority.append((value, detail))
+            elif track == "legal_protection":
+                if _legal_applies(SimpleNamespace(value=value, detail=detail), where):
+                    legal.append((value, detail))
+            else:
+                by.setdefault(track, (value, detail))
         chips = []
         if "threat_iucn_2001" in by:
             chips.append((by["threat_iucn_2001"][0], "threat"))
@@ -203,11 +207,13 @@ class InfoService:
             chips.append((by["rarity_legacy"][0], "rarity"))
         if "bocc" in by:
             chips.append(("BoCC " + (by["bocc"][0] or ""), "threat"))
-        if "priority" in by:
-            det = by["priority"][1]
+        if priority:
+            # the country's own list before UK BAP
+            priority.sort(key=lambda vd: "bap" in (vd[0] or "").lower())
+            det = priority[0][1] or priority[0][0]
             chips.append(("Priority" + (f" ({det})" if det else ""), "priority"))
-        if "legal_protection" in by:
-            det = by["legal_protection"][1]
+        if legal:
+            det = legal[0][1]
             chips.append(("Protected" + (f" ({det})" if det else ""), "legal"))
         return [(l, k) for (l, k) in chips if l and l.strip()]
 
@@ -813,7 +819,7 @@ class InfoPanel(QWidget):
         self._l2.setText("")
         chips = []
         if tvk:
-            for label, kind in self._svc.conservation_chips(tvk):
+            for label, kind in self._svc.conservation_chips(tvk, row.get("vc_number")):
                 chips.append(self._chip(label, kind))
             if not chips:
                 self._l2.setText("No conservation status")

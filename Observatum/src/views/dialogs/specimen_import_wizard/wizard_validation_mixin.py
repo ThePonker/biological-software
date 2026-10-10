@@ -5,7 +5,6 @@ Contains validation callbacks and row update methods.
 """
 
 from typing import List, Optional
-from datetime import datetime
 
 from PySide6.QtWidgets import (
     QDialog, QTableWidgetItem, QMessageBox, QTableView
@@ -13,7 +12,10 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 
-from .validation_worker import ValidationWorker, ImportRow, RowStatus, _find_vc_database
+from shared.species_lookup_entries import apply_confirmed
+
+from .validation_worker import (ValidationWorker, ImportRow, RowStatus, _find_vc_database,
+                                normalise_sex, parse_specimen_date)
 from .validation_table_model import ValidationTableModel
 from .species_search_dialog import SpeciesSearchDialog
 
@@ -83,6 +85,7 @@ class WizardValidationMixin:
             self.column_mapping,
             self.uksi_model,
             self.vc_db_path,
+            db_manager=self.db,                  # specimens already held (IMP-7)
         )
         self.validation_worker.progress.connect(self._on_validation_progress)
         self.validation_worker.row_validated.connect(self._on_row_validated)
@@ -106,6 +109,8 @@ class WizardValidationMixin:
         
         # Set the model on the view
         self.validation_table.setModel(self.validation_model)
+        self.validation_model.row_edited.connect(self._on_model_row_edited)    # IMP-6
+        self._edited_row_indices.clear()
         
         # Configure the view
         self.validation_table.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
@@ -281,76 +286,50 @@ class WizardValidationMixin:
         self.validation_table.setItem(row_idx, 7, message_item)
 
     def _on_table_double_clicked(self, index):
-        """Handle double-click on table - wrapper for QTableView."""
-        if index.isValid():
-            row_idx = index.row()
-            col_idx = index.column()
-            if col_idx == 2:  # Species column
-                row = self.validation_model.get_row(row_idx)
-                if row:
-                    # Open species search dialog
-                    current_species = row.species_name or ""
-                    dialog = SpeciesSearchDialog(self, self.uksi_model, initial_text=current_species)
-                    if dialog.exec() == QDialog.DialogCode.Accepted:
-                        selected = dialog.get_selected_species()
-                        if selected:
-                            # Update the row (selected is a dict)
-                            row.species_name = selected['scientific_name']
-                            row.species_tvk = selected['tvk']
-                            row.common_name = selected.get('common_name') or ""
-                            row.order_name = selected.get('order_name') or ""
-                            row.family = selected.get('family') or ""
-                            row.error_message = ""
-                            row.warnings = []
-                            row.status = RowStatus.VALID
-                            # Update the model
-                            self.validation_model.update_row(row_idx, row)
-                            self._update_validation_counts()
-                            # Mark row as edited and enable revalidate button
-                            self._edited_row_indices.add(row_idx)
-                            self.revalidate_btn.setEnabled(True)
+        """Double-click on Species: pick the UKSI taxon. Applied as Resolve Species does
+        (IMP-6, 10 Oct 2026): it used to mark the row valid, clearing a bad date or grid
+        ref error with it."""
+        if not index.isValid() or index.column() != 2:
+            return
+        self._on_cell_double_clicked(index.row(), 2)
 
     def _on_cell_double_clicked(self, row: int, col: int):
-        """Handle double-click on a cell."""
-        if col == 2:  # Species column
-            current_species = ""
-            item = self.validation_table.item(row, col)
-            if item:
-                current_species = item.text()
-            
-            dialog = SpeciesSearchDialog(self, self.uksi_model, current_species)
-            if dialog.exec() == QDialog.DialogCode.Accepted:
-                selected = dialog.get_selected_species()
-                if selected:
-                    self.validated_rows[row].species_name = selected['scientific_name']
-                    self.validated_rows[row].species_tvk = selected['tvk']
-                    self.validated_rows[row].common_name = selected['common_name']
-                    self.validated_rows[row].order_name = selected['order_name']
-                    self.validated_rows[row].family = selected['family']
-                    
-                    self.validation_table.blockSignals(True)
-                    self.validation_table.item(row, 2).setText(selected['scientific_name'])
-                    self.validation_table.blockSignals(False)
-                    
-                    self._edited_row_indices.add(row)
-                    self.revalidate_btn.setEnabled(True)
-    
+        """Handle double-click on a cell (Species: the picker)."""
+        if col != 2:
+            return
+        model = getattr(self, "validation_model", None)
+        target = model.get_row(row) if model is not None else None
+        if target is None and 0 <= row < len(self.validated_rows):
+            target = self.validated_rows[row]
+        if target is None:
+            return
+        original = target.species_name or ""
+        dialog = SpeciesSearchDialog(self, self.uksi_model, initial_text=original)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        picked = dialog.get_selected_species()
+        if not picked or not picked.get("tvk"):
+            return
+        apply_confirmed(target, picked, original, "picked by you")
+        if getattr(self, "validation_model", None) is not None:
+            self.validation_model.update_row(row, target)
+        self._update_validation_counts()
+        if hasattr(self, "resolve_species_btn"):
+            self.resolve_species_btn.setVisible(bool(self._get_unmatched_species()))
+
+    def _on_model_row_edited(self, row_idx: int, attr: str, text: str):
+        """A Date, Grid Ref or Location cell was edited (IMP-6): the edit is kept on the row
+        (the model had no setData, so it was thrown away) and the row must be revalidated
+        before Import."""
+        self._edited_row_indices.add(row_idx)
+        self.revalidate_btn.setEnabled(True)
+        self.next_btn.setEnabled(False)
+
     def _on_cell_changed(self, row: int, col: int):
-        """Handle cell content changes."""
-        if col in (3, 4, 6):  # Date, Grid Ref, Location
-            self._edited_row_indices.add(row)
-            self.revalidate_btn.setEnabled(True)
-            
-            item = self.validation_table.item(row, col)
-            if item:
-                new_value = item.text().strip()
-                if col == 3:
-                    self.validated_rows[row].date_collected = new_value
-                elif col == 4:
-                    self.validated_rows[row].grid_ref = new_value.upper().replace(" ", "")
-                    item.setText(self.validated_rows[row].grid_ref)
-                elif col == 6:
-                    self.validated_rows[row].site_name = new_value
+        """Kept for old callers; edits now arrive through the model (row_edited)."""
+        attr = self.validation_model.EDIT_FIELDS.get(col)
+        if attr:
+            self._on_model_row_edited(row, attr, "")
     
     def _revalidate_edited_rows(self):
         """Re-run validation on edited rows."""
@@ -363,6 +342,7 @@ class WizardValidationMixin:
         
         self._edited_row_indices.clear()
         self.revalidate_btn.setEnabled(False)
+        self.next_btn.setEnabled(True)
         self._update_validation_counts()
     
     def _revalidate_single_row(self, row: ImportRow, row_idx: int):
@@ -393,39 +373,41 @@ class WizardValidationMixin:
                 if e["import_notes"]:
                     row.import_notes = e["import_notes"]
         
-        # Validate date
+        # Validate date: the same reader as validation (6.vi.2021, no future dates -- IMP-13)
         if not row.date_collected:
             warnings.append("No date provided")
         else:
-            parsed_date = self._parse_date_format(row.date_collected)
+            parsed_date, date_error = parse_specimen_date(row.date_collected)
             if parsed_date:
                 row.date_collected = parsed_date
-            elif not self._is_valid_date_format(row.date_collected):
-                errors.append(f"Invalid date format: {row.date_collected}")
+            else:
+                errors.append(date_error)
+
+        # Sex, as validation writes it
+        if getattr(row, "sex", ""):
+            row.sex, sex_warning = normalise_sex(row.sex)
+            if sex_warning:
+                warnings.append(sex_warning)
+        if getattr(row, "is_duplicate", False):
+            warnings.append(f"Already in the collection (specimen {row.existing_record_id})")
         
-        # Validate grid reference
+        # Validate grid reference (tetrads included -- IMP-13)
         if not row.grid_ref:
             warnings.append("No grid reference provided")
             row.vc_number = None
             row.vc_name = ""
         elif self.vc_service:
-            is_valid, msg = self.vc_service.validate_grid_ref(row.grid_ref)
-            if is_valid:
-                row.grid_ref = row.grid_ref.upper().replace(" ", "")
-                vc_result = self.vc_service.get_vc_from_grid_ref(row.grid_ref)
-                if vc_result:
-                    row.vc_number, row.vc_name = vc_result
-                else:
-                    row.vc_number = None
-                    row.vc_name = ""
-                    warnings.append("Could not determine Vice County")
-                
-                if "Warning" in msg:
-                    warnings.append(msg)
-            else:
-                errors.append(f"Invalid grid reference: {msg}")
+            from shared.import_core import vc_for_grid_refs
+            row.grid_ref = row.grid_ref.upper().replace(" ", "")
+            res = vc_for_grid_refs(self.vc_service, [row.grid_ref]).get(row.grid_ref) or {}
+            if res.get("error"):
+                errors.append(res["error"])
                 row.vc_number = None
                 row.vc_name = ""
+            else:
+                row.vc_number, row.vc_name = res.get("vc_number"), res.get("vc_name") or ""
+                if res.get("warning"):
+                    warnings.append(res["warning"])
         
         # Set status
         row.warnings = warnings
@@ -444,26 +426,8 @@ class WizardValidationMixin:
         self.validated_rows[row_idx] = row
     
     def _parse_date_format(self, date_str: str) -> Optional[str]:
-        """Parse various date formats to ISO format."""
-        formats = [
-            "%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%d",
-            "%d/%m/%y", "%d-%m-%y",
-        ]
-        for fmt in formats:
-            try:
-                dt = datetime.strptime(date_str, fmt)
-                return dt.strftime("%Y-%m-%d")
-            except ValueError:
-                continue
-        return None
-    
-    def _is_valid_date_format(self, date_str: str) -> bool:
-        """Check if date string is already in valid ISO format."""
-        try:
-            datetime.strptime(date_str, "%Y-%m-%d")
-            return True
-        except ValueError:
-            return False
+        """ISO date for an exact date, else None (the shared reader; kept for old callers)."""
+        return parse_specimen_date(date_str)[0] or None
     
     def _update_validation_counts_live(self):
         """Update validation counts during validation."""
@@ -490,6 +454,9 @@ class WizardValidationMixin:
         self.valid_count_label.setText(f"Valid: {valid_count}")
         self.warning_count_label.setText(f"Warnings: {warning_count}")
         self.error_count_label.setText(f"Errors: {error_count}")
+        # Export Problems was created disabled and never enabled (IMP-18, 10 Oct 2026)
+        if hasattr(self, "export_problems_btn"):
+            self.export_problems_btn.setEnabled(error_count > 0 or warning_count > 0)
         return  # Early return to skip old implementation
 
     def _update_validation_counts_OLD(self):

@@ -15,7 +15,8 @@ class SchemeValidationTableModel(ImportValidationTableModel):
     COLUMNS = ["Status", "Row", "Species", "Date", "Grid Ref", "Site", "Message"]
     MESSAGE_COLUMN = 6
     COLOURED_COLUMNS = (0, 6)
-    EDITABLE_COLUMNS = (2, 3, 4, 5)
+    EDITABLE_COLUMNS = (3, 4, 5)                 # Date, Grid Ref, Site (Species: double-click)
+    EDIT_FIELDS = {3: "date", 4: "grid_ref", 5: "site_name"}
 
     def _get_display_value(self, row: SchemeImportRow, col: int) -> str:
         if col == 0:

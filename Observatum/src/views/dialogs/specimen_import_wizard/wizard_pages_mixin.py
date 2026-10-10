@@ -325,6 +325,14 @@ class WizardPagesMixin:
         
         # Compatibility alias
         self.import_warnings_radio = self.import_warnings_checkbox
+
+        # Specimens already in the collection (IMP-7, 10 Oct 2026: there was no check)
+        self.skip_duplicates_checkbox = QCheckBox(
+            "Skip specimens already in the collection (same code, or same species, date, "
+            "grid ref and sex)")
+        self.skip_duplicates_checkbox.setStyleSheet(checkbox_style)
+        self.skip_duplicates_checkbox.setChecked(True)
+        error_indent_layout.addWidget(self.skip_duplicates_checkbox)
         
         options_layout.addWidget(error_indent)
         layout.addWidget(options_group)

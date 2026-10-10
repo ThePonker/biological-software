@@ -123,7 +123,38 @@ class QuickEntryFieldsMixin:
         self.record_type_combo = QComboBox()
         self.record_type_combo.addItems(['Personal', 'Commercial'])
         self.record_type_combo.setMinimumHeight(32)
+        self.record_type_combo.currentTextChanged.connect(self._on_record_type_changed)
         return self.record_type_combo
+
+    def _create_project_field(self) -> QWidget:
+        """Project for a Commercial record (OBS-16): one of the existing projects."""
+        self.project_combo = QComboBox()
+        self.project_combo.setMinimumHeight(32)
+        self.project_combo.setEnabled(False)
+        self.project_combo.setToolTip("Commercial records belong to a project. "
+                                      "New projects are started in Data Entry.")
+        return self.project_combo
+
+    def _on_record_type_changed(self, text: str):
+        """List the projects when Commercial is chosen; none for Personal."""
+        combo = getattr(self, 'project_combo', None)
+        if combo is None:
+            return
+        combo.clear()
+        if text != 'Commercial':
+            combo.setEnabled(False)
+            return
+        from .quick_entry_project import commercial_projects, project_label
+        try:
+            from ...models.database import get_database
+            projects = commercial_projects(get_database())
+        except Exception as e:
+            print(f"[QuickEntry] project list unavailable: {e}")
+            projects = []
+        combo.addItem("Choose a project...", None)
+        for p in projects:
+            combo.addItem(project_label(p), p)
+        combo.setEnabled(True)
 
     def _create_never_upload_field(self) -> QWidget:
         """Create 'Never upload to iRecord' checkbox."""

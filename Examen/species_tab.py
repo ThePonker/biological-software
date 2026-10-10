@@ -24,6 +24,12 @@ MOSS_GREEN = "#4a7c59"; ACCENT = "#7c6c9f"; ACCENT_DARK = "#5a4d78"
 RED_STATUS = "#a63d40"; AMBER = "#c2956e"
 
 
+def biotope_options(species):
+    """The single biotopes in a species list, sorted: one entry per biotope, never
+    a combined "a, b" string (EXA11)."""
+    return sorted({b for s in species for b in s.get("biotopes", [])})
+
+
 class SpeciesTab(QWidget):
 
     def __init__(self, parent=None):
@@ -77,6 +83,13 @@ class SpeciesTab(QWidget):
         """Populate from AnalysisResult + SiteDetail. taxonomy: {tvk: {common, family, order}}."""
         self._all_species = []
         tax = taxonomy or {}
+        # Every biotope of a species, not the two-item display string (EXA11):
+        # the filter lists single biotopes and a species matches any of its own.
+        bios_by_tvk = getattr(result, "biotopes_by_tvk", {}) or {}
+
+        def biotopes(tvk, shown):
+            full = list(bios_by_tvk.get(tvk) or [])
+            return full or [b.strip() for b in (shown or "").split(",") if b.strip()]
 
         # Key species from result. The full status names each legal instrument,
         # as a non-key row's does (EXA10) -- the workbook's own string.
@@ -91,7 +104,7 @@ class SpeciesTab(QWidget):
                 "name": k.species_name, "common": t.get("common", ""),
                 "status": k.short_status, "status_full": status_string(k),
                 "sqs": k.sqs, "tier": k.tier,
-                "biotope": k.broad_biotope, "habitat": k.habitat,
+                "biotopes": biotopes(k.tvk, k.broad_biotope), "habitat": k.habitat,
                 "family": k.family or t.get("family", ""), "order": t.get("order", ""),
             })
             key_tvks.add(k.tvk)
@@ -106,15 +119,15 @@ class SpeciesTab(QWidget):
                     "name": sp.name, "common": t.get("common", ""),
                     "status": sp.status, "status_full": getattr(sp, "status_full", ""),
                     "sqs": sp.sqs, "tier": sp.tier,
-                    "biotope": sp.broad_biotope, "habitat": sp.habitat,
+                    "biotopes": biotopes(sp.tvk, sp.broad_biotope), "habitat": sp.habitat,
                     "family": t.get("family", ""), "order": t.get("order", ""),
                 })
 
         # Populate biotope filter
         self.biotope_filter.blockSignals(True)
         self.biotope_filter.clear(); self.biotope_filter.addItem("All", "")
-        biotopes = sorted(set(s["biotope"] for s in self._all_species if s["biotope"]))
-        for b in biotopes: self.biotope_filter.addItem(b, b)
+        for b in biotope_options(self._all_species):
+            self.biotope_filter.addItem(b, b)
         self.biotope_filter.blockSignals(False)
 
         self._apply_filters()
@@ -127,7 +140,7 @@ class SpeciesTab(QWidget):
         filtered = []
         for sp in self._all_species:
             if key_only and not sp["tier"]: continue
-            if bio_filter and bio_filter not in sp["biotope"]: continue
+            if bio_filter and bio_filter not in sp["biotopes"]: continue
             if tier_filter != "All" and sp["tier"] != tier_filter: continue
             filtered.append(sp)
 
@@ -157,7 +170,7 @@ class SpeciesTab(QWidget):
             elif sp["tier"] == "Scarce": ti.setForeground(QColor(AMBER))
             elif sp["tier"] == "Priority": ti.setForeground(QColor(MOSS_GREEN))
             self.table.setItem(i, 4, ti)
-            self.table.setItem(i, 5, QTableWidgetItem(sp["biotope"]))
+            self.table.setItem(i, 5, QTableWidgetItem(", ".join(sp["biotopes"])))
             self.table.setItem(i, 6, QTableWidgetItem(sp["habitat"]))
             self.table.setItem(i, 7, QTableWidgetItem(sp["family"]))
             self.table.setItem(i, 8, QTableWidgetItem(sp["order"]))

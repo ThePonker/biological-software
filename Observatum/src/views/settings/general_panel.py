@@ -309,22 +309,6 @@ class GeneralSettingsPanel(QScrollArea):
         except Exception as e:
             print(f"[Settings] Could not load UKSI families for autocomplete: {e}")
 
-        # Load family names from UKSI for autocomplete
-        try:
-            from ...core.config import Paths
-            uksi_path = Paths.default_uksi_db()
-            conn = connect_ro(str(uksi_path))
-            all_families = [r[0] for r in conn.execute(
-                "SELECT DISTINCT family FROM taxa WHERE family IS NOT NULL AND family != '' ORDER BY family"
-            ).fetchall()]
-            conn.close()
-            completer = QCompleter(all_families, self)
-            completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-            completer.setFilterMode(Qt.MatchFlag.MatchContains)
-            completer.setMaxVisibleItems(12)
-            self.scheme_families_input.setCompleter(completer)
-        except Exception as e:
-            print(f"[Settings] Could not load UKSI families for autocomplete: {e}")
         self.scheme_families_input.setStyleSheet(f"""
             QLineEdit {{
                 padding: 6px 8px;

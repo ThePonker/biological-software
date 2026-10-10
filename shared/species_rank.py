@@ -29,7 +29,15 @@ def name_tier(text, r):
 
 def rank_matches(text, results):
     """Sort matches so genus+epithet prefix hits float to the top (Wil's option b),
-    while still showing everything Tabella's fuzzy match would."""
+    while still showing everything Tabella's fuzzy match would.
+
+    Results from the shared matcher (shared/species_search.py, 10 Oct 2026) carry their own
+    'search_key' -- match quality, then species first, then recorded, then name -- and keep
+    that order: it ranks a typing slip ("Rhagium mordx") or an old name by the name that
+    actually matched, which name_tier (scientific name only) cannot."""
+    results = list(results or [])
+    if any("search_key" in r for r in results):       # (anything else -- a saved alias -- last)
+        return sorted(results, key=lambda r: r.get("search_key") or (9,))
     return sorted(
         results,
         key=lambda r: (name_tier(text, r), 0 if r.get("is_recorded") else 1, (r.get("scientific_name") or "")),
@@ -48,9 +56,13 @@ def resolve_name(text, results, interactive=True):
       unresolved (no TVK) for you to fix -- it never guesses. A single hit reached only
       through part of a common name ("Cricket bat spid" -> Cricket-bat Willow) is not
       filled silently any more: it goes to the picker, or stays unresolved on paste (B6).
+    - a typing-slip match (match_type 'fuzzy': "Rhagium mordx") is never filled: a person
+      picks it, or a paste stays unresolved (10 Oct 2026).
     """
     t = (text or "").strip().lower()
     ranked = rank_matches(text, results or [])
+    if ranked and all(r.get("match_type") == "fuzzy" for r in ranked):
+        return ("pick", ranked) if interactive else ("unresolved", None)
     if not t or not ranked:
         return ("unresolved", None)
     sci = [r for r in ranked if (r.get("scientific_name") or "").lower() == t]

@@ -14,9 +14,10 @@ def export_taxonomic_labels_pdf(path, labels, full_width=True,
                                  show_my_species=False,
                                  show_fauna=False,
                                  font_family="Helvetica", font_size=11):
+    """Write the labels PDF. Raises RuntimeError / OSError on failure (CUR-3:
+    the caller shows it); returns the font family actually used."""
     if FPDF is None:
-        print("Cannot export: fpdf2 not installed")
-        return
+        raise RuntimeError("The PDF export needs fpdf2. In a terminal:  py -3.14 -m pip install fpdf2")
 
     pdf = FPDF(orientation="P", unit="mm", format="A4")
 
@@ -34,6 +35,7 @@ def export_taxonomic_labels_pdf(path, labels, full_width=True,
         _full(pdf, path, labels, show_common, show_my_specimens, show_my_species, show_fauna, f, font_size)
     else:
         _pinned(pdf, path, labels, show_common, show_my_specimens, show_my_species, show_fauna, f, font_size)
+    return f
 
 
 def _rh(rank, sz):

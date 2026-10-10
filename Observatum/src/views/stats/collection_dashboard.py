@@ -122,6 +122,9 @@ class ClickableDataTable(QFrame):
         if max_rows:
             data = data[:max_rows]
         
+        # filling a sorted table moves rows under the writes (a name lands beside another
+        # row's counts): sort off while filling, back on after (review 10 Oct)
+        self.table.setSortingEnabled(False)
         self.table.setRowCount(len(data))
         
         for row, item in enumerate(data):
@@ -135,6 +138,7 @@ class ClickableDataTable(QFrame):
                 self.table.setItem(row, col, cell)
         
         # Resize to fit content
+        self.table.setSortingEnabled(True)
         self.table.resizeRowsToContents()
         self.table.setMinimumHeight(180)
     
@@ -240,6 +244,9 @@ class SimpleBreakdownTable(QFrame):
 
     def set_data(self, data: list, key_field: str, value_field: str = 'count'):
         """Set table data."""
+        # filling a sorted table moves rows under the writes (a name lands beside another
+        # row's counts): sort off while filling, back on after (review 10 Oct)
+        self.table.setSortingEnabled(False)
         self.table.setRowCount(len(data))
         for row, item in enumerate(data):
             key_item = QTableWidgetItem(str(item.get(key_field, '')))
@@ -249,6 +256,7 @@ class SimpleBreakdownTable(QFrame):
             val_item = QTableWidgetItem(f"{val:,}" if isinstance(val, int) else str(val))
             val_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             self.table.setItem(row, 1, val_item)
+        self.table.setSortingEnabled(True)
         
         self.table.resizeRowsToContents()
         self.table.setMinimumHeight(180)
@@ -344,6 +352,9 @@ class YearBreakdownTable(QFrame):
         """Set table data."""
         new_lookup = {item['year']: item['new_species'] for item in new_by_year}
         
+        # filling a sorted table moves rows under the writes (a name lands beside another
+        # row's counts): sort off while filling, back on after (review 10 Oct)
+        self.table.setSortingEnabled(False)
         self.table.setRowCount(len(by_year))
         for row, item in enumerate(by_year):
             year = item.get('year', '')
@@ -365,6 +376,7 @@ class YearBreakdownTable(QFrame):
             new_item = QTableWidgetItem(f"{new_species:,}")
             new_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             self.table.setItem(row, 3, new_item)
+        self.table.setSortingEnabled(True)
         
         self.table.resizeRowsToContents()
         self.table.setMinimumHeight(180)

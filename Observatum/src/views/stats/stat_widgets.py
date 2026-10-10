@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
     QTableWidget, QTableWidgetItem, QHeaderView, QWidget,
     QAbstractItemView, QScrollArea, QSizePolicy
 )
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QMetaMethod
 from PySide6.QtGui import QFont
 
 from ...themes import theme
@@ -290,8 +290,6 @@ class MonthlyActivityChart(QFrame):
             lbl = QLabel(m)
             lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
             lbl.setStyleSheet(f"color: {t.get('text_muted')}; font-size: {t.font_size('xs')};")
-            lbl.setCursor(Qt.CursorShape.PointingHandCursor)
-            lbl.setToolTip(f"Click to filter by {m}")
             month_num = idx + 1
             lbl.mousePressEvent = lambda e, mn=month_num: self.month_clicked.emit(mn)
             self._labels_layout.addWidget(lbl)
@@ -299,6 +297,36 @@ class MonthlyActivityChart(QFrame):
         layout.addLayout(self._labels_layout)
 
         self._current_color = t.get('success_bright')
+        self._bar_containers = []
+        self._apply_click_affordance()
+
+    # The months look clickable (hand cursor, "Click to ..." tooltip) only while
+    # something listens to month_clicked: the chart is shared, and on some
+    # dashboards a click does nothing (Wil 10 Oct: Species lookup phenology).
+    def is_clickable(self) -> bool:
+        return self.isSignalConnected(QMetaMethod.fromSignal(self.month_clicked))
+
+    def connectNotify(self, signal):
+        super().connectNotify(signal)
+        if signal.name() == b'month_clicked':
+            self._apply_click_affordance()
+
+    def _apply_click_affordance(self):
+        if not hasattr(self, '_bar_containers'):
+            return                      # connected before __init__ finished
+        clickable = self.is_clickable()
+        for idx, lbl in enumerate(self._month_labels):
+            if clickable:
+                lbl.setCursor(Qt.CursorShape.PointingHandCursor)
+                lbl.setToolTip(f"Click to see {self.MONTHS[idx]}")
+            else:
+                lbl.unsetCursor()
+                lbl.setToolTip("")
+        for w in self._bar_containers:
+            if clickable:
+                w.setCursor(Qt.CursorShape.PointingHandCursor)
+            else:
+                w.unsetCursor()
 
     def set_data(self, values: list, color: str = None):
         """Set monthly values (12 integers)."""
@@ -308,6 +336,7 @@ class MonthlyActivityChart(QFrame):
         self._values = values
 
         # Clear existing bars
+        self._bar_containers = []
         while self._chart_layout.count():
             item = self._chart_layout.takeAt(0)
             if item.widget():
@@ -325,7 +354,7 @@ class MonthlyActivityChart(QFrame):
         # Build bars with gridlines
         for idx, val in enumerate(values):
             bar_container = QWidget()
-            bar_container.setCursor(Qt.CursorShape.PointingHandCursor)
+            self._bar_containers.append(bar_container)
             bar_container.setToolTip(f"{self.MONTHS[idx]}: {val:,} {self._value_label}")
             month_num = idx + 1
             bar_container.mousePressEvent = lambda e, mn=month_num: self.month_clicked.emit(mn)
@@ -343,6 +372,8 @@ class MonthlyActivityChart(QFrame):
             bar_layout.addWidget(bar, int(height_pct))
 
             self._chart_layout.addWidget(bar_container)
+
+        self._apply_click_affordance()
 
         # Paint gridlines
         self._draw_gridlines(ticks, nice_max)
@@ -698,6 +729,7 @@ class YearByYearTable(QFrame):
     def set_data(self, data: dict):
         """Set data. Dict of year -> {species, records, newSpecies}"""
         t = theme()
+        self._data = dict(data)          # kept for "Export All Years CSV" (OBS-19)
         years = sorted(data.keys(), reverse=True)
         self.table.setRowCount(len(years))
 

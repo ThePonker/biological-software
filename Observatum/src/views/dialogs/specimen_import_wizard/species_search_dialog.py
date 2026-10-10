@@ -154,24 +154,27 @@ class SpeciesSearchDialog(QDialog):
         
         self.results_list.clear()
         
-        # Search UKSI; when that finds nothing, the shared suggestions (synonyms, close
-        # spellings: 'Rutpela maculta' -> Rutpela maculata)
-        from shared.species_lookup import parse_qualifier, search_candidates
-        text = parse_qualifier(text)[1]
-        results = self.uksi_model.search_species(text, limit=20)
-        if not results:
-            try:
-                results = search_candidates(self.uksi_model, text, 20)
-            except Exception as e:
-                print(f"[SpeciesSearchDialog] suggestions failed: {e}")
+        # The suite's shared species search (10 Oct 2026): every word, old names, common
+        # names, close spellings ('Rutpela maculta' -> Rutpela maculata). Suggestions for
+        # you to choose -- nothing is accepted without a click.
+        from shared.species_search import SPECIES_LEVEL, search_objects
+        try:
+            results = search_objects(text, limit=20, ranks=SPECIES_LEVEL)
+        except Exception as e:
+            print(f"[SpeciesSearchDialog] search failed: {e}")
+            results = []
         
         for result in results:
             # Format: "Scientific name - Common name (Family)"
-            display_parts = [result.scientific_name]
+            display_parts = [getattr(result, 'label', '') or result.scientific_name]
             if result.common_name:
                 display_parts.append(f"- {result.common_name}")
             if result.family:
                 display_parts.append(f"({result.family})")
+            if getattr(result, 'old_name', None):
+                display_parts.append(f"\u2014 old name: {result.old_name}")
+            elif getattr(result, 'match_type', '') == 'fuzzy':
+                display_parts.append("\u2014 close spelling")
             
             display_text = " ".join(display_parts)
             

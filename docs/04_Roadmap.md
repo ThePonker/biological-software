@@ -1,6 +1,6 @@
 # Roadmap
 
-## Updated 6 October 2026
+## Updated 10 October 2026
 
 ---
 
@@ -42,15 +42,21 @@ every figure says which it is.
 
 | Phase | State |
 |---|---|
-| Hygiene — git, WAL, backups, paths | ✅ Complete, June 2026 |
-| Data integrity — schema, taxonomy refresh, backup audit | ✅ Complete |
-| **Codex correctness** | ✅ Complete, 5 September 2026. Kept current: JNCC June 2026, 35 reviews, UKSI July 2025 (6 Oct) |
-| **Species profiles** | ✅ Review accounts from 33 reviews; 141 of your own from eight reports. Five survey species still to write |
-| **Examen — analysis** | ✅ Working and validated |
-| **Examen — reports** | Excel ✅ delivered, on a button. **PDF next**, then Word |
-| Examen — saproxylic framework | Not started, ~3 days |
-| Insect Collection curation | Sidebar corrected, sex shown ✅. **Bulk editor next** |
-| Distributable Observatum | Winter or later |
+| Hygiene -- git, WAL, backups, paths | ✅ Complete, June 2026 |
+| Data integrity -- schema, taxonomy refresh, backup audit, `build_pantheon_db.py` (D5), rebuild-twice check (D7) | ✅ Complete (D5, D7 on 9 Oct) |
+| **Codex correctness** | ✅ Complete. Kept current: JNCC June 2026, UKSI July 2025, 35 status reviews + 28 atlases (63 reviews, 6,566 accounts, 10 Oct) |
+| **Species profiles** | ✅ Review and atlas accounts; 141 of your own. Five survey species still to write |
+| **Examen** | ✅ Analysis validated; Excel, PDF and Word reports; compartments (E6); saproxylic SQI + IEC (E7); taxonomic summary (E8b) |
+| Insect Collection curation | ✅ Bulk "Drawer in hand" editor. Checklist order open |
+| Data Entry | ✅ In production |
+| Suite review (9 Oct, ~140 findings) | ✅ Tier 1 fixed 9 Oct; Tier 2 and the three Tier 3 builds (one search, one taxon grouping, mapping selection) 10 Oct |
+| **Now: polish and consistency** | 🔄 Counting switches everywhere, cleaning report, small wins (backlog A-F, L) |
+| Final Recording Scheme dataset | Design next (backlog M1) |
+| Report contents (methods, effort, limitations) | Winter -- decisions first |
+| Import wizard merge (C4), stages 3+ | Winter |
+| Photos (A8/A8b) | Discussion |
+| Lector UI | Parked by Wil |
+| Distributable suite | Winter or later -- partner's machine first; decide D8 before |
 | Web Examen | Future, if reach ever justifies it |
 
 ---
@@ -59,71 +65,58 @@ every figure says which it is.
 
 ### Now
 
-**1. Bulk curatorial editor** — 0.5–1 day. 2,745 specimens with the tray-level
-fields almost entirely empty.
+**1. Commit, push, refresh the `D:\` copy** after each data-changing session.
 
-**2. The SQI verdict** — a decision rather than a build. The Overview sentence
-gives a site-importance verdict on thresholds with no found source.
+**2. The note-36 decisions** -- about 30 minutes, one at a time, so they go into the next build.
 
-**3. Merge `main` → `stable`** — 15 minutes, once the staging jobs are committed.
+**3. Counting switches everywhere + cleaning report** (backlog A, B) -- about 6 h with testing.
+Settles OBS-18: every figure agrees with the table it came from.
 
-**4. Code hygiene** — ~1 day, a rainy day: dead code, silent errors, read-only
-connections (backlog I7–I9, D9). From the 6 October analysis.
+**4. Small wins** (backlog C-F, L) -- about 6 h with testing.
 
-### Then
-
-**PDF and Word renderers** — 1.5–2.5 days together. Both render the same computed
-result the workbook already assembles, so the analysis work is done. PDF is the
-document that gets attached to a report; Word is for pasting into templates.
-
-**Compartment analysis** — 0.5 day. The 2025 Bicester report is a worked
-specification: seven compartments, each with its own species count, key count,
-percentage, and a stated 5% threshold.
-
-**Presentation pass** — ~1 day. The accumulated E8–E11 items.
+**5. Final scheme dataset** (M1) -- questions, then 1-2 sessions.
 
 ### Winter
 
-**Saproxylic SQI + IEC** — ~3 days. The Kent Deadwood report uses a framework the
-software has never contained. Until it exists, that class of work stays manual.
+**Report contents** -- the 15 decisions in `claude/30` Part 4, then the methods layer (survey
+effort, visits, limitations, taxonomic coverage, data-sharing sentence).
 
-**Merge the three import wizards** — 3–5 days, mostly testing against real
-imports. Species matching in one place instead of three; pays off most at the
-next UKSI release (backlog C4).
+**Merge the import wizards** -- stages 3+ of C4, ~4-7 days with testing against real imports.
 
-**Distributable Observatum** — ~5–6 days: module registry, conditional
-dependents, first-run wizard, de-personalisation, PyInstaller, licensing screens.
-Shares most of its work with a distributable Examen.
+**Photos** -- ~3 days linking + 1.5-2.5 days for the inbox, once P1-P9 are decided.
+
+**Lector UI** -- ~8-10 h, plus restoring the lost Word dossier / excerpts work.
+
+**Distributable suite** -- ~5-6 days Observatum + 3-5 Examen: module registry, first-run wizard,
+de-personalisation, PyInstaller, licence screens. First install: Wil's partner's machine.
 
 ### Future
 
-**Web Examen** — 10–15 focused days, soft estimate on a new stack. Gating items
-already researched: hosting ~£4–7/month, accounts declined in favour of a mailing
-list, donations likely within the £1,000 trading allowance. Not foreclosed, not
-needed.
+**Shared Longhorn dataset with a second user** (M2) -- after D8.
+
+**Web Examen** -- 10-15 focused days, soft estimate on a new stack. Not foreclosed, not needed.
 
 ---
 
 ## Estimates
 
-| Build | Focused days |
+| Build | Focused time |
 |---|---|
-| ~~Excel renderer~~ | ✅ done |
-| PDF renderer | 1–1.5 |
-| Word renderer | 0.5–1 |
-| Compartment analysis | 0.5 |
-| Presentation pass | ~1 |
-| Bulk curatorial editor | 0.5–1 |
-| Saproxylic SQI + IEC | ~3 |
-| ~~Species profiles~~ | ✅ done |
-| Code hygiene (I7–I9, D9) | ~1 |
-| Merge the import wizards | 3–5 |
-| Distributable Observatum | ~5–6 |
-| Web Examen | 10–15 |
+| ~~Excel, PDF, Word renderers; compartments; presentation; bulk editor; saproxylic; code hygiene; species profiles~~ | ✅ done |
+| ~~Shared search, filter wizard, taxon groups, mapping selection, Tier 2 review~~ | ✅ done 10 Oct |
+| Counting switches + cleaning report | 5-7 h + 2 h testing |
+| Small wins (C-F, L) | 6-8 h + 2 h testing |
+| Final scheme dataset | 1-2 sessions |
+| Merge the import wizards (rest) | 4-7 days |
+| Photos | 4.5-5.5 days |
+| Lector UI | 8-10 h |
+| Distributable suite | 8-11 days |
+| Web Examen | 10-15 days |
 
 **These are focused days.** Done in evenings and on rainy days, each multiplies
 into weeks of calendar time. One major build per winter is realistic for a solo
-developer.
+developer; agent-built rounds with Wil testing (as on 10 Oct) move the small and
+medium items much faster.
 
 ---
 
@@ -132,19 +125,20 @@ developer.
 | Risk | Severity | State |
 |---|---|---|
 | Single machine, no off-site copy | — | ✅ **Closed 26 September.** Verified external copy. Refresh after sessions that change data. |
-| **`stable` stale since June** | Medium | Open. Four months of work on `main` only. |
-| **Curatorial fields empty across the collection** | Medium | Open (A1). Condition 8, storage 2, drawer 0 of 2,745. |
-| **Unsourced verdict in generated prose** | Medium | Open (E16). The Overview asserts site importance on thresholds with no found source. |
+| **`stable` stale since June** | Medium | Open (D3). Four months of work on `main` only. |
+| **Counts differ between screens** | Medium | Open (OBS-18, fault F45). Fixed by backlog A. |
+| **Curatorial fields empty across the collection** | Medium | Bulk editor built (A1); filling is ongoing. |
+| Unsourced verdict in generated prose | — | ✅ Closed 8 Oct (E16): the verdict sentence removed. |
 | **Silent write whitelists** | Medium | One found and fixed (`SpecimenRepository`). The pattern — a layer that drops unknown fields without error — is worth a sweep of the other repositories. |
-| **`build_pantheon_db.py` missing** | Low | Open. Lost in the March restructure; Pantheon has not moved since 2017. (The UKSI one is closed: rebuilt from the NHM spreadsheet, 6 Oct.) |
-| **Reference databases writable from anywhere** | Medium | Open (D9). The Examen manual-entry route could have emptied Codex; fixed, but nothing enforces the rule. |
+| `build_pantheon_db.py` missing | — | ✅ Closed 9 Oct (D5). |
+| Reference databases writable from anywhere | — | ✅ Closed 9 Oct (D9): `connect_ro()` everywhere; a stray write fails. |
 | **UKSI disagrees with you on 24 British beetles** | Low | Kept at your request; raise with NHM (F11). |
-| **Never-executed code paths** | Medium | Seven found this year, all crash-on-first-use. Sweep outstanding (D6). |
+| Never-executed code paths | Low | Swept 8 Oct (D6); ruff pre-commit hook since 9 Oct. |
 | **Duplicated rules drifting** | Medium | **The dominant failure mode.** Ten instances found. Grid-ref maths in three places is the one that could produce silently wrong data (I3); species lookup in three import wizards is the most expensive to maintain (C4). |
-| Rebuild reproducibility | Low–medium | Two order-dependencies found and fixed; a build-twice-and-compare check would prove the rest (D7). |
+| Rebuild reproducibility | — | ✅ Proven 9 Oct (D7): two builds identical. |
 | Tabella bakes Codex at generation time | Low | Reduced — Tabella paused, workbooks migrated. Import wizards should still re-enrich (C1). |
 | Stale TVKs in `observatum.db` | Low, compounding | Diagnostic exists; re-run after UKSI updates. |
-| SQLite over a syncing folder from two machines | Medium *if attempted* | Needs a decision before anyone tries it (D8). |
+| **SQLite over a syncing folder from two machines** | Medium *if attempted* | Needs a decision (D8) **before the partner install / shared scheme dataset**. |
 | Doc drift | Low | Set rewritten 5 September, kept current since; `00_README.md` says how. |
 
 ---

@@ -66,9 +66,7 @@ def _write_rows(filename: str, header, rows) -> Optional[str]:
 
     try:
         if os.path.exists(target):
-            if os.path.exists(previous):
-                os.remove(previous)
-            os.replace(target, previous)   # keep one generation back
+            os.replace(target, previous)   # keep one generation back (replaces the old one)
         os.replace(temp, target)           # atomic on Windows
     except OSError:
         print("[DataEntry] CSV backup failed while rotating files:")

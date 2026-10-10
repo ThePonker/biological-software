@@ -300,15 +300,15 @@ class BulkSpeciesResolutionDialog(QDialog):
         
         self.results_list.clear()
         
-        # Search UKSI; when that finds nothing, the shared suggestions (synonyms, close
-        # spellings: 'Rutpela maculta' -> Rutpela maculata)
-        results = self.uksi_model.search_species(text, limit=15)
-        if not results:
-            from shared.species_lookup import search_candidates
-            try:
-                results = search_candidates(self.uksi_model, text, 15)
-            except Exception as e:
-                print(f"[BulkSpeciesResolution] suggestions failed: {e}")
+        # The suite's shared species search (10 Oct 2026): every word, old names, common
+        # names, aggregates, close spellings ('Rutpela maculta' -> Rutpela maculata).
+        # Suggestions only: nothing is applied until you choose one.
+        from shared.species_search import SPECIES_LEVEL, search_objects
+        try:
+            results = search_objects(text, limit=15, ranks=SPECIES_LEVEL)
+        except Exception as e:
+            print(f"[BulkSpeciesResolution] search failed: {e}")
+            results = []
         
         # Also search for aggregate/sensu lato entries
         if hasattr(self, '_uksi_db') or (hasattr(self.uksi_model, 'db') and self.uksi_model.db):
@@ -358,6 +358,10 @@ class BulkSpeciesResolutionDialog(QDialog):
                 display_parts.append(f"- {result.common_name}")
             if result.family:
                 display_parts.append(f"({result.family})")
+            if getattr(result, 'old_name', None):
+                display_parts.append(f"\u2014 old name: {result.old_name}")
+            elif getattr(result, 'match_type', '') == 'fuzzy':
+                display_parts.append("\u2014 close spelling")
             
             item = QListWidgetItem(" ".join(display_parts))
             item.setData(Qt.ItemDataRole.UserRole, {

@@ -22,6 +22,11 @@ from .when_filter_dialog import WhenFilterDialog
 from .who_filter_dialog import WhoFilterDialog
 from .how_filter_dialog import HowFilterDialog
 from .status_filter_dialog import StatusFilterDialog
+from ....services.filter_builder import CARD_KEYS, KEY_TO_CARD, as_list, tab_columns, tab_values
+
+
+def _empty_filters() -> Dict[str, Dict]:
+    return {card: {} for card in CARD_KEYS}
 
 
 class FilterWizard(QWidget):
@@ -58,24 +63,28 @@ class FilterWizard(QWidget):
         self._tab_name = tab_name
         
         # Filter state
-        self._filters: Dict[str, Dict] = {
-            'what': {},
-            'where': {},
-            'when': {},
-            'who': {},
-            'how': {},
-            'status': {},
-        }
+        self._filters: Dict[str, Dict] = _empty_filters()
         
         # Data for dialogs (populated by parent or lazy loaded)
         self._species_list: List[str] = []
-        self._taxon_groups: List[str] = []
+        self._taxon_groups: List[str] = []   # despite the name: ORDERS (key 'taxon_group')
+        self._group_list: List[str] = []     # real taxon groups (key 'group'), display labels
         self._family_list: List[str] = []
         self._taxon_family_map: Dict[str, List[str]] = {}
         self._recorder_list: List[str] = []
         self._determiner_list: List[str] = []
         self._method_list: List[str] = []
         self._year_list: List[int] = []
+        self._vc_list: List[str] = []
+        self._grid_ref_list: List[str] = []
+        self._site_list: List[str] = []
+        self._status_list: List[str] = []
+        self._record_type_list: List[str] = []
+
+        # The values present in this tab's own table, loaded when a dialog first opens
+        # and again after the tab reloads (refresh_tab_values) -- review SRCH12
+        self._db_path = None
+        self._tab_values_loaded = False
         
         # UKSI model for lazy loading taxon data
         self._uksi_model = None
@@ -85,6 +94,7 @@ class FilterWizard(QWidget):
         self._saved_filters_service = None
         
         self._setup_ui()
+        self._hide_cards_without_columns()
         self._load_saved_filter_names()
     
     def _setup_ui(self):
@@ -287,10 +297,11 @@ class FilterWizard(QWidget):
         
         service = self._get_saved_filters_service()
         if service:
-            config = service.get_filter(name)
+            config = service.get_filter(name, tab=self._tab_name)
             if config:
                 self.set_filters(config)
-                print(f"[FilterWizard] Loaded saved filter: {name}")
+                self._apply_filters()      # SRCH11: loading used to fill the cards only
+                print(f"[FilterWizard] Loaded and applied saved filter: {name}")
     
     def _save_filter(self):
         """Save current filter configuration."""
@@ -329,7 +340,7 @@ class FilterWizard(QWidget):
         
         if reply == QMessageBox.StandardButton.Yes:
             service = self._get_saved_filters_service()
-            if service and service.delete_filter(name):
+            if service and service.delete_filter(name, tab=self._tab_name):
                 self._load_saved_filter_names()
     
     def _on_card_clicked(self, card_id: str):
@@ -337,15 +348,15 @@ class FilterWizard(QWidget):
         dialog = None
         current_values = self._filters.get(card_id, {})
         
+        self._ensure_tab_values()
         if card_id == 'what':
-            # Lazy load taxon data
-            self._ensure_taxon_data_loaded()
             dialog = WhatFilterDialog(
                 accent_color=self._accent_color,
                 current_values=current_values,
                 species_list=self._species_list,
                 taxon_groups=self._taxon_groups,
                 family_list=self._family_list,
+                group_list=self._group_list,
                 taxon_family_map=self._taxon_family_map,
                 parent=self
             )
@@ -353,6 +364,9 @@ class FilterWizard(QWidget):
             dialog = WhereFilterDialog(
                 accent_color=self._accent_color,
                 current_values=current_values,
+                vc_list=self._vc_list,
+                grid_ref_list=self._grid_ref_list,
+                site_list=self._site_list,
                 parent=self
             )
         elif card_id == 'when':
@@ -381,6 +395,8 @@ class FilterWizard(QWidget):
             dialog = StatusFilterDialog(
                 accent_color=self._accent_color,
                 current_values=current_values,
+                status_list=self._status_list,
+                type_list=self._record_type_list,
                 parent=self
             )
         
@@ -395,10 +411,7 @@ class FilterWizard(QWidget):
     def _update_card_states(self):
         """Update card visual states based on filter data."""
         for card_id, filters in self._filters.items():
-            has_filters = bool(filters) and any(
-                v for v in filters.values() 
-                if v and (isinstance(v, list) and len(v) > 0 or isinstance(v, str) and v)
-            )
+            has_filters = any(as_list(v) for v in (filters or {}).values())   # a year is an int
             self.card_grid.set_card_active(card_id, has_filters)
     
     def _update_filter_count(self):
@@ -426,16 +439,20 @@ class FilterWizard(QWidget):
         self.filter_applied.emit(filters)
         self.filters_applied.emit(filters)  # Emit both for compatibility
     
+    def clear_filters(self):
+        """Empty every card without telling the tab (used when the tab navigates to a
+        species and the wizard's filters must not linger -- OBS-08)."""
+        self._filters = _empty_filters()
+        self._update_card_states()
+        self._update_filter_count()
+        if hasattr(self, '_saved_filters_combo'):
+            self._saved_filters_combo.blockSignals(True)
+            self._saved_filters_combo.setCurrentIndex(0)
+            self._saved_filters_combo.blockSignals(False)
+
     def _reset_filters(self):
         """Reset all filters."""
-        self._filters = {
-            'what': {},
-            'where': {},
-            'when': {},
-            'who': {},
-            'how': {},
-            'status': {},
-        }
+        self._filters = _empty_filters()
         self._update_card_states()
         self._update_filter_count()
         
@@ -458,34 +475,12 @@ class FilterWizard(QWidget):
     def set_filters(self, filters: Dict[str, Any]):
         """Set filters from a configuration dict."""
         # Reset first
-        self._filters = {
-            'what': {},
-            'where': {},
-            'when': {},
-            'who': {},
-            'how': {},
-            'status': {},
-        }
+        self._filters = _empty_filters()
         
-        key_to_card = {
-            'species': 'what',
-            'taxon_group': 'what',
-            'family': 'what',
-            'vice_county': 'where',
-            'grid_ref': 'where',
-            'site_name': 'where',
-            'date_from': 'when',
-            'date_to': 'when',
-            'year': 'when',
-            'recorder': 'who',
-            'determiner': 'who',
-            'method': 'how',
-            'verification_status': 'status',
-            'record_type': 'status',
-        }
-        
-        for key, value in filters.items():
-            card_id = key_to_card.get(key)
+        # One key->card table, shared with the builder: Notes search used to be dropped
+        # here, so a saved filter lost it (SRCH11)
+        for key, value in (filters or {}).items():
+            card_id = KEY_TO_CARD.get(key)
             if card_id:
                 self._filters[card_id][key] = value
         
@@ -495,6 +490,74 @@ class FilterWizard(QWidget):
     def set_uksi_model(self, model):
         """Set UKSI model for lazy loading taxon data."""
         self._uksi_model = model
+
+    # === This tab's own values for the dialogs (SRCH12) ===
+
+    def set_db_path(self, db_path):
+        """The database the tab reads (default: the app's main database)."""
+        self._db_path = db_path
+        self._tab_values_loaded = False
+
+    def refresh_tab_values(self):
+        """The tab's data changed: re-read the values on the next dialog."""
+        self._tab_values_loaded = False
+
+    def _resolve_db_path(self):
+        if self._db_path:
+            return self._db_path
+        try:
+            from ....models.database import get_database
+            path = get_database().main_db_path
+            if path:
+                return path
+        except Exception:
+            pass
+        import paths
+        return paths.OBSERVATUM_DB
+
+    def _ensure_tab_values(self):
+        """Fill the dialogs' lists from this tab's own table, read-only (SRCH12, SRCH20)."""
+        if self._tab_values_loaded:
+            return
+        try:
+            v = tab_values(self._resolve_db_path(), self._tab_name)
+        except Exception as e:
+            print(f"[FilterWizard] Could not read {self._tab_name} values: {e}")
+            return
+        self._species_list = v['species']
+        self._taxon_groups = v['orders']
+        self._family_list = v['families']
+        self._group_list = v.get('groups', [])
+        self._vc_list = v['vice_counties']
+        self._grid_ref_list = v['grid_refs']
+        self._site_list = v['sites']
+        self._recorder_list = v['recorders']
+        self._determiner_list = v['determiners']
+        self._method_list = v['methods']
+        self._status_list = v['statuses']
+        self._record_type_list = v['record_types']
+        self._year_list = v['years']
+        self._tab_values_loaded = True
+        self._taxon_data_loaded = True      # never the whole UKSI order list (SRCH12)
+
+    def matching_ids(self, filters: Dict[str, Any] = None):
+        """Ids of this tab's records the wizard's filters keep (None = no wizard filter).
+        The one translation of chips into a query for every tab (services/filter_builder)."""
+        from ....services.filter_builder import matching_ids
+        return matching_ids(self._resolve_db_path(), self._tab_name,
+                            self.get_all_filters() if filters is None else filters)
+
+    def _hide_cards_without_columns(self):
+        """Hide a card when this tab has no field for any of its keys (the collection
+        has no verification status or record type)."""
+        try:
+            cols = tab_columns(self._tab_name)
+        except KeyError:
+            return
+        for card_id, keys in CARD_KEYS.items():
+            card = self.card_grid.get_card(card_id)
+            if card is not None and not any(cols.column_for(k) for k in keys):
+                card.setVisible(False)
 
     def set_tab_data(self, species=None, orders=None, families=None,
                      recorders=None, determiners=None, sites=None,
@@ -574,6 +637,11 @@ class FilterWizard(QWidget):
         """Set taxon group list for What dialog."""
         self._taxon_groups = groups
     
+    def set_group_list(self, groups: List[str]):
+        """Taxon groups for the What dialog's Group box (display labels from
+        shared.taxon_groups.display_labels())."""
+        self._group_list = list(groups or [])
+
     def set_family_list(self, families: List[str]):
         """Set family list for What dialog."""
         self._family_list = families

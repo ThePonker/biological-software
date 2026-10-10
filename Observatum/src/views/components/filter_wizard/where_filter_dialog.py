@@ -22,6 +22,7 @@ from ....core.config import ButtonColors
 
 from .chip_display import FilterChip  # I9: one copy
 from .fuzzy import picking_from_popup, PlaceCompleter as FuzzyCompleter  # place names: abbreviations understood
+from .chip_values import typed_chip, chip_label
 
 
 class GridRefProxyModel(QSortFilterProxyModel):
@@ -80,22 +81,25 @@ class WhereFilterDialog(QDialog):
         self,
         accent_color: str = None,
         current_values: Dict[str, Any] = None,
+        vc_list: List[str] = None,
+        grid_ref_list: List[str] = None,
+        site_list: List[str] = None,
         parent=None
     ):
         super().__init__(parent)
         self._accent_color = accent_color or "#5f8575"
         self._current = current_values or {}
         
-        self._vc_list: List[str] = []
-        self._grid_ref_list: List[str] = []
-        self._site_list: List[str] = []
+        # The values present in this tab's own records, from the wizard (SRCH12). The
+        # dialog used to read Observations itself, read-write, on every tab (SRCH20).
+        self._vc_list: List[str] = list(vc_list or [])
+        self._grid_ref_list: List[str] = list(grid_ref_list or [])
+        self._site_list: List[str] = list(site_list or [])
         
         self._chips: Dict[str, List[FilterChip]] = {}
         
         # Flag to prevent double handling of Enter
         self._handling_selection = False
-        
-        self._load_user_locations()
         
         self.setWindowTitle("Filter by Where")
         self.setMinimumWidth(500)
@@ -104,48 +108,6 @@ class WhereFilterDialog(QDialog):
         
         self._setup_ui()
         self._load_current_values()
-    
-    def _load_user_locations(self):
-        """Load location data from user's observations."""
-        try:
-            from ....core.config import Paths
-            import sqlite3
-            
-            db_path = Paths.default_main_db()
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
-            
-            # Vice Counties
-            cursor.execute("""
-                SELECT DISTINCT vice_county 
-                FROM observations 
-                WHERE vice_county IS NOT NULL AND vice_county != ''
-                ORDER BY vice_county
-            """)
-            self._vc_list = [row[0] for row in cursor.fetchall()]
-            
-            # Grid References
-            cursor.execute("""
-                SELECT DISTINCT grid_ref 
-                FROM observations 
-                WHERE grid_ref IS NOT NULL AND grid_ref != ''
-                ORDER BY grid_ref
-            """)
-            self._grid_ref_list = [row[0] for row in cursor.fetchall()]
-            
-            # Site Names
-            cursor.execute("""
-                SELECT DISTINCT site_name 
-                FROM observations 
-                WHERE site_name IS NOT NULL AND site_name != ''
-                ORDER BY site_name
-            """)
-            self._site_list = [row[0] for row in cursor.fetchall()]
-            
-            conn.close()
-            print(f"[WhereFilterDialog] Loaded {len(self._vc_list)} VCs, {len(self._grid_ref_list)} grid refs, {len(self._site_list)} sites")
-        except Exception as e:
-            print(f"[WhereFilterDialog] Error loading locations: {e}")
     
     def _setup_ui(self):
         """Set up the dialog UI."""
@@ -436,9 +398,9 @@ class WhereFilterDialog(QDialog):
             value = f"~{text}"
             display = f"Site: *{text}*"
         else:
-            # Exact match
-            value = text
-            display = f"Site: {text}"
+            # Exact match if the text is a site; else contains (SRCH13: never a 0-result chip)
+            value, label = typed_chip(text, self._site_list)
+            display = f"Site: {label}"
         
         self._add_chip("site_name", value, display)
         self._site_input.clear()
@@ -526,7 +488,9 @@ class WhereFilterDialog(QDialog):
                 return
             display = f"{prefix}: {text}*"
         else:
-            display = f"{prefix}: {text}"
+            # A vice-county typed in part ("oxf") becomes a contains-match (SRCH13)
+            text, label = typed_chip(text, self._vc_list)
+            display = f"{prefix}: {label}"
         
         self._add_chip(category, text, display)
         input_widget.clear()
@@ -597,7 +561,7 @@ class WhereFilterDialog(QDialog):
             return
         
         for vc in self._current.get('vice_county', []):
-            self._add_chip("vice_county", vc, f"VC: {vc}")
+            self._add_chip("vice_county", vc, f"VC: {chip_label(vc)}")
         
         for grid in self._current.get('grid_ref', []):
             display = f"Grid: {grid}*" if len(grid) <= 4 else f"Grid: {grid}"

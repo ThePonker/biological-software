@@ -8,6 +8,11 @@ Compares the live databases with scripts/reference_figures.json:
   3. Every survey in Pantheon Only (strict) mode: SQI and key species, from
      Examen's project table; and, in both modes, that the project table shows
      the detail's own SQI and key-species count (EXA1 / EXA16, 9 Oct 2026).
+  4. The exports, both modes: the assessment workbook (which the PDF and Word
+     reports are laid out from, via report_model.read_report) is written to a
+     temporary folder and its Summary sheet -- species recorded, key species,
+     SQI -- and the appendix footer SQI are checked against the frozen figures
+     (EXA16, 10 Oct 2026). Nothing is written outside the temporary folder.
 
 A figure that moved on purpose (new review, JNCC or UKSI update): update the
 JSON and docs/02_Current_State.md in the same commit, saying why.
@@ -115,6 +120,53 @@ try:
 except Exception as e:  # noqa: BLE001 -- a failed check is a failure, not a crash
     failures += 1
     print(f"  ✗ strict-mode / table check failed: {e}")
+
+# 4. The exports: the workbook (the PDF and Word reports' source) in both modes
+print(f"\n4. Exports (workbook = PDF / Word source){'':>12}{'frozen':>7} {'now':>7}")
+try:
+    from Examen.workbook_export import export_workbook
+    from Examen.report_model import read_report
+    checked = 0
+    with tempfile.TemporaryDirectory() as tmp:
+        for mode in (AnalysisMode.CODEX_FULL, AnalysisMode.PANTHEON_ONLY):
+            strict = mode == AnalysisMode.PANTHEON_ONLY
+            for p in ed.load_all_projects(mode):
+                survey = f"{p.project_name} {p.survey_year}"
+                want = ref["surveys"].get(survey)
+                if not want:
+                    continue
+                d = ed.load_project_detail(p.project_name, p.client, mode,
+                                           survey_year=p.survey_year or None,
+                                           jurisdiction=getattr(p, "jurisdiction", None))
+                if d is None or getattr(d, "analysis", None) is None:
+                    failures += 1
+                    print(f"  \u2717 {survey}: no analysis to export")
+                    continue
+                out = os.path.join(tmp, f"check_{checked}.xlsx")
+                export_workbook(d.analysis, d, p, out,
+                                jurisdiction=getattr(d, "jurisdiction", None) or "England")
+                rep_ = read_report(out)
+                fig = {str(r[0]): r[1] for r in rep_["figures"]}
+                foot = dict(rep_["appendix"]["footer"]) if rep_.get("appendix") else {}
+                tag = "strict" if strict else "full"
+                pairs = ([("sqi_strict", "Species Quality Index (SQI)"),
+                          ("key_strict", "Key Species")] if strict else
+                         [("species", "Species recorded"), ("key", "Key Species"),
+                          ("sqi", "Species Quality Index (SQI)")])
+                for field, label in pairs:
+                    if field in want and fig.get(label) != want[field]:
+                        compare(f"{survey[:24]} workbook {label[:12]} ({tag})",
+                                want[field], fig.get(label))
+                if foot.get("Species Quality Index (SQI)") != fig.get("Species Quality Index (SQI)"):
+                    compare(f"{survey[:24]} appendix footer SQI ({tag})",
+                            fig.get("Species Quality Index (SQI)"),
+                            foot.get("Species Quality Index (SQI)"))
+                checked += 1
+    print(f"  ({checked} workbooks written to a temporary folder and read back; "
+          "only differences listed)")
+except Exception as e:  # noqa: BLE001 -- a failed check is a failure, not a crash
+    failures += 1
+    print(f"  \u2717 export check failed: {e}")
 
 print("\n" + ("ALL MATCH" if failures == 0 else f"{failures} FIGURE(S) DIFFER"))
 print("READ ONLY -- nothing has been changed.")

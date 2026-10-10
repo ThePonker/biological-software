@@ -7,6 +7,8 @@ to keep the GUI responsive during the 98k+ row load.
 import threading
 from PySide6.QtCore import QThread, Signal
 
+from ...services.filter_builder import SCHEME_SOURCES, date_clauses, status_match
+
 
 class SchemeDataWorker(QThread):
     """Worker thread for loading scheme records."""
@@ -23,12 +25,27 @@ class SchemeDataWorker(QThread):
         self.error_message = None        # set if run() raised; results stay None
         # Set when run() ends, success or not -- startup waits on it (OBS-02)
         self.results_ready = threading.Event()
+        self.cancelled = False           # cancel(): a newer load replaced this one
+        self._conn = None
+
+    def cancel(self):
+        """A newer filter replaced this load: stop its query and drop its results.
+        (The tab waited up to 2 s for the old load instead -- QThread.quit() does not
+        stop run() -- and Clear All could leave nine full loads running at once.)"""
+        self.cancelled = True
+        conn = self._conn
+        if conn is not None:
+            try:
+                conn.interrupt()         # safe from another thread; the query raises
+            except Exception:
+                pass
 
     def run(self):
         """Execute query in background thread with fast dict conversion."""
         try:
             import sqlite3
             conn = sqlite3.connect(self._db_path)
+            self._conn = conn
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
 
@@ -52,10 +69,13 @@ class SchemeDataWorker(QThread):
                     if filters.get('species_exact'):
                         query += " AND species_name = ?"
                         params.append(filters['species'])
-                    else:
-                        query += " AND (species_name LIKE ? OR common_name LIKE ?)"
-                        search = f"%{filters['species']}%"
-                        params.extend([search, search])
+                    else:   # by TVK through the shared species search (10 Oct 2026)
+                        from shared.species_filter import sql_for_table
+                        clause, sp_params = sql_for_table(
+                            filters['species'], lambda q, p=(): conn.execute(q, p).fetchall(),
+                            "recording_scheme")
+                        query += " AND " + clause
+                        params.extend(sp_params)
                 if filters.get('location'):
                     query += " AND site_name LIKE ?"
                     params.append(f"%{filters['location']}%")
@@ -63,24 +83,31 @@ class SchemeDataWorker(QThread):
                     query += " AND vc_number = ?"
                     params.append(filters['vice_county'])
                 if filters.get('subfamily'):
-                    query += " AND subfamily = ?"
+                    query += " AND subfamily = ? COLLATE NOCASE"
                     params.append(filters['subfamily'])
                 if filters.get('recorder'):
                     query += " AND recorder LIKE ?"
                     params.append(f"%{filters['recorder']}%")
-                source = filters.get('source', '')
-                if source and source.lower() != 'all' and source != '':
-                    query += " AND LOWER(source) = ?"
-                    params.append(source.lower())
+                # Source = how the record came in (iRecord / NBN Atlas import): the stored
+                # source is a dataset name, so "= 'irecord'" matched nothing (SRCH8)
+                source = filters.get('source')
+                if source in SCHEME_SOURCES:
+                    query += f" AND ({SCHEME_SOURCES[source]})"
+                # "Accepted" includes "Accepted - correct" etc. (SRCH8: 42,781 missed)
                 if filters.get('status'):
-                    query += " AND verification_status = ?"
-                    params.append(filters['status'])
-                if filters.get('date_from'):
-                    query += " AND date >= ?"
-                    params.append(filters['date_from'])
-                if filters.get('date_to'):
-                    query += " AND date <= ?"
-                    params.append(filters['date_to'])
+                    sql, p = status_match('verification_status', filters['status'])
+                    query += f" AND {sql}"
+                    params.extend(p)
+                # Undated records ('') no longer pass a "Date To" (OBS-14)
+                parts, p = date_clauses('date', filters.get('date_from'), filters.get('date_to'))
+                for part in parts:
+                    query += f" AND {part}"
+                params.extend(p)
+                # The Filter Wizard's filters (services/filter_builder.build_where)
+                if filters.get('_wizard_sql'):
+                    sql, p = filters['_wizard_sql']
+                    query += f" AND ({sql})"
+                    params.extend(p)
 
             # Apply stats exclusion filters from QSettings
             from PySide6.QtCore import QSettings
@@ -112,8 +139,14 @@ class SchemeDataWorker(QThread):
 
             query += " ORDER BY date DESC"
 
+            if self.cancelled:
+                conn.close()
+                return
             cursor.execute(query, params)
             rows = cursor.fetchall()
+            if self.cancelled:
+                conn.close()
+                return
 
             # Fast dict conversion
             if rows:
@@ -132,18 +165,26 @@ class SchemeDataWorker(QThread):
 
             conn.close()
 
-            # Store results and signal ready (bypasses Qt event queue)
+            # Store results and signal ready (bypasses Qt event queue). The tab polls
+            # results_ready; nothing listens to `finished`, and emitting it converted
+            # every record to a Qt map: 7 of the 9 s of a full 110,510-record load, and
+            # about 0.9 GB held (speed review 10 Oct 2026) -- so it is no longer emitted.
             self.results = (records, species_count)
             self.results_ready.set()
 
-            # Also emit Qt signal as fallback
-            self.finished.emit(records, species_count)
-
         except Exception as e:
+            if self.cancelled:           # interrupted on purpose: not an error
+                return
             import traceback
             traceback.print_exc()
             self.error_message = str(e) or e.__class__.__name__
             self.results_ready.set()     # an error is an outcome too: nobody waits forever
             self.error.emit(self.error_message)
         finally:
+            if self._conn is not None:
+                try:
+                    self._conn.close()       # also after an interrupt
+                except Exception:
+                    pass
+                self._conn = None
             self.results_ready.set()

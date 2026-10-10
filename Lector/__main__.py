@@ -5,9 +5,12 @@
     python -m Lector probe "Lamia textor"               # dump raw BHL JSON
     python -m Lector status
     python -m Lector export --all          (or --name "Lamia textor")
+    python -m Lector                       # no command: type species one at a time
 """
 import argparse
 import json
+import os
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -109,6 +112,78 @@ def cmd_export(args):
     store.close()
 
 
+def _tidy_name(raw):
+    """'lamia  TEXTOR' -> 'Lamia textor' (TVKs are left alone)."""
+    parts = raw.split()
+    if len(parts) == 1 and len(raw) == 16 and raw[:6].isalpha():
+        return raw.upper()
+    return " ".join([parts[0].capitalize()] + [p.lower() for p in parts[1:]])
+
+
+def _ask_yes(prompt, default=True):
+    ans = input(prompt).strip().lower()
+    return default if not ans else ans.startswith("y")
+
+
+def _open_file(path):
+    try:
+        os.startfile(path)                     # Windows: opens in the default app
+    except (AttributeError, OSError):
+        print(f"  (open it from: {path})")
+
+
+def cmd_interactive(args):
+    """Type a species, Lector searches BHL, fetches the text and opens the file."""
+    print("Lector - search the Biodiversity Heritage Library")
+    print("Type a species name (or TVK). Older names are searched too, if you say so.\n")
+    client = BHLClient(config.load_api_key())
+    uksi = UksiLookup()
+    store = LectorStore()
+    shown = 0
+    try:
+        while True:
+            try:
+                raw = input("Species (or Enter to finish): ").strip()
+            except EOFError:
+                break
+            if not raw:
+                break
+            raw = _tidy_name(raw)
+            synonyms = _ask_yes("Also search its older names (synonyms)? [Y/n]: ")
+            try:
+                entry = uksi.resolve(raw, with_synonyms=synonyms)
+            except ValueError as exc:
+                print(f"✗ {exc}\n")
+                continue
+            for w in uksi.warnings[shown:]:
+                print(f"! {w}")
+            shown = len(uksi.warnings)
+            if not entry.tvk and not _ask_yes(
+                    f"  {raw} is not in UKSI - check the spelling. Search BHL as typed anyway? [y/N]: ",
+                    default=False):
+                print()
+                continue
+            plain = lambda n: " ".join(w for w in n.split() if not w.startswith("("))
+            entry.synonyms = [n for n in entry.synonyms if plain(n) != entry.name]  # subgenus only
+            if entry.synonyms:
+                print("  Names to search: " + ", ".join([entry.name] + entry.synonyms))
+            try:
+                harvest_species(client, store, entry, HarvestOptions())
+            except KeyboardInterrupt:
+                print("\n! Stopped - what was fetched is saved; search again to carry on.")
+            path, n = export_species(store, entry.name, config.EXPORT_DIR)
+            if path:
+                print(f"\n✓ {n} pages -> {path}")
+                _open_file(path)
+            else:
+                print(f"\n✗ Nothing found on BHL for {entry.name}.")
+            print()
+    finally:
+        store.close()
+        uksi.close()
+    print(f"Done. {client.request_count} requests.")
+
+
 def build_parser():
     p = argparse.ArgumentParser(prog="python -m Lector",
                                 description="Harvest species pages from the Biodiversity Heritage Library.")
@@ -149,8 +224,19 @@ def build_parser():
 
 def main(argv=None):
     _utf8_console()
-    args = build_parser().parse_args(argv)
-    args.func(args)
+    parser = build_parser()
+    if not (sys.argv[1:] if argv is None else argv):
+        try:
+            cmd_interactive(None)          # no command: type species one at a time
+        except KeyboardInterrupt:
+            print("\nDone.")
+        return
+    args = parser.parse_args(argv)
+    try:
+        args.func(args)
+    except sqlite3.Error as exc:
+        raise SystemExit(f"✗ Database error: {exc}\n  ({config.LECTOR_DB} - is it open "
+                         "elsewhere or still syncing in OneDrive?)")
 
 
 if __name__ == "__main__":

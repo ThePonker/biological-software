@@ -218,16 +218,10 @@ class SpeciesDashboard(QScrollArea):
             self._completer_model.setStringList([])
             return
         
-        if not self._uksi_model:
-            print("[SpeciesDashboard] No UKSI model available!")
-            self._completer_model.setStringList([])
-            return
-        
-        print(f"[SpeciesDashboard] Searching UKSI for: '{text}'")
-        
-        try:
-            results = self._uksi_model.search_species(text, limit=15)
-            print(f"[SpeciesDashboard] Got {len(results) if results else 0} results")
+        try:   # the shared species search (10 Oct 2026): slips, old names, common names
+            from types import SimpleNamespace
+            from shared.species_search import SPECIES_LEVEL, search
+            results = [SimpleNamespace(**r) for r in search(text, limit=15, ranks=SPECIES_LEVEL)]
         except Exception as e:
             print(f"[SpeciesDashboard] Search error: {e}")
             self._completer_model.setStringList([])
@@ -235,14 +229,7 @@ class SpeciesDashboard(QScrollArea):
         
         if results:
             self._search_results = results
-            
-            display_list = []
-            for r in results:
-                if r.common_name:
-                    display = f"{r.common_name} ({r.scientific_name}) - {r.family or ''}"
-                else:
-                    display = f"{r.scientific_name} - {r.family or ''}"
-                display_list.append(display)
+            display_list = [self._display(r) for r in results]
             
             self._completer_model.setStringList(display_list)
             self._completer.complete()
@@ -250,19 +237,47 @@ class SpeciesDashboard(QScrollArea):
             self._search_results = []
             self._completer_model.setStringList([])
     
+    @staticmethod
+    def _display(r) -> str:
+        if r.common_name:
+            display = f"{r.common_name} ({r.scientific_name}) - {r.family or ''}"
+        else:
+            display = f"{r.scientific_name} - {r.family or ''}"
+        if getattr(r, 'old_name', None):
+            display += f" \u2014 old name: {r.old_name}"
+        elif getattr(r, 'match_type', '') == 'fuzzy':
+            display += " \u2014 close spelling"
+        return display
+
+    # A species' records: the same selection as the record tabs' species filter
+    # (shared/species_filter.py: its TVK, its subspecies and old TVKs; by name where a
+    # record has no TVK), so a count here is the count the tab shows when "View N
+    # Records" takes you there (review 10 Oct: Corvus corone 95 here, 106 on the tab).
+    def _by_species(self, table: str, species_name: str) -> tuple:
+        cache = self.__dict__.setdefault('_clause_cache', {})
+        key = (table, species_name)
+        if key not in cache:
+            from shared.species_filter import sql_for_table
+            cache[key] = sql_for_table(species_name, lambda q: self._db.execute_main(q), table)
+        return cache[key]
+
+    def _count(self, table: str, species_name: str, extra: str = "") -> int:
+        clause, params = self._by_species(table, species_name)
+        result = self._db.execute_main(
+            f"SELECT COUNT(*) FROM {table} WHERE {clause} {extra}", tuple(params))
+        return result[0][0] if result else 0
+
     def _on_completer_activated(self, text: str):
         """Handle selection from dropdown."""
         for r in self._search_results:
-            if r.common_name:
-                display = f"{r.common_name} ({r.scientific_name}) - {r.family or ''}"
-            else:
-                display = f"{r.scientific_name} - {r.family or ''}"
-            
-            if display == text:
+            if self._display(r) == text:
                 species_name = r.scientific_name
+                self._current_tvk = r.tvk
+                self._clause_cache = {}          # the tables may have changed since
                 
                 # Get counts from all data sources
                 personal_count = self._get_personal_records_count(species_name)
+                observation_count = self._get_observation_count(species_name)
                 commercial_count = self._get_commercial_records_count(species_name)
                 specimen_count = self._get_specimen_count(species_name)
                 scheme_count = self._get_scheme_records_count(species_name)
@@ -275,6 +290,7 @@ class SpeciesDashboard(QScrollArea):
                     'family': r.family or '',
                     'tvk': r.tvk,
                     'personalRecords': personal_count,
+                    'observationRecords': observation_count,
                     'specimens': specimen_count,
                     'commercialRecords': commercial_count,
                     'schemeRecords': scheme_count,
@@ -284,16 +300,23 @@ class SpeciesDashboard(QScrollArea):
                 self._show_species_detail(species_data)
                 break
     
+    def _get_observation_count(self, species_name: str) -> int:
+        """All the species' observation records (personal and commercial): what the
+        Observations tab shows when "View N Records" opens it (its Data Type is All)."""
+        if not self._db:
+            return 0
+        try:
+            return self._count("observations", species_name)
+        except Exception as e:
+            print(f"[SpeciesDashboard] Error getting observation records: {e}")
+            return 0
+
     def _get_personal_records_count(self, species_name: str) -> int:
         """Get count of personal observation records for a species."""
         if not self._db:
             return 0
         try:
-            result = self._db.execute_main(
-                "SELECT COUNT(*) FROM observations WHERE species_name = ? AND record_type = 'Personal'",
-                (species_name,)
-            )
-            return result[0][0] if result else 0
+            return self._count("observations", species_name, "AND record_type = 'Personal'")
         except Exception as e:
             print(f"[SpeciesDashboard] Error getting personal records: {e}")
             return 0
@@ -303,11 +326,7 @@ class SpeciesDashboard(QScrollArea):
         if not self._db:
             return 0
         try:
-            result = self._db.execute_main(
-                "SELECT COUNT(*) FROM observations WHERE species_name = ? AND record_type = 'Commercial'",
-                (species_name,)
-            )
-            return result[0][0] if result else 0
+            return self._count("observations", species_name, "AND record_type = 'Commercial'")
         except Exception as e:
             print(f"[SpeciesDashboard] Error getting commercial records: {e}")
             return 0
@@ -317,11 +336,7 @@ class SpeciesDashboard(QScrollArea):
         if not self._db:
             return 0
         try:
-            result = self._db.execute_main(
-                "SELECT COUNT(*) FROM specimens WHERE species_name = ?",
-                (species_name,)
-            )
-            return result[0][0] if result else 0
+            return self._count("specimens", species_name)
         except Exception as e:
             print(f"[SpeciesDashboard] Error getting specimen count: {e}")
             return 0
@@ -331,11 +346,7 @@ class SpeciesDashboard(QScrollArea):
         if not self._db:
             return 0
         try:
-            result = self._db.execute_main(
-                "SELECT COUNT(*) FROM recording_scheme WHERE species_name = ?",
-                (species_name,)
-            )
-            return result[0][0] if result else 0
+            return self._count("recording_scheme", species_name)
         except Exception as e:
             print(f"[SpeciesDashboard] Error getting scheme records: {e}")
             return 0
@@ -350,31 +361,37 @@ class SpeciesDashboard(QScrollArea):
             monthly_counts = [0] * 12
             
             # From observations
-            obs_result = self._db.execute_main("""
+            clause, params = self._by_species("observations", species_name)
+            obs_result = self._db.execute_main(f"""
                 SELECT 
                     CAST(strftime('%m', date) AS INTEGER) as month,
                     COUNT(*) as count
                 FROM observations 
-                WHERE species_name = ? AND date IS NOT NULL
+                WHERE {clause} AND date IS NOT NULL
                 GROUP BY month
-            """, (species_name,))
+            """, tuple(params))
             
             for row in obs_result or []:
+                if row[0] is None:          # a date with no month ('2019'): not placed
+                    continue
                 month_idx = int(row[0]) - 1  # Convert "01"-"12" to 0-11
                 if 0 <= month_idx < 12:
                     monthly_counts[month_idx] += row[1]
             
             # From recording_scheme
-            scheme_result = self._db.execute_main("""
+            clause, params = self._by_species("recording_scheme", species_name)
+            scheme_result = self._db.execute_main(f"""
                 SELECT 
                     CAST(strftime('%m', date) AS INTEGER) as month,
                     COUNT(*) as count
                 FROM recording_scheme 
-                WHERE species_name = ? AND date IS NOT NULL
+                WHERE {clause} AND date IS NOT NULL
                 GROUP BY month
-            """, (species_name,))
+            """, tuple(params))
             
             for row in scheme_result or []:
+                if row[0] is None:
+                    continue
                 month_idx = int(row[0]) - 1
                 if 0 <= month_idx < 12:
                     monthly_counts[month_idx] += row[1]
@@ -477,8 +494,12 @@ class SpeciesDashboard(QScrollArea):
         nav_row = QHBoxLayout()
         nav_row.setSpacing(12)
         
-        if species['personalRecords'] > 0:
-            view_records_btn = QPushButton(f"View {species['personalRecords']} Records")
+        # The button opens the Observations tab, which shows personal AND commercial
+        # records: its number is that count (review 10 Oct: said 56, opened 62)
+        n_obs = species.get('observationRecords', species['personalRecords'])
+        if n_obs > 0:
+            view_records_btn = QPushButton(f"View {n_obs:,} Record{'s' if n_obs != 1 else ''}")
+            view_records_btn.setToolTip("Personal and commercial records, on the Observations tab")
             view_records_btn.setCursor(Qt.CursorShape.PointingHandCursor)
             view_records_btn.setStyleSheet(f"""
                 QPushButton {{
@@ -519,7 +540,7 @@ class SpeciesDashboard(QScrollArea):
         
         nav_row.addStretch()
         
-        if species['personalRecords'] > 0 or species['specimens'] > 0:
+        if n_obs > 0 or species['specimens'] > 0:
             nav_container = QWidget()
             nav_container.setLayout(nav_row)
             self._detail_layout.addWidget(nav_container)
@@ -528,7 +549,53 @@ class SpeciesDashboard(QScrollArea):
         if species.get('phenology') and any(v > 0 for v in species['phenology']):
             phenology_chart = MonthlyActivityChart("Phenology")
             phenology_chart.set_data(species['phenology'], t.get('info'))
+            phenology_chart.month_clicked.connect(
+                lambda m, s=species['species']: self._show_month_records(s, m))
+            self._phenology_chart = phenology_chart
             self._detail_layout.addWidget(phenology_chart)
+
+        # Species accounts -- yours, then published review and atlas accounts, newest first
+        self._add_accounts(species)
+
+    def _show_month_records(self, species_name: str, month: int):
+        """Click on a phenology month: that month's records (all years), the same
+        records the bar counts."""
+        if not self._db:
+            return
+        from .month_records_dialog import MonthRecordsDialog, month_records
+        try:
+            rows = month_records(self._db.execute_main, self._by_species, species_name, month)
+        except Exception as e:
+            print(f"[SpeciesDashboard] Error getting records for month {month}: {e}")
+            return
+        if not rows:
+            return
+        MonthRecordsDialog(species_name, month, rows, db=self._db, parent=self).exec()
+
+    def _add_accounts(self, species: dict):
+        """The same accounts panel as the Record Detail windows, in the Stats colours."""
+        try:
+            from ..components.species_accounts_panel import SpeciesAccountsPanel
+            t = theme()
+            panel = SpeciesAccountsPanel(species.get('tvk'), species.get('species'),
+                                         TabColors.STATS, TabColors.STATS_LIGHT, TabColors.STATS_DARK,
+                                         scroll=False)
+            panel.setObjectName("speciesAccounts")
+            panel.setStyleSheet(f"QFrame#speciesAccounts {{ background-color: {t.get('surface')}; "
+                                f"border: 1px solid {t.get('border')}; border-radius: {t.get('radius_lg')}; }}")
+            panel.edit_requested.connect(lambda s=species, p=panel: self._edit_account(s, p))
+            self._detail_layout.addWidget(panel)
+        except Exception as e:
+            print(f"[SpeciesDashboard] Species accounts: {e}")
+
+    def _edit_account(self, species: dict, panel):
+        from ..home.species_profile_dialog import SpeciesProfileDialog
+        dlg = SpeciesProfileDialog({'scientific_name': species.get('species'),
+                                    'species_name': species.get('species'),
+                                    'tvk': species.get('tvk'),
+                                    'common_name': species.get('common')}, self)
+        dlg.exec()
+        panel.refresh()
     
     def refresh(self, observation_model=None, uksi_model=None):
         """Refresh the dashboard with models for data lookup."""

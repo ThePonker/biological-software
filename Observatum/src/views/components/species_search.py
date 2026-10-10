@@ -11,6 +11,15 @@ from PySide6.QtCore import Signal, Qt, QTimer, QPoint
 from PySide6.QtGui import QFont, QFontMetrics
 
 
+def species_note(r):
+    """'old name: X' for a hit through a UKSI synonym, 'close spelling' for a typing slip."""
+    if r.get('old_name'):
+        return "\u2014 old name: " + r['old_name']
+    if r.get('match_type') == 'fuzzy':
+        return "\u2014 close spelling"
+    return ""
+
+
 class SpeciesItemDelegate(QStyledItemDelegate):
     def paint(self, painter, option, index):
         species_data = index.data(Qt.ItemDataRole.UserRole)
@@ -27,7 +36,7 @@ class SpeciesItemDelegate(QStyledItemDelegate):
         else:
             text_color = option.palette.text().color()
         painter.setPen(text_color)
-        scientific = species_data.get('scientific_name', '')
+        scientific = species_data.get('label') or species_data.get('scientific_name', '')
         common = species_data.get('common_name', '')
         family = species_data.get('family', '')
         is_recorded = species_data.get('is_recorded', False)
@@ -57,6 +66,11 @@ class SpeciesItemDelegate(QStyledItemDelegate):
         if is_recorded:
             painter.setPen(text_color)
             painter.drawText(x, y + fm2.ascent() // 2, "\u2605")
+            x += fm2.horizontalAdvance("\u2605 ")
+        note = species_note(species_data)
+        if note:
+            painter.setPen(text_color)
+            painter.drawText(x, y + fm2.ascent() // 2, note)
         painter.restore()
 
     def sizeHint(self, option, index):
@@ -180,7 +194,7 @@ class SpeciesSearch(QWidget):
     def _show_popup(self, results):
         self._popup.clear()
         for r in results:
-            sci = r.get('scientific_name', '')
+            sci = r.get('label') or r.get('scientific_name', '')
             fam = r.get('family', '')
             rec = r.get('is_recorded', False)
             parts = [sci]
@@ -188,6 +202,8 @@ class SpeciesSearch(QWidget):
                 parts.append("- " + fam)
             if rec:
                 parts.append("\u2605")
+            if species_note(r):
+                parts.append(species_note(r))
             item = QListWidgetItem(" ".join(parts))
             item.setData(Qt.ItemDataRole.UserRole, r)
             self._popup.addItem(item)

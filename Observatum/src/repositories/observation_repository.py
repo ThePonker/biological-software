@@ -38,7 +38,11 @@ except ImportError:
     Observation = None  # Will be resolved at runtime
 
 
+# {row column names: the Observation fields among them} -- see _row_to_observation
+_FIELDS_FOR_KEYS: dict = {}
+
 @dataclass
+
 class ObservationSearchFilters:
     """Search filter parameters for observations."""
     species_name: Optional[str] = None
@@ -196,9 +200,11 @@ class ObservationRepository(BaseRepository):
         params = []
         
         # Text search fields (LIKE %value%)
-        if filters.species_name:
-            conditions.append("(species_name LIKE ? OR common_name LIKE ?)")
-            params.extend([f"%{filters.species_name}%", f"%{filters.species_name}%"])
+        if filters.species_name:   # by TVK through the shared species search (10 Oct 2026)
+            from shared.species_filter import sql_for_table
+            clause, sp_params = sql_for_table(filters.species_name, self._execute, "observations")
+            conditions.append(clause)
+            params.extend(sp_params)
         
         if filters.site_name:
             conditions.append("site_name LIKE ?")
@@ -931,17 +937,25 @@ class ObservationRepository(BaseRepository):
                 result[yr] = {'species': row['species'], 'records': row['records'], 'newSpecies': 0}
         return result
 
-    def get_new_species_first_records(self, limit: int = 10) -> List[Dict[str, Any]]:
+    def get_new_species_first_records(self, limit: int = 10,
+                                      record_type: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Get the most recent "first records" - species seen for the first time.
         
         Args:
             limit: Maximum number of species to return
+            record_type: 'Personal' or 'Commercial' to count firsts within that data
+                only (review OBS-24: the New Species List ignored the toggle); None = all
             
         Returns:
             List of dicts with species info and first record details
         """
         exclusion = self._get_species_exclusion_clause()
+        params: list = []
+        if record_type:
+            exclusion += " AND record_type = ?"
+            params.append(record_type)
+        params.append(limit)
         query = f"""
             SELECT species_name, common_name, species_tvk, date, site_name, grid_ref
             FROM (
@@ -952,7 +966,8 @@ class ObservationRepository(BaseRepository):
                     date,
                     site_name,
                     grid_ref,
-                    ROW_NUMBER() OVER (PARTITION BY species_tvk ORDER BY date ASC, id ASC) as rn
+                    ROW_NUMBER() OVER (PARTITION BY species_tvk
+                        ORDER BY (date IS NULL OR date = ''), date ASC, id ASC) as rn
                 FROM observations
                 WHERE species_tvk IS NOT NULL
                   {exclusion}
@@ -961,7 +976,7 @@ class ObservationRepository(BaseRepository):
             ORDER BY date DESC
             LIMIT ?
         """
-        results = self._execute(query, (limit,))
+        results = self._execute(query, tuple(params))
         return [
             {
                 'species_name': row['species_name'],
@@ -992,7 +1007,6 @@ class ObservationRepository(BaseRepository):
         if row is None:
             return None
 
-        from dataclasses import fields as dc_fields
         from ..models.observation import Observation
 
         # Get all available column names from the row
@@ -1001,14 +1015,23 @@ class ObservationRepository(BaseRepository):
         except AttributeError:
             row_keys = []
 
+        # The Observation fields this row holds, worked out once per set of columns: it
+        # was dataclasses.fields() and a search of the key list for every field of every
+        # row -- 2.5 of the 3.3 s the Observation tab took to open (speed, 10 Oct 2026)
+        key = tuple(row_keys)
+        names = _FIELDS_FOR_KEYS.get(key)
+        if names is None:
+            from dataclasses import fields as dc_fields
+            present = set(key)
+            names = tuple(f.name for f in dc_fields(Observation) if f.name in present)
+            _FIELDS_FOR_KEYS[key] = names
+
         kwargs = {}
-        for field in dc_fields(Observation):
-            if field.name in row_keys:
-                try:
-                    val = row[field.name]
-                    kwargs[field.name] = val
-                except (IndexError, KeyError):
-                    pass
+        for name in names:
+            try:
+                kwargs[name] = row[name]
+            except (IndexError, KeyError):
+                pass
 
         return Observation(**kwargs)
 

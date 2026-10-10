@@ -129,7 +129,7 @@ class ICExportMixin:
 
         try:
             if self._specimen_repo and hasattr(self._specimen_repo, 'get_new_species_first_specimens'):
-                specimens = self._specimen_repo.get_new_species_first_specimens(limit=1000)
+                specimens = self._specimen_repo.get_new_species_first_specimens(limit=None)
             else:
                 query = """
                     SELECT * FROM specimens

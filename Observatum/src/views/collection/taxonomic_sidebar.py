@@ -534,44 +534,50 @@ class TaxonomicSidebar(QWidget):
         self.tree.blockSignals(False)
 
     def _filter_tree(self, text: str):
-        """Filter tree nodes by search text."""
-        text_lower = text.lower().strip()
+        """Filter tree nodes by search text.
+
+        Species go through the shared species search (10 Oct 2026): typing slips, old names,
+        common names, several words ("rhag mor"); a genus or family typed keeps everything
+        under it. An order / superfamily / family node whose own name contains the text
+        keeps all its species, as before. Walks every level (superfamilies included)."""
+        text = text.strip()
+        allowed = set()
+        if text:
+            from shared.species_filter import filter_names
+            names = []
+            self._walk_species(self.tree.invisibleRootItem(), names)
+            allowed = filter_names(text, names)
+        low = text.lower()
+
+        def visit(item, ancestor_hit):
+            data = item.data(0, Qt.ItemDataRole.UserRole)
+            kind = data[0] if data else None
+            if kind == 'all':
+                item.setHidden(bool(text))
+                return False
+            if kind == 'species':
+                visible = not text or ancestor_hit or data[1] in allowed
+            else:
+                hit = bool(text) and bool(data) and low in str(data[1] or '').lower()
+                children = [visit(item.child(k), ancestor_hit or hit)
+                            for k in range(item.childCount())]
+                visible = not text or hit or ancestor_hit or any(children)
+                if visible and text:
+                    item.setExpanded(True)
+            item.setHidden(not visible)
+            return visible
 
         for i in range(self.tree.topLevelItemCount()):
-            top_item = self.tree.topLevelItem(i)
-            top_data = top_item.data(0, Qt.ItemDataRole.UserRole)
+            visit(self.tree.topLevelItem(i), False)
 
-            if top_data and top_data[0] == 'all':
-                top_item.setHidden(bool(text_lower))
-                continue
-
-            # Order level
-            order_visible = False
-            for j in range(top_item.childCount()):
-                family_item = top_item.child(j)
-                family_visible = False
-
-                # Check family name
-                if text_lower in family_item.text(0).lower():
-                    family_visible = True
-
-                # Check species under this family
-                for k in range(family_item.childCount()):
-                    species_item = family_item.child(k)
-                    species_match = text_lower in species_item.text(0).lower()
-                    species_item.setHidden(not species_match and not family_visible)
-                    if species_match:
-                        family_visible = True
-
-                family_item.setHidden(not family_visible)
-                if family_visible:
-                    order_visible = True
-                    if text_lower:
-                        family_item.setExpanded(True)
-
-            top_item.setHidden(not order_visible)
-            if order_visible and text_lower:
-                top_item.setExpanded(True)
+    def _walk_species(self, item, out):
+        for k in range(item.childCount()):
+            child = item.child(k)
+            data = child.data(0, Qt.ItemDataRole.UserRole)
+            if data and data[0] == 'species':
+                out.append(data[1])
+            else:
+                self._walk_species(child, out)
 
     def refresh(self, specimens: list):
         """Rebuild the tree with new data."""

@@ -87,6 +87,11 @@ def apply_confirmed(row, uksi_data: dict, original: str, how: str = "confirmed b
         row.subfamily = uksi_data.get("subfamily", "") or ""
     if hasattr(row, "taxon_rank"):
         row.taxon_rank = e["rank"]
+    if hasattr(row, "taxon_group"):
+        # the group of the species confirmed, not of the name it replaces (IMP-10); blank if
+        # order and family say nothing -- the import then fills it from UKSI by the TVK
+        from .taxon_groups import taxon_group
+        row.taxon_group = taxon_group(e["order_name"], e["family"], kingdom=e["kingdom"]) or ""
     row.import_notes = e["import_notes"]
 
     status = type(row.status)

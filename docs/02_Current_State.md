@@ -1,6 +1,6 @@
 # Current State
 
-## 8 October 2026
+## 10 October 2026
 ## The only home for these figures. If a number appears elsewhere, it is a copy
 ## and it will drift.
 
@@ -10,33 +10,33 @@
 
 | Component | State |
 |---|---|
-| **Observatum** | Active. Stats audited, iRecord sync verified, mapping functional, embargo, filter wizard. Insect Collection sidebar corrected; specimen sex shown in five places. Profile displays read both account layers through `shared/species_accounts.py`. **141 of your own species profiles**, from eight reports (6 Oct). |
+| **Observatum** | Active. **10 Oct:** one shared typo-tolerant species search everywhere; Filter Wizard and filter bars working on all three tabs; one taxon grouping (`shared/taxon_groups.py`, backfilled); Mapping by several taxa/ranks/groups with legend, colour per taxon and a County view; Tier 2 review fixes; filtering sped up (debounce, one reload, index). Species lookup shows the accounts panel. Counts still differ between Home and Observation Data (F45, backlog A). 626 tests pass. |
 | **Data Entry** | **In production, first real commit made 2 October** (Birmingham – Wheels Park, 172 records). Commit now sets `embargo_status`. Species account opens from the grid (6 Oct). **Five more commits 8 October**: Elmley 47 (no embargo, by choice), Alsager 296, Sundon 198, Slade Green 445, Bristol 150 -- 1,136 records. A check the same morning found gaps (fault F28); fixed, and `scripts/check_data_entry_batches.py` now runs after a commit. |
-| **Examen** | **Runs, and reproduces an issued report's SQI exactly** (Glory Park, 117). Reads `assessment_records`, so contributed records count. Workbook export carries both SQS bases, jurisdiction-greyed statuses and Pantheon's habitat nesting. Remaining: PDF, Word, presentation, the SQI verdict. |
-| **Codex** | Rebuilt 6 October on **JNCC June 2026** and **UKSI July 2025**, translating old TVKs to current on every build. **35 reviews**, ~3,870 review accounts. |
+| **Examen** | **Runs, and reproduces an issued report's SQI exactly** (Glory Park, 117). Reads `assessment_records`, so contributed records count. Excel, PDF and Word reports; compartments (E6), saproxylic SQI + IEC (E7), taxonomic summary (E8b); Tier 1 review fixes 9 Oct. Freeze/archive retired (E13). |
+| **Codex** | Rebuilt 9 October (D5 Pantheon rebuild) on **JNCC June 2026** and **UKSI July 2025**. **63 reviews** (35 status reviews + 28 BRC/ITE/Cox/BSBI atlases, accounts only, 10 Oct), 6,566 review accounts. |
 | **UKSI** | **Updated 6 October to the NHM July 2025 release** (`build_uksi_from_release.py`); the December 2023 file kept as `uksi_2023.db`. |
-| **Contributed records** | **New, 2 October.** `contributed_observations` + `assessment_records` view + `scripts/import_contributed.py`. One collaborator so far (J. Moore). No browsing tab yet. |
+| **Contributed records** | `contributed_observations`, 501 records (J. Moore: Birmingham 162, Slade Green 339). Read-only Contributed tab (K1, 9 Oct). Shown on Mapping only when chosen. |
 | **Curator** | Working. Does not write curatorial fields. |
 | **Tabella** | **Retired 7 October 2026**, archived to `_archive\Tabella_20261007`. |
-| **Lector** | **Joined 7 October 2026.** BHL harvester for species-profile literature; `data\lector.db`. No BHL API key yet. |
-| **Munia** | Unchanged since June. |
-| **Atrium** | Launcher. Tabella's buttons removed 7 October. |
+| **Lector** | BHL harvester for species-profile literature; `data\lector.db`, now backed up. API key in use. Interactive mode added 10 Oct (double-click no longer "crashes"). UI parked. |
+| **Munia** | MUN-1/2 fixed 9 Oct; untested (not in use until work comes in). |
+| **Atrium** | Launcher. Tiles for Examen and Lector; one window per app; dead Tabella code removed (10 Oct). |
 
 ---
 
 ## 2. Database figures
 
-### codex.db — 53.8 MB, rebuilt 6 October (JNCC June 2026, UKSI July 2025)
+### codex.db — rebuilt 9 October (D5; JNCC June 2026, UKSI July 2025); atlases added 10 October
 
 | Table | Rows |
 |---|---:|
 | designations | 27,152 (JNCC `taxon-designations-20260609.xlsx`, 15,211 species) |
 | status_summary | JNCC 26,908 + manual entries applied; 15,841 species with a status |
-| sqs_scores | **9,594**, all Pantheon-sourced; 0 stored derived (9,600 before the 8 Oct bridge rebuild) |
-| tvk_bridge | **14,215** (8,588 direct / 5,618 name, of which 5,575 by NAMES key / 9 synonym; 14 unmatched). Rebuilt 8 Oct: was 14,146 with 83 unmatched |
+| sqs_scores | **9,599** (9 Oct, after the D5 Pantheon rebuild; was 9,594), all Pantheon-sourced; 0 stored derived (9,600 before the 8 Oct bridge rebuild) |
+| tvk_bridge | **15,307** (9 Oct, after the D5 rebuild: the 1,114 NOTVK Pantheon species now bridge; 14,215 on 8 Oct) |
 | manual_entries | **10,092** -- review statuses, withdrawals, superseded and old-name clearances, 52 JNCC-2023 restorations, 13 clearances after the UKSI swap (6 Oct; was given as 10,079, counted before them -- corrected 8 Oct by `check_reference_figures.py`) |
-| reviews | **35** |
-| species_profiles | **3,874** review accounts, keyed `(tvk, review_id)` |
+| reviews | **63** -- 35 status reviews + 28 atlases (10 Oct, `load_atlases.py`, accounts only; no survey figure moved) |
+| species_profiles | **6,566** review accounts (3,874 before the atlases), keyed `(tvk, review_id)` |
 
 Rebuild of 6 October: **153 rows translated** from old TVKs to current via
 `uksi.tvk_remap`; no account collisions. Unrouted designations: 119 rows, 14 codes.
@@ -110,9 +110,10 @@ current TVKs through the bridge. The other 10 are treated as ordinary S41
 
 | | |
 |---|---:|
-| Observations | ~24,206 (24,034 + 172 committed 2 October) — *not re-measured* |
+| Observations | **24,962** (measured 10 Oct on the 9 Oct copy) |
+| Recording Scheme | **110,510**; 35,104 with an iRecord ID (restored 9 Oct, F40); taxon groups backfilled 10 Oct (75,406 rows) |
 | On TVKs newer than UKSI July 2025 | 42 records on 7 TVKs -- left as they are, names stored on the records |
-| Contributed observations | 162 (J. Moore, Birmingham – Wheels Park) |
+| Contributed observations | 501 (J. Moore: Birmingham – Wheels Park 162, Slade Green 339) |
 | Vice-county filled | 4,169 backfilled 26 September; 0 missing where a grid ref exists |
 | species_profiles (your own) | **141** -- 70 Kent Deadwood, 71 from seven other reports (6 Oct), keyed on TVK |
 | Remapped to current TVKs, 6 Oct | 12 observations, 1 specimen, 1 own profile (`remap_record_tvks.py`) |
@@ -158,32 +159,30 @@ likely a score differing between Pantheon 3.7.4 here and 3.7.6 on the website.
 **Until 2 October Examen gave Glory Park 134.** The September "validation" matched
 key species and never compared the SQI. See `06_Faults.md`.
 
-### Every survey, 6 October
+### Every survey, 9 October (frozen in `scripts/reference_figures.json`; `check_reference_figures.py` ALL MATCH on 10 Oct)
 
-SQI on current scoring (Pantheon's scores plus any derived) and on Pantheon's
-published scores alone. Key species after the jurisdiction and research-only
-rules, on JNCC June 2026, 35 reviews and UKSI July 2025.
+Current scoring and Pantheon's published scores alone; key species after the jurisdiction and research-only rules. *Strict* = Examen's Pantheon Only mode.
 
-| Survey | Species | Key | SQI | SQI (Pantheon only) | SQI before 2 Oct |
+| Survey | Species | Key | SQI | SQI (Pantheon only) | Key (strict) |
 |---|---:|---:|---:|---:|---:|
-| BAM Glory Park 2024 | 128 | 8 | 117 | 117 | 134 |
-| Badshot Lea 2023 | 167 | 8 | 111 | 111 | 121 |
-| Bicester Graven Hill 2023 | 367 | 17 | 108 | 107 | 123 |
-| Bicester Graven Hill 2025 | 254 | 19 | 127 | 126 | 155 |
-| Birmingham – Wheels Park 2026 | 195 | 7 | 116 | 105 | 146 |
-| Derby 2025 | 230 | 4 | 101 | 100 | 119 |
-| Fermyn Hall Wood Deadwood 2024 | 49 | 7 | 157 | 153 | 197 |
-| Kent Deadwood 2024 | 393 | 75 | 181 | 175 | 247 |
-| Long Hanborough 2025 | 118 | 10 | 112 | 111 | 122 |
-| Machen 2024 (Wales) | 321 | 16 | 121 | 115 | 144 |
-| Tilbury 2025 | 238 | 4 | 101 | 100 | 106 |
+| Alsager 2026 | 191 | 5 | 109 | 109 | 5 |
+| BAM Glory Park 2024 | 128 | 8 | 117 | 117 | 9 |
+| Badshot Lea 2023 | 167 | 8 | 111 | 111 | 9 |
+| Bicester Graven Hill 2023 | 367 | 18 | 107 | 107 | 20 |
+| Bicester Graven Hill 2025 | 254 | 19 | 126 | 125 | 21 |
+| Birmingham - Wheels Park 2026 | 195 | 7 | 116 | 105 | 9 |
+| Bristol 2026 | 122 | 4 | 106 | 105 | 6 |
+| Derby 2025 | 230 | 4 | 100 | 99 | 6 |
+| Elmley 2026 | 44 | 7 | 182 | 184 | 7 |
+| Fermyn Hall Wood Deadwood 2024 | 49 | 7 | 157 | 153 | 8 |
+| Kent Deadwood 2024 | 393 | 75 | 181 | 175 | 82 |
+| Long Hanborough 2025 | 118 | 10 | 112 | 111 | 12 |
+| Machen 2024 | 321 | 16 | 120 | 114 | 20 |
+| Slade Green 2026 | 344 | 44 | 153 | 147 | 45 |
+| Sundon 2026 | 135 | 12 | 132 | 114 | 12 |
+| Tilbury 2025 | 238 | 4 | 100 | 99 | 5 |
 
-Changes since 4 October: the JNCC 2026 rebuild brought the 2022 rove beetle
-statuses (Kent 77 → 75, Bicester 2025, Fermyn, Long Hanborough and Machen each
-−1, all to LC); the 2019 macro-moth Red List added *Chiasmia clathrata* as Key
-(Birmingham 6 → 7). The UKSI swap moved only Pantheon-only figures (Kent 175 → 176,
-Machen and Badshot Lea scoring counts ±1). Snapshot `before_uksi2025.txt` for
-`scripts/check_sqi_table.py`.
+The 6 October table (11 surveys, with the pre-2 October figures) is in git history. Moves since then are the 9 Oct fix round: one SQI path, the bridge J2 rule in strict mode, invertebrates from UKSI, s.l./s.s. merged (`claude/33`).
 
 **Accounts:** every key species on every survey has an account (review or your
 own) except five -- *Oligota apicata* (Kent), *Xysticus luctuosus* (Bicester 2025),
@@ -237,6 +236,36 @@ A species' habitats are nested only under the biotope Pantheon places them in
 ---
 
 ## 5. Recent history
+
+### Session 44 — 10 October 2026
+
+**Morning:** 28 BRC/ITE/Cox/BSBI atlases loaded as accounts-only reviews (reviews 35 → 63,
+accounts 3,874 → 6,566; no survey figure moved); Species lookup shows the accounts panel;
+Lector given an interactive mode (its "crash" was argparse with no command).
+
+**Day build (backlog 1–5 of 9 Oct), seven agents on separate copies, merged, independently
+reviewed (4 bugs found and fixed), 147 files delivered:** one shared fuzzy species search
+(`shared/species_search.py`, `species_filter.py`); Filter Wizard and filter bars on all tabs
+(`services/filter_builder.py`); one taxon grouping (`shared/taxon_groups.py`; backfill
+applied: 75,406 scheme rows, 3 specimens relabelled); Mapping selection (several taxa,
+ranks, groups, richness, legend, VC/recorder/site/source filters); the Tier 2 review fixes.
+Then filtering sped up (13 files) and small fixes 1–7 (28 files: phenology click-through,
+Clear All beside Species, Codex group view, colour per mapped taxon, County view and the
+multi-part VC outline fault F44). **Eight test rounds with Wil, all passed**; 626 tests pass
+on the PC; `check_reference_figures.py` ALL MATCH. Items found while testing (L8–L34) and
+the specification for counting switches everywhere and a cleaning report (`claude/38`) are
+in `03`. Full status: `claude/39_Development_Status_20261010.md`.
+
+### Session 43 — 9 October 2026
+
+Full suite review (~140 findings, `claude/32`); Tier 1 fixed and tested the same evening
+(steps 1–10). Built: C2, C3, C4 stages 1–2, D5 (`build_pantheon_db.py`), D7, E6, E8, E8b,
+E13, F2, F9, H1–H6 (own map in the Mapping tab), I5 (ruff + hook), K1 (Contributed tab);
+I7b scheme and specimen import repairs on `shared/import_core.py`; E7 saproxylic SQI + IEC;
+I3b/I3c geo fixes (560 VCs corrected, 3,332 lat/longs recomputed). Data: Recording Scheme
+iRecord IDs restored (F40, 35,104), taxonomy backfill (41,892 values), 54 records moved
+from s.l./agg. to the species, Codex rebuilt twice (JNCC date reads 2026-06-09), Jon
+Moore's Slade Green records imported (339). Committed `548a6fa`.
 
 ### Session 42 — 8 October 2026
 

@@ -74,6 +74,21 @@ FIELD_GROUPS = {
     ],
 }
 
+# Generic CSV: headings matched by whole words ('=name': the whole heading only)
+GENERIC_COLUMN_PATTERNS = {
+    'species_name': ['species', 'species name', 'taxon', 'taxon name', 'scientific name', 'scientific',
+                     '=name'],
+    'date': ['date', 'when', 'observed', 'date observed', 'event date'],
+    'grid_ref': ['grid ref', 'grid reference', 'gridref', 'grid', 'osgr', 'reference', '=gr'],
+    'site_name': ['site name', 'site', 'location', 'locality', 'place'],
+    'recorder': ['recorder', 'observer', 'recorded by', 'recordedby'],
+    'determiner': ['determiner', 'determined by', 'identified by', '=det'],
+    'quantity': ['quantity', 'count', 'abundance', '=number', '=qty'],
+    'sex': ['sex', 'gender'],
+    'stage': ['stage', 'life stage', 'lifestage'],
+    'comment': ['comment', 'comments', 'notes', 'remarks'],
+}
+
 # iRecord column to database field mapping
 IRECORD_FIELD_MAP = {
     'Taxon': 'species_name',
@@ -136,6 +151,7 @@ NBN_FIELD_MAP = {
     'decimalLongitude': 'longitude',
     'coordinateUncertaintyInMeters': 'coordinate_uncertainty',
     'identifiedBy': 'determiner',
+    'recordedBy': 'recorder',
     'sex': 'sex',
     'lifeStage': 'stage',
     'individualCount': 'quantity',
@@ -412,33 +428,11 @@ class WizardFileMixin:
         return mapping
 
     def _fuzzy_match_columns(self) -> Dict[str, str]:
-        """Attempt to fuzzy match columns for generic CSV."""
-        mapping = {}
-
-        # Simple keyword matching
-        keywords = {
-            'species_name': ['species', 'taxon', 'scientific', 'name'],
-            'date': ['date', 'when', 'observed'],
-            'grid_ref': ['grid', 'gridref', 'reference', 'osgr'],
-            'site_name': ['site', 'location', 'locality', 'place'],
-            'recorder': ['recorder', 'observer', 'recorded by'],
-            'quantity': ['count', 'quantity', 'number', 'abundance'],
-            'sex': ['sex', 'gender'],
-            'stage': ['stage', 'life stage', 'lifestage'],
-            'comment': ['comment', 'notes', 'remarks'],
-        }
-
-        for db_field, kw_list in keywords.items():
-            for col in self.columns:
-                col_lower = col.lower()
-                for kw in kw_list:
-                    if kw in col_lower:
-                        mapping[db_field] = col
-                        break
-                if db_field in mapping:
-                    break
-
-        return mapping
+        """Match a generic CSV's headings by whole words, each heading once (IMP-11, 10 Oct
+        2026). Substrings used to match: 'count' found 'Vice County' for Quantity, and 'name'
+        made 'Site name' the species column."""
+        from shared.import_core import auto_map_columns
+        return auto_map_columns(self.columns, GENERIC_COLUMN_PATTERNS)
 
     def _get_column_mapping(self) -> Dict[str, str]:
         """Get the current column mapping from combos."""

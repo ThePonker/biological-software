@@ -6,6 +6,8 @@ Handles filtering logic, data loading, and special views for ObservationTab.
 
 from typing import Optional, Dict, Any, List
 
+from ...services.filter_builder import same_text, status_is
+
 
 class ObservationFilterMixin:
     """Mixin providing filter and data loading functionality."""
@@ -61,7 +63,7 @@ class ObservationFilterMixin:
             # Use repository if available
             if self._obs_repo:
                 observations = self._obs_repo.get_new_species_first_records(
-                    limit=10000
+                    limit=10000, record_type=record_type
                 )
                 self.table_model.set_observations_fast(observations)
             if hasattr(self, '_connect_proxy_after_load'):
@@ -139,7 +141,7 @@ class ObservationFilterMixin:
         # If cached data available and no active filters, skip re-query
         has_active = any(v for k, v in filters.items() if k != 'data_type' or v not in ('all', '', None))
         if use_cache and not has_active and self._all_observations:
-            excluded = self._apply_record_exclusion(self._all_observations)
+            excluded = self._apply_record_exclusion(self._wizard_keep(self._all_observations))
             self.table_model.set_observations_fast(excluded)
             if hasattr(self, '_connect_proxy_after_load'):
                 self._connect_proxy_after_load()
@@ -152,12 +154,25 @@ class ObservationFilterMixin:
             self._apply_filters_via_repository(filters)
         else:
             # Fallback to client-side filtering
-            filtered = self._apply_filters(self._all_observations, filters)
+            filtered = self._apply_record_exclusion(
+                self._wizard_keep(self._apply_filters(self._all_observations, filters)))
             self.table_model.set_observations_fast(filtered)
             if hasattr(self, '_connect_proxy_after_load'):
                 self._connect_proxy_after_load()
             species_count = self._count_species_with_exclusion(filtered)
             self._update_stats(len(filtered), species_count)
+
+    def _wizard_keep(self, observations) -> list:
+        """Only the records the Filter Wizard's applied filters keep (all if none)."""
+        ids = getattr(self, '_wizard_ids', None)
+        if ids is None:
+            return list(observations or [])
+        keep = []
+        for o in observations or []:
+            oid = o.get('id') if isinstance(o, dict) else getattr(o, 'id', None)
+            if oid in ids:
+                keep.append(o)
+        return keep
 
     def _apply_filters_via_repository(self, filters: Dict[str, Any]):
         """Apply filters using repository (server-side filtering)."""
@@ -184,16 +199,18 @@ class ObservationFilterMixin:
                 limit=999999  # Load all records
             )
 
-            # Additional filters not in repository search (client-side)
+            # Additional filters not in repository search (client-side). Ignoring case:
+            # "MV Light" found 19 records of 608 (OBS-15)
             if filters.get('method'):
                 method = filters['method']
-                observations = [o for o in observations if self._get_attr(o, 'method', '') == method]
+                observations = [o for o in observations if same_text(self._get_attr(o, 'method', ''), method)]
 
             if filters.get('verification_status'):
                 status = filters['verification_status']
-                observations = [o for o in observations if self._get_attr(o, 'verification_status', '') == status]
+                observations = [o for o in observations
+                                if status_is(self._get_attr(o, 'verification_status', ''), status)]
 
-            excluded = self._apply_record_exclusion(observations)
+            excluded = self._apply_record_exclusion(self._wizard_keep(observations))
             self.table_model.set_observations_fast(excluded)
             if hasattr(self, '_connect_proxy_after_load'):
                 self._connect_proxy_after_load()
@@ -208,7 +225,8 @@ class ObservationFilterMixin:
             import traceback
             traceback.print_exc()
             # Fallback to client-side
-            filtered = self._apply_filters(self._all_observations, filters)
+            filtered = self._apply_record_exclusion(
+                self._wizard_keep(self._apply_filters(self._all_observations, filters)))
             self.table_model.set_observations_fast(filtered)
             if hasattr(self, '_connect_proxy_after_load'):
                 self._connect_proxy_after_load()
@@ -224,12 +242,15 @@ class ObservationFilterMixin:
         elif data_type == 'commercial':
             result = [o for o in result if self._get_attr(o, 'record_type', '').lower() == 'commercial']
 
-        # Species filter (searches species_name and common_name)
+        # Species filter: by TVK through the shared species search (10 Oct 2026); records
+        # with no TVK by name (species_name / common_name)
         if filters.get('species'):
-            search = filters['species'].lower()
-            result = [o for o in result if
-                      search in self._get_attr(o, 'species_name', '').lower() or
-                      search in self._get_attr(o, 'common_name', '').lower()]
+            from shared.species_filter import species_filter
+            sf = species_filter(filters['species'],
+                                {self._get_attr(o, 'species_tvk', '') for o in result})
+            result = [o for o in result if sf.matches(
+                self._get_attr(o, 'species_tvk', ''), self._get_attr(o, 'species_name', ''),
+                self._get_attr(o, 'common_name', ''))]
 
         # Location filter
         if filters.get('location'):
@@ -277,13 +298,13 @@ class ObservationFilterMixin:
         if filters.get('method'):
             method = filters['method']
             result = [o for o in result if
-                      self._get_attr(o, 'method', '') == method]
+                      same_text(self._get_attr(o, 'method', ''), method)]
 
         # Verification status filter
         if filters.get('verification_status'):
             status = filters['verification_status']
             result = [o for o in result if
-                      self._get_attr(o, 'verification_status', '') == status]
+                      status_is(self._get_attr(o, 'verification_status', ''), status)]
 
         return result
 
@@ -310,6 +331,11 @@ class ObservationFilterMixin:
             else:
                 self._all_observations = self._observation_model.get_observations({})
 
+            # The wizard's filters survive a reload (an edit, delete or import): re-query
+            if hasattr(self, '_refresh_wizard_ids'):
+                self._refresh_wizard_ids()
+            if hasattr(self, 'filter_wizard'):
+                self.filter_wizard.refresh_tab_values()
 
             # Apply filters
             self._apply_current_filters(use_cache=True)
@@ -320,6 +346,18 @@ class ObservationFilterMixin:
             import traceback
             traceback.print_exc()
 
+    def _asked_for_broad(self) -> bool:
+        """The species box names an aggregate or s.l. ('Oligia strigilis agg.'): its records
+        are shown even with "exclude incomplete species" on -- they were asked for by name
+        (review 10 Oct: navigating to an aggregate showed an empty table)."""
+        fb = getattr(self, 'filter_bar', None)
+        edit = getattr(fb, 'species_edit', None)
+        text = edit.text().strip() if edit is not None else ''
+        if not text:
+            return False
+        from shared.species_lookup import parse_qualifier
+        return parse_qualifier(text)[0] in ('agg.', 's.l.')
+
     def _apply_record_exclusion(self, observations) -> list:
         """Filter observation list by species name exclusion rules."""
         from PySide6.QtCore import QSettings
@@ -327,6 +365,7 @@ class ObservationFilterMixin:
         exclude = settings.value("display/exclude_incomplete_species", True, type=bool)
         if not exclude:
             return list(observations)
+        keep_broad = self._asked_for_broad()
         filtered = []
         for obs in observations:
             tvk = self._get_attr(obs, 'species_tvk', '')
@@ -336,7 +375,7 @@ class ObservationFilterMixin:
             if ' ' not in name:
                 continue
             name_lower = name.lower()
-            if any(x in name_lower for x in ['agg.', 'agg ', ' agg', 's.l.', 'sensu lato']):
+            if not keep_broad and any(x in name_lower for x in ['agg.', 'agg ', ' agg', 's.l.', 'sensu lato']):
                 continue
             filtered.append(obs)
         return filtered
@@ -346,6 +385,7 @@ class ObservationFilterMixin:
         from PySide6.QtCore import QSettings
         settings = QSettings()
         exclude = settings.value("display/exclude_incomplete_species", True, type=bool)
+        keep_broad = exclude and self._asked_for_broad()
         
         unique_species = set()
         for obs in observations:
@@ -358,9 +398,9 @@ class ObservationFilterMixin:
                 # Skip genus-only (no space in name)
                 if ' ' not in name:
                     continue
-                # Skip aggregates
+                # Skip aggregates (unless the species box asked for one)
                 name_lower = name.lower()
-                if any(x in name_lower for x in ['agg.', 'agg ', ' agg', 's.l.', 'sensu lato']):
+                if not keep_broad and any(x in name_lower for x in ['agg.', 'agg ', ' agg', 's.l.', 'sensu lato']):
                     continue
             
             unique_species.add(tvk)

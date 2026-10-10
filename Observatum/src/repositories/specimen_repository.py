@@ -329,9 +329,11 @@ class SpecimenRepository:
         conditions = []
         params = []
         
-        if species_name:
-            conditions.append("(species_name LIKE ? OR common_name LIKE ?)")
-            params.extend([f"%{species_name}%", f"%{species_name}%"])
+        if species_name:   # by TVK through the shared species search (10 Oct 2026)
+            from shared.species_filter import sql_for_table
+            clause, sp_params = sql_for_table(species_name, self._execute, "specimens")
+            conditions.append(clause)
+            params.extend(sp_params)
         
         if species_tvk:
             conditions.append("species_tvk = ?")
@@ -607,29 +609,40 @@ class SpecimenRepository:
         """, (limit,))
         return [dict(row) for row in rows]
     
-    def get_new_species_first_specimens(self, limit: int = 50) -> List[Dict[str, Any]]:
+    def get_new_species_first_specimens(self, limit: Optional[int] = 50) -> List[Dict[str, Any]]:
         """
-        Get the first specimen of each species, ordered by collection date.
-        
-        Useful for "New to Collection" view.
+        The first specimen of each species, newest first. limit=None gives every species.
+
+        Useful for "New to Collection" view. The first specimen is the earliest dated one
+        (lowest id on a tie); a species with only undated specimens still appears, with
+        its first-entered specimen -- the old (name, MIN(date)) IN (...) match dropped it.
+        The New Collections List asked for 1,000 and so stopped at 1,000 of 1,333
+        species (review OBS-13).
         """
-        rows = self._execute("""
-            SELECT * FROM specimens
-            WHERE id IN (
-                SELECT MIN(id) FROM specimens
-                WHERE species_name IS NOT NULL
-                AND (species_name, date_collected) IN (
-                    SELECT species_name, MIN(date_collected)
-                    FROM specimens
-                    WHERE species_name IS NOT NULL
-                    GROUP BY species_name
-                )
-                GROUP BY species_name
+        sql = """
+            SELECT * FROM (
+                SELECT s.*, ROW_NUMBER() OVER (
+                    PARTITION BY species_name
+                    ORDER BY (date_collected IS NULL OR date_collected = ''),
+                             date_collected, id
+                ) AS _first
+                FROM specimens s
+                WHERE species_name IS NOT NULL AND species_name != ''
             )
+            WHERE _first = 1
             ORDER BY date_collected DESC
-            LIMIT ?
-        """, (limit,))
-        return [dict(row) for row in rows]
+        """
+        params: tuple = ()
+        if limit is not None:
+            sql += " LIMIT ?"
+            params = (limit,)
+        rows = self._execute(sql, params)
+        out = []
+        for row in rows:
+            d = dict(row)
+            d.pop('_first', None)
+            out.append(d)
+        return out
     
     def get_specimens_needing_review(self, limit: int = 100) -> List[Dict[str, Any]]:
         """Get specimens with import notes (need review)."""

@@ -9,7 +9,6 @@ different validation rules and column mappings for each.
 import os
 import sys
 from dataclasses import dataclass, field
-from datetime import datetime
 from enum import Enum
 import paths
 from pathlib import Path
@@ -191,6 +190,7 @@ class ObservationImportRow:
     sex: str = ""
     stage: str = ""
     quantity: int = 1
+    organism_quantity: str = ""          # the count as written when not a plain number ('c.20')
     zero_abundance: int = 0
     method: str = ""
 
@@ -230,65 +230,14 @@ class ObservationImportRow:
 
 
 
-# UKSI order -> iRecord taxon_group mapping
 from src.utils.constants import compute_taxonomic_sort_key
+from shared.import_core import quantity_or_default
 from shared.species_lookup import lookup_names
 from shared.species_lookup_entries import entries
 
-ORDER_TO_GROUP = {
-    'Coleoptera': 'insect - beetle (Coleoptera)',
-    'Diptera': 'insect - true fly (Diptera)',
-    'Hymenoptera': 'insect - hymenopteran',
-    'Hemiptera': 'insect - true bug (Hemiptera)',
-    'Lepidoptera': 'insect - moth',
-    'Orthoptera': 'insect - orthopteran',
-    'Odonata': 'insect - dragonfly (Odonata)',
-    'Dermaptera': 'insect - earwig (Dermaptera)',
-    'Mecoptera': 'insect - scorpion fly (Mecoptera)',
-    'Neuroptera': 'insect - lacewing (Neuroptera)',
-    'Trichoptera': 'insect - caddis fly (Trichoptera)',
-    'Raphidioptera': 'insect - snakefly (Raphidioptera)',
-    'Thysanoptera': 'insect - thrips (Thysanoptera)',
-    'Siphonaptera': 'insect - flea (Siphonaptera)',
-    'Araneae': 'spider (Araneae)',
-    'Opiliones': 'harvestman (Opiliones)',
-    'Pseudoscorpiones': 'false scorpion (Pseudoscorpiones)',
-    'Passeriformes': 'bird',
-    'Anseriformes': 'bird',
-    'Charadriiformes': 'bird',
-    'Accipitriformes': 'bird',
-    'Strigiformes': 'bird',
-    'Rodentia': 'terrestrial mammal',
-    'Carnivora': 'terrestrial mammal',
-    'Chiroptera': 'terrestrial mammal',
-    'Anura': 'amphibian',
-    'Caudata': 'amphibian',
-    'Squamata': 'reptile',
-    'Julida': 'millipede',
-    'Polydesmida': 'millipede',
-    'Lithobiomorpha': 'centipede',
-    'Geophilomorpha': 'centipede',
-    'Stylommatophora': 'mollusc',
-    'Isopoda': 'crustacean',
-    'Decapoda': 'crustacean',
-    'Agaricales': 'fungus',
-    'Polyporales': 'fungus',
-}
-
-# Class-level fallbacks
-CLASS_TO_GROUP = {
-    'Arachnida': 'spider (Araneae)',
-    'Gastropoda': 'mollusc',
-    'Malacostraca': 'crustacean',
-    'Chilopoda': 'centipede',
-    'Diplopoda': 'millipede',
-    'Collembola': 'springtail (Collembola)',
-    'Amphibia': 'amphibian',
-    'Aves': 'bird',
-    'Mammalia': 'terrestrial mammal',
-    'Reptilia': 'reptile',
-    'Insecta': 'insect',
-}
+# The taxon group rule is shared/taxon_groups.py (10 Oct 2026); this module's own
+# ORDER_TO_GROUP / CLASS_TO_GROUP copies are gone (they sent every butterfly to 'moth').
+from shared.taxon_groups import taxon_group as _taxon_group
 
 
 def _osgb36_to_wgs84(easting, northing):
@@ -462,12 +411,16 @@ class ObservationValidationWorker(QThread):
         def g(key):
             return raw.get(key, "").strip() if raw.get(key) else ""
 
-        date_val = self._parse_date(g("Date interpreted")) or ""
-        date_from = self._parse_date(g("Date from")) or ""
-        if not date_val and date_from:
-            date_val = date_from
+        # One date reader for all three wizards (shared.import_core, 10 Oct 2026): ranges and
+        # vague dates keep their date type; future dates are errors (IMP-12/13)
+        from shared.import_core import parse_record_date
+        interpreted, from_ = parse_record_date(g("Date interpreted")), parse_record_date(g("Date from"))
+        found = interpreted if interpreted.date else from_
+        date_val = found.date
+        date_from = from_.date
         # IMP-3: the text that could not be read, for the row's error
         date_raw = "" if date_val else (g("Date interpreted") or g("Date from"))
+        date_error = "" if date_val else (interpreted.error or from_.error)
 
         grid_ref = g("Output map ref") or g("Original map ref")
         sensitive_map_ref = g("Sensitive output map ref")
@@ -489,9 +442,11 @@ class ObservationValidationWorker(QThread):
             "taxon_rank": g("Rank"),
             "date": date_val,
             "date_raw": date_raw,
+            "date_error": date_error,
+            "date_note": found.note,
             "date_from": date_from,
-            "date_to": self._parse_date(g("Date to")) or "",
-            "date_type": g("Date type") or "D",
+            "date_to": parse_record_date(g("Date to")).date,
+            "date_type": (g("Date type") or found.date_type or "D") if date_val else "D",
             "grid_ref": grid_ref,
             "grid_precision": self._parse_int(g("Precision")),
             "latitude": self._parse_float(g("Latitude")),
@@ -508,7 +463,8 @@ class ObservationValidationWorker(QThread):
             "recorder_certainty": g("Recorder certainty"),
             "sex": g("Sex"),
             "stage": g("Stage"),
-            "quantity": self._parse_int(g("Count of sex or stage")) or 1,
+            "quantity": quantity_or_default(g("Count of sex or stage"))[0],
+            "organism_quantity": quantity_or_default(g("Count of sex or stage"))[1] or "",
             "zero_abundance": 1 if g("Zero abundance").upper() == "TRUE" else 0,
             "method": g("Sample method"),
             "comment": g("Comment"),
@@ -543,7 +499,16 @@ class ObservationValidationWorker(QThread):
             return raw.get(col, "").strip() if col and raw.get(col) else ""
 
         date_raw = g("date")
-        date_val = (self._parse_date(date_raw) or "") if date_raw else ""   # IMP-3: never None
+        # Your own records need the day: a year, a month or a range is not accepted here
+        # (the scheme import keeps them with their date type). 6.vi.2021 is read; a date still
+        # to come is an error (IMP-13, 10 Oct 2026)
+        from shared.import_core import parse_record_date
+        parsed = parse_record_date(date_raw)
+        date_val = parsed.date if parsed.exact else ""                      # IMP-3: never None
+        date_error = parsed.error
+        if parsed.date and not parsed.exact:
+            kind = {"O": "a month", "Y": "a year"}.get(parsed.date_type, "a date range")
+            date_error = f"Unreadable date: '{date_raw}' is {kind}, not a day -- give the day"
 
         return {
             "irecord_id": None,
@@ -560,6 +525,10 @@ class ObservationValidationWorker(QThread):
             "taxon_rank": "",
             "date": date_val,
             "date_raw": date_raw,
+            "date_error": date_error,
+            "date_note": "",
+            # '24/06/01' read as 24/06/2001: a warning (stored once, with the warnings)
+            "date_warning": parsed.note if parsed.exact else "",
             "date_from": "",
             "date_to": "",
             "date_type": "D",
@@ -579,7 +548,8 @@ class ObservationValidationWorker(QThread):
             "recorder_certainty": g("certainty"),
             "sex": g("sex"),
             "stage": g("stage"),
-            "quantity": self._parse_int(g("quantity")) or 1,
+            "quantity": quantity_or_default(g("quantity"))[0],          # 'c.20' -> 20, '0' -> 0
+            "organism_quantity": quantity_or_default(g("quantity"))[1] or "",
             "zero_abundance": 0,
             "method": g("method"),
             "comment": g("comment"),
@@ -660,7 +630,11 @@ class ObservationValidationWorker(QThread):
             for col, key in (("common_name", "common_name"), ("order_name", "order_name"),
                              ("family", "family"), ("kingdom", "kingdom"), ("taxon_rank", "rank")):
                 df.at[idx, col] = info[key]
-            df.at[idx, "taxon_group"] = ""
+            # the group of the matched taxon; an iRecord file's own label is kept
+            if not (self.import_mode == ImportMode.IRECORD_SYNC and str(row.get("taxon_group") or "").strip()):
+                df.at[idx, "taxon_group"] = _taxon_group(info["order_name"], info["family"],
+                                                         info.get("class_name"), info["kingdom"],
+                                                         info.get("phylum")) or ""
             df.at[idx, "species_warning"] = info["warning"]
             df.at[idx, "import_notes"] = info["import_notes"]
 
@@ -681,27 +655,9 @@ class ObservationValidationWorker(QThread):
         if not needs_lookup:
             return df
 
-        # Batch VC lookup
-        vc_lookup = {}
-        if hasattr(self._vc_service, "get_vc_batch"):
-            vc_lookup = self._vc_service.get_vc_batch(needs_lookup)
-        else:
-            # Fallback to individual lookups
-            for grid_ref in needs_lookup:
-                if self._cancelled:
-                    break
-                try:
-                    is_valid, msg = self._vc_service.validate_grid_ref(grid_ref)
-                    if is_valid:
-                        result = self._vc_service.get_vc_from_grid_ref(grid_ref)
-                        if result:
-                            vc_lookup[grid_ref] = {"vc_number": result[0], "vc_name": result[1]}
-                        else:
-                            vc_lookup[grid_ref] = {"error": "Could not determine Vice County"}
-                    else:
-                        vc_lookup[grid_ref] = {"error": f"Invalid grid reference: {msg}"}
-                except Exception as e:
-                    vc_lookup[grid_ref] = {"error": str(e)}
+        # Batch VC lookup -- 2 km tetrads (SP46Q) included (IMP-13, 10 Oct 2026)
+        from shared.import_core import vc_for_grid_refs
+        vc_lookup = vc_for_grid_refs(self._vc_service, needs_lookup)
 
         # Apply lookups to DataFrame
         for idx, row in df.iterrows():
@@ -903,8 +859,8 @@ class ObservationValidationWorker(QThread):
         # Derive taxon_group from order_name where missing
         for idx, row in df.iterrows():
             if not row.get("taxon_group") and row.get("order_name"):
-                order = row["order_name"]
-                group = ORDER_TO_GROUP.get(order)
+                group = _taxon_group(row.get("order_name"), row.get("family"),
+                                     kingdom=row.get("kingdom"))
                 if group:
                     df.at[idx, "taxon_group"] = group
 
@@ -912,9 +868,9 @@ class ObservationValidationWorker(QThread):
             if row.get("grid_ref") and (not row.get("latitude") or not row.get("longitude")):
                 try:
                     if self._vc_service:
-                        parsed = self._vc_service.parse_grid_ref(row["grid_ref"])
-                        if parsed:
-                            easting, northing, precision = parsed
+                        from shared.import_core import grid_precision
+                        precision = grid_precision(row["grid_ref"])        # tetrads too (IMP-13)
+                        if precision:
                             # Centre of the square, with the OSGB36 -> WGS84 shift (9 Oct
                             # 2026, F30). _osgb36_to_wgs84 used the corner and no shift.
                             from shared.osgb import gridref_to_wgs84
@@ -1014,13 +970,22 @@ class ObservationValidationWorker(QThread):
             # which is truthy -- so the row passed as valid and was saved with no date
             date_ok = bool(_safe_get(row_data, "date", ""))
             date_raw = _safe_get(row_data, "date_raw", "") or ""
+            date_error = _safe_get(row_data, "date_error", "") or ""      # future, not a day
+            quantity = _safe_get(row_data, "quantity")
+            quantity = 1 if quantity is None else int(quantity)          # 0 stays 0 (IMP-12)
+            if quantity == 0 and not int(row_data.get("zero_abundance", 0) or 0):
+                warnings.append("Count of 0 -- imported as a record with quantity 0")
 
             # Additional validation for personal uploads
             if self.import_mode != ImportMode.IRECORD_SYNC:
                 if not date_ok:
-                    errors.append(f"Unreadable date: '{date_raw}'" if date_raw else "Date is required")
+                    errors.append(date_error or (f"Unreadable date: '{date_raw}'" if date_raw
+                                                 else "Date is required"))
                 if not row_data.get("recorder"):
                     errors.append("Recorder is required")
+                date_warning = _safe_get(row_data, "date_warning", "") or ""
+                if date_ok and date_warning:         # a two-digit year: show the century
+                    warnings.append(date_warning)
 
                 # Validate dropdown values
                 sex = str(row_data.get("sex", "")).lower()
@@ -1035,7 +1000,8 @@ class ObservationValidationWorker(QThread):
                 if not row_data.get("species_name"):
                     errors.append("Missing species name")
                 if not date_ok:
-                    errors.append(f"Unreadable date: '{date_raw}'" if date_raw else "Missing date")
+                    errors.append(date_error or (f"Unreadable date: '{date_raw}'" if date_raw
+                                                 else "Missing date"))
                 if not row_data.get("grid_ref"):
                     warnings.append("Missing grid reference")
 
@@ -1089,7 +1055,8 @@ class ObservationValidationWorker(QThread):
                 recorder_certainty=_safe_get(row_data, "recorder_certainty", ""),
                 sex=_safe_get(row_data, "sex", ""),
                 stage=_safe_get(row_data, "stage", ""),
-                quantity=int(row_data.get("quantity", 1) or 1),
+                quantity=quantity,
+                organism_quantity=_safe_get(row_data, "organism_quantity", "") or "",
                 zero_abundance=int(row_data.get("zero_abundance", 0) or 0),
                 method=_safe_get(row_data, "method", ""),
                 comment=_safe_get(row_data, "comment", ""),
@@ -1109,7 +1076,8 @@ class ObservationValidationWorker(QThread):
                 existing_record_id=_safe_get(row_data, "existing_record_id"),
                 # The warnings are added to the stored note when the row is imported
                 # (_combine_import_notes); falling back to them here wrote them twice
-                import_notes=_safe_get(row_data, "import_notes", "") or "",
+                import_notes="; ".join(n for n in (_safe_get(row_data, "import_notes", "") or "",
+                                                   _safe_get(row_data, "date_note", "") or "") if n),
             )
 
             validated.append(import_row)
@@ -1127,23 +1095,6 @@ class ObservationValidationWorker(QThread):
             self.counts_updated.emit(self.valid_count, self.warning_count, self.error_count)
 
         return validated
-
-    def _parse_date(self, date_str: str) -> Optional[str]:
-        """Parse various date formats to ISO format."""
-        if not date_str:
-            return None
-        date_str = date_str.strip()
-        formats = [
-            "%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%d", "%d/%m/%y",
-            "%d-%m-%y", "%Y/%m/%d", "%d %b %Y", "%d %B %Y",
-        ]
-        for fmt in formats:
-            try:
-                dt = datetime.strptime(date_str, fmt)
-                return dt.strftime("%Y-%m-%d")
-            except ValueError:
-                continue
-        return None
 
     def _parse_int(self, value) -> Optional[int]:
         """Safely parse to int."""

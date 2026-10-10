@@ -15,7 +15,6 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont, QColor
 import paths
-from shared.db_open import connect_ro  # D9: reference data, read-only
 
 BG = "#f5f5f4"
 SURFACE = "#ffffff"
@@ -146,6 +145,14 @@ class SpeciesDatabaseView(QWidget):
         self.tvk_label.setStyleSheet("font-family: monospace; color: " + TEXT_MUTED + "; font-size: 11px;")
         self.pl.addWidget(self.tvk_label)
 
+        # A Codex or Pantheon read that failed says so (EXA19): an empty profile
+        # must not pass for "no status, no ecology".
+        self.read_error_label = QLabel("")
+        self.read_error_label.setStyleSheet("color: " + RED_STATUS + "; font-size: 11px;")
+        self.read_error_label.setWordWrap(True)
+        self.pl.addWidget(self.read_error_label)
+        self.read_error_label.hide()
+
         # Conservation status
         self.status_group = self._make_group("Conservation status")
         self.status_grid = QGridLayout()
@@ -201,24 +208,30 @@ class SpeciesDatabaseView(QWidget):
             return
         results = self._search_uksi(q)
         self.result_count.setText(f"{len(results)} species found")
-        for name, tvk, common, family, rank in results:
+        for name, tvk, common, family, rank, note in results:
             display = f"{name}  ({common})" if common else name
+            if rank and rank != "Species":
+                display += f"  [{rank}]"
+            if note:
+                display += f"  \u2014 {note}"
             item = QListWidgetItem(display)
             item.setData(Qt.ItemDataRole.UserRole, (name, tvk, common, family, rank))
             if rank and rank != "Species": item.setForeground(QColor(TEXT_MUTED))
             self.results_list.addItem(item)
 
     def _search_uksi(self, query):
+        """The suite's shared species search (SRCH19/EXA18, 10 Oct 2026): every word, typing
+        slips, old names (-> the current taxon), common names, aggregates; all ranks.
+        [(name, tvk, common, family, rank, note)]."""
         if not paths.UKSI_DB.exists(): return []
-        conn = connect_ro(str(paths.UKSI_DB))
-        c = conn.cursor()
-        c.execute("""SELECT t.scientific_name, t.tvk, cn.common_name, t.family, t.rank
-            FROM taxa t LEFT JOIN common_names cn ON t.tvk = cn.tvk AND cn.preferred = 1
-            WHERE t.scientific_name LIKE ? AND t.rank IN ('Species','Subspecies')
-            ORDER BY t.sort_code LIMIT 100""", (f"%{query}%",))
-        r = c.fetchall()
-        conn.close()
-        return r
+        from shared.species_search import search
+        out = []
+        for r in search(query, limit=100, db_path=str(paths.UKSI_DB)):
+            note = (f"old name: {r['old_name']}" if r.get("old_name")
+                    else "close spelling" if r.get("match_type") == "fuzzy" else "")
+            out.append((r["scientific_name"], r["tvk"], r.get("common_name") or "",
+                        r.get("family") or "", r.get("rank") or "", note))
+        return out
 
     # ── Profile ──────────────────────────────────────────────────
     def _on_species_selected(self, current, prev):
@@ -230,8 +243,11 @@ class SpeciesDatabaseView(QWidget):
         self.species_name_label.setText(name)
         self.common_name_label.setText(f"{common}  \u2014  {family}" if common else family or "")
         self.tvk_label.setText(f"TVK: {tvk}" if tvk else "")
+        self._read_errors = []
         self._display_codex_status(tvk)
         self._display_pantheon_ecology(tvk)
+        self.read_error_label.setText("\n".join(self._read_errors))
+        self.read_error_label.setVisible(bool(self._read_errors))
 
     def _display_codex_status(self, tvk):
         while self.status_grid.count():
@@ -240,7 +256,10 @@ class SpeciesDatabaseView(QWidget):
         if not tvk:
             self.status_group.hide(); self.sqs_label.setText(""); return
         try: status = self._codex.get_status_summary(tvk)
-        except FileNotFoundError: self.status_group.hide(); self.sqs_label.setText(""); return
+        except Exception as e:  # noqa: BLE001 -- missing or unreadable codex.db: say so
+            self.status_group.hide(); self.sqs_label.setText("")
+            getattr(self, "_read_errors", []).append(f"\u26a0 Codex could not be read: {e}")
+            return
 
         # Build (track, value, detail, source) rows from the 11-track model.
         # Single-entry tracks hold an Optional[StatusEntry]; list tracks hold
@@ -299,7 +318,10 @@ class SpeciesDatabaseView(QWidget):
                 if w: w.deleteLater()
         if not tvk: self.ecology_group.hide(); self.assoc_group.hide(); return
         try: profile = self._pantheon.get_species_profile(tvk)
-        except FileNotFoundError: self.ecology_group.hide(); self.assoc_group.hide(); return
+        except Exception as e:  # noqa: BLE001 -- missing or unreadable pantheon.db: say so
+            self.ecology_group.hide(); self.assoc_group.hide()
+            getattr(self, "_read_errors", []).append(f"\u26a0 Pantheon could not be read: {e}")
+            return
         if not profile: self.ecology_group.hide(); self.assoc_group.hide(); return
         has = False
         for label, val in [("Broad biotope", ", ".join(profile.broad_biotopes) if profile.broad_biotopes else ""),

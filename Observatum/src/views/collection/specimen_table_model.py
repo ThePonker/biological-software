@@ -190,7 +190,21 @@ class SpecimenTableModel(QStandardItemModel):
             self.set_specimens(specimens)
 
     def set_specimens(self, specimens: List[Any]):
-        """Set specimen data. Accepts list of Specimen objects or dicts."""
+        """Set specimen data. Accepts list of Specimen objects or dicts.
+
+        The rows are built with the model's signals off and then announced as one reset:
+        each appendRow told the sort proxy and the view about one row, and the proxy
+        re-sorted as it went (0.5-0.9 s of each reload for 2,745 specimens -- speed
+        review 10 Oct 2026). The proxy re-sorts once, on its current column, after it."""
+        was_blocked = self.blockSignals(True)
+        try:
+            self._fill_rows(specimens)
+        finally:
+            self.blockSignals(was_blocked)
+        self.beginResetModel()
+        self.endResetModel()
+
+    def _fill_rows(self, specimens: List[Any]):
         t = theme()
         self._specimens = specimens
         self.removeRows(0, self.rowCount())

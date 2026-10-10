@@ -9,13 +9,13 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QComboBox, QCheckBox, QRadioButton, QFrame,
     QSplitter, QTreeWidget, QTreeWidgetItem,
-    QFileDialog, QSpinBox,
+    QFileDialog, QSpinBox, QMessageBox,
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QColor
 
 from .planner_tree_data import load_taxonomic_tree, TaxonNode
-from .planner_data import load_orders
+from .planner_data import load_orders, config_problems
 from .planner_label_preview import LabelPreviewWidget
 from .planner_settings import load_settings, SettingsDialog
 from .planner_fonts import load_qt_fonts, get_available_fonts
@@ -32,6 +32,12 @@ class LabelsView(QWidget):
         self._setup_ui()
         self._apply_settings()
         self._populate_orders()
+        self.show_problems()
+
+    def show_problems(self):
+        problems = config_problems()
+        self.problem_label.setText("\n".join("\u26a0 " + p for p in problems))
+        self.problem_label.setVisible(bool(problems))
 
     def _setup_ui(self):
         main_layout = QHBoxLayout(self)
@@ -49,6 +55,12 @@ class LabelsView(QWidget):
         ll = QVBoxLayout(left)
         ll.setContentsMargins(12, 12, 12, 12)
         ll.setSpacing(8)
+
+        # Missing or unreadable config files, said on screen (CUR-3)
+        self.problem_label = QLabel("")
+        self.problem_label.setWordWrap(True)
+        self.problem_label.setStyleSheet("color: #a63d40; font-size: 11px;")
+        ll.addWidget(self.problem_label)
 
         ll.addWidget(QLabel("Order"))
         self.order_combo = QComboBox()
@@ -475,14 +487,28 @@ class LabelsView(QWidget):
         labels = []
         self._collect_labels(self._tree_root, labels, checked)
 
+        if not labels:
+            QMessageBox.information(self, "Export PDF", "No labels are ticked.")
+            return
         from .planner_label_export import export_taxonomic_labels_pdf
-        export_taxonomic_labels_pdf(
-            path, labels,
-            full_width=self.rb_full.isChecked(),
-            show_common=self.cb_common.isChecked(),
-            show_my_specimens=self.cb_my_specimens.isChecked(),
-            show_my_species=self.cb_my_species.isChecked(),
-            show_fauna=self.cb_fauna.isChecked(),
-            font_family=self.font_combo.currentText(),
-            font_size=self.size_spin.value(),
-        )
+        font = self.font_combo.currentText()
+        try:
+            used = export_taxonomic_labels_pdf(
+                path, labels,
+                full_width=self.rb_full.isChecked(),
+                show_common=self.cb_common.isChecked(),
+                show_my_specimens=self.cb_my_specimens.isChecked(),
+                show_my_species=self.cb_my_species.isChecked(),
+                show_fauna=self.cb_fauna.isChecked(),
+                font_family=font,
+                font_size=self.size_spin.value(),
+            )
+        except Exception as e:  # noqa: BLE001 -- shown, not printed to a console (CUR-3)
+            QMessageBox.warning(self, "Export failed", f"The labels PDF could not be written.\n\n{e}")
+            return
+        note = ""
+        if used and used.replace(" ", "") != font.replace(" ", ""):
+            note = (f"\n\nThe font {font} is not installed in Curator\\fonts, "
+                    f"so {used} was used.")
+        QMessageBox.information(self, "Labels exported",
+                                f"{len(labels)} labels written to:\n{path}{note}")

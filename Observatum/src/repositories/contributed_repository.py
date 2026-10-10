@@ -80,7 +80,9 @@ def fetch_records(conn, contributor=None, project=..., batch=..., text="") -> li
 
     `contributor` None means all. `project` / `batch` use Ellipsis for "all", so that
     None can mean "records with no project" / "no batch" (the tree shows those too).
-    `text` is matched case-insensitively against TEXT_COLUMNS.
+    `text`: every word of it in one of TEXT_COLUMNS (case-insensitive), or the species it
+    names -- by TVK, through the shared species search (typing slips, old and common names;
+    10 Oct 2026).
     """
     where, params = [], []
     if contributor is not None:
@@ -94,10 +96,17 @@ def fetch_records(conn, contributor=None, project=..., batch=..., text="") -> li
         params.append(batch)
     text = (text or "").strip()
     if text:
-        like = "%" + text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
-        where.append("(" + " OR ".join(
-            f"COALESCE({c}, '') LIKE ? ESCAPE '\\'" for c in TEXT_COLUMNS) + ")")
-        params.extend([like] * len(TEXT_COLUMNS))
+        from shared.species_filter import sql_for_table
+        words = []
+        for w in text.split():
+            like = "%" + w.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+            words.append("(" + " OR ".join(
+                f"COALESCE({c}, '') LIKE ? ESCAPE '\\'" for c in TEXT_COLUMNS) + ")")
+            params.extend([like] * len(TEXT_COLUMNS))
+        sp_clause, sp_params = sql_for_table(
+            text, lambda q, p=(): conn.execute(q, p).fetchall(), TABLE)
+        where.append("((" + " AND ".join(words) + ") OR " + sp_clause + ")")
+        params.extend(sp_params)
     sql = f"SELECT * FROM {TABLE}"
     if where:
         sql += " WHERE " + " AND ".join(where)

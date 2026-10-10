@@ -24,18 +24,9 @@ def build_kwargs_from_row(row: Dict, job: Dict, embargo_until: Optional[str] = N
     taxonomy: this row's TVK in shared.taxon_groups.taxonomy_for_tvks() -- kingdom, rank and
     taxon group from UKSI (9 Oct 2026; commits wrote none of them before, 1,440 records).
     Without it the group still comes from the row's own order and family."""
-    try:
-        qty = int(row.get("quantity"))
-    except (TypeError, ValueError):
-        qty = 1
-    if qty < 1:
-        qty = 1
+    qty = read_qty(row.get("quantity")) or 1     # an unreadable No. never gets here (DE9)
 
-    vc_number = row.get("vc_number")
-    if not (isinstance(vc_number, int) or (str(vc_number or "").strip().isdigit())):
-        vc_number = None
-    elif not isinstance(vc_number, int):
-        vc_number = int(vc_number)
+    vc_number = read_vc(row.get("vc_number"))[1]   # an unreadable VC never gets here
 
     mode = job.get("mode") or "Personal"
     is_commercial = mode.lower().startswith("comm")
@@ -84,6 +75,47 @@ def build_kwargs_from_row(row: Dict, job: Dict, embargo_until: Optional[str] = N
     return {k: v for k, v in kwargs.items() if k in _ALLOWED_FIELDS}
 
 
+def read_qty(value) -> Optional[int]:
+    """The No. as a whole number of 1 or more; blank counts as 1; None when unreadable.
+
+    A mistyped No. ('c.20', '0', '2x') used to become 1 without a word (review DE9).
+    Now it stays in the cell, is flagged there, and the row stays in staging.
+    """
+    s = "" if value is None else str(value).strip()
+    if s == "":
+        return 1
+    try:
+        n = int(s)
+    except ValueError:
+        try:
+            f = float(s)                       # '3.0' from a spreadsheet paste
+        except ValueError:
+            return None
+        if not f.is_integer():
+            return None
+        n = int(f)
+    return n if n >= 1 else None
+
+
+VC_MAX = 113        # the Watsonian vice-counties of Britain, 1-112, and the Channel Isles
+
+
+def read_vc(value) -> tuple:
+    """(readable, the VC No. or None). Blank is readable (no VC); a whole number 1-113
+    is the VC; anything else ('0', '41a', '200') is unreadable -- flagged in its cell and
+    left in staging like an unreadable No. (review 10 Oct: '0' was committed as VC 0)."""
+    s = "" if value is None else str(value).strip()
+    if s == "":
+        return True, None
+    try:
+        f = float(s)
+    except ValueError:
+        return False, None
+    if not f.is_integer() or not 1 <= f <= VC_MAX:
+        return False, None
+    return True, int(f)
+
+
 def _eligibility(row: Dict) -> Optional[str]:
     """Return None if committable, else a reason string."""
     from DataEntry import date_utils
@@ -93,6 +125,10 @@ def _eligibility(row: Dict) -> Optional[str]:
         return "no_date"
     if not date_utils.is_readable(row.get("date")):
         return "bad_date"          # '31/02/2026', 'summer' -- stays in staging (DE1)
+    if read_qty(row.get("quantity")) is None:
+        return "bad_qty"           # 'c.20', '0' -- stays in staging (DE9)
+    if not read_vc(row.get("vc_number"))[0]:
+        return "bad_vc"            # '0', '41a' -- stays in staging
     return None
 
 
@@ -109,18 +145,23 @@ def precommit_issues(rows) -> Dict[str, list]:
     rows: staging rows in grid order (repo.fetch_rows). Only rows commit would write
     (species and date present) are checked, plus 'unreadable date' for rows with a species
     and a date that cannot be read (those stay in staging). Returns {issue: [grid row
-    numbers]} for 'unreadable date', 'future date', 'no site', 'no grid ref', 'no VC',
+    numbers]} for 'unreadable date', 'unreadable No.', 'unreadable VC No.', 'future date', 'no site', 'no grid ref', 'no VC',
     'no recorder', 'no TVK', and 'double' (each later copy of a repeated entry, with the
     row it repeats), leaving out issues with no rows.
     """
     from DataEntry import date_utils
-    issues = {"unreadable date": [], "future date": [], "no site": [], "no grid ref": [],
+    issues = {"unreadable date": [], "unreadable No.": [], "unreadable VC No.": [],
+              "future date": [], "no site": [], "no grid ref": [],
               "no VC": [], "no recorder": [], "no TVK": [], "double": []}
     seen = {}
     for n, row in enumerate(rows, start=1):
         why = _eligibility(row)
         if why == "bad_date":
             issues["unreadable date"].append(n)
+        if why == "bad_qty":
+            issues["unreadable No."].append(n)
+        if why == "bad_vc":
+            issues["unreadable VC No."].append(n)
         if why is not None:
             continue
         blank = lambda k: not str(row.get(k) or "").strip()  # noqa: E731
@@ -165,6 +206,8 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
     skipped_species = 0
     skipped_date = 0
     skipped_bad_date = 0
+    skipped_bad_qty = 0
+    skipped_bad_vc = 0
     unresolved = 0
     future = 0
     error = None
@@ -189,6 +232,12 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
             continue
         if reason == "bad_date":
             skipped_bad_date += 1
+            continue
+        if reason == "bad_qty":
+            skipped_bad_qty += 1
+            continue
+        if reason == "bad_vc":
+            skipped_bad_vc += 1
             continue
         tax = taxonomy.get(row.get("species_tvk") or "") or {}
         try:
@@ -236,6 +285,8 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
         "skipped_species": skipped_species,
         "skipped_date": skipped_date,
         "skipped_bad_date": skipped_bad_date,
+        "skipped_bad_qty": skipped_bad_qty,
+        "skipped_bad_vc": skipped_bad_vc,
         "unresolved": unresolved,
         "future": future,
         "remaining": remaining,

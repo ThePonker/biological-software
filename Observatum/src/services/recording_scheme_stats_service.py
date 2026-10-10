@@ -398,7 +398,7 @@ class RecordingSchemeStatsService:
                     FROM recording_scheme
                     WHERE species_tvk IS NOT NULL
                     AND vc_number IS NOT NULL
-                    AND date IS NOT NULL
+                    AND date IS NOT NULL AND date != ''   -- undated is not a first (OBS-21)
                     {exclusion}{family_clause}
                     GROUP BY species_tvk, vc_number
                 ),
@@ -485,7 +485,7 @@ class RecordingSchemeStatsService:
                     species_name,
                     species_tvk,
                     COUNT(*) as record_count,
-                    MIN(date) as first_date
+                    MIN(NULLIF(date, '')) as first_date   -- '' is undated, not earliest
                 FROM recording_scheme
                 WHERE vc_number = ?
                 AND species_tvk IS NOT NULL
@@ -526,7 +526,7 @@ class RecordingSchemeStatsService:
                     FROM recording_scheme
                     WHERE vc_number = ?
                     AND species_tvk IS NOT NULL
-                    AND date IS NOT NULL
+                    AND date IS NOT NULL AND date != ''   -- undated is not a first (OBS-21)
                     {exclusion}{family_clause}
                     GROUP BY species_tvk
                 )

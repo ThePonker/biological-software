@@ -115,7 +115,18 @@ class SearchService:
         # Get recorded TVKs for boosting
         recorded_tvks = list(self._recorded_tvks) if boost_recorded else None
         
-        # Use repository if available (preferred)
+        # The shared matcher (backlog item 1, 10 Oct 2026): typing slips, old names, common
+        # names, aggregates -- the same search as every other species box in the suite.
+        results = self._search_shared(search_term, limit, order_filter, family_filter)
+        if results is not None:
+            alias_results = self._search_aliases(search_term)
+            existing_tvks = {r.get('tvk') for r in results}
+            for alias_match in alias_results or []:
+                if alias_match.get('tvk') not in existing_tvks:
+                    results.append(alias_match)
+            return results[:limit]
+
+        # Use repository if available (the old SQL search, if uksi.db can't be indexed)
         if self._uksi_repo:
             results = self._search_via_repository(
                 search_term, limit, order_filter, family_filter, recorded_tvks
@@ -147,6 +158,24 @@ class SearchService:
         
         return results[:limit]
     
+    def _search_shared(self, search_term: str, limit: int, order_filter: Optional[str],
+                       family_filter: Optional[str]) -> Optional[List[Dict]]:
+        """shared.species_search over the species-level ranks this box has always offered;
+        None if the index can't be built (the old search is used then)."""
+        try:
+            from shared.species_search import SPECIES_LEVEL, search
+            want = None if (order_filter or family_filter) else limit
+            results = search(search_term, limit=want, ranks=SPECIES_LEVEL,
+                             recorded=self._recorded_tvks)
+        except Exception as e:
+            print(f"[SearchService] shared species search unavailable: {e}")
+            return None
+        if order_filter:
+            results = [r for r in results if r.get('order') == order_filter]
+        if family_filter:
+            results = [r for r in results if r.get('family') == family_filter]
+        return results[:limit]
+
     def _search_via_repository(
         self,
         search_term: str,

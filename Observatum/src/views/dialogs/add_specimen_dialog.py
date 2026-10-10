@@ -623,9 +623,21 @@ class AddSpecimenDialog(QDialog):
         
         if not species_tvk and self._existing_specimen:
             species_tvk = self._existing_specimen.get('species_tvk')
-        
-        if species_name:
-            self.profile_edit_requested.emit(species_name, species_tvk or '')
+        if not species_name and self._existing_specimen:
+            species_name = self._existing_specimen.get('species_name', '') or ''
+
+        if not species_name:
+            return
+        self.profile_edit_requested.emit(species_name, species_tvk or '')
+        # Nothing was connected to that signal, so the button did nothing (review
+        # OBS-17). Open the species account here, as the detail dialogs do.
+        from ..home.species_profile_dialog import SpeciesProfileDialog
+        dlg = SpeciesProfileDialog({'scientific_name': species_name, 'species_name': species_name,
+                                    'tvk': species_tvk or ''}, self)
+        reload = lambda *_: self._load_species_profile(species_name, species_tvk)  # noqa: E731
+        dlg.profile_saved.connect(reload)
+        dlg.profile_deleted.connect(reload)
+        dlg.exec()
     
     def _refresh_loc_map(self):
         """Point the mini map at the current grid ref (no-op if there is no map)."""

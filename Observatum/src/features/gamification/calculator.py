@@ -20,7 +20,7 @@ from .models import (
     UserProgress
 )
 from .theme import (
-    get_tier_for_species_count, get_family_thresholds, get_taxonomic_group, get_vc_counts
+    get_tier_for_species_count, get_family_thresholds, get_taxonomic_group, get_region_for_vc
 )
 
 # Import calculator modules
@@ -33,6 +33,11 @@ try:
     USE_CONFIG = True
 except ImportError:
     USE_CONFIG = False
+
+
+# Every GB vice-county and its region. get_vc_counts() is region -> count, so using it
+# as a VC -> region map gave 5 'VCs' named england/wales/... (review OBS-05).
+_GB_VCS: Dict[int, str] = {vc: get_region_for_vc(vc) for vc in range(1, 113)}
 
 
 def _find_data_dir() -> Path:
@@ -74,7 +79,7 @@ class GamificationCalculator:
     
     def _get_observatum_conn(self) -> sqlite3.Connection:
         """Get connection to observatum database."""
-        return sqlite3.connect(str(self.observatum_db))
+        return connect_ro(str(self.observatum_db))   # reads only
     
     def _get_uksi_conn(self) -> sqlite3.Connection:
         """Get connection to UKSI database."""
@@ -130,12 +135,14 @@ class GamificationCalculator:
         cursor = conn.cursor()
         
         try:
+            # The column is vc_number (review OBS-05: 'vice_county_number' does not
+            # exist, so every badge, trophy and the VC count read 0)
             cursor.execute("""
-                SELECT DISTINCT vice_county_number 
+                SELECT DISTINCT CAST(vc_number AS INTEGER)
                 FROM observations
-                WHERE vice_county_number IS NOT NULL
+                WHERE vc_number IS NOT NULL AND vc_number != ''
             """)
-            vcs = [row[0] for row in cursor.fetchall() if row[0]]
+            vcs = sorted(row[0] for row in cursor.fetchall() if row[0] in _GB_VCS)
         except sqlite3.Error:
             vcs = []
         finally:
@@ -190,7 +197,7 @@ class GamificationCalculator:
                 SELECT COUNT(*)
                 FROM taxa
                 WHERE family = ?
-                    AND taxon_rank = 'Species'
+                    AND rank = 'Species'
             """, (family,))
             result = cursor.fetchone()
             total = result[0] if result else 0
@@ -240,7 +247,7 @@ class GamificationCalculator:
     def get_vice_county_coverage(self) -> Dict[str, Any]:
         """Get vice county coverage statistics."""
         observed_vcs = self.get_observed_vcs()
-        all_vcs = get_vc_counts()
+        all_vcs = _GB_VCS
         
         regions = {
             "england": {"covered": 0, "total": 0},
@@ -263,7 +270,7 @@ class GamificationCalculator:
     def calculate_vice_county_badges(self) -> List[Dict[str, Any]]:
         """Calculate which VC badges have been earned."""
         observed_vcs = self.get_observed_vcs()
-        all_vcs = get_vc_counts()
+        all_vcs = _GB_VCS
         
         badges = []
         for vc_num, region in all_vcs.items():

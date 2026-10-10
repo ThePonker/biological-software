@@ -78,12 +78,15 @@ class RecordingSchemeTab(QWidget):
     # Navigation signals from record detail dialog
     navigate_to_observations = Signal(str)  # species name
     navigate_to_collection = Signal(str)    # species name
+    records_changed = Signal()              # a record was edited or deleted here (OBS-04/10)
     
     def __init__(self, parent=None):
         super().__init__(parent)
         self._initialized = False
         self._current_view = 'records'
         self._data_worker = None
+        self._old_workers = []           # replaced loads still finishing (cancelled)
+        self._poll_timer = None
         self._loading = False
         self._main_db_path = None
         self._preload_started = False
@@ -95,6 +98,7 @@ class RecordingSchemeTab(QWidget):
         # so startup could stop on the splash screen (review OBS-02 / SRCH20b).
         self._worker_results = None
         self._load_error: Optional[str] = None
+        self._wizard_filters: Dict = {}     # the Filter Wizard's applied filters (kept)
         self._setup_ui()
         self._connect_signals()
     
@@ -220,7 +224,8 @@ class RecordingSchemeTab(QWidget):
     
     def _connect_signals(self):
         self.toolbar.filters_toggled.connect(self._on_filters_toggled)
-        self.toolbar.clear_filters_requested.connect(self.filter_bar.clear_filters)
+        self.toolbar.clear_filters_requested.connect(self.clear_all_filters)
+        self.filter_bar.clear_all_requested.connect(self.clear_all_filters)
         self.toolbar.wizard_toggled.connect(self._on_wizard_toggled)
         self.filter_bar.filters_changed.connect(self._on_filters_changed)
         self.filter_wizard.filters_applied.connect(self._on_wizard_filters_applied)
@@ -263,9 +268,20 @@ class RecordingSchemeTab(QWidget):
             dialog.profile_requested.connect(self._on_profile_requested)
             dialog.navigate_to_observations.connect(self._on_navigate_to_observations)
             dialog.navigate_to_collection.connect(self._on_navigate_to_collection)
+            self._wire_edit_delete(dialog)
             dialog.exec()
             
             self._current_detail_dialog = None
+
+    def _wire_edit_delete(self, dialog):
+        """Edit / Delete in the record detail dialog (they did nothing: OBS-04)."""
+        from .scheme_record_actions import wire_scheme_detail
+        wire_scheme_detail(dialog, self, self._after_record_change,
+                           uksi_model=getattr(self, '_uksi_model', None))
+
+    def _after_record_change(self):
+        self.refresh()
+        self.records_changed.emit()
 
     def _load_species_profile(self, record: dict) -> str:
         """Profile text for display -- via the one shared reader (TVK, else name)."""
@@ -315,72 +331,38 @@ class RecordingSchemeTab(QWidget):
         self.filter_wizard.setVisible(visible)
 
     def _on_wizard_filters_applied(self, filters: dict):
-        """Handle filter wizard apply — translate to tab filter format."""
-        self._wizard_filters = filters
-        tab_filters = {}
+        """Filter Wizard Apply: kept, and added to every load with the filter bar's filters.
 
-        # What: species, orders, families
-        species_list = filters.get('species', [])
-        if isinstance(species_list, str): species_list = [species_list] if species_list else []
-        if species_list:
-            tab_filters['species'] = species_list[0]
-            tab_filters['species_exact'] = True
-
-        # Where: vice counties, sites
-        vcs = filters.get('vice_county', [])
-        if isinstance(vcs, str): vcs = [vcs] if vcs else []
-        if vcs:
-            vc = vcs[0]
-            tab_filters['vice_county'] = vc.split(' - ')[0] if ' - ' in str(vc) else str(vc)
-
-        sites = filters.get('site_name', [])
-        if isinstance(sites, str): sites = [sites] if sites else []
-        if sites:
-            tab_filters['location'] = sites[0]
-
-        # When: date range
-        if filters.get('date_from'):
-            tab_filters['date_from'] = filters['date_from']
-        if filters.get('date_to'):
-            tab_filters['date_to'] = filters['date_to']
-
-        # Who: recorder
-        recorders = filters.get('recorder', [])
-        if isinstance(recorders, str): recorders = [recorders] if recorders else []
-        if recorders:
-            tab_filters['recorder'] = recorders[0]
-
-        self._load_data(filters=tab_filters)
+        10 Oct 2026 (OBS-06, SRCH1-3): this kept only the first chip of four keys, left
+        the "~" partial marker in (site "Wood": 0 of 16,645) and compared a VC name with
+        vc_number; year, family, determiner, method, notes and status were ignored. The
+        shared builder now turns every chip into SQL (services/filter_builder)."""
+        self._wizard_filters = dict(filters or {})
+        self._load_data(self._bar_filters())
 
     def _on_wizard_filters_reset(self):
-        """Handle filter wizard reset."""
+        """Wizard Reset: drop the wizard's filters; the filter bar's stay."""
         self._wizard_filters = {}
-        self.filter_bar.clear_filters()   # was self.filters (copied from the collection tab): Reset crashed
+        self._load_data(self._bar_filters())
 
+    def clear_wizard_filters(self):
+        """Forget the wizard's filters without reloading (navigation, OBS-08)."""
+        self._wizard_filters = {}
+        self.filter_wizard.clear_filters()
 
-    def _load_wizard_tab_data(self):
-        """Load tab-specific data into the filter wizard from recording_scheme table."""
-        try:
-            import sqlite3
-            db = get_database()
-            main_path = db.get_main_path() if hasattr(db, "get_main_path") else str(db._main_db_path)
-            conn = sqlite3.connect(main_path)
-            q = lambda sql: [r[0] for r in conn.execute(sql).fetchall()]
-            species = q("SELECT DISTINCT species_name FROM recording_scheme WHERE species_name IS NOT NULL ORDER BY species_name")
-            orders = q("SELECT DISTINCT order_name FROM recording_scheme WHERE order_name IS NOT NULL AND order_name != '' ORDER BY order_name")
-            families = q("SELECT DISTINCT family FROM recording_scheme WHERE family IS NOT NULL AND family != '' ORDER BY family")
-            recorders = q("SELECT DISTINCT recorder FROM recording_scheme WHERE recorder IS NOT NULL AND recorder != '' ORDER BY recorder")
-            determiners = q("SELECT DISTINCT determiner FROM recording_scheme WHERE determiner IS NOT NULL AND determiner != '' ORDER BY determiner")
-            sites = q("SELECT DISTINCT site_name FROM recording_scheme WHERE site_name IS NOT NULL AND site_name != '' ORDER BY site_name")
-            years_raw = conn.execute("SELECT DISTINCT substr(date, 1, 4) as yr FROM recording_scheme WHERE date IS NOT NULL AND date != '' ORDER BY yr DESC").fetchall()
-            years = [str(r[0]) for r in years_raw if r[0]]
-            conn.close()
-            self.filter_wizard.set_tab_data(
-                species=species, orders=orders, families=families,
-                recorders=recorders, determiners=determiners, sites=sites, years=years
-            )
-        except Exception as e:
-            print(f"[RS] Error loading wizard tab data: {e}")
+    def clear_all_filters(self):
+        """Toolbar "Clear Filters" and the filter bar's "Clear All" -- one behaviour
+        (Wil 10 Oct): the filter bar, the saved-filter choice and the Filter Wizard
+        are all cleared, then one reload. (Clear Filters cleared the bar only, so a
+        wizard filter stayed on and it looked as if nothing happened; on the Insect
+        Collection it was not connected at all.) The wizard's own Reset still clears
+        the wizard alone."""
+        self.clear_wizard_filters()
+        self.filter_bar.clear_filters()               # one load (filters_changed)
+
+    def _bar_filters(self) -> dict:
+        """The filter bar's current filters (none until the tab is set up)."""
+        return self.filter_bar.get_filters() if self._initialized else {}
 
 
     def _load_data(self, filters=None):
@@ -388,10 +370,15 @@ class RecordingSchemeTab(QWidget):
         if not self._db and not self._preload_started:
             return
 
-        # Cancel any running worker
-        if self._data_worker and self._data_worker.isRunning():
-            self._data_worker.quit()
-            self._data_worker.wait(2000)
+        # A load still running is replaced: stop its query and ignore its results.
+        # (It used to quit() + wait(2000): quit() does not stop run(), so every change
+        # froze the window for up to 2 s and the old load kept going -- speed, 10 Oct 2026)
+        old = self._data_worker
+        if old is not None and old.isRunning():
+            if hasattr(old, 'cancel'):
+                old.cancel()
+            self._old_workers.append(old)        # keep a reference until its thread ends
+        self._old_workers = [w for w in self._old_workers if w.isRunning()]
 
         # Show loading overlay
         self._loading = True
@@ -405,11 +392,17 @@ class RecordingSchemeTab(QWidget):
 
         # Inject scheme family scope from settings
         from PySide6.QtCore import QSettings
+        filters = dict(filters or {})
         scheme_fam = QSettings().value(Settings.SCHEME_FAMILIES, "", str).strip()
         if scheme_fam:
-            if filters is None:
-                filters = {}
             filters['_scheme_families'] = [f.strip() for f in scheme_fam.split(',') if f.strip()]
+        # The Filter Wizard's filters, on every load until Reset (SRCH9: lost on reload)
+        if self._wizard_filters:
+            from ...services.filter_builder import build_where
+            sql, params = build_where('recording_scheme', self._wizard_filters)
+            if sql:
+                filters['_wizard_sql'] = (sql, params)
+        filters = filters or None
 
         # Start background worker
         self._data_worker = SchemeDataWorker(db_path, filters, self)
@@ -417,10 +410,12 @@ class RecordingSchemeTab(QWidget):
         self._data_worker.error.connect(self._on_data_error)
         self._data_worker.start()
 
-        # Poll every 100ms instead of waiting for queued signal delivery
-        self._poll_timer = QTimer(self)
-        self._poll_timer.setInterval(100)
-        self._poll_timer.timeout.connect(self._check_worker_done)
+        # Poll every 50 ms instead of waiting for queued signal delivery (one timer:
+        # a new one per load left the old ones running)
+        if self._poll_timer is None:
+            self._poll_timer = QTimer(self)
+            self._poll_timer.setInterval(50)
+            self._poll_timer.timeout.connect(self._check_worker_done)
         self._poll_timer.start()
 
     def _check_worker_done(self):
@@ -470,9 +465,9 @@ class RecordingSchemeTab(QWidget):
 
         self.toolbar.set_counts(len(records), species_count)
 
-        # Refresh wizard with tab-specific data
+        # The wizard's lists come from this table: re-read them on the next dialog
         if hasattr(self, 'filter_wizard'):
-            self._load_wizard_tab_data()
+            self.filter_wizard.refresh_tab_values()
 
         if hasattr(self, '_stack'):
             self._stack.setCurrentIndex(0)
@@ -594,7 +589,7 @@ class RecordingSchemeTab(QWidget):
             self._enable_sorting_on_first_view()
             self.toolbar.set_counts(len(records), species_count)
             if hasattr(self, 'filter_wizard'):
-                self._load_wizard_tab_data()
+                self.filter_wizard.refresh_tab_values()
             if hasattr(self, "_stack"):
                 self._stack.setCurrentIndex(0)
             return
@@ -621,8 +616,8 @@ class RecordingSchemeTab(QWidget):
         self._load_data()
 
     def refresh(self):
-        """Refresh the display."""
-        self._load_data()
+        """Refresh the display, keeping the filter bar's and the wizard's filters."""
+        self._load_data(self._bar_filters())
     
     def refresh_display_settings(self):
         """Refresh display settings when settings change."""
@@ -827,8 +822,8 @@ class RecordingSchemeTab(QWidget):
         wizard.exec()
 
     def _on_import_completed(self, count: int):
-        """Handle import completion - refresh the table."""
-        self._load_data()
+        """Handle import completion - refresh the table (filters kept)."""
+        self.refresh()
 
     def show_record_by_id(self, record_id: int):
         """Show a specific record by its ID - used for navigation from county firsts."""
@@ -866,6 +861,7 @@ class RecordingSchemeTab(QWidget):
                 dialog.profile_requested.connect(self._on_profile_requested)
                 dialog.navigate_to_observations.connect(self._on_navigate_to_observations)
                 dialog.navigate_to_collection.connect(self._on_navigate_to_collection)
+                self._wire_edit_delete(dialog)
                 dialog.exec()
         except Exception as e:
             print(f"Error showing record {record_id}: {e}")

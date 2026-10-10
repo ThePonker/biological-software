@@ -1,30 +1,99 @@
 # Backlog
 
-## Updated 9 October 2026 (late evening)
+## Updated 10 October 2026 (evening)
 ## Check this before starting a session.
 
 ---
 
 ## Next
 
-*Late 9 Oct: the full suite review (`claude/32_Suite_Review_20261009.md` in the project,
-~140 findings) and its first fix round are done and tested by Wil (steps 1-10; Munia skipped).
-Fixed: OBS-01/02/03, EXA1-10/13/14, INF1-3, CDX-1, IMP-1/2/3/4/5/8/14/15/17, SRCH5, OBS-12 (export
-part), DE1/2/4/5/7/8, MUN-1/2, plus species-over-s.l. rule (status, Pantheon data and SQS fall
-back to the s.l. / aggregate), "Deselect All" after single ticks. Data: taxonomy backfill
-(41,892 values), 54 s.l. records moved to species. Codex rebuilt (JNCC date 2026-06-09).*
+*10 Oct: backlog items 1-5 of 9 Oct are **built, delivered and tested by Wil** (eight test rounds,
+`claude/36` and `37` in the project): one shared fuzzy species search (`shared/species_search.py`,
+`species_filter.py`), the Filter Wizard and filter bars on all three tabs (`services/filter_builder.py`),
+one taxon grouping (`shared/taxon_groups.py`, backfill applied: 75,406 scheme rows, 3 specimens
+relabelled), Mapping by several taxa / ranks / groups with richness, legend, colour per taxon and a
+County view, and the Tier 2 review fixes. Also: filtering sped up software-wide (350 ms debounce, one
+reload, `idx_scheme_tvk_vc_date` applied), small fixes 1-7. 626 tests pass on the PC. Full status of
+everything, parked work included: `claude/39_Development_Status_20261010.md`.*
 
-| | Item | Size |
-|---|---|---|
-| 1 | **Shared fuzzy species search** for every species box (review SRCH15-19, incl. Examen Species Database, Codex, filter bars, Lector) -- typo-tolerant, synonyms, common names via UKSI | L |
-| 2 | **Filter Wizard** on Recording Scheme and Insect Collection, and the filter bars (OBS-06, SRCH1-4, 7-13) | M |
-| 3 | **One taxon grouping** in `shared/taxon_groups.py` used by stats, mapping, filters and the import wizards (SRCH14, MAP10) | M |
-| 4 | **Mapping selection**: several species, genus/family/order/group, richness style, real VC/recorder/site/source filters, legend (MAP1-9, SRCH18) | L |
-| 5 | Remaining Tier 2 of the review (Observatum, imports, Data Entry, Lector LEC1 Word/PDF export, Spider Extract SPD1-3, Curator, Atrium) | M-L each |
-| 6 | Munia: test MUN-1/2 when needed | 10 min |
-| 7 | F43 Melanotus records on the fungus TVK; Ashen Bank / Ashenbank, Ranscombe site names | S |
-| 8 | Photos (A8/A8b) -- discuss `31_Photo_Workflow_Discussion.md` | discussion |
-| 9 | D3 merge `main` -> `stable`; F6 Welsh S7 comparison (download pending); F11 Chris Raper (parked) | - |
+### Next round (specified, ready to build) -- about 11-14 h build + 4 h testing
+
+| | Item | Spec | Size |
+|---|---|---|---|
+| A | **Species-counting switches everywhere** (OBS-18): separate Observation and Scheme sets in one Settings section (Scheme chips stay on its dashboard); Observation hides genus-only, family+, agg., s.l. and rolls subspecies and s.s. up to the species; Scheme can hide all seven kinds; tables show every row with excluded rows dimmed + a "show only excluded" filter; Home, Stats, Mapping, Species lookup, achievements, exports and the Data Entry map follow; Collection, Contributed, Examen, Codex, iRecord export, Data Entry grid and imports untouched; no "n excluded" notes | `claude/38` answers 1-11 | 3-4 h |
+| B | **Cleaning report** (Stats screen + spreadsheet, one tab per problem): genus-only, family+, agg., s.l., subspecies, no TVK, synonyms counted twice, hybrids, no/vague date, coarse/no grid ref; Observation and Scheme; open each record in iRecord (`irecord_id`) or Observatum | `claude/38` answers 12-14 | 2-3 h |
+| C | **Small wins** -- section L below | `claude/37` items 8-34 | 3-4 h |
+| D | **Recording Scheme read-only**: remove Edit/Delete on scheme records (tab and Stats dialogs) | L15 | 30 min |
+| E | **Scheme duplicate report** (iRecord + NBN copies of one record), read-only first | L12 | 1 h |
+| F | **Home: Personal and Commercial Quick Stats cards**; Achievements moved down | L16 | 1 h |
+
+**Decisions waiting** (`claude/36` list): 1 Rutpela common name; 2 common words selecting groups;
+3 loose "contains" matches in imports; 4 scheme Source = import route; 5 wizard reset / OR chips /
+Collection Recorder; 7 iRecord-format sort keys; 9 Quick Entry creating projects; 10 count of 0;
+11 year/month/range dates in observation imports; 12 tetrads onto maps; 13 "Change database"
+buttons; 14 MUN-4; 15 mapping (Personal, embargoed box, specimen link, richness and aggregates);
+16 OBS-12 embargo. (6 settled: relabel applied; 8 replaced by A.)
+
+**Still open from before:** Munia testing (not in use until work comes in); F43 *Melanotus* on the
+fungus TVK; Ashen Bank / Ashenbank, Ranscombe site names; photos (A8/A8b, discussion); D3 merge
+`main` -> `stable`; F6 Welsh S7 comparison; F11 Chris Raper.
+
+---
+
+## L. Small wins from the 10 Oct testing
+
+**Mapping**
+- L8: Data sources as tick boxes (e.g. Personal + Contributed together).
+- L9: A stale red date-error message stays after the dates are corrected.
+- L11: Wider or draggable divider between the panel and the map.
+- L13/31: Leave the selected-square outline out of the atlas PNG, and clear it when its taxon is removed.
+- L14/32: Export extent: a "Full extent" (default) / "Current view" choice. It currently crops to the zoom.
+- L30: In full screen the left panel is clipped on its left edge, and the layout sometimes jumps.
+- L33: One Clear all for the whole panel. A plainer title when no taxon is chosen ("All records (no taxon chosen)").
+- L34: VC45 extent 13 km short (The Smalls dropped). The PC's `vc_brc_wgs84.geojson` is the older 2 MB file: rebuild it with the fixed converter, or keep tiny islets as a dot.
+
+**Filters and tables**
+- L10: ✕ clear buttons in every filter text box.
+- L29: The Filter Wizard is too big when expanded. Restyle it slightly, the same on all three tabs.
+- L20: New Species List: Qty, Recorder, Kingdom, Taxon Group, Order, Family and Rank columns are blank.
+
+**Data Entry and imports**
+- L21: Sort vs "Entry order" is confusing.
+- L22: Conservation chips are cut off ("Priority (NER").
+- L23: The scheme import species-pick message should say what the file had.
+- L24: The specimen import shows [OK]/[!]; use ✓/⚠.
+
+**Examen, Curator, Atrium**
+- L25: "1 sp." not "1 spp.".
+- L26: Curator: genus-only specimens get their own row ("Leiopus sp. (1)").
+- L27: Atrium restyle (side quest). Gamification display (long term).
+- L28: Atrium can be opened more than once; bring the open one to the front.
+
+**Recording Scheme**
+- L12: Many records twice (iRecord + NBN copies). Read-only report first.
+- L15: Records read-only. Long term: the final dataset (M1).
+
+**Home**
+- L16: Personal and Commercial Quick Stats cards.
+
+**From the 10 Oct build, not done**
+- Scheme VC dialog dates sort as text.
+- Collection-dashboard numbers sort as text.
+- Scheme records dialog Export button styling.
+- "Recent New Species" popup Edit/Delete unconnected.
+- Magenta Close button in the square dialog.
+- OBS-26 notifications built but never shown.
+
+## M. Ideas Wil has raised (design first)
+
+**M1. Final Recording Scheme dataset.** Each scheme record gets a status: not reviewed / in the final
+dataset / set aside (with a reason). The cleaning report (B) is the gate. The aim is a curated Longhorn
+dataset, especially historic records and records not in a published atlas. Raw imports are never edited.
+Must allow more than one user from the start: Wil's partner co-runs the scheme and will have the first
+install. About 1 h of questions, then 1-2 sessions.
+
+**M2. Shared access** to the final Longhorn dataset, and possibly to observation data, with Wil's
+partner. A long way off. Needs D8 (second machine) decided first.
 
 ---
 
@@ -630,7 +699,7 @@ account — **no override field**.
 Built 2 October. `contributed_observations` (with contributor, source file, date
 received, permission, import batch); `assessment_records` view for Examen;
 `scripts/import_contributed.py` (columns by heading, UKSI matching, `--replace`).
-Stats, mapping and iRecord never see contributed data.
+Stats and iRecord never see contributed data; Mapping shows it only when Data is set to Contributed or All (10 Oct). 501 records by 10 Oct (J. Moore: Birmingham 162, Slade Green 339).
 
 **K1. Contributed tab in Observatum.** ✅ Built 9 Oct -- read-only tab after Observation Data:
 tree contributor › project › batch with counts, free-text filter, sortable table
@@ -642,6 +711,11 @@ collaborator, project and batch.
 ---
 
 ## H. Mapping tab
+
+**10 Oct:** selection by several species / genus / family / order / taxon group (chips, each its own
+colour, overlap squares split), richness and date-class styles with an on-screen legend, real VC /
+recorder / site / source / project filters, old names searched, County view (choosing a VC zooms to it;
+multi-part VC outlines fixed -- fault F44), atlas PNG with legend. Polish items in L above.
 
 **H1–H6.** ✅ Built 9 Oct. The Mapping tab draws its own map (`shared/maps/grid_map.py`) in place
 of the Leaflet/WebEngine one (`map_widget.py` retired): hectad / tetrad / monad squares

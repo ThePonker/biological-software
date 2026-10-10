@@ -62,7 +62,9 @@ class ObservationToolbar(QFrame):
         self.clear_filters_btn = QPushButton("Clear Filters")
         self.clear_filters_btn.setStyleSheet(get_clear_button_style())
         self.clear_filters_btn.clicked.connect(self.clear_filters_requested.emit)
-        layout.addWidget(self.clear_filters_btn)
+        # Not shown (Wil, 10 Oct 2026): the filter bar's Clear All, beside Species, does the
+        # same (bar + wizard + saved choice, one reload). Kept as an object for the signal.
+        self.clear_filters_btn.setVisible(False)
 
         # Invisible placeholder for alignment with Insect Collection tab
         self.add_placeholder = QPushButton("+ Add Specimen")
@@ -283,7 +285,8 @@ class ObservationToolbar(QFrame):
     
     def set_counts(self, record_count: int, species_count: int):
         """Set the counts display."""
-        self.count_label.setText(f"{record_count} records • {species_count} species")
+        from ...utils.text import counted
+        self.count_label.setText(f"{counted(record_count, 'record')} • {counted(species_count, 'species', 'species')}")
     
     def set_selected_count(self, count: int):
         """Set selected count display."""

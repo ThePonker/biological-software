@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFrame,
     QLabel, QLineEdit, QComboBox, QPushButton, QCompleter
 )
-from PySide6.QtCore import Signal, QDate, Qt, QStringListModel
+from PySide6.QtCore import Signal, QDate, Qt, QStringListModel, QMetaMethod
 
 from ...themes import theme
 from ...core.config import TabColors
@@ -20,6 +20,7 @@ from ...core.config import TabColors
 # Shared components
 from ..components.date_filter_widget import DateFilterWidget
 from ..components.combo_filter_widget import ComboFilterWidget
+from ..components.filter_debounce import debounce_text, cancel_pending
 from ..components.saved_filters_mixin import SavedFiltersMixin, create_saved_filter_buttons
 from ..components.filter_styles import (
     STANDARD_INPUT_HEIGHT,
@@ -31,10 +32,20 @@ from ..components.filter_styles import (
 from ...services.vc_lookup_service import VCLookupService
 
 
+def _index_ignoring_case(combo, text) -> int:
+    """Index of the item whose text equals `text` ignoring case, or -1."""
+    want = str(text or "").casefold()
+    for i in range(combo.count()):
+        if combo.itemText(i).casefold() == want:
+            return i
+    return -1
+
+
 class ObservationFilterBar(QFrame, SavedFiltersMixin):
     """Filter bar with saved filters support."""
 
     filters_changed = Signal(dict)
+    clear_all_requested = Signal()   # Clear All clicked: the tab clears everything
     filters_cleared = Signal()
     data_type_changed = Signal(str)  # Emits 'all', 'personal', or 'commercial'
     special_view_selected = Signal(str)  # Emits view mode like 'new_species_list'
@@ -167,6 +178,16 @@ class ObservationFilterBar(QFrame, SavedFiltersMixin):
         
         filters_row = QHBoxLayout()
         filters_row.setSpacing(8)
+
+        # Clear All: at the left, beside Species (Wil 10 Oct). On a record tab it
+        # clears everything -- this bar, the saved filter and the Filter Wizard -- the
+        # same as the toolbar's Clear Filters (the tab connects clear_all_requested)
+        self.clear_btn = QPushButton("Clear All")
+        self.clear_btn.setFixedHeight(STANDARD_INPUT_HEIGHT)
+        self.clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.clear_btn.setStyleSheet(get_clear_button_style())
+        self.clear_btn.clicked.connect(self._on_clear_all_clicked)
+        filters_row.addWidget(self.clear_btn, 0, Qt.AlignmentFlag.AlignBottom)
 
         # Column 1: Species (with auto-complete)
         species_container = QWidget()
@@ -329,26 +350,21 @@ class ObservationFilterBar(QFrame, SavedFiltersMixin):
         status_box.addWidget(self.status_combo)
         filters_row.addWidget(status_container)
 
-        # Clear All button
-        self.clear_btn = QPushButton("Clear All")
-        self.clear_btn.setFixedHeight(STANDARD_INPUT_HEIGHT)
-        self.clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.clear_btn.setStyleSheet(get_clear_button_style())
-        self.clear_btn.clicked.connect(self.clear_filters)
-        filters_row.addWidget(self.clear_btn, 0, Qt.AlignmentFlag.AlignBottom)
 
         filters_row.addStretch()
         content_layout.addLayout(filters_row)
 
     def _connect_filter_change_signals(self):
         """Connect filter widgets to emit changes automatically."""
-        self.species_edit.textChanged.connect(self._emit_filters)
-        self.location_edit.textChanged.connect(self._emit_filters)
-        self.recorder_edit.textChanged.connect(self._emit_filters)
+        # Typing reloads once it pauses, not per key; Enter applies at once (_apply_filters
+        # is on returnPressed) -- speed review 10 Oct 2026
+        debounce_text(self.species_edit, self._emit_filters, apply_on_enter=False)
+        debounce_text(self.location_edit, self._emit_filters, apply_on_enter=False)
+        debounce_text(self.recorder_edit, self._emit_filters, apply_on_enter=False)
         self.date_from_edit.dateChanged.connect(self._emit_filters)
         self.date_to_edit.dateChanged.connect(self._emit_filters)
         self.order_combo.currentTextChanged.connect(self._emit_filters)
-        self.family_edit.textChanged.connect(self._emit_filters)
+        debounce_text(self.family_edit, self._emit_filters)
         self.vc_combo.currentTextChanged.connect(self._emit_filters)
         self.method_combo.currentTextChanged.connect(self._emit_filters)
         self.status_combo.currentTextChanged.connect(self._emit_filters)
@@ -378,14 +394,15 @@ class ObservationFilterBar(QFrame, SavedFiltersMixin):
 
     def get_filters(self) -> dict:
         """Get current filter values."""
+        # Any date that is set counts: "year >= 2000" dropped every earlier date (OBS-14)
         date_from = None
         from_date = self.date_from_edit.date()
-        if from_date.year() >= 2000:
+        if from_date.isValid():
             date_from = from_date.toString("yyyy-MM-dd")
         
         date_to = None
         to_date = self.date_to_edit.date()
-        if to_date.year() >= 2000:
+        if to_date.isValid():
             date_to = to_date.toString("yyyy-MM-dd")
         
         order = self.order_combo.currentText()
@@ -425,8 +442,8 @@ class ObservationFilterBar(QFrame, SavedFiltersMixin):
         """Get the currently selected data type."""
         return self._current_data_type
 
-    def clear_filters(self):
-        """Clear all filter values."""
+    def _reset_widgets(self):
+        """Every filter back to empty / All, emitting nothing."""
         # Block signals to prevent multiple reloads during clear
         widgets = [
             self.species_edit, self.location_edit, self.recorder_edit,
@@ -435,11 +452,15 @@ class ObservationFilterBar(QFrame, SavedFiltersMixin):
             self.method_combo, self.status_combo,
             self.saved_combo
         ]
+        cancel_pending(self.species_edit, self.location_edit, self.recorder_edit,
+                       self.family_edit)
         for w in widgets:
             w.blockSignals(True)
         
         try:
-            self._on_data_type_clicked('all')
+            for d, btn in self._data_type_buttons.items():    # 'all', without a signal
+                btn.setChecked(d == 'all')
+            self._current_data_type = 'all'
             self.species_edit.clear()
             self.location_edit.clear()
             self.recorder_edit.clear()
@@ -456,12 +477,39 @@ class ObservationFilterBar(QFrame, SavedFiltersMixin):
             for w in widgets:
                 w.blockSignals(False)
         
-        # Emit once at the end
+    def _on_clear_all_clicked(self):
+        """Clear All: the tab's clear-everything if it listens, else this bar alone."""
+        if self.isSignalConnected(QMetaMethod.fromSignal(self.clear_all_requested)):
+            self.clear_all_requested.emit()
+        else:
+            self.clear_filters()
+
+    def clear_filters(self):
+        """Clear all filter values and apply once."""
+        self._reset_widgets()
         self.filters_cleared.emit()
         self.filters_changed.emit(self.get_filters())
 
     def _apply_saved_filter(self, filters: dict):
-        """Apply saved filter values to the UI. Required by SavedFiltersMixin."""
+        """Apply saved filter values to the UI, then reload once (each widget reloaded
+        as it was set). Required by SavedFiltersMixin."""
+        quiet = [self.species_edit, self.location_edit, self.recorder_edit,
+                 self.date_from_edit, self.date_to_edit, self.order_combo, self.family_edit,
+                 self.vc_combo, self.method_combo, self.status_combo]
+        cancel_pending(self.species_edit, self.location_edit, self.recorder_edit,
+                       self.family_edit)
+        for w in quiet:
+            w.blockSignals(True)
+        try:
+            self._set_saved_values(filters)
+        finally:
+            for w in quiet:
+                w.blockSignals(False)
+        self._update_family_completer()       # order_combo's own handler, silenced above
+        self.filters_changed.emit(self.get_filters())
+
+    def _set_saved_values(self, filters: dict):
+        """The saved filter's values into the widgets (no signals: see _apply_saved_filter)."""
         # Handle special date values
         date_from = filters.get('date_from', '')
         if date_from == 'THIS_YEAR':
@@ -489,7 +537,7 @@ class ObservationFilterBar(QFrame, SavedFiltersMixin):
                            (self.status_combo, 'verification_status')]:
             val = filters.get(key)
             if val:
-                idx = combo.findText(val)
+                idx = _index_ignoring_case(combo, val)
                 if idx >= 0:
                     combo.setCurrentIndex(idx)
         
@@ -501,8 +549,6 @@ class ObservationFilterBar(QFrame, SavedFiltersMixin):
             idx = self.vc_combo.findData(vc)
             if idx >= 0:
                 self.vc_combo.setCurrentIndex(idx)
-        
-        self.filters_changed.emit(self.get_filters())
 
     def populate_vice_counties(self, vc_list: List[Dict]):
         """Populate vice county dropdown."""
@@ -605,6 +651,9 @@ class ObservationFilterBar(QFrame, SavedFiltersMixin):
         
         # Populate Vice Counties
         self._populate_vice_counties_from_data(db)
+
+        # Method and Verification lists from the records themselves (OBS-15)
+        self._populate_choices_from_data(db)
         
         # Restore signals
         for widget in [self.order_combo, self.family_edit, self.vc_combo,
@@ -636,6 +685,27 @@ class ObservationFilterBar(QFrame, SavedFiltersMixin):
         except Exception as e:
             print(f"[FilterBar] Error loading vice counties: {e}")
 
+    def _populate_choices_from_data(self, db):
+        """Method and Verification offer what the records hold: one entry per method
+        ignoring case ("MV light" covers 589 + 19 "MV Light"), statuses by their main
+        word. They offered iRecord's full termlist, mostly absent, matched case-sensitively."""
+        from ...services.filter_builder import tab_values
+        try:
+            v = tab_values(db.main_db_path, 'observations', only=('methods', 'statuses'))
+        except Exception as e:
+            print(f"[FilterBar] Error loading methods/statuses: {e}")
+            return
+        for combo, values in ((self.method_combo, v['methods']), (self.status_combo, v['statuses'])):
+            current = combo.currentText()
+            combo.blockSignals(True)
+            combo.clear()
+            combo.addItem("All", None)
+            for value in values:
+                combo.addItem(value, value)
+            idx = _index_ignoring_case(combo, current)
+            combo.setCurrentIndex(idx if idx >= 0 else 0)
+            combo.blockSignals(False)
+
     def _update_family_completer(self):
         """Update family autocomplete based on selected order."""
         if not hasattr(self, '_order_family_map'):
@@ -666,8 +736,15 @@ class ObservationFilterBar(QFrame, SavedFiltersMixin):
         self.setStyleSheet(f"background-color: {t.get('surface')}; border-bottom: 1px solid {t.get('border')};")
 
     def set_species_filter(self, species_name: str):
-        """Set the species filter and apply it."""
-        self.species_edit.setText(species_name)
+        """Show this species alone: the other filters are cleared first, and it is
+        applied once. They used to stay, so navigating to Rutpela from a filtered view
+        showed 0 of its 62 records (OBS-08)."""
+        self._reset_widgets()
+        self.species_edit.blockSignals(True)      # after _reset_widgets, which unblocks it:
+        try:                                      # setText reloaded once more (speed review)
+            self.species_edit.setText(species_name)
+        finally:
+            self.species_edit.blockSignals(False)
         self._emit_filters()
 
     def set_order_filter(self, order_name: str):

@@ -62,7 +62,9 @@ def test_table_models_keep_their_own_columns(app):
     sch.set_row(1, s)
     assert sch.data(sch.index(1, 6)) == "bad | note" and sch.data(sch.index(1, 0)) == "✗"
     assert sch.data(sch.index(1, 6), Qt.ForegroundRole) is not None
-    assert sch.flags(sch.index(1, 2)) & Qt.ItemIsEditable and sch.get_all_rows() == [s]
+    # Species is picked by double-click, not typed (IMP-6, 10 Oct 2026); Date, Grid Ref, Site edit
+    assert not sch.flags(sch.index(1, 2)) & Qt.ItemIsEditable
+    assert sch.flags(sch.index(1, 3)) & Qt.ItemIsEditable and sch.get_all_rows() == [s]
 
 
 def test_problem_export_writes_the_rows_as_read(app, tmp_path, monkeypatch):

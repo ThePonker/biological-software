@@ -137,6 +137,8 @@ class CommercialStatsDashboard(QScrollArea):
         self.year_table.year_clicked.connect(self.navigate_to_year.emit)
         self.year_table.year_species_clicked.connect(self._show_species_for_year)
         self.year_table.year_new_species_clicked.connect(self._show_new_species_for_year)
+        from .year_export import wire_year_exports          # buttons were unconnected (OBS-19)
+        wire_year_exports(self.year_table, 'Commercial', "Commercial", self)
         row.addWidget(self.year_table)
 
         self.recent_species = RecentSpeciesList()
@@ -459,79 +461,10 @@ class CommercialStatsDashboard(QScrollArea):
             if not raw:
                 return
 
-            LABEL_MAP = {
-                'insect - beetle (Coleoptera)': 'Beetles (Coleoptera)',
-                'insect - moth': 'Moths (Lepidoptera)',
-                'insect - butterfly': 'Butterflies (Lepidoptera)',
-                'flowering plant': 'Flowering Plants (Angiospermae)',
-                'fern': 'Ferns (Polypodiopsida)',
-                'conifer': 'Conifers (Pinopsida)',
-                'horsetail': 'Horsetails (Equisetopsida)',
-                'insect - true fly (Diptera)': 'True Flies (Diptera)',
-                'bird': 'Birds (Aves)',
-                'insect - hymenopteran': 'Bees, Wasps & Ants (Hymenoptera)',
-                'spider (Araneae)': 'Spiders (Araneae)',
-                'fungus': 'Fungi',
-                'slime mould': 'Slime Moulds (Mycetozoa)',
-                'insect - true bug (Hemiptera)': 'True Bugs (Hemiptera)',
-                'terrestrial mammal': 'Land Mammals (Mammalia)',
-                'marine mammal': 'Marine Mammals (Mammalia)',
-                'mollusc': 'Molluscs (Mollusca)',
-                'insect - dragonfly (Odonata)': 'Dragonflies (Odonata)',
-                'harvestman (Opiliones)': 'Harvestmen (Opiliones)',
-                'crustacean': 'Crustaceans (Crustacea)',
-                'annelid': 'Annelids (Annelida)',
-                'insect - orthopteran': 'Grasshoppers & Crickets (Orthoptera)',
-                'millipede': 'Millipedes (Diplopoda)',
-                'amphibian': 'Amphibians (Amphibia)',
-                'false scorpion (Pseudoscorpiones)': 'False Scorpions (Pseudoscorpiones)',
-                'centipede': 'Centipedes (Chilopoda)',
-                'reptile': 'Reptiles (Reptilia)',
-                'bony fish (Actinopterygii)': 'Fish (Actinopterygii)',
-                'insect - scorpion fly (Mecoptera)': 'Scorpion Flies (Mecoptera)',
-                'moss': 'Mosses (Bryophyta)',
-                'springtail (Collembola)': 'Springtails (Collembola)',
-                'acarine (Acari)': 'Mites (Acari)',
-                'chromist': 'Chromists (Chromista)',
-                'coelenterate (=cnidarian)': 'Cnidarians (Cnidaria)',
-                'insect - caddis fly (Trichoptera)': 'Caddisflies (Trichoptera)',
-                'insect - earwig (Dermaptera)': 'Earwigs (Dermaptera)',
-                'insect - snakefly (Raphidioptera)': 'Snakeflies (Raphidioptera)',
-                'insect - thrips (Thysanoptera)': 'Thrips (Thysanoptera)',
-                'insect - flea (Siphonaptera)': 'Fleas (Siphonaptera)',
-                'insect - lacewing (Neuroptera)': 'Lacewings (Neuroptera)',
-                'alga': 'Algae',
-                'lichen': 'Lichens',
-                'flatworm (Turbellaria)': 'Flatworms (Turbellaria)',
-                'scorpion': 'Scorpions (Scorpiones)',
-            }
-
-            MERGE_GROUPS = {
-                'Plants (Plantae)': ['flowering plant', 'fern', 'conifer', 'horsetail'],
-                'Fungi': ['fungus', 'slime mould'],
-                'Mammals (Mammalia)': ['terrestrial mammal', 'marine mammal'],
-            }
-
-            merged_into = {}
-            for merge_label, members in MERGE_GROUPS.items():
-                for m in members:
-                    merged_into[m] = merge_label
-
-            # Group raw data by display label
-            label_data = {}  # label -> {'species_count': N, 'yearly_new': {year: count}}
-            label_groups = {}  # label -> [taxon_group values]
-            for tg, info in raw.items():
-                if tg in merged_into:
-                    label = merged_into[tg]
-                else:
-                    label = LABEL_MAP.get(tg, tg.title())
-                if label not in label_data:
-                    label_data[label] = {'species_count': 0, 'yearly_new': {}}
-                    label_groups[label] = []
-                label_groups[label].append(tg)
-                label_data[label]['species_count'] += info['species_count']
-                for yr, cnt in info['yearly_new'].items():
-                    label_data[label]['yearly_new'][yr] = label_data[label]['yearly_new'].get(yr, 0) + cnt
+            # Display labels and merges: shared/taxon_groups.py (one copy for the three
+            # dashboards, 10 Oct 2026)
+            from shared.taxon_groups import merge_curve_groups
+            label_data, label_groups = merge_curve_groups(raw)
 
             self._group_label_map = label_groups
 
@@ -577,6 +510,7 @@ class CommercialStatsDashboard(QScrollArea):
             if db is None:
                 return
             placeholders = ','.join(['?' for _ in group_values])
+            from shared.taxon_groups import group_sql   # stored label, else order/family
 
             # Get species with family info
             query = f"""
@@ -584,7 +518,7 @@ class CommercialStatsDashboard(QScrollArea):
                        MIN(date) as first_date,
                        MAX(date) as last_date
                 FROM observations
-                WHERE taxon_group IN ({placeholders})
+                WHERE {group_sql()} IN ({placeholders})
                 AND record_type = 'Commercial'
                 AND species_name IS NOT NULL AND species_name != ''
                 {exclusion}

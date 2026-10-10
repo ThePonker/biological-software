@@ -545,28 +545,16 @@ class WizardPagesMixin(ImportProgressPagesMixin):
 
         options_layout.addWidget(dup_indent)
         layout.addWidget(options_group)
+        for box in (self.import_errors_checkbox, self.import_warnings_checkbox,
+                    self.update_duplicates_checkbox):        # the count follows the boxes
+            box.toggled.connect(lambda _on: self._update_confirmation_counts())
 
-        # Progress section
-        progress_label = QLabel("Import Progress:")
-        progress_label.setStyleSheet("font-weight: 600;")
-        layout.addWidget(progress_label)
-
-        self.import_progress = QProgressBar()
-        self.import_progress.setStyleSheet(f"""
-            QProgressBar {{
-                border: 1px solid {t.get('border')};
-                border-radius: {t.get('radius_sm')};
-                text-align: center;
-            }}
-            QProgressBar::chunk {{
-                background-color: {self._accent};
-            }}
-        """)
-        layout.addWidget(self.import_progress)
-
-        self.import_status_label = QLabel("Ready to import")
-        self.import_status_label.setStyleSheet(f"color: {t.get('text_secondary')};")
-        layout.addWidget(self.import_status_label)
+        # What Import will do. (This page had its own progress bar and status line, never
+        # updated: the import page's replaced them -- IMP-18, 10 Oct 2026.)
+        self.confirm_status_label = QLabel("")
+        self.confirm_status_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-weight: 600;")
+        self.confirm_status_label.setWordWrap(True)
+        layout.addWidget(self.confirm_status_label)
 
         layout.addStretch()
         self.stack.addWidget(page)

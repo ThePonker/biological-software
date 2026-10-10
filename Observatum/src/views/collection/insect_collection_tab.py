@@ -49,6 +49,7 @@ class InsectCollectionTab(ICSidebarMixin, ICDataMixin, ICExportMixin, QWidget):
         self._specimen_model: Optional[SpecimenModel] = None
         self._specimen_repo = None
         self._extra_filters: dict = {}
+        self._wizard_filters: dict = {}      # the Filter Wizard's applied filters (kept)
         self._uksi_model: Optional[UKSIModel] = None
         self._vc_service: Optional[VCLookupService] = None
         self._current_view_mode = 'normal'
@@ -163,6 +164,8 @@ class InsectCollectionTab(ICSidebarMixin, ICDataMixin, ICExportMixin, QWidget):
         self.toolbar.filters_toggled.connect(self._on_filters_toggled)
         self.toolbar.sidebar_toggled.connect(self.toggle_sidebar)
         self.toolbar.wizard_toggled.connect(self._on_wizard_toggled)
+        self.toolbar.clear_filters_requested.connect(self.clear_all_filters)
+        self.filters.clear_all_requested.connect(self.clear_all_filters)
         self.filter_wizard.filters_applied.connect(self._on_wizard_filters_applied)
         self.filter_wizard.filters_reset.connect(self._on_wizard_filters_reset)
         self.toolbar.export_requested.connect(self._on_export_all)
@@ -185,98 +188,34 @@ class InsectCollectionTab(ICSidebarMixin, ICDataMixin, ICExportMixin, QWidget):
         self.filter_wizard.setVisible(visible)
 
     def _on_wizard_filters_applied(self, filters: dict):
-        """Handle filter wizard apply — translate to IC filter format."""
-        self._wizard_filters = filters
-        tab_filters = {}
+        """Filter Wizard Apply: kept, and applied with the filter bar on every load.
 
-        # What: species, orders, families
-        species_list = filters.get('species', [])
-        if isinstance(species_list, str): species_list = [species_list] if species_list else []
-        if species_list:
-            tab_filters['species'] = species_list[0]
-
-        orders = filters.get('taxon_group', [])
-        if isinstance(orders, str): orders = [orders] if orders else []
-        if orders:
-            tab_filters['order'] = orders[0]
-
-        families = filters.get('family', [])
-        if isinstance(families, str): families = [families] if families else []
-        if families:
-            tab_filters['family'] = families[0]
-
-        # Where: vice counties, sites
-        vcs = filters.get('vice_county', [])
-        if isinstance(vcs, str): vcs = [vcs] if vcs else []
-        if vcs:
-            vc = vcs[0]
-            tab_filters['vice_county'] = vc.split(' - ')[0] if ' - ' in str(vc) else str(vc)
-
-        sites = filters.get('site_name', [])
-        if isinstance(sites, str): sites = [sites] if sites else []
-        if sites:
-            tab_filters['location'] = sites[0]
-
-        # When: date range
-        if filters.get('date_from'):
-            tab_filters['date_from'] = filters['date_from']
-        if filters.get('date_to'):
-            tab_filters['date_to'] = filters['date_to']
-
-        # Who: collector
-        recorders = filters.get('recorder', [])
-        if isinstance(recorders, str): recorders = [recorders] if recorders else []
-        if recorders:
-            tab_filters['collector'] = recorders[0]
-
-        self._extra_filters = tab_filters
+        10 Oct 2026 (OBS-06, SRCH1-3, SRCH9): this kept the first chip of a few cards
+        as one-off "extra" filters (gone on the next reload), with "~" left in and the
+        year, determiner and notes ignored -- year 2019 showed all 2,745 specimens.
+        The shared builder now turns every chip into SQL (services/filter_builder)."""
+        self._wizard_filters = dict(filters or {})
         self._load_data()
 
     def _on_wizard_filters_reset(self):
-        """Handle filter wizard reset."""
+        """Wizard Reset: drop the wizard's filters; the filter bar's stay."""
         self._wizard_filters = {}
-        self.filters.clear_filters()
         self._load_data()
 
-    def _load_wizard_tab_data(self):
-        """Load tab-specific data into the filter wizard from specimens table."""
-        try:
-            import sqlite3
-            db = get_database()
-            main_path = db.get_main_path() if hasattr(db, 'get_main_path') else str(db._main_db_path)
-            conn = sqlite3.connect(main_path)
-            
-            species = [r[0] for r in conn.execute(
-                "SELECT DISTINCT species_name FROM specimens WHERE species_name IS NOT NULL ORDER BY species_name"
-            ).fetchall()]
-            orders = [r[0] for r in conn.execute(
-                "SELECT DISTINCT order_name FROM specimens WHERE order_name IS NOT NULL AND order_name != '' ORDER BY order_name"
-            ).fetchall()]
-            families = [r[0] for r in conn.execute(
-                "SELECT DISTINCT family FROM specimens WHERE family IS NOT NULL AND family != '' ORDER BY family"
-            ).fetchall()]
-            collectors = [r[0] for r in conn.execute(
-                "SELECT DISTINCT collector FROM specimens WHERE collector IS NOT NULL AND collector != '' ORDER BY collector"
-            ).fetchall()]
-            determiners = [r[0] for r in conn.execute(
-                "SELECT DISTINCT determiner FROM specimens WHERE determiner IS NOT NULL AND determiner != '' ORDER BY determiner"
-            ).fetchall()]
-            sites = [r[0] for r in conn.execute(
-                "SELECT DISTINCT site_name FROM specimens WHERE site_name IS NOT NULL AND site_name != '' ORDER BY site_name"
-            ).fetchall()]
-            years = [str(r[0]) for r in conn.execute(
-                "SELECT DISTINCT substr(date_collected, 1, 4) as yr FROM specimens WHERE date_collected IS NOT NULL ORDER BY yr DESC"
-            ).fetchall() if r[0]]
-            
-            conn.close()
-            
-            self.filter_wizard.set_tab_data(
-                species=species, orders=orders, families=families,
-                recorders=collectors, determiners=determiners,
-                sites=sites, years=years
-            )
-        except Exception as e:
-            print(f"[IC] Error loading wizard tab data: {e}")
+    def clear_wizard_filters(self):
+        """Forget the wizard's filters without reloading (navigation, OBS-08)."""
+        self._wizard_filters = {}
+        self.filter_wizard.clear_filters()
+
+    def clear_all_filters(self):
+        """Toolbar "Clear Filters" and the filter bar's "Clear All" -- one behaviour
+        (Wil 10 Oct): the filter bar, the saved-filter choice and the Filter Wizard
+        are all cleared, then one reload. (Clear Filters cleared the bar only, so a
+        wizard filter stayed on and it looked as if nothing happened; on the Insect
+        Collection it was not connected at all.) The wizard's own Reset still clears
+        the wizard alone."""
+        self.clear_wizard_filters()
+        self.filters.clear_filters()                  # one load (filters_changed)
 
     def _on_filters_toggled(self, visible: bool):
         self.filters.setVisible(visible)
@@ -291,7 +230,7 @@ class InsectCollectionTab(ICSidebarMixin, ICDataMixin, ICExportMixin, QWidget):
         """Open "Drawer in hand" (A1); refresh the collection after any save."""
         from .drawer_assign_dialog import DrawerAssignDialog
         dlg = DrawerAssignDialog(self)
-        dlg.saved.connect(lambda *_: self.refresh())
+        dlg.saved.connect(lambda *_: (self.refresh(), self.data_changed.emit()))   # OBS-10
         dlg.exec()
 
     def _on_add_specimen(self):
@@ -412,7 +351,6 @@ class InsectCollectionTab(ICSidebarMixin, ICDataMixin, ICExportMixin, QWidget):
 
         self.filters.initialize_with_database(db)
         self._load_data()
-        self._load_wizard_tab_data()
 
     def refresh(self):
         """Refresh the display."""

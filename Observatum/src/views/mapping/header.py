@@ -22,10 +22,13 @@ class MapHeader(QFrame):
         self._accent_dark = TabColors.MAPPING_DARK
         
         # Tab header style: light background with accent border
+        self.setObjectName("mapHeader")          # the borders are the header's, not its labels'
         self.setStyleSheet(f"""
-            background-color: {self._accent_light}; 
-            border-bottom: 1px solid {t.get('border')};
-            border-left: 4px solid {self._accent};
+            QFrame#mapHeader {{
+                background-color: {self._accent_light};
+                border-bottom: 1px solid {t.get('border')};
+                border-left: 4px solid {self._accent};
+            }}
         """)
         
         layout = QHBoxLayout(self)
@@ -50,28 +53,40 @@ class MapHeader(QFrame):
         layout.addWidget(self.grid_count)
     
     def set_species(self, species: dict = None):
-        """Update the displayed species."""
-        t = theme()
-        if species:
-            name = f"<i>{species.get('scientific_name', species.get('name', 'Unknown'))}</i>"
-            common = species.get('common_name', species.get('common', ''))
-            if common:
-                name += f" <span style='color: {t.get('text_secondary')}; font-weight: normal;'>({common})</span>"
-            self.title.setText(name)
-        else:
-            self.title.setText("All Species")
-    
-    def set_config(self, view: str, grid: str, data: str):
-        """Update the configuration subtitle."""
+        """Update the displayed species (one chip; kept for callers of the old API)."""
+        self.set_selection([species] if species else [])
+
+    def set_selection(self, chips: list):
+        """The title: the chosen taxa (or 'All Species')."""
+        self.title.setText(selection_title(chips, html=True, muted=theme().get('text_secondary')))
+
+    def set_config(self, view: str, grid: str, data: str, note: str = ""):
+        """Update the configuration subtitle (note: what was held back, e.g. embargoed)."""
+        from ...services.map_selection import SOURCE_LABELS
         view_text = "National distribution" if view == 'national' else "County distribution"
-        data_text = {
-            'personal': 'Personal records',
-            'scheme': 'Recording Scheme',
-            'all': 'All records'
-        }.get(data, 'Personal records')
-        
-        self.subtitle.setText(f"{view_text} • {grid} grid • {data_text}")
-    
-    def set_grid_count(self, count: int):
+        data_text = SOURCE_LABELS.get(data, 'Personal records')
+        self.subtitle.setText(f"{view_text} • {grid} grid • {data_text}" + (f" • {note}" if note else ""))
+
+    def set_grid_count(self, count: int, records: int = None):
         """Update the grid count."""
-        self.grid_count.setText(f"{count} grid squares")
+        text = f"{count:,} grid square{'s' if count != 1 else ''}"
+        if records is not None:
+            text += f" · {records:,} record{'s' if records != 1 else ''}"
+        self.grid_count.setText(text)
+
+
+def selection_title(chips: list, html: bool = False, muted: str = "") -> str:
+    """'Rutpela maculata (Spotted Longhorn)', 'Rhagium + Cerambycidae', or 'All Species'."""
+    if not chips:
+        return "All Species"
+    names = []
+    for c in chips[:3]:
+        name = c.get('scientific_name') or c.get('label') or c.get('name') or '?'
+        italic = html and c.get('kind') != 'group'
+        names.append(f"<i>{name}</i>" if italic else name)
+    text = " + ".join(names) + (f" + {len(chips) - 3} more" if len(chips) > 3 else "")
+    common = chips[0].get('common_name') or chips[0].get('common') if len(chips) == 1 else ""
+    if common:
+        text += (f" <span style='color: {muted}; font-weight: normal;'>({common})</span>"
+                 if html else f" ({common})")
+    return text

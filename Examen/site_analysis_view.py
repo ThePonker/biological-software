@@ -14,7 +14,8 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QColor
 from .examen_data import (load_all_projects, load_project_detail, AnalysisMode,
-                          AUTO_JURISDICTION, country_for_vc, resolve_jurisdiction)
+                          AUTO_JURISDICTION, country_for_vc, resolve_jurisdiction,
+                          take_read_errors)
 from .overview_tab import OverviewTab
 from .habitat_tab import HabitatTab
 from .assemblage_tab import AssemblageTab
@@ -218,9 +219,16 @@ class SiteAnalysisView(QWidget):
         layout.addWidget(self.summary_label)
 
     def _load_projects(self):
-        self._projects = load_all_projects(self._mode,
-                                           by_year=not self._pool_years,
-                                           jurisdiction=self.juris_combo.currentText())
+        take_read_errors()                       # only this load's failures
+        try:
+            self._projects = load_all_projects(self._mode,
+                                               by_year=not self._pool_years,
+                                               jurisdiction=self.juris_combo.currentText())
+        except Exception as e:  # noqa: BLE001 -- say so, not an empty table (EXA19)
+            self._projects = []
+            self._read_errors = [f"{type(e).__name__}: {e}"]
+        else:
+            self._read_errors = take_read_errors()
         # Sorting off while filling: with it on, setItem can re-sort mid-fill.
         self.table.setSortingEnabled(False)
         self.table.setRowCount(len(self._projects))
@@ -270,8 +278,33 @@ class SiteAnalysisView(QWidget):
         self.table.setSortingEnabled(True)
         mode_t = mode_label(self._mode)
         grouping = "pooled across years" if self._pool_years else "by survey year"
-        self.summary_label.setText(f"{len(self._projects)} rows ({grouping})  |  "
-                                   f"Mode: {mode_t}")
+        text = f"{len(self._projects)} rows ({grouping})  |  Mode: {mode_t}"
+        self._show_read_errors(text, self._read_errors)
+
+    def _show_read_errors(self, text, errors):
+        """The summary line, with any Codex / Pantheon read failure stated in red
+        (EXA19): a row whose analysis failed shows no figures, not real zeros."""
+        if errors:
+            text += (f"  |  \u26a0 Codex / Pantheon could not be read ({len(errors)} error(s)); "
+                     f"figures missing: {errors[0]}")
+            self.summary_label.setStyleSheet("color: " + RED_STATUS + "; font-size: 11px;")
+            self.summary_label.setToolTip("\n".join(errors))
+        else:
+            self.summary_label.setStyleSheet("color: " + TEXT_MUTED + "; font-size: 11px;")
+            self.summary_label.setToolTip("")
+        self.summary_label.setText(text)
+
+    def _clear_detail(self, message):
+        """No current analysis: the export buttons cannot act on a previous
+        project's result (EXA17)."""
+        self._current_result = None
+        self._current_detail = None
+        self._current_project = None
+        self._current_site_name = ""
+        for b in (self.appendix_btn, self.workbook_btn, self.pdf_btn, self.word_btn):
+            b.setEnabled(False)
+        self.detail_tabs.hide()
+        self.detail_header.setText(message)
 
     def _on_project_clicked(self, row, col):
         # The row carries its project: after sorting, row N is not self._projects[N].
@@ -280,10 +313,21 @@ class SiteAnalysisView(QWidget):
         if _idx is None or _idx >= len(self._projects): return
         proj = self._projects[_idx]
         self._jurisdiction, how = self._resolve_jurisdiction(proj)
-        detail = load_project_detail(proj.project_name, proj.client, self._mode,
-                                     survey_year=proj.survey_year or None,
-                                     jurisdiction=self._jurisdiction)
-        if not detail: return
+        take_read_errors()
+        try:
+            detail = load_project_detail(proj.project_name, proj.client, self._mode,
+                                         survey_year=proj.survey_year or None,
+                                         jurisdiction=self._jurisdiction)
+        except Exception as e:  # noqa: BLE001 -- EXA17: never leave the last project exportable
+            self._clear_detail(f"{proj.display_name}: could not be loaded \u2014 {e}")
+            return
+        if not detail:
+            self._clear_detail(f"{proj.display_name}: no records found")
+            return
+        errors = take_read_errors()
+        if errors and getattr(detail, "analysis", None) is None:
+            self._clear_detail(f"{proj.display_name}: analysis error \u2014 {errors[0]}")
+            return
         self._current_detail = detail
         self._current_project = proj
         self._current_site_name = proj.display_name
@@ -312,8 +356,10 @@ class SiteAnalysisView(QWidget):
                 except TypeError:
                     result = self._service.analyse(tvks, names, mode)
             self._current_result = result
-        except Exception as e:
-            self.detail_header.setText(f"Analysis error: {e}"); return
+        except Exception as e:  # noqa: BLE001
+            # EXA17: the previous project's result must not stay behind the buttons.
+            self._clear_detail(f"Analysis error: {e}")
+            return
         self.detail_header.setText(title)
         self.appendix_btn.setEnabled(True)
         self.workbook_btn.setEnabled(True); self.pdf_btn.setEnabled(True); self.word_btn.setEnabled(True)
@@ -349,7 +395,10 @@ class SiteAnalysisView(QWidget):
             for tvk, scores in fid.items():
                 for idx, score in scores.items(): by_index.setdefault(idx, {})[tvk] = score
             return by_index
-        except Exception: return {}
+        except Exception as e:  # noqa: BLE001 -- shown, not silent (EXA19)
+            self._show_read_errors(self.summary_label.text().split("  |  \u26a0")[0],
+                                   [f"fidelity indices (Pantheon): {e}"])
+            return {}
 
     def _on_import(self):
         from .import_species_dialog import ImportSpeciesDialog
@@ -468,13 +517,26 @@ class SiteAnalysisView(QWidget):
             "against.")
 
     def _export_csv(self):
-        if not self._projects: return
+        if not self._projects:
+            QMessageBox.information(self, "Export CSV", "There are no projects to export.")
+            return
         p, _ = QFileDialog.getSaveFileName(self, "Export", "project_analysis.csv", "CSV (*.csv)")
         if not p: return
-        with open(p, "w", newline="", encoding="utf-8") as f:
-            w = csv.writer(f)
-            w.writerow(["Project","Year","Client","Sites","Visits","Species","Key Species","% Key","SQI","Reliable","Rare","Scarce","Priority","First","Last"])
-            for s in self._projects:
-                w.writerow([s.project_name, s.survey_year or "all", s.client, s.site_count, s.visit_count, s.species_count,
-                            s.key_species_count, s.key_species_pct, int(s.sqi) if s.sqi else "",
-                            "Yes" if s.sqi_reliable else "No", s.rare_count, s.scarce_count, s.priority_count, s.first_date, s.last_date])
+        try:
+            write_projects_csv(p, self._projects)
+        except Exception as e:  # noqa: BLE001 -- e.g. the file is open in Excel (EXA19)
+            QMessageBox.warning(self, "Export failed", f"The CSV could not be written.\n\n{e}")
+            return
+        QMessageBox.information(self, "CSV exported",
+                                f"{len(self._projects)} rows written to:\n{p}")
+
+
+def write_projects_csv(path, projects):
+    """The project table as CSV. Raises OSError if the file cannot be written."""
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["Project","Year","Client","Sites","Visits","Species","Key Species","% Key","SQI","Reliable","Rare","Scarce","Priority","First","Last"])
+        for s in projects:
+            w.writerow([s.project_name, s.survey_year or "all", s.client, s.site_count, s.visit_count, s.species_count,
+                        s.key_species_count, s.key_species_pct, int(s.sqi) if s.sqi else "",
+                        "Yes" if s.sqi_reliable else "No", s.rare_count, s.scarce_count, s.priority_count, s.first_date, s.last_date])

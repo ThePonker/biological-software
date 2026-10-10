@@ -101,13 +101,14 @@ class HabitatTab(QWidget):
 
         A habitat with three scoring species was rendering "SQI 200*". The
         asterisk was honest, but the figure invites misreading in a report and
-        Pantheon withholds it. Show the evidence instead.
+        Pantheon withholds it. Show the evidence instead -- the workbook's own
+        cell, so the tab and the exports agree (EXA15).
         """
-        if not sqi or not sqi.species_with_sqs:
-            return "-"
-        if not sqi.reliable:
-            return f"({sqi.species_with_sqs} spp)"
-        return str(int(sqi.sqi))
+        try:
+            from Examen.workbook_export import _sqi_cell
+        except ImportError:  # pragma: no cover
+            from workbook_export import _sqi_cell
+        return str(_sqi_cell(sqi))
 
     @staticmethod
     def _sqi_colour(sqi):

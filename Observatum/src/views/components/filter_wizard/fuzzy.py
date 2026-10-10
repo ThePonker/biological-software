@@ -2,9 +2,10 @@
 
 One copy of what what/who/where_filter_dialog.py each carried: every space-separated word
 must appear in the item ("rut mac" -> "Rutpela maculata"). The Where dialog's place names
-also accept common abbreviations (Sth Fen Wd -> South Fen Wood).
+also accept common abbreviations (Sth Fen Wd -> South Fen Wood). Species lists also go
+through the suite's shared species search (SpeciesCompleter, 10 Oct 2026).
 """
-from typing import List
+from typing import Dict, List, Optional
 
 from PySide6.QtCore import Qt, QSortFilterProxyModel
 from PySide6.QtGui import QStandardItemModel, QStandardItem
@@ -91,6 +92,34 @@ class PlaceFilterProxyModel(FuzzyFilterProxyModel):
         return any(v in text_lower for v in self.ABBREVIATIONS.get(word, []))
 
 
+class SpeciesFilterProxyModel(FuzzyFilterProxyModel):
+    """As FuzzyFilterProxyModel, and a row also shows when its species is one the shared
+    species search (shared/species_filter.py) finds for the text: typing slips
+    ("Rhagium mordx"), old names, UKSI common names the records don't carry."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.names: Dict[str, str] = {}      # display text -> scientific name
+        self._allowed = set()
+
+    def setFilterText(self, text: str):
+        self._allowed = set()
+        if text and text.strip():
+            try:
+                from shared.species_filter import filter_names
+                self._allowed = filter_names(text, set(self.names.values()))
+            except Exception as e:
+                print(f"[SpeciesCompleter] shared search unavailable: {e}")
+        super().setFilterText(text)
+
+    def filterAcceptsRow(self, source_row: int, source_parent) -> bool:
+        if super().filterAcceptsRow(source_row, source_parent):
+            return True
+        index = self.sourceModel().index(source_row, 0, source_parent)
+        text = self.sourceModel().data(index, Qt.ItemDataRole.DisplayRole) or ""
+        return self.names.get(text, text) in self._allowed
+
+
 class FuzzyCompleter(QCompleter):
     """Completer with fuzzy multi-word matching."""
 
@@ -137,3 +166,13 @@ def picking_from_popup(line_edit) -> bool:
 class PlaceCompleter(FuzzyCompleter):
     """FuzzyCompleter for place names (abbreviations understood)."""
     proxy_class = PlaceFilterProxyModel
+
+
+class SpeciesCompleter(FuzzyCompleter):
+    """FuzzyCompleter for a list of species ("Common (Scientific)" or "Scientific"), matched
+    with the shared species search as well. names: display text -> scientific name."""
+    proxy_class = SpeciesFilterProxyModel
+
+    def __init__(self, items: List[str], parent=None, names: Optional[Dict[str, str]] = None):
+        super().__init__(items, parent)
+        self._proxy_model.names = dict(names or {i: i for i in items})

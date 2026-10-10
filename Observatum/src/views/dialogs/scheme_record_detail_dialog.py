@@ -613,7 +613,7 @@ class SchemeRecordDetailDialog(QDialog):
             self,
             "Confirm Delete",
             f"Are you sure you want to delete the record of <b>{species_name}</b>?"
-            f"\n\nThis action cannot be undone.",
+            "<br><br>A backup of the database is taken first.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
             QMessageBox.StandardButton.Cancel
         )

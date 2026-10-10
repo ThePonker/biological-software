@@ -11,7 +11,6 @@ PANDAS REFACTOR: Uses vectorized operations for fast validation.
 import os
 import sys
 from dataclasses import dataclass, field
-from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, List
 
@@ -93,6 +92,27 @@ class ImportRow:
     superfamily: str = ""
     taxonomic_sort_key: Optional[int] = None
     taxon_group: str = ""
+    sex: str = ""                                   # IMP-7: could not be mapped
+    is_duplicate: bool = False                      # IMP-7: already in the collection
+    existing_record_id: Optional[int] = None
+
+
+def normalise_sex(value: str):
+    """(stored value, warning): 'M' / 'male' / '1m' -> 'Male', 'F' -> 'Female', 'u' / 'unknown'
+    -> 'Unknown' (the values the collection holds); anything else is kept as written, with a
+    warning. Read with shared.sex_summary.classify_sex, as the collection counts them."""
+    from shared.sex_summary import classify_sex
+    text = (value or "").strip()
+    if not text:
+        return "", ""
+    kind = classify_sex(text)
+    if kind == "m":
+        return "Male", ""
+    if kind == "f":
+        return "Female", ""
+    if text.lower() in ("u", "unknown", "unsexed", "?"):
+        return "Unknown", ""
+    return text, f"Non-standard sex: {text}"
 
 
 class ValidationWorker(QThread):
@@ -101,12 +121,13 @@ class ValidationWorker(QThread):
     finished = Signal(list)
 
     def __init__(self, rows: List[ImportRow], column_mapping: Dict[str, str],
-                 uksi_model, vc_db_path: str = None, main_db_path: str = None):
+                 uksi_model, vc_db_path: str = None, main_db_path: str = None, db_manager=None):
         super().__init__()
         self.rows = rows
         self.column_mapping = column_mapping
         self.uksi_model = uksi_model
         self.vc_db_path = vc_db_path
+        self.db_manager = db_manager            # for the duplicate check (IMP-7)
         self._cancelled = False
         self._vc_service = None
 
@@ -153,6 +174,9 @@ class ValidationWorker(QThread):
         if self._cancelled:
             return
 
+        # Step 4b: specimens already in the collection (IMP-7, 10 Oct 2026)
+        df = self._duplicate_check(df)
+
         # Step 5: Build ImportRow objects
         self.progress.emit(int(total * 0.90), total)
         validated_rows = self._build_import_rows(df)
@@ -168,6 +192,15 @@ class ValidationWorker(QThread):
         self.finished.emit(validated_rows)
 
     def _build_dataframe(self) -> pd.DataFrame:
+        df = self._build_dataframe_rows()
+        if df.empty:
+            return df
+        sexes = [normalise_sex(v) for v in df["sex"]]
+        df["sex_value"] = [v for v, _ in sexes]
+        df["sex_warning"] = [w for _, w in sexes]
+        return df
+
+    def _build_dataframe_rows(self) -> pd.DataFrame:
         mapping = self.column_mapping
         data = []
         for i, row in enumerate(self.rows):
@@ -188,6 +221,7 @@ class ValidationWorker(QThread):
                 "condition": raw.get(mapping.get("condition", ""), "").strip(),
                 "label_data": raw.get(mapping.get("label_data", ""), "").strip(),
                 "notes": raw.get(mapping.get("notes", ""), "").strip(),
+                "sex": raw.get(mapping.get("sex", ""), "").strip(),
             })
         return pd.DataFrame(data)
 
@@ -258,29 +292,13 @@ class ValidationWorker(QThread):
                                 df.at[idx, "subfamily"] = sf_result[0][0] if sf_result else ''
                             except Exception:
                                 df.at[idx, "subfamily"] = ''
-                            # Derive taxon_group from order
-                            order_name = sc[1] or ''
-                            ORDER_TO_GROUP = {
-                                'Coleoptera': 'insect - beetle (Coleoptera)',
-                                'Diptera': 'insect - true fly (Diptera)',
-                                'Hymenoptera': 'insect - hymenopteran',
-                                'Hemiptera': 'insect - true bug (Hemiptera)',
-                                'Lepidoptera': 'insect - moth',
-                                'Orthoptera': 'insect - orthopteran',
-                                'Neuroptera': 'insect - neuropteran',
-                                'Trichoptera': 'insect - caddisfly (Trichoptera)',
-                                'Ephemeroptera': 'insect - mayfly (Ephemeroptera)',
-                                'Plecoptera': 'insect - stonefly (Plecoptera)',
-                                'Odonata': 'insect - dragonfly (Odonata)',
-                                'Dermaptera': 'insect - earwig (Dermaptera)',
-                                'Psocoptera': 'insect',
-                                'Thysanoptera': 'insect',
-                                'Siphonaptera': 'insect',
-                                'Mecoptera': 'insect',
-                                'Raphidioptera': 'insect',
-                                'Megaloptera': 'insect',
-                            }
-                            df.at[idx, "taxon_group"] = ORDER_TO_GROUP.get(order_name, '')
+                            # Taxon group: shared/taxon_groups.py (10 Oct 2026). The inline map
+                            # here disagreed with the observation wizard's (Neuroptera,
+                            # Trichoptera, 'insect' for snakeflies) and made butterflies moths.
+                            from shared.taxon_groups import taxon_group
+                            df.at[idx, "taxon_group"] = taxon_group(
+                                sc[1] or '', lookup.get("family"), lookup.get("class_name"),
+                                lookup.get("kingdom"), lookup.get("phylum")) or ''
                     except Exception as e:
                         print(f"[specimen import] taxonomy lookup failed for {tvk}: {e}")
                 warning = lookup.get("warning", "")
@@ -312,24 +330,9 @@ class ValidationWorker(QThread):
         if not unique_grids:
             return df
 
-        vc_lookup = {}
-        if hasattr(self._vc_service, "get_vc_batch"):
-            vc_lookup = self._vc_service.get_vc_batch(unique_grids)
-        else:
-            for grid in unique_grids:
-                if self._cancelled:
-                    break
-                is_valid, msg = self._vc_service.validate_grid_ref(grid)
-                if is_valid:
-                    result = self._vc_service.get_vc_from_grid_ref(grid)
-                    vc_lookup[grid] = {
-                        "vc_number": result[0] if result else None,
-                        "vc_name": result[1] if result else "",
-                        "warning": msg if "Warning" in msg else ("Could not determine VC" if not result else ""),
-                        "error": ""
-                    }
-                else:
-                    vc_lookup[grid] = {"vc_number": None, "vc_name": "", "warning": "", "error": f"Invalid grid ref: {msg}"}
+        # 2 km tetrads (SP46Q) included (IMP-13, 10 Oct 2026)
+        from shared.import_core import vc_for_grid_refs
+        vc_lookup = vc_for_grid_refs(self._vc_service, unique_grids)
 
         for idx, row in df.iterrows():
             grid = row["grid_ref"]
@@ -353,24 +356,69 @@ class ValidationWorker(QThread):
             date_str = row["date_collected"]
             if not date_str:
                 df.at[idx, "date_warning"] = "No date provided"
-            else:
-                parsed = self._parse_date(date_str)
-                if parsed:
-                    df.at[idx, "parsed_date"] = parsed
-                else:
-                    df.at[idx, "date_error"] = f"Invalid date: {date_str}"
+                continue
+            parsed, error = parse_specimen_date(date_str)
+            df.at[idx, "parsed_date"] = parsed
+            df.at[idx, "date_error"] = error
 
         return df
 
     def _parse_date(self, date_str: str) -> Optional[str]:
-        formats = ["%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%d/%m/%y", "%d-%m-%y", "%d %b %Y", "%d %b %y", "%d %B %Y", "%d %B %y", "%d-%b-%y", "%d-%b-%Y"]
-        for fmt in formats:
-            try:
-                dt = datetime.strptime(date_str, fmt)
-                return dt.strftime("%Y-%m-%d")
-            except ValueError:
+        """ISO date for an exact date, else None (kept for old callers)."""
+        return parse_specimen_date(date_str)[0] or None
+
+    def _duplicate_check(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Mark specimens already in the collection (IMP-7, 10 Oct 2026; there was no check).
+
+        The same specimen code, or the same species (TVK), date, grid reference and sex.
+        Several specimens of one species from one day are normal (a series), so the check
+        COUNTS: with two such held and three in the file, two are duplicates and one is new.
+        A lookup that fails marks every row, so nothing imports as new by mistake."""
+        df["is_duplicate"] = False
+        df["existing_record_id"] = None
+        df["dup_error"] = ""
+        if self.db_manager is None or df.empty:
+            return df
+        try:
+            held = self.db_manager.execute_main(
+                "SELECT id, specimen_code, species_tvk, species_name, date_collected, grid_ref, sex "
+                "FROM specimens") or []
+        except Exception as e:
+            print(f"[specimen import] duplicate check FAILED: {e}")
+            df["dup_error"] = f"Duplicate check failed ({e}) -- not imported, to be safe"
+            return df
+
+        def g(r, i, k):
+            return r[i] if isinstance(r, (list, tuple)) else r[k]
+
+        by_code, by_key, used = {}, {}, set()
+        for r in held:
+            rid, code = g(r, 0, "id"), (g(r, 1, "specimen_code") or "").strip()
+            if code:
+                by_code[code.casefold()] = rid
+            rest = (g(r, 4, "date_collected"), g(r, 5, "grid_ref"), g(r, 6, "sex"))
+            # by TVK, and by name: a specimen held on the s.l. TVK is the same specimen
+            tvk, name = (g(r, 2, "species_tvk") or "").strip(), (g(r, 3, "species_name") or "").strip()
+            for key in ([_specimen_key(tvk, "", *rest)] if tvk else []) + \
+                    ([_specimen_key("", name, *rest)] if name else []):
+                by_key.setdefault(key, []).append(rid)
+        for idx, row in df.iterrows():
+            code = (row.get("specimen_code") or "").strip()
+            if code and code.casefold() in by_code:
+                df.at[idx, "is_duplicate"] = True
+                df.at[idx, "existing_record_id"] = by_code[code.casefold()]
                 continue
-        return None
+            if code:
+                continue                       # a new code: a new specimen
+            rest = (row.get("parsed_date"), row.get("grid_ref"), row.get("sex_value"))
+            keys = [_specimen_key(row.get("species_tvk"), "", *rest)] if row.get("species_tvk") else []
+            keys += [_specimen_key("", n, *rest) for n in (row.get("matched_name"), row.get("species_name")) if n]
+            rid = next((i for k in keys for i in by_key.get(k, ()) if i not in used), None)
+            if rid is not None:                # one held specimen per file row, in turn
+                used.add(rid)
+                df.at[idx, "is_duplicate"] = True
+                df.at[idx, "existing_record_id"] = rid
+        return df
 
     def _build_import_rows(self, df: pd.DataFrame) -> List[ImportRow]:
         validated_rows = []
@@ -399,6 +447,10 @@ class ValidationWorker(QThread):
             import_row.condition = row.get("condition", "") or ""
             import_row.label_data = row.get("label_data", "") or ""
             import_row.notes = row.get("notes", "") or ""
+            import_row.sex = row.get("sex_value", "") or ""
+            import_row.is_duplicate = bool(row.get("is_duplicate", False))
+            rid = row.get("existing_record_id")
+            import_row.existing_record_id = int(rid) if rid is not None and pd.notna(rid) else None
             notes = row["import_notes"] or ""
             if not notes:
                 warning = row.get("species_warning", "") or row.get("warning", "")
@@ -420,6 +472,12 @@ class ValidationWorker(QThread):
                 errors.append(row["date_error"])
             if row["date_warning"]:
                 warnings.append(row["date_warning"])
+            if row.get("sex_warning"):
+                warnings.append(row["sex_warning"])
+            if row.get("dup_error"):
+                errors.append(row["dup_error"])
+            if import_row.is_duplicate:
+                warnings.append(f"Already in the collection (specimen {import_row.existing_record_id})")
 
             import_row.warnings = warnings
             if errors:
@@ -435,3 +493,25 @@ class ValidationWorker(QThread):
             validated_rows.append(import_row)
 
         return validated_rows
+
+
+def parse_specimen_date(text: str):
+    """(ISO date, error) for a specimen's date (10 Oct 2026). One reader for the three wizards
+    (shared.import_core): '6.vi.2021' is read (IMP-13); a date still to come is an error.
+    A specimen holds one exact date -- the table has no date type -- so a year, a month or a
+    range is an error rather than a made-up day."""
+    from shared.import_core import parse_record_date
+    p = parse_record_date(text)
+    if p.error:
+        return "", p.error.replace("Unreadable date", "Invalid date")
+    if p.date and not p.exact:
+        kind = {"O": "a month", "Y": "a year"}.get(p.date_type, "a date range")
+        return "", f"Invalid date: '{text}' is {kind}, not a day -- a specimen needs the day"
+    return p.date, ""
+
+
+def _specimen_key(tvk, name, date, grid, sex):
+    """What makes two specimens the same for the duplicate check."""
+    who = (tvk or "").strip() or "name:" + " ".join(str(name or "").split()).casefold()
+    return (who, str(date or "")[:10], str(grid or "").upper().replace(" ", ""),
+            str(sex or "").strip().casefold())

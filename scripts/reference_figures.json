@@ -1,12 +1,12 @@
 {
- "_about": "Frozen reference figures, 9 Oct 2026 (fix round: one SQI path, bridge J2 rule in strict mode, invertebrates from UKSI, s.l./s.s. merged): JNCC June 2026, UKSI July 2025, 35 reviews, codex.db built 9 Oct 2026 17:56 (D5). From docs/02_Current_State.md. Change only when a figure moves on purpose, in the same commit as 02, saying why. Survey keys are check_sqi_table.py's, spacing included. sqi_strict / key_strict: Examen in Pantheon Only mode (project table, jurisdiction from vice-county).",
+ "_about": "Frozen reference figures, 9 Oct 2026 (fix round: one SQI path, bridge J2 rule in strict mode, invertebrates from UKSI, s.l./s.s. merged): JNCC June 2026, UKSI July 2025, 35 reviews, codex.db built 9 Oct 2026 17:56 (D5). 10 Oct 2026: reviews 35 -> 63 and species_profiles 3874 -> 6566 on purpose -- the 28 BRC/ITE/Cox/BSBI atlases loaded as accounts-only reviews (load_atlases.py); no survey figure moved. From docs/02_Current_State.md. Change only when a figure moves on purpose, in the same commit as 02, saying why. Survey keys are check_sqi_table.py's, spacing included. sqi_strict / key_strict: Examen in Pantheon Only mode (project table, jurisdiction from vice-county).",
  "codex_counts": {
   "designations": 27152,
   "sqs_scores": 9599,
   "tvk_bridge": 15307,
   "manual_entries": 10092,
-  "reviews": 35,
-  "species_profiles": 3874
+  "reviews": 63,
+  "species_profiles": 6566
  },
  "surveys": {
   "Alsager 2026":                   {"species": 191, "key":  5, "sqi": 109, "sqi_pantheon": 109, "sqi_strict": 109, "key_strict":  5},

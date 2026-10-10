@@ -38,9 +38,11 @@ class WhenFilterDialog(QDialog):
         self._accent_color = accent_color or "#5f8575"
         self._current = current_values or {}
         
-        # Build year list (last 30 years)
+        # The years in this tab's own records (SRCH12), as numbers, newest first; the last
+        # 30 years if the wizard has none
         current_year = datetime.now().year
-        self._year_list = year_list or list(range(current_year, current_year - 30, -1))
+        years = [int(y) for y in (year_list or []) if str(y).isdigit()]
+        self._year_list = sorted(set(years), reverse=True) or list(range(current_year, current_year - 30, -1))
         
         self.setWindowTitle("Filter by When")
         self.setMinimumWidth(450)
@@ -87,9 +89,15 @@ class WhenFilterDialog(QDialog):
         # Radio button group
         self._mode_group = QButtonGroup(self)
         
+        # === NO DATE FILTER (SRCH10: Apply used to always add the 12-month default) ===
+        self._any_radio = QRadioButton("Any date (no date filter)")
+        self._any_radio.setChecked(True)
+        self._style_radio(self._any_radio)
+        self._mode_group.addButton(self._any_radio, 2)
+        layout.addWidget(self._any_radio)
+        
         # === DATE RANGE OPTION ===
         self._date_range_radio = QRadioButton("Date range")
-        self._date_range_radio.setChecked(True)
         self._style_radio(self._date_range_radio)
         self._mode_group.addButton(self._date_range_radio, 0)
         layout.addWidget(self._date_range_radio)
@@ -112,6 +120,7 @@ class WhenFilterDialog(QDialog):
         self._from_date.setKeyboardTracking(True)
         self._from_date.setDate(QDate.currentDate().addYears(-1))
         self._from_date.setDisplayFormat("dd/MM/yyyy")
+        self._from_date.setMinimumDate(QDate(1000, 1, 1))   # scheme records go back to 1500 (OBS-14)
         self._style_date_edit(self._from_date)
         date_range_layout.addWidget(self._from_date)
         
@@ -126,6 +135,7 @@ class WhenFilterDialog(QDialog):
         self._to_date.setKeyboardTracking(True)
         self._to_date.setDate(QDate.currentDate())
         self._to_date.setDisplayFormat("dd/MM/yyyy")
+        self._to_date.setMinimumDate(QDate(1000, 1, 1))   # scheme records go back to 1500 (OBS-14)
         self._style_date_edit(self._to_date)
         date_range_layout.addWidget(self._to_date)
         
@@ -262,7 +272,7 @@ class WhenFilterDialog(QDialog):
         is_date_range = self._date_range_radio.isChecked()
         self._from_date.setEnabled(is_date_range)
         self._to_date.setEnabled(is_date_range)
-        self._year_combo.setEnabled(not is_date_range)
+        self._year_combo.setEnabled(self._year_radio.isChecked())
     
     def _set_this_year(self):
         """Set date range to this year."""
@@ -302,8 +312,8 @@ class WhenFilterDialog(QDialog):
         self._to_date.setDate(today)
     
     def _clear_all(self):
-        """Clear all selections."""
-        self._date_range_radio.setChecked(True)
+        """Clear: no date filter (SRCH10 -- it used to reset to the last 12 months)."""
+        self._any_radio.setChecked(True)
         self._on_mode_changed()
         self._from_date.setDate(QDate.currentDate().addYears(-1))
         self._to_date.setDate(QDate.currentDate())
@@ -312,15 +322,19 @@ class WhenFilterDialog(QDialog):
     def _load_current_values(self):
         """Load existing filter values."""
         if not self._current:
+            self._on_mode_changed()
             return
         
         if 'year' in self._current and self._current['year']:
             self._year_radio.setChecked(True)
-            year = self._current['year']
+            year = int(self._current['year'])
             idx = self._year_combo.findData(year)
-            if idx >= 0:
-                self._year_combo.setCurrentIndex(idx)
-        else:
+            if idx < 0:                       # a saved year this tab has no records for
+                self._year_combo.addItem(str(year), year)
+                idx = self._year_combo.findData(year)
+            self._year_combo.setCurrentIndex(idx)
+        elif self._current.get('date_from') or self._current.get('date_to'):
+            self._date_range_radio.setChecked(True)
             if 'date_from' in self._current:
                 date_from = self._current['date_from']
                 if isinstance(date_from, str):
@@ -339,10 +353,10 @@ class WhenFilterDialog(QDialog):
         
         if self._year_radio.isChecked():
             result['year'] = self._year_combo.currentData()
-        else:
+        elif self._date_range_radio.isChecked():
             result['date_from'] = self._from_date.date().toString("yyyy-MM-dd")
             result['date_to'] = self._to_date.date().toString("yyyy-MM-dd")
-        
+        # "Any date": no date filter
         return result
     
     def _style_radio(self, radio: QRadioButton):

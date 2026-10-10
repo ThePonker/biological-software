@@ -27,19 +27,20 @@ class HowFilterDialog(QDialog):
         self,
         accent_color: str = None,
         current_values: Dict[str, Any] = None,
-        method_list: List[str] = None,  # Kept for compatibility but loads from DB
+        method_list: List[str] = None,
         parent=None
     ):
         super().__init__(parent)
         self._accent_color = accent_color or "#5f8575"
         self._current = current_values or {}
         
-        self._method_list: List[str] = []
+        # The methods in this tab's own records, one per spelling-ignoring-case ("MV light"
+        # covers "MV Light"), from the wizard (OBS-15, SRCH12). The dialog used to read
+        # Observations itself, read-write, on every tab (SRCH20).
+        self._method_list: List[str] = list(method_list or [])
         self._method_checkboxes: Dict[str, QCheckBox] = {}
         
         self._chips: Dict[str, List[FilterChip]] = {}
-        
-        self._load_user_methods()
         
         self.setWindowTitle("Filter by How")
         self.setMinimumWidth(550)
@@ -48,30 +49,6 @@ class HowFilterDialog(QDialog):
         
         self._setup_ui()
         self._load_current_values()
-    
-    def _load_user_methods(self):
-        """Load method data from user's observations."""
-        try:
-            from ....core.config import Paths
-            import sqlite3
-            
-            db_path = Paths.default_main_db()
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
-            
-            # Get distinct methods
-            cursor.execute("""
-                SELECT DISTINCT method 
-                FROM observations 
-                WHERE method IS NOT NULL AND method != ''
-                ORDER BY method
-            """)
-            self._method_list = [row[0] for row in cursor.fetchall()]
-            
-            conn.close()
-            print(f"[HowFilterDialog] Loaded {len(self._method_list)} methods")
-        except Exception as e:
-            print(f"[HowFilterDialog] Error loading methods: {e}")
     
     def _setup_ui(self):
         """Set up the dialog UI."""
@@ -130,6 +107,11 @@ class HowFilterDialog(QDialog):
         method_grid.setContentsMargins(12, 12, 12, 12)
         method_grid.setSpacing(8)
         
+        if not self._method_list:
+            none_lbl = QLabel("No sample methods are recorded in this tab's records.")
+            none_lbl.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 12px;")
+            method_grid.addWidget(none_lbl, 0, 0)
+
         # Create checkboxes for each method (2 columns)
         for i, method in enumerate(self._method_list):
             cb = QCheckBox(method)
@@ -309,7 +291,7 @@ class HowFilterDialog(QDialog):
         lbl.setStyleSheet(f"font-weight: 600; color: {t.get('text_primary')}; font-size: 13px; background: transparent;")
         layout.addWidget(lbl)
         
-        hint = QLabel("Search across: comment, internal_notes, sample_comment (e.g., 'nettle', 'oak')")
+        hint = QLabel("Searches the record's comments and notes (e.g., 'nettle', 'oak')")
         hint.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 11px; background: transparent;")
         layout.addWidget(hint)
         
@@ -414,10 +396,12 @@ class HowFilterDialog(QDialog):
         if not self._current:
             return
         
-        # Load method checkboxes
+        # Load method checkboxes (ignoring case: a saved "MV Light" ticks "MV light")
+        by_fold = {m.casefold(): cb for m, cb in self._method_checkboxes.items()}
         for method in self._current.get('method', []):
-            if not method.startswith('~') and method in self._method_checkboxes:
-                self._method_checkboxes[method].setChecked(True)
+            cb = by_fold.get(str(method).casefold())
+            if cb is not None:
+                cb.setChecked(True)
         
         # Load notes search chips
         for note in self._current.get('notes_search', []):

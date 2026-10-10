@@ -100,14 +100,12 @@ class WizardImportMixin:
 
         update_duplicates = self.update_duplicates_checkbox.isChecked()
 
-        # Filter rows to import (always skip duplicates unless update is enabled)
-        rows_to_import = []
-        for row in self.validated_rows:
-            if row.status == RowStatus.ERROR and not (hasattr(self, "import_errors_checkbox") and self.import_errors_checkbox.isVisible() and self.import_errors_checkbox.isChecked()):
-                continue
-            if row.is_duplicate and not update_duplicates:
-                continue
-            rows_to_import.append(row)
+        # Which rows go in (IMP-9, 10 Oct 2026): "Import rows with errors" was read only while
+        # the box was on screen -- and the import runs on the next page, so never; "Import
+        # rows with warnings" was not read at all. Every row left out is counted by reason
+        # for the summary (IMP-16).
+        rows_to_import, counts = self._rows_for_import()
+        self._summary_counts = counts
 
         if not rows_to_import:
             QMessageBox.warning(self, "No Data", "No valid rows to import.")
@@ -142,6 +140,10 @@ class WizardImportMixin:
                     r.subfamily = t_["subfamily"] or r.subfamily
         except Exception as e:
             print(f"[SchemeImportWizard] Taxonomy lookup failed: {e}")
+        # Taxon group (and kingdom) when blank, from the same final species (IMP-10; 68% of
+        # scheme rows had none). A label from the file (iRecord/NBN) is kept.
+        from shared.taxon_groups import fill_blank_groups
+        fill_blank_groups(rows_to_import)
 
         self.import_progress.setMaximum(len(rows_to_import))
         self.imported_count = 0
@@ -150,16 +152,14 @@ class WizardImportMixin:
         self.error_count = 0
 
         try:
-            # Separate rows into inserts and updates for batch processing
+            # Separate rows into inserts and updates for batch processing (duplicates not
+            # being updated were left out above)
             insert_rows = []
             update_rows = []
             
             for row in rows_to_import:
-                if row.is_duplicate and row.existing_record_id:
-                    if update_duplicates:
-                        update_rows.append(row)
-                    else:
-                        self.skipped_count += 1
+                if row.is_duplicate and row.existing_record_id and update_duplicates:
+                    update_rows.append(row)
                 else:
                     insert_rows.append(row)
             
@@ -196,7 +196,7 @@ class WizardImportMixin:
                 record_data = self._row_to_record_dict(row)
                 success = self._update_record(row.existing_record_id, record_data)
                 if success == 'unchanged':
-                    self.skipped_count += 1
+                    counts["unchanged"] += 1
                 elif success:
                     self.updated_count += 1
                 else:
@@ -211,6 +211,10 @@ class WizardImportMixin:
                     )
                     QApplication.processEvents()
 
+            counts["new"], counts["updated"], counts["failed"] = (
+                self.imported_count, self.updated_count, self.error_count)
+            self.skipped_count = (counts["unchanged"] + counts["duplicates_skipped"]
+                                  + counts["errors_left_out"] + counts["warnings_left_out"])
             self.import_status_label.setText("Import complete!")
             self.import_status_label.setStyleSheet(f"color: {t.get('success')}; font-weight: 600;")
 
@@ -308,7 +312,7 @@ class WizardImportMixin:
             # Occurrence
             'sex': row.sex or None,
             'stage': row.stage or None,
-            'quantity': row.quantity or 1,
+            'quantity': 1 if row.quantity is None else row.quantity,     # 0 stays 0 (IMP-12)
             'individual_count': row.individual_count,
             'organism_quantity': row.organism_quantity or None,
             'organism_quantity_type': row.organism_quantity_type or None,
@@ -402,16 +406,44 @@ class WizardImportMixin:
             self._import_errors.append((f"{record_data.get('species_name') or '?'} (record {record_id})", str(e)))
             return False
 
-    def _update_summary(self):
-        """Update the summary page with final counts."""
-        t = theme()
+    def _rows_for_import(self):
+        """(rows to write, counts of rows left out by reason) from the confirmation page's
+        boxes: errors and warnings in or out, duplicates updated or skipped."""
+        include_errors = self.import_errors_checkbox.isChecked()
+        include_warnings = self.import_warnings_checkbox.isChecked()
+        update_duplicates = self.update_duplicates_checkbox.isChecked()
+        counts = dict.fromkeys(("new", "updated", "unchanged", "duplicates_skipped",
+                                "errors_left_out", "warnings_left_out", "failed"), 0)
+        rows = []
+        for row in self.validated_rows:
+            if row.status == RowStatus.ERROR and not include_errors:
+                counts["errors_left_out"] += 1
+            elif row.is_duplicate and not update_duplicates:
+                counts["duplicates_skipped"] += 1
+            elif (row.status == RowStatus.WARNING and not include_warnings
+                  and not (row.is_duplicate and update_duplicates)):
+                counts["warnings_left_out"] += 1
+            else:
+                rows.append(row)
+        return rows, counts
 
-        self.summary_stats.setText(
-            f"New records: {self.imported_count}\n"
-            f"Updated records: {self.updated_count}\n"
-            f"Skipped duplicates: {self.skipped_count}\n"
-            f"Errors: {self.error_count}"
-        )
+    SUMMARY_ORDER = (("new", "New records"), ("updated", "Updated records"),
+                     ("unchanged", "Duplicates already up to date (not changed)"),
+                     ("duplicates_skipped", "Duplicates skipped"),
+                     ("errors_left_out", "Rows with errors, not imported"),
+                     ("warnings_left_out", "Rows with warnings, not imported"),
+                     ("failed", "Could not be written"))
+
+    def _update_summary(self):
+        """Update the summary page: every row of the file in exactly one line (IMP-16).
+
+        'Skipped duplicates' was always 0 (they were dropped before being counted) and the
+        rows left out for errors were not mentioned at all."""
+        from shared.import_core import summary_lines
+        t = theme()
+        counts = dict(getattr(self, "_summary_counts", {}) or {})
+        counts.update(new=self.imported_count, updated=self.updated_count, failed=self.error_count)
+        self.summary_stats.setText("\n".join(summary_lines(counts, self.SUMMARY_ORDER)))
 
         if self.error_count > 0:
             self.summary_icon.setText("⚠")

@@ -37,9 +37,12 @@ def _has_species(row: Dict) -> bool:
 
 
 def blocking_rows(rows: List[Dict]) -> List[int]:
-    """Grid row numbers that iRecord could not take: a species with no or an unreadable date."""
+    """Grid row numbers that iRecord could not take: a species with no or an unreadable
+    date, or an unreadable No. (DE9: it used to be sent as 1)."""
+    from DataEntry.commit_service import read_qty
     return [n for n, r in enumerate(rows, start=1)
-            if _has_species(r) and not date_utils.is_readable(r.get("date"))]
+            if _has_species(r) and (not date_utils.is_readable(r.get("date"))
+                                    or read_qty(r.get("quantity")) is None)]
 
 
 def accepted_tvks(tvks: Iterable[str], uksi_path=None) -> Set[str]:
@@ -69,10 +72,8 @@ def irecord_row(row: Dict, accepted: Optional[Set[str]] = None) -> List[str]:
     tvk = (row.get("species_tvk") or "").strip()
     if accepted is not None and tvk not in accepted:
         tvk = ""
-    try:
-        qty = max(1, int(row.get("quantity")))
-    except (TypeError, ValueError):
-        qty = 1
+    from DataEntry.commit_service import read_qty
+    qty = read_qty(row.get("quantity")) or 1     # blocking_rows refuses an unreadable one
     t = lambda k: str(row.get(k) or "").strip()  # noqa: E731
     sex = "" if t("sex").casefold() == "not recorded" else t("sex")   # the grid's 'nothing'
     return [t("species_name"), tvk, date_utils.to_irecord(row.get("date")), t("grid_ref"),
@@ -100,8 +101,8 @@ def export_job(conn, job: Dict, filepath: str, uksi_path=None) -> Dict:
     rows = repo.fetch_rows(conn, job["id"])
     bad = blocking_rows(rows)
     if bad:
-        raise ValueError(f"{len(bad)} row(s) have no readable date (rows "
-                         f"{', '.join(str(n) for n in bad[:15])}) -- iRecord needs one.")
+        raise ValueError(f"{len(bad)} row(s) have no readable date or No. (rows "
+                         f"{', '.join(str(n) for n in bad[:15])}) -- iRecord needs both.")
     if not any(_has_species(r) for r in rows):
         raise ValueError("there are no records to export.")
     tvk_check = "checked against UKSI"

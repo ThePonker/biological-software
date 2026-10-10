@@ -338,6 +338,19 @@ def analysis_service():
     return PantheonAnalysisService(PantheonRepository(), CodexRepository())
 
 
+# Codex / Pantheon read failures since the screen last asked (EXA19). A row
+# whose analysis failed shows no figures; the screen reads this list and says
+# why, rather than letting a blank pass for a real result.
+_read_errors = []
+
+
+def take_read_errors():
+    """The distinct analysis / read failures recorded since the last call, and clear them."""
+    errors = list(dict.fromkeys(_read_errors))
+    _read_errors.clear()
+    return errors
+
+
 def _analyse(tvks, mode, jurisdiction, names=None, service=None):
     """The analysis the detail view shows, or None if it cannot be run."""
     try:
@@ -345,6 +358,7 @@ def _analyse(tvks, mode, jurisdiction, names=None, service=None):
         return svc.analyse(list(tvks), names or {}, mode, jurisdiction)
     except Exception as e:  # noqa: BLE001 -- degrade to unenriched, but say so
         print(f"[examen_data] analysis failed: {e}")
+        _read_errors.append(f"{type(e).__name__}: {e}")
         return None
 
 

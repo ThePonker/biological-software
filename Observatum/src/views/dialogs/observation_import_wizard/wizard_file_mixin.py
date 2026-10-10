@@ -81,16 +81,18 @@ IRECORD_COLUMN_MAP = {
 }
 
 # Personal template expected columns and their database field mappings
+# Headings matched by WHOLE words, each heading once (IMP-11, 10 Oct 2026); '=x' must be the
+# whole heading. 'name', 'gr', 'det', 'rec' and 'number' used to match inside other words.
 PERSONAL_COLUMN_PATTERNS = {
-    'species_name': ['species', 'scientific name', 'taxon', 'name'],
-    'date': ['date', 'date collected', 'observation date'],
-    'grid_ref': ['grid ref', 'grid reference', 'gridref', 'gr', 'grid'],
+    'species_name': ['species', 'species name', 'scientific name', 'taxon', 'taxon name', '=name'],
+    'date': ['date', 'date collected', 'observation date', 'date observed'],
+    'grid_ref': ['grid ref', 'grid reference', 'gridref', 'grid', '=gr', 'osgr'],
     'site_name': ['site name', 'site', 'location', 'locality', 'place'],
-    'recorder': ['recorder', 'observer', 'recorded by', 'rec'],
-    'determiner': ['determiner', 'det', 'determined by', 'identifier', 'id by'],
+    'recorder': ['recorder', 'observer', 'recorded by', '=rec'],
+    'determiner': ['determiner', '=det', 'determined by', 'identifier', 'identified by'],
     'sex': ['sex', 'gender'],
     'stage': ['stage', 'life stage', 'lifestage'],
-    'quantity': ['quantity', 'count', 'number', 'qty', 'abundance'],
+    'quantity': ['quantity', 'count', '=number', '=qty', 'abundance'],
     'certainty': ['certainty', 'confidence', 'recorder certainty'],
     'method': ['method', 'sample method', 'sampling method', 'technique'],
     'comment': ['comment', 'comments', 'notes', 'remarks'],
@@ -361,16 +363,9 @@ class WizardFileMixin(ProblemExportMixin):
         self.mapping_layout.addStretch()
     
     def _find_best_column_match(self, field_id: str) -> Optional[str]:
-        """Try to auto-match a database field to a file column."""
-        patterns = PERSONAL_COLUMN_PATTERNS.get(field_id, [])
-        
-        for col in self.columns:
-            col_lower = col.lower().strip()
-            for pattern in patterns:
-                if pattern in col_lower or col_lower == pattern:
-                    return col
-        
-        return None
+        """The file column auto-matched to a field (whole words, each column once -- IMP-11)."""
+        from shared.import_core import auto_map_columns
+        return auto_map_columns(self.columns, PERSONAL_COLUMN_PATTERNS).get(field_id)
     
     def _get_column_mapping(self) -> Dict[str, str]:
         """Get the current column mapping from combos."""

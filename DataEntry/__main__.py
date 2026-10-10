@@ -16,11 +16,15 @@ from DataEntry import bootstrap
 
 
 def _resolve_main_db(explicit):
+    """(main db, uksi db). Without --db: the newest dev copy, or None when there is none.
+
+    It fell back to the live observatum.db, against the promise above (review DE12);
+    the live database is used only when named with --db.
+    """
     data_dir, uksi_db, live_db = bootstrap.resolve_suite_paths()
     if explicit:
         return explicit, uksi_db
-    dev = bootstrap.newest_dev_db(data_dir)
-    return (dev or live_db), uksi_db
+    return bootstrap.newest_dev_db(data_dir), uksi_db
 
 
 def main(argv=None) -> int:
@@ -40,6 +44,11 @@ def main(argv=None) -> int:
     qInstallMessageHandler(_quiet)
 
     main_db, uksi_db = _resolve_main_db(args.db)
+    if main_db is None:
+        print("[DataEntry] No dev copy (data/observatum_dev_*.db) was found, and the live "
+              "database is not opened without asking. Use --db PATH to choose one, or use "
+              "Data Entry inside Observatum.")
+        return 2
 
     # Point Observatum's singleton at these DBs (dev copy + uksi). Non-fatal on failure --
     # the widget will show the reason and disable recording.

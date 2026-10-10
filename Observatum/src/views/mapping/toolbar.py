@@ -4,9 +4,10 @@ Map Toolbar component for Observatum V2.
 Provides map view controls including:
 - View toggle (National/County)
 - Grid size selection
-- Data source selection
-- Time period preset selection
+- Data source selection (Personal / Commercial / Insect Collection / Recording Scheme /
+  Contributed / All -- the suite's split, map_selection.SOURCES)
 - Filter panel toggle
+(Style and Period sit above the map, display_bar.py.)
 - Export button
 """
 
@@ -18,6 +19,7 @@ from PySide6.QtCore import Signal
 from ...themes import theme
 from ...core.config import TabColors
 from shared.maps.grid_squares import GRID_LABELS
+from ...services.map_selection import SOURCES
 
 
 class MapToolbar(QFrame):
@@ -26,7 +28,6 @@ class MapToolbar(QFrame):
     view_changed = Signal(str)         # 'national' or 'county'
     grid_changed = Signal(str)
     data_source_changed = Signal(str)
-    time_period_changed = Signal(str)  # 'default', 'brc', 'decade'
     filters_toggled = Signal(bool)
     export_requested = Signal()
 
@@ -103,9 +104,11 @@ class MapToolbar(QFrame):
         data_group.addWidget(data_label)
 
         self.data_combo = QComboBox()
-        self.data_combo.addItem("Personal Records", "personal")
-        self.data_combo.addItem("Recording Scheme", "scheme")
-        self.data_combo.addItem("All Records", "all")
+        for key, text in SOURCES:
+            self.data_combo.addItem(text, key)
+        self.data_combo.setToolTip(
+            "All records shows each record once: a specimen with its own observation, and a "
+            "scheme record that is one of your observations, appear as the observation.")
         self.data_combo.currentIndexChanged.connect(
             lambda: self.data_source_changed.emit(
                 self.data_combo.currentData()
@@ -114,29 +117,6 @@ class MapToolbar(QFrame):
         data_group.addWidget(self.data_combo)
 
         layout.addLayout(data_group)
-
-        # Time period
-        time_group = QHBoxLayout()
-        time_group.setSpacing(8)
-
-        time_label = QLabel("Period:")
-        time_label.setStyleSheet(
-            f"color: {t.get('text_heading')}; font-size: 12px;"
-        )
-        time_group.addWidget(time_label)
-
-        self.time_combo = QComboBox()
-        self.time_combo.addItem("Pre-2000 / 2000–19 / 2020+", "default")
-        self.time_combo.addItem("Pre-1970 / 1970–99 / 2000+", "brc")
-        self.time_combo.setCurrentIndex(0)
-        self.time_combo.currentIndexChanged.connect(
-            lambda: self.time_period_changed.emit(
-                self.time_combo.currentData()
-            )
-        )
-        time_group.addWidget(self.time_combo)
-
-        layout.addLayout(time_group)
 
         layout.addStretch()
 
@@ -162,6 +142,11 @@ class MapToolbar(QFrame):
         """)
         self.export_btn.clicked.connect(self.export_requested.emit)
         layout.addWidget(self.export_btn)
+
+    def set_view(self, view: str):
+        """Switch National / County as the buttons do (view_changed is emitted)."""
+        if view != self.get_view():
+            self._set_view(view)
 
     def _set_view(self, view: str):
         """Set the current view mode."""

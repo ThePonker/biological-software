@@ -7,7 +7,6 @@ and runs the box allocation algorithm with superfamily-aware splitting.
 
 import json
 import math
-import sqlite3
 import sys; sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.parent))
 import paths
 from pathlib import Path
@@ -19,6 +18,24 @@ PROFILES_PATH = Path(__file__).parent / "mounting_profiles.json"
 SORT_OVERRIDES_PATH = Path(__file__).parent / "family_sort_overrides.json"
 DB_PATH = paths.OBSERVATUM_DB
 UKSI_PATH = paths.UKSI_DB
+
+
+# =========================================================================
+# Config problems (CUR-3): a config file that is missing or unreadable is
+# recorded here and shown on screen, not silently replaced by defaults.
+# =========================================================================
+
+_config_problems = []
+
+
+def note_config_problem(message: str):
+    if message not in _config_problems:
+        _config_problems.append(message)
+
+
+def config_problems() -> list:
+    """Every config problem met so far this session, in order."""
+    return list(_config_problems)
 
 
 # =========================================================================
@@ -50,6 +67,7 @@ class FamilyData:
     sort_key: int
     profile_key: str = "standard"
     superfamily: str = ""
+    part: int = 0          # 1, 2, ... for a family split across boxes (CUR-1)
 
     @property
     def label(self):
@@ -90,11 +108,22 @@ class ProfileManager:
         self.load()
 
     def load(self):
+        empty = {"specimen_sizes": {}, "box_sizes": {}, "family_profiles": {}}
+        self.problem = ""
         if PROFILES_PATH.exists():
-            with open(PROFILES_PATH, "r", encoding="utf-8") as f:
-                self._data = json.load(f)
+            try:
+                with open(PROFILES_PATH, "r", encoding="utf-8") as f:
+                    self._data = json.load(f)
+            except (OSError, ValueError) as e:
+                self.problem = (f"{PROFILES_PATH.name} could not be read ({e}): "
+                                "no box or specimen sizes, so Box Layout is empty.")
+                self._data = empty
         else:
-            self._data = {"specimen_sizes": {}, "box_sizes": {}, "family_profiles": {}}
+            self.problem = (f"{PROFILES_PATH.name} is missing from the Curator folder: "
+                            "no box or specimen sizes, so Box Layout is empty.")
+            self._data = empty
+        if self.problem:
+            note_config_problem(self.problem)
         self._sizes = {}
         for key, d in self._data.get("specimen_sizes", {}).items():
             self._sizes[key] = SpecimenSize(
@@ -182,7 +211,9 @@ def load_family_sort_overrides(order_name: str) -> dict:
     try:
         with open(SORT_OVERRIDES_PATH, "r", encoding="utf-8") as f:
             data = json.load(f)
-    except (json.JSONDecodeError, OSError):
+    except (json.JSONDecodeError, OSError) as e:
+        note_config_problem(f"{SORT_OVERRIDES_PATH.name} could not be read ({e}): "
+                            "families are in UKSI sort order.")
         return {}
     families = data.get(order_name, [])
     if not families:
@@ -205,7 +236,7 @@ def load_families(order_name: str) -> list:
     """Load family-level specimen data for an order from observatum.db."""
     if not DB_PATH.exists():
         return []
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = connect_ro(str(DB_PATH))
     cursor = conn.cursor()
 
     cursor.execute("PRAGMA table_info(specimens)")
@@ -276,7 +307,7 @@ def load_orders() -> list:
     """Get list of orders that have specimens."""
     if not DB_PATH.exists():
         return []
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = connect_ro(str(DB_PATH))
     c = conn.cursor()
     c.execute("""SELECT DISTINCT order_name, COUNT(*) FROM specimens
                  WHERE order_name IS NOT NULL AND order_name != ''
@@ -359,21 +390,24 @@ def allocate_to_boxes(families: list, profile_mgr: ProfileManager,
         is_sf_boundary = (family.superfamily != prev_sf
                           and family.superfamily != "" and prev_sf != "")
 
+        gap = 0
         if current_box.families:
-            needed_height += sf_separator_mm if is_sf_boundary else separator_mm
+            gap = sf_separator_mm if is_sf_boundary else separator_mm
+            needed_height += gap
+
+        if info["height_mm"] > available_height:
+            # A family too large for any one box is split wherever it falls:
+            # its first part fills the rest of the current box, the remainder
+            # whole boxes (CUR-1: it was split only at the start of a box, and
+            # otherwise put whole into one box -- Carabidae at 500%).
+            current_box = _split_family_across_boxes(
+                family, info, boxes, current_box,
+                current_height_used, gap, available_height)
+            current_height_used = 0
+            prev_sf = family.superfamily
+            continue
 
         if current_height_used + needed_height > available_height:
-            # Family too large for empty box — split across boxes
-            if not current_box.families and info["height_mm"] > available_height:
-                _split_family_across_boxes(
-                    family, info, boxes, current_box,
-                    available_height, separator_mm, growth_pct,
-                )
-                current_box = BoxAllocation(
-                    box_number=len(boxes) + 1, total_rows=available_height)
-                current_height_used = 0
-                prev_sf = family.superfamily
-                continue
             # Finish current box, start new one
             current_box.rows_used = current_height_used
             current_box.capacity_pct = round(
@@ -410,36 +444,63 @@ def allocate_to_boxes(families: list, profile_mgr: ProfileManager,
 
 
 def _split_family_across_boxes(family, info, boxes, current_box,
-                                available_height, separator_mm, growth_pct):
-    """Handle a family too large for a single box."""
+                               used_height, gap, available_height):
+    """Split a family too large for a single box (CUR-1).
+
+    used_height is what the current box already holds; gap the separator the
+    family would need after it. The
+    first part takes as many whole rows as fit there (the current box is then
+    closed); the rest go into new boxes, a box of rows at a time. Specimen
+    counts are shared by rows and always sum to the family's. Returns the new,
+    empty current box.
+    """
     row_height = info["row_height_mm"]
     total_rows = info["total_rows"]
     rows_per_box = max(1, math.floor(available_height / row_height))
     remaining_rows = total_rows
+    assigned = 0
     part = 1
-    while remaining_rows > 0:
-        rows_this_box = min(remaining_rows, rows_per_box)
-        height_used = rows_this_box * row_height
+
+    def make_part(rows):
+        nonlocal assigned, part
+        last = rows >= remaining_rows
+        count = (family.specimen_count - assigned if last
+                 else round(family.specimen_count * rows / total_rows))
+        assigned += count
         partial = FamilyData(
             family=f"{family.family} (part {part})",
-            specimen_count=round(family.specimen_count * rows_this_box / total_rows),
+            specimen_count=count,
             species_count=family.species_count,
             species=family.species if part == 1 else [],
             sort_key=family.sort_key,
             profile_key=family.profile_key,
             superfamily=family.superfamily,
+            part=part,
         )
-        if part == 1 and current_box.families:
-            current_box.families.append(partial)
-            current_box.rows_used += height_used
-            current_box.capacity_pct = round(
-                (current_box.rows_used / available_height) * 100)
-            boxes.append(current_box)
-        else:
-            boxes.append(BoxAllocation(
-                box_number=len(boxes) + 1, families=[partial],
-                rows_used=height_used, total_rows=available_height,
-                capacity_pct=round((height_used / available_height) * 100),
-            ))
-        remaining_rows -= rows_this_box
         part += 1
+        return partial
+
+    if current_box.families:
+        fit = math.floor(max(0, available_height - used_height - gap) / row_height)
+        fit = min(fit, remaining_rows)
+        if fit >= 1:
+            current_box.families.append(make_part(fit))
+            used_height += gap + fit * row_height
+            remaining_rows -= fit
+        # else nothing fits: the box closes as it is
+        current_box.rows_used = used_height
+        current_box.capacity_pct = round((current_box.rows_used / available_height) * 100)
+        boxes.append(current_box)
+
+    while remaining_rows > 0:
+        rows_this_box = min(remaining_rows, rows_per_box)
+        height_used = rows_this_box * row_height
+        partial = make_part(rows_this_box)
+        boxes.append(BoxAllocation(
+            box_number=len(boxes) + 1, families=[partial],
+            rows_used=height_used, total_rows=available_height,
+            capacity_pct=round((height_used / available_height) * 100),
+        ))
+        remaining_rows -= rows_this_box
+
+    return BoxAllocation(box_number=len(boxes) + 1, total_rows=available_height)

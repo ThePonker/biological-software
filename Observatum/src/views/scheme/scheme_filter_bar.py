@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QFrame, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QLineEdit, QComboBox, QWidget, QCompleter
 )
-from PySide6.QtCore import Qt, Signal, QStringListModel, QDate
+from PySide6.QtCore import Qt, Signal, QStringListModel, QDate, QMetaMethod
 
 from ...utils.constants import VERIFICATION_STATUS_OPTIONS
 from ...themes import theme
@@ -19,6 +19,7 @@ from ...core.config import TabColors  # Added import
 # Shared components
 from ..components.date_filter_widget import DateFilterWidget
 from ..components.combo_filter_widget import ComboFilterWidget
+from ..components.filter_debounce import debounce_text, cancel_pending
 from ..components.saved_filters_mixin import SavedFiltersMixin, create_saved_filter_buttons
 from ..components.filter_styles import (
     STANDARD_INPUT_HEIGHT,
@@ -34,11 +35,16 @@ class SchemeFilterBar(QFrame, SavedFiltersMixin):
     """Horizontal filter bar for recording scheme records."""
     
     filters_changed = Signal(dict)
+    clear_all_requested = Signal()   # Clear All clicked: the tab clears everything
     save_filter_requested = Signal()
     special_view_selected = Signal(str)  # For consistency with other filter bars
     
-    SOURCE_OPTIONS = ['All', 'iRecord', 'NBN', 'Email']
-    SUBFAMILY_OPTIONS = ['All', 'Cerambycinae', 'Lamiinae', 'Lepturinae', 'Prioninae', 'Spondylidinae']
+    # How the record came in (services/filter_builder.SCHEME_SOURCES). Was iRecord / NBN /
+    # Email compared with the stored source -- a dataset name -- so always 0 (SRCH8)
+    SOURCE_OPTIONS = ['All', 'iRecord', 'NBN Atlas', 'Other']
+    # Filled from the records (subfamily is empty on every scheme row on 9 Oct: the
+    # July 2025 UKSI has no Cerambycidae subfamilies); disabled while there are none
+    SUBFAMILY_OPTIONS = ['All']
     
     # No preset filters for scheme (can add later if needed)
     _preset_filters = []
@@ -104,6 +110,16 @@ class SchemeFilterBar(QFrame, SavedFiltersMixin):
         filters_row = QHBoxLayout()
         filters_row.setSpacing(8)
         
+        # Clear All: at the left, beside Species (Wil 10 Oct). On a record tab it
+        # clears everything -- this bar, the saved filter and the Filter Wizard -- the
+        # same as the toolbar's Clear Filters (the tab connects clear_all_requested)
+        self.clear_btn = QPushButton("Clear All")
+        self.clear_btn.setFixedHeight(STANDARD_INPUT_HEIGHT)
+        self.clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.clear_btn.setStyleSheet(get_clear_button_style())
+        self.clear_btn.clicked.connect(self._on_clear_all_clicked)
+        filters_row.addWidget(self.clear_btn, 0, Qt.AlignmentFlag.AlignBottom)
+
         # Column 1: Species
         species_container = QWidget()
         species_container.setFixedWidth(COL_SPECIES)
@@ -115,7 +131,7 @@ class SchemeFilterBar(QFrame, SavedFiltersMixin):
         self.species_edit.setPlaceholderText("Search...")
         self.species_edit.setFixedHeight(STANDARD_INPUT_HEIGHT)
         self.species_edit.setStyleSheet(f"QLineEdit {{ {input_style} }}")
-        self.species_edit.textChanged.connect(self._emit_filters)
+        debounce_text(self.species_edit, self._emit_filters)   # one reload per pause, not per key
         
         self._species_completer_model = QStringListModel()
         self._species_completer = QCompleter(self._species_completer_model)
@@ -136,7 +152,7 @@ class SchemeFilterBar(QFrame, SavedFiltersMixin):
         self.location_edit.setPlaceholderText("Search...")
         self.location_edit.setFixedHeight(STANDARD_INPUT_HEIGHT)
         self.location_edit.setStyleSheet(f"QLineEdit {{ {input_style} }}")
-        self.location_edit.textChanged.connect(self._emit_filters)
+        debounce_text(self.location_edit, self._emit_filters)
         
         self._location_completer_model = QStringListModel()
         self._location_completer = QCompleter(self._location_completer_model)
@@ -223,7 +239,7 @@ class SchemeFilterBar(QFrame, SavedFiltersMixin):
         self.recorder_edit.setPlaceholderText("Search...")
         self.recorder_edit.setFixedHeight(STANDARD_INPUT_HEIGHT)
         self.recorder_edit.setStyleSheet(f"QLineEdit {{ {input_style} }}")
-        self.recorder_edit.textChanged.connect(self._emit_filters)
+        debounce_text(self.recorder_edit, self._emit_filters)
         recorder_box.addWidget(self.recorder_edit)
         filters_row.addWidget(recorder_container)
         
@@ -271,13 +287,6 @@ class SchemeFilterBar(QFrame, SavedFiltersMixin):
         status_box.addWidget(self.status_combo)
         filters_row.addWidget(status_container)
         
-        # Clear All button
-        self.clear_btn = QPushButton("Clear All")
-        self.clear_btn.setFixedHeight(STANDARD_INPUT_HEIGHT)
-        self.clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.clear_btn.setStyleSheet(get_clear_button_style())
-        self.clear_btn.clicked.connect(self.clear_filters)
-        filters_row.addWidget(self.clear_btn, 0, Qt.AlignmentFlag.AlignBottom)
         
         filters_row.addStretch()
         layout.addLayout(filters_row)
@@ -289,14 +298,16 @@ class SchemeFilterBar(QFrame, SavedFiltersMixin):
     
     def get_filters(self) -> dict:
         """Get current filter values."""
+        # Any date that is set counts: "year >= 2000" dropped every earlier date, and
+        # 28,958 scheme records are older (OBS-14)
         date_from = None
         from_date = self.date_from_edit.date()
-        if from_date.year() >= 2000:
+        if from_date.isValid():
             date_from = from_date.toString("yyyy-MM-dd")
         
         date_to = None
         to_date = self.date_to_edit.date()
-        if to_date.year() >= 2000:
+        if to_date.isValid():
             date_to = to_date.toString("yyyy-MM-dd")
         
         return {
@@ -311,40 +322,69 @@ class SchemeFilterBar(QFrame, SavedFiltersMixin):
             'status': self.status_combo.currentData(),
         }
     
+    def _filter_widgets(self):
+        return [self.species_edit, self.location_edit, self.date_from_edit,
+                self.date_to_edit, self.subfamily_combo, self.vc_combo, self.recorder_edit,
+                self.source_combo, self.status_combo]     # not saved_combo: its index 0
+                                                             # only disables Delete
+
+    def _set_quietly(self, change):
+        """Run change() with every filter widget silent; the caller emits once."""
+        widgets = self._filter_widgets()
+        cancel_pending(self.species_edit, self.location_edit, self.recorder_edit)
+        for w in widgets:
+            w.blockSignals(True)
+        try:
+            change()
+        finally:
+            for w in widgets:
+                w.blockSignals(False)
+
+    def _on_clear_all_clicked(self):
+        """Clear All: the tab's clear-everything if it listens, else this bar alone."""
+        if self.isSignalConnected(QMetaMethod.fromSignal(self.clear_all_requested)):
+            self.clear_all_requested.emit()
+        else:
+            self.clear_filters()
+
     def clear_filters(self):
-        """Clear all filters."""
-        self.species_edit.clear()
-        self.location_edit.clear()
-        self.date_from_edit.clear()
-        self.date_to_edit.clear()
-        self.subfamily_combo.resetToFirst()
-        self.vc_combo.resetToFirst()
-        self.recorder_edit.clear()
-        self.source_combo.resetToFirst()
-        self.status_combo.resetToFirst()
-        self.saved_combo.setCurrentIndex(0)
+        """Clear all filters and reload once (it reloaded once per widget: 9 loads of
+        up to 110,510 records, 58 s on Wil's PC -- speed review 10 Oct 2026)."""
+        def change():
+            self.species_edit.clear()
+            self.location_edit.clear()
+            self.date_from_edit.clear()
+            self.date_to_edit.clear()
+            self.subfamily_combo.resetToFirst()
+            self.vc_combo.resetToFirst()
+            self.recorder_edit.clear()
+            self.source_combo.resetToFirst()
+            self.status_combo.resetToFirst()
+            self.saved_combo.setCurrentIndex(0)
+        self._set_quietly(change)
         self._emit_filters()
     
     def _apply_saved_filter(self, filters: dict):
-        """Apply a saved filter configuration. Required by SavedFiltersMixin."""
-        self.species_edit.setText(filters.get('species', ''))
-        self.location_edit.setText(filters.get('location', ''))
-        self.date_from_edit.setText(filters.get('date_from', ''))
-        self.date_to_edit.setText(filters.get('date_to', ''))
-        self.recorder_edit.setText(filters.get('recorder', ''))
-        
-        for combo, key in [(self.subfamily_combo, 'subfamily'), (self.source_combo, 'source'),
-                           (self.status_combo, 'status')]:
-            val = filters.get(key, '')
-            idx = combo.findData(val)
+        """Apply a saved filter configuration (one reload). Required by SavedFiltersMixin."""
+        def change():
+            self.species_edit.setText(filters.get('species', ''))
+            self.location_edit.setText(filters.get('location', ''))
+            self.date_from_edit.setIsoDate(filters.get('date_from'))   # setText does not exist
+            self.date_to_edit.setIsoDate(filters.get('date_to'))
+            self.recorder_edit.setText(filters.get('recorder', ''))
+
+            for combo, key in [(self.subfamily_combo, 'subfamily'), (self.source_combo, 'source'),
+                               (self.status_combo, 'status')]:
+                val = filters.get(key, '')
+                idx = combo.findData(val)
+                if idx >= 0:
+                    combo.setCurrentIndex(idx)
+
+            vc = filters.get('vice_county', '')
+            idx = self.vc_combo.findData(vc)
             if idx >= 0:
-                combo.setCurrentIndex(idx)
-        
-        vc = filters.get('vice_county', '')
-        idx = self.vc_combo.findData(vc)
-        if idx >= 0:
-            self.vc_combo.setCurrentIndex(idx)
-        
+                self.vc_combo.setCurrentIndex(idx)
+        self._set_quietly(change)
         self._emit_filters()
     
     def add_saved_filter(self, name: str, filters: dict):
@@ -359,7 +399,7 @@ class SchemeFilterBar(QFrame, SavedFiltersMixin):
         
         # Get date range for calendar defaults
         try:
-            query = "SELECT MIN(date) as min_date, MAX(date) as max_date FROM recording_scheme WHERE date IS NOT NULL"
+            query = "SELECT MIN(date) as min_date, MAX(date) as max_date FROM recording_scheme WHERE date IS NOT NULL AND date <> ''"
             results = db.execute_main(query)
             if results:
                 if results[0]['min_date']:
@@ -395,6 +435,38 @@ class SchemeFilterBar(QFrame, SavedFiltersMixin):
         
         # Populate Vice Counties
         self._populate_vice_counties_from_data(db)
+
+        # Subfamily and Verification from the records themselves (SRCH8)
+        self._populate_choices_from_data(db)
+
+    def _populate_choices_from_data(self, db):
+        """Subfamily: the values recorded (none yet: the combo is disabled and says why).
+        Verification: the main statuses recorded ("Accepted" covers "Accepted - correct")."""
+        # Subfamily on its own: a failure loading the statuses skipped it (it stayed
+        # enabled), and a disabled combo looked enabled (Wil 10 Oct)
+        try:
+            subfamilies = [r[0] for r in db.execute_main(
+                "SELECT DISTINCT subfamily FROM recording_scheme "
+                "WHERE subfamily IS NOT NULL AND TRIM(subfamily) <> '' ORDER BY subfamily")]
+        except Exception as e:
+            print(f"[SchemeFilterBar] Error loading subfamilies: {e}")
+            subfamilies = []
+        self.subfamily_combo.clear()
+        self.subfamily_combo.addItem("All", None)
+        for sf in subfamilies:
+            self.subfamily_combo.addItem(sf, sf)
+        self.subfamily_combo.set_unavailable(
+            "" if subfamilies else "No subfamily data on scheme records")
+        try:
+            from ...services.filter_builder import tab_values
+            statuses = tab_values(db.main_db_path, 'recording_scheme', only=('statuses',))['statuses']
+        except Exception as e:
+            print(f"[SchemeFilterBar] Error loading statuses: {e}")
+            return
+        self.status_combo.clear()
+        self.status_combo.addItem("All", None)
+        for st in statuses:
+            self.status_combo.addItem(st, st)
 
     def _populate_vice_counties_from_data(self, db):
         """Populate vice counties dropdown from existing data."""

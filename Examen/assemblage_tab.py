@@ -16,8 +16,10 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QColor
 try:
     from Examen.presentation import SQI_TOOLTIP
+    from Examen.workbook_export import _sqi_cell, PTT_NEAR, SQI_MIN_SPECIES
 except ImportError:  # pragma: no cover
     from presentation import SQI_TOOLTIP
+    from workbook_export import _sqi_cell, PTT_NEAR, SQI_MIN_SPECIES
 
 BG = "#f5f5f4"; SURFACE = "#ffffff"; TEXT_HEADING = "#4b5563"
 TEXT_SECONDARY = "#6b7280"; TEXT_MUTED = "#9ca3af"; BORDER = "#d1d5db"; SEPARATOR = "#e5e7eb"
@@ -111,16 +113,18 @@ class AssemblageTab(QWidget):
             if sqi_r:
                 sc = QTableWidgetItem(str(sqi_r.species_with_sqs)); sc.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.table.setItem(i, 2, sc)
-                sqi_text = str(int(sqi_r.sqi)) if sqi_r.sqi else "-"
-                si = QTableWidgetItem(sqi_text); si.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                if sqi_r.sqi and not sqi_r.reliable:
-                    # Pantheon's red triangle: shown, and flagged (backlog E9)
-                    si.setText(sqi_text + " \u25b2")
-                    si.setForeground(QColor(RED_STATUS))
-                    si.setToolTip(f"Fewer than 15 scoring species ({sqi_r.species_with_sqs}): "
-                                  "Pantheon flags this SQI as unreliable")
-                elif sqi_r.sqi >= 150: si.setForeground(QColor(MOSS_GREEN))
-                elif sqi_r.sqi >= 125: si.setForeground(QColor(AMBER))
+                # The workbook's own cell (EXA15): withheld below SQI_MIN_SPECIES
+                # scoring species, with the count shown instead, as on the
+                # Habitats tab and in every export.
+                cell = _sqi_cell(sqi_r)
+                si = QTableWidgetItem(str(cell)); si.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                if not isinstance(cell, int):
+                    si.setForeground(QColor(TEXT_MUTED))
+                    if sqi_r.species_with_sqs:
+                        si.setToolTip(f"Fewer than {SQI_MIN_SPECIES} scoring species "
+                                      f"({sqi_r.species_with_sqs}): SQI withheld, as Pantheon does")
+                elif cell >= 150: si.setForeground(QColor(MOSS_GREEN))
+                elif cell >= 125: si.setForeground(QColor(AMBER))
                 self.table.setItem(i, 3, si)
 
             pi = QTableWidgetItem(f"{pct_pool}%" if pct_pool else "-")
@@ -139,7 +143,7 @@ class AssemblageTab(QWidget):
                     favourable.append((name, count, threshold))
                     ptt_item.setToolTip(f"Favourable ({count} species, {threshold} required)")
                 else:
-                    if ptt >= 75: ptt_item.setForeground(QColor(AMBER))
+                    if ptt >= PTT_NEAR: ptt_item.setForeground(QColor(AMBER))
                     ptt_item.setToolTip(f"Below Favourable ({count} species, {threshold} required)")
                 self.table.setItem(i, 6, ptt_item)
             else:

@@ -2,7 +2,7 @@
 
 Commercial jobs (8 Oct 2026): Project and Client are pickers of the names already in
 use, so a typo cannot split one project into two in Examen and Commercial Reports.
-"Show committed" lists finished jobs; Reopen (or Open on one) sets it back to active
+"Show finished jobs" lists finished jobs; Reopen (or Open on one) sets it back to active
 so more records can be added under the same project.
 
 Reads entry_jobs via staging_repo. Emits job_opened(job_id) when a job is opened. The
@@ -120,7 +120,7 @@ class NewJobDialog(QDialog):
             self.txt_client.setCurrentText(clients[0])
         self.lbl_existing.setText(
             "Existing project \u2014 records committed here join it in Examen and "
-            "Commercial Reports. To add to its own job instead, tick \u201cShow committed\u201d "
+            "Commercial Reports. To add to its own job instead, tick \u201cShow finished jobs\u201d "
             "and Reopen it.")
 
     def _accept(self):
@@ -168,8 +168,10 @@ class JobsListPage(QWidget):
         title.setStyleSheet(f"color: {theme.INK}; font-size: 16px; font-weight: 600;")
         top.addWidget(title)
         top.addStretch(1)
-        self.chk_done = QCheckBox("Show committed")
-        self.chk_done.setToolTip("List finished jobs too, so one can be reopened to add records")
+        # It lists committed, discarded and iRecord-closed jobs, not only committed (DE13)
+        self.chk_done = QCheckBox("Show finished jobs")
+        self.chk_done.setToolTip("Also list committed, discarded and closed jobs, "
+                                 "so one can be reopened to add records")
         self.chk_done.setStyleSheet(f"color: {theme.MUTED}; font-size: 12px;")
         self.chk_done.toggled.connect(lambda *_: self.refresh())
         top.addWidget(self.chk_done)

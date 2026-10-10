@@ -137,11 +137,15 @@ class WizardValidationMixin:
         """Add validated row to table."""
         import_mode = self._get_selected_mode()
         
-        # Add row to table
+        # Add row to table. Filling a cell fires cellChanged, which marked every row as
+        # edited and turned Next off (IMP-18, 10 Oct 2026): only the user's edits count.
         table_row = self.validation_table.rowCount()
-        self.validation_table.insertRow(table_row)
-        
-        self._populate_table_row(table_row, row, import_mode)
+        blocked = self.validation_table.blockSignals(True)
+        try:
+            self.validation_table.insertRow(table_row)
+            self._populate_table_row(table_row, row, import_mode)
+        finally:
+            self.validation_table.blockSignals(blocked)
     
     def _on_counts_updated(self, valid: int, warnings: int, errors: int):
         """Update live counters."""
@@ -457,30 +461,32 @@ class WizardValidationMixin:
         }
         icon, color = status_icons.get(row.status, ("?", t.get('text_muted')))
         
-        status_item = self.validation_table.item(table_row, 0)
-        status_item.setText(icon)
-        status_item.setForeground(QBrush(QColor(color)))
-        
-        if import_mode == ImportMode.IRECORD_SYNC:
-            self.validation_table.item(table_row, 3).setText(row.species_name)
-            self.validation_table.item(table_row, 8).setText(row.error_message)
-        else:
-            # Species (it changes when a name is resolved or re-matched)
-            self.validation_table.blockSignals(True)
-            self.validation_table.item(table_row, 2).setText(row.species_name)
-            self.validation_table.blockSignals(False)
-            # Update VC
-            vc_text = f"VC{int(row.vc_number)}" if row.vc_number else ""
-            self.validation_table.item(table_row, 5).setText(vc_text)
-            
-            # Update message
-            if row.error_message:
-                msg = row.error_message
-            elif row.warnings:
-                msg = "; ".join(row.warnings)
+        blocked = self.validation_table.blockSignals(True)       # not an edit (IMP-18)
+        try:
+            status_item = self.validation_table.item(table_row, 0)
+            status_item.setText(icon)
+            status_item.setForeground(QBrush(QColor(color)))
+            if import_mode == ImportMode.IRECORD_SYNC:
+                self.validation_table.item(table_row, 3).setText(row.species_name)
+                self.validation_table.item(table_row, 8).setText(row.error_message)
             else:
-                msg = ""
-            self.validation_table.item(table_row, 7).setText(msg)
+                # Species and date (they change when a name is resolved or a row revalidated)
+                self.validation_table.item(table_row, 2).setText(row.species_name)
+                self.validation_table.item(table_row, 3).setText(row.date)
+                # Update VC
+                vc_text = f"VC{int(row.vc_number)}" if row.vc_number else ""
+                self.validation_table.item(table_row, 5).setText(vc_text)
+
+                # Update message
+                if row.error_message:
+                    msg = row.error_message
+                elif row.warnings:
+                    msg = "; ".join(row.warnings)
+                else:
+                    msg = ""
+                self.validation_table.item(table_row, 7).setText(msg)
+        finally:
+            self.validation_table.blockSignals(blocked)
     
     def _update_validation_counts(self):
         """Update validation counters from validated_rows."""
@@ -504,7 +510,7 @@ class WizardValidationMixin:
         skip_count = 0
         
         for row in self.validated_rows:
-            if row.status == RowStatus.ERROR:
+            if not self._passes_row_handling(row):          # Row handling choice (IMP-9)
                 skip_count += 1
             elif row.is_duplicate:
                 update_count += 1
@@ -537,9 +543,20 @@ class WizardValidationMixin:
         
         # Skip duplicates: both upload modes
         self.skip_duplicates_checkbox.setVisible(not sync)
-        self.include_errors_checkbox.setChecked(False)
-        # Row handling radios control this now ? keep checkbox hidden
-        self.include_errors_checkbox.setVisible(False)
+
+    def _passes_row_handling(self, row) -> bool:
+        """Whether the Row handling choice lets this row in (valid only / all but errors /
+        everything)."""
+        handling = self._row_handling()
+        if row.status == RowStatus.ERROR:
+            return handling == "everything"
+        if row.status == RowStatus.WARNING:
+            return handling != "valid_only"
+        return True
+
+    def _will_import(self, row, import_mode) -> bool:
+        """True when Import will write this row (insert or update)."""
+        return self._passes_row_handling(row) and not self._skips_duplicate(row, import_mode)
 
     def _skips_duplicate(self, row, import_mode) -> bool:
         """True when this row will be left out as a duplicate (upload modes, box ticked)."""

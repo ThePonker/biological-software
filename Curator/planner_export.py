@@ -21,6 +21,21 @@ from .planner_data import (
 )
 
 
+def _core_text(text):
+    """Text the built-in Helvetica can print: box labels carry an em dash, which
+    made the layout export fail (found with CUR-3, 10 Oct 2026)."""
+    text = str(text).replace("\u2014", "-").replace("\u2013", "-")
+    return text.encode("latin-1", "replace").decode("latin-1")
+
+
+if FPDF is not None:
+    class _LayoutPDF(FPDF):
+        def normalize_text(self, text):
+            return super().normalize_text(_core_text(text))
+else:  # pragma: no cover
+    _LayoutPDF = None
+
+
 # Colours matching the preview (RGB tuples)
 FAMILY_COLOURS_RGB = [
     (194, 149, 110),  # Terracotta
@@ -42,14 +57,13 @@ def export_layout_pdf(path: str, boxes: list, profile_mgr: ProfileManager,
     Export a PDF with allocation summary and one page per box.
     """
     if FPDF is None:
-        print("Cannot export: fpdf2 not installed")
-        return
+        raise RuntimeError("The PDF export needs fpdf2. In a terminal:  py -3.14 -m pip install fpdf2")
 
     box_size = profile_mgr.get_box(box_key)
     if not box_size:
-        return
+        raise RuntimeError(f"No box size '{box_key}' (see mounting_profiles.json).")
 
-    pdf = FPDF(orientation="P", unit="mm", format="A4")
+    pdf = _LayoutPDF(orientation="P", unit="mm", format="A4")
     pdf.set_auto_page_break(auto=True, margin=15)
 
     # =========================================================================
@@ -216,10 +230,9 @@ def export_labels_pdf(path: str, families: list):
     Export a PDF with family name label strips for cutting.
     """
     if FPDF is None:
-        print("Cannot export: fpdf2 not installed")
-        return
+        raise RuntimeError("The PDF export needs fpdf2. In a terminal:  py -3.14 -m pip install fpdf2")
 
-    pdf = FPDF(orientation="P", unit="mm", format="A4")
+    pdf = _LayoutPDF(orientation="P", unit="mm", format="A4")
     pdf.add_page()
 
     pdf.set_font("Helvetica", "B", 12)

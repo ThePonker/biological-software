@@ -122,9 +122,11 @@ class RecordingSchemeRepository:
         conditions = []
         params = []
         
-        if species_name:
-            conditions.append("(species_name LIKE ? OR common_name LIKE ?)")
-            params.extend([f"%{species_name}%", f"%{species_name}%"])
+        if species_name:   # by TVK through the shared species search (10 Oct 2026)
+            from shared.species_filter import sql_for_table
+            clause, sp_params = sql_for_table(species_name, self._execute, "recording_scheme")
+            conditions.append(clause)
+            params.extend(sp_params)
         
         if species_tvk:
             conditions.append("species_tvk = ?")

@@ -116,7 +116,10 @@ NOTE_FONT = Font(italic=True, size=9, color="6B6B6B")
 BOLD = Font(bold=True, size=10)
 
 GOOD_FILL = PatternFill("solid", fgColor="D6E9D6")      # meets threshold
-NEAR_FILL = PatternFill("solid", fgColor="F6E6C8")      # >= 80% of threshold
+NEAR_FILL = PatternFill("solid", fgColor="F6E6C8")      # >= PTT_NEAR % of threshold
+# "Near" a Favourable Condition threshold: the amber band, here and on the
+# Assemblages tab (EXA15).
+PTT_NEAR = 80
 THIN = Side(style="thin", color="D0D0D0")
 BOX = Border(left=THIN, right=THIN, top=THIN, bottom=THIN)
 
@@ -184,7 +187,8 @@ def _sqi_label(s):
 
 
 def _sqi_cell(s):
-    """SQI for display: the number, or the evidence when it cannot be trusted."""
+    """SQI for display: the number, or the evidence when it cannot be trusted.
+    The Habitats and Assemblages tabs show this same cell (EXA15)."""
     n = _sqi_n(s)
     v = _sqi_value(s)
     if not n or v is None:
@@ -936,7 +940,7 @@ def _sheet_assemblages(wb, result, refs, thresholds):
             if ptt >= 100:
                 for col in range(1, 9):
                     ws.cell(row=row, column=col).fill = GOOD_FILL
-            elif ptt >= 80:
+            elif ptt >= PTT_NEAR:
                 for col in range(1, 9):
                     ws.cell(row=row, column=col).fill = NEAR_FILL
 

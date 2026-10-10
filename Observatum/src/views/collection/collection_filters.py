@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QFrame, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QLineEdit, QComboBox, QWidget, QCompleter
 )
-from PySide6.QtCore import Signal, Qt, QStringListModel, QDate
+from PySide6.QtCore import Signal, Qt, QStringListModel, QDate, QMetaMethod
 
 from ...themes import theme
 from ...core.config import TabColors
@@ -18,6 +18,7 @@ from ...core.config import TabColors
 # Shared components
 from ..components.date_filter_widget import DateFilterWidget
 from ..components.combo_filter_widget import ComboFilterWidget
+from ..components.filter_debounce import debounce_text, cancel_pending
 from ..components.saved_filters_mixin import SavedFiltersMixin, create_saved_filter_buttons
 from ..components.filter_styles import (
     STANDARD_INPUT_HEIGHT,
@@ -33,6 +34,7 @@ class CollectionFilterBar(QFrame, SavedFiltersMixin):
     """Horizontal filter bar for specimen filtering."""
     
     filters_changed = Signal(dict)
+    clear_all_requested = Signal()   # Clear All clicked: the tab clears everything
     save_filter_requested = Signal()
     special_view_selected = Signal(str)  # Emits view mode like 'new_collections_list'
     
@@ -104,6 +106,16 @@ class CollectionFilterBar(QFrame, SavedFiltersMixin):
         filters_row = QHBoxLayout()
         filters_row.setSpacing(8)
         
+        # Clear All: at the left, beside Species (Wil 10 Oct). On a record tab it
+        # clears everything -- this bar, the saved filter and the Filter Wizard -- the
+        # same as the toolbar's Clear Filters (the tab connects clear_all_requested)
+        self.clear_btn = QPushButton("Clear All")
+        self.clear_btn.setFixedHeight(STANDARD_INPUT_HEIGHT)
+        self.clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.clear_btn.setStyleSheet(get_clear_button_style())
+        self.clear_btn.clicked.connect(self._on_clear_all_clicked)
+        filters_row.addWidget(self.clear_btn, 0, Qt.AlignmentFlag.AlignBottom)
+
         # Column 1: Species
         species_container = QWidget()
         species_container.setFixedWidth(COL_SPECIES)
@@ -115,7 +127,7 @@ class CollectionFilterBar(QFrame, SavedFiltersMixin):
         self.species_edit.setPlaceholderText("Search...")
         self.species_edit.setFixedHeight(STANDARD_INPUT_HEIGHT)
         self.species_edit.setStyleSheet(f"QLineEdit {{ {input_style} }}")
-        self.species_edit.textChanged.connect(self._emit_filters)
+        debounce_text(self.species_edit, self._emit_filters)   # once typing pauses (speed)
         
         self._species_completer_model = QStringListModel()
         self._species_completer = QCompleter(self._species_completer_model)
@@ -136,7 +148,7 @@ class CollectionFilterBar(QFrame, SavedFiltersMixin):
         self.location_edit.setPlaceholderText("Search...")
         self.location_edit.setFixedHeight(STANDARD_INPUT_HEIGHT)
         self.location_edit.setStyleSheet(f"QLineEdit {{ {input_style} }}")
-        self.location_edit.textChanged.connect(self._emit_filters)
+        debounce_text(self.location_edit, self._emit_filters)   # once typing pauses (speed)
         
         self._location_completer_model = QStringListModel()
         self._location_completer = QCompleter(self._location_completer_model)
@@ -197,7 +209,7 @@ class CollectionFilterBar(QFrame, SavedFiltersMixin):
         self.family_edit.setPlaceholderText("Search...")
         self.family_edit.setFixedHeight(STANDARD_INPUT_HEIGHT)
         self.family_edit.setStyleSheet(f"QLineEdit {{ {input_style} }}")
-        self.family_edit.textChanged.connect(self._emit_filters)
+        debounce_text(self.family_edit, self._emit_filters)   # once typing pauses (speed)
         
         self._family_completer_model = QStringListModel()
         self._family_completer = QCompleter(self._family_completer_model)
@@ -233,7 +245,7 @@ class CollectionFilterBar(QFrame, SavedFiltersMixin):
         self.collector_edit.setPlaceholderText("Search...")
         self.collector_edit.setFixedHeight(STANDARD_INPUT_HEIGHT)
         self.collector_edit.setStyleSheet(f"QLineEdit {{ {input_style} }}")
-        self.collector_edit.textChanged.connect(self._emit_filters)
+        debounce_text(self.collector_edit, self._emit_filters)   # once typing pauses (speed)
         collector_box.addWidget(self.collector_edit)
         filters_row.addWidget(collector_container)
         
@@ -279,13 +291,6 @@ class CollectionFilterBar(QFrame, SavedFiltersMixin):
         verification_box.addWidget(verification_placeholder)
         filters_row.addWidget(verification_container)
         
-        # Clear All button
-        self.clear_btn = QPushButton("Clear All")
-        self.clear_btn.setFixedHeight(STANDARD_INPUT_HEIGHT)
-        self.clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.clear_btn.setStyleSheet(get_clear_button_style())
-        self.clear_btn.clicked.connect(self.clear_filters)
-        filters_row.addWidget(self.clear_btn, 0, Qt.AlignmentFlag.AlignBottom)
         
         filters_row.addStretch()
         layout.addLayout(filters_row)
@@ -297,14 +302,15 @@ class CollectionFilterBar(QFrame, SavedFiltersMixin):
     
     def get_filters(self) -> dict:
         """Get the current filter values."""
+        # Any date that is set counts: "year >= 2000" dropped every earlier date (OBS-14)
         date_from = None
         from_date = self.date_from_edit.date()
-        if from_date.year() >= 2000:
+        if from_date.isValid():
             date_from = from_date.toString("yyyy-MM-dd")
         
         date_to = None
         to_date = self.date_to_edit.date()
-        if to_date.year() >= 2000:
+        if to_date.isValid():
             date_to = to_date.toString("yyyy-MM-dd")
         
         return {
@@ -318,41 +324,66 @@ class CollectionFilterBar(QFrame, SavedFiltersMixin):
             'collector': self.collector_edit.text().strip(),
         }
     
+    def _set_quietly(self, change):
+        """Run change() with every filter widget silent; the caller emits once."""
+        widgets = [self.species_edit, self.location_edit, self.date_from_edit,
+                   self.date_to_edit, self.order_combo, self.family_edit, self.vc_combo,
+                   self.collector_edit]
+        cancel_pending(self.species_edit, self.location_edit, self.family_edit,
+                       self.collector_edit)
+        for w in widgets:
+            w.blockSignals(True)
+        try:
+            change()
+        finally:
+            for w in widgets:
+                w.blockSignals(False)
+
+    def _on_clear_all_clicked(self):
+        """Clear All: the tab's clear-everything if it listens, else this bar alone."""
+        if self.isSignalConnected(QMetaMethod.fromSignal(self.clear_all_requested)):
+            self.clear_all_requested.emit()
+        else:
+            self.clear_filters()
+
     def clear_filters(self):
-        """Clear all filter values."""
-        self.species_edit.clear()
-        self.location_edit.clear()
-        self.date_from_edit.clear()
-        self.date_to_edit.clear()
-        self.order_combo.resetToFirst()
-        self.family_edit.clear()
-        self.vc_combo.resetToFirst()
-        self.collector_edit.clear()
+        """Clear all filter values and reload once (it reloaded once per widget)."""
+        def change():
+            self.species_edit.clear()
+            self.location_edit.clear()
+            self.date_from_edit.clear()
+            self.date_to_edit.clear()
+            self.order_combo.resetToFirst()
+            self.family_edit.clear()
+            self.vc_combo.resetToFirst()
+            self.collector_edit.clear()
+        self._set_quietly(change)
         self.saved_combo.setCurrentIndex(0)
         self._emit_filters()
     
     def _apply_saved_filter(self, filters: dict):
-        """Apply a saved filter configuration. Required by SavedFiltersMixin."""
-        self.species_edit.setText(filters.get('species', ''))
-        self.location_edit.setText(filters.get('location', ''))
-        self.date_from_edit.setText(filters.get('date_from', ''))
-        self.date_to_edit.setText(filters.get('date_to', ''))
-        self.collector_edit.setText(filters.get('collector', ''))
-        
-        for combo, key in [(self.order_combo, 'order')]:
-            val = filters.get(key, '')
-            idx = combo.findData(val)
+        """Apply a saved filter configuration (one reload). Required by SavedFiltersMixin."""
+        def change():
+            self.species_edit.setText(filters.get('species', ''))
+            self.location_edit.setText(filters.get('location', ''))
+            self.date_from_edit.setIsoDate(filters.get('date_from'))   # setText does not exist
+            self.date_to_edit.setIsoDate(filters.get('date_to'))
+            self.collector_edit.setText(filters.get('collector', ''))
+
+            for combo, key in [(self.order_combo, 'order')]:
+                val = filters.get(key, '')
+                idx = combo.findData(val)
+                if idx >= 0:
+                    combo.setCurrentIndex(idx)
+
+            # Family is now a text field
+            self.family_edit.setText(filters.get('family', ''))
+
+            vc = filters.get('vice_county', '')
+            idx = self.vc_combo.findData(vc)
             if idx >= 0:
-                combo.setCurrentIndex(idx)
-        
-        # Family is now a text field
-        self.family_edit.setText(filters.get('family', ''))
-        
-        vc = filters.get('vice_county', '')
-        idx = self.vc_combo.findData(vc)
-        if idx >= 0:
-            self.vc_combo.setCurrentIndex(idx)
-        
+                self.vc_combo.setCurrentIndex(idx)
+        self._set_quietly(change)
         self._emit_filters()
     
     def add_saved_filter(self, name: str, filters: dict):
@@ -467,6 +498,13 @@ class CollectionFilterBar(QFrame, SavedFiltersMixin):
         Args:
             species_name: Species name to filter by
         """
-        self.species_edit.setText(species_name)
+        # The other filters are cleared first (OBS-08: they used to stay); the filter is
+        # then applied once, here -- the callers no longer reload again (speed, 10 Oct)
+        self.blockSignals(True)
+        try:
+            self.clear_filters()
+            self.species_edit.setText(species_name)
+        finally:
+            self.blockSignals(False)
         self.setVisible(True)
         self._emit_filters()

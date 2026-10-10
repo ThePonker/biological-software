@@ -283,17 +283,9 @@ class SpecimenImportWizard(
             QMessageBox.critical(self, "Error", "Database connection not available.")
             return
 
-        # Filter rows to import
-        rows_to_import = []
-        import_errors = self.import_errors_checkbox.isChecked()
-        import_warnings = self.import_warnings_radio.isChecked()
-
-        for row in self.validated_rows:
-            if row.status == RowStatus.ERROR and not import_errors:
-                continue
-            if row.status == RowStatus.WARNING and not import_warnings:
-                continue
-            rows_to_import.append(row)
+        # Filter rows to import; every row left out is counted by reason (IMP-16)
+        rows_to_import, counts = self._rows_for_import()
+        self._summary_counts = counts
 
         if not rows_to_import:
             QMessageBox.warning(self, "No Data", "No valid rows to import.")
@@ -317,6 +309,13 @@ class SpecimenImportWizard(
                 r.subfamily = t_["subfamily"] or r.subfamily
                 r.order_name = t_["order_name"] or r.order_name
                 r.family = t_["family"] or r.family
+        # Taxon group from the same final species -- a species fixed in the bulk resolution
+        # dialog imported with none (IMP-10), and one re-picked kept the old species' group.
+        # Specimen files carry no group of their own, so it is always worked out here.
+        from shared.taxon_groups import fill_blank_groups
+        for r in rows_to_import:
+            r.taxon_group = ""
+        fill_blank_groups(rows_to_import)
         def _has_key(k):
             try:
                 return float(k) == float(k) and float(k) > 0      # not None, '', NaN or 0
@@ -392,6 +391,7 @@ class SpecimenImportWizard(
                     'site_name': row.site_name,
                     'collector': row.collector,
                     'determiner': row.determiner,
+                    'sex': getattr(row, 'sex', '') or None,                 # IMP-7
                     'preparation_type': row.preparation_type,
                     'storage_location': row.storage_location,
                     'drawer_number': row.drawer_number,
@@ -455,15 +455,42 @@ class SpecimenImportWizard(
         self._import_errors += fails
         return ok
 
+    def _rows_for_import(self):
+        """(rows to write, counts of rows left out by reason) from the Import Options boxes."""
+        import_errors = self.import_errors_checkbox.isChecked()
+        import_warnings = self.import_warnings_radio.isChecked()
+        skip_held = getattr(self, "skip_duplicates_checkbox", None) is None or \
+            self.skip_duplicates_checkbox.isChecked()
+        counts = dict.fromkeys(("new", "duplicates_skipped", "errors_left_out",
+                                "warnings_left_out", "failed"), 0)
+        rows = []
+        for row in self.validated_rows:
+            if row.status == RowStatus.ERROR and not import_errors:
+                counts["errors_left_out"] += 1
+            elif getattr(row, "is_duplicate", False) and skip_held:
+                counts["duplicates_skipped"] += 1           # already in the collection (IMP-7)
+            elif row.status == RowStatus.WARNING and not import_warnings:
+                counts["warnings_left_out"] += 1
+            else:
+                rows.append(row)
+        return rows, counts
+
+    SUMMARY_ORDER = (("new", "Specimens imported"),
+                     ("duplicates_skipped", "Already in the collection, skipped"),
+                     ("errors_left_out", "Rows with errors, not imported"),
+                     ("warnings_left_out", "Rows with warnings, not imported"),
+                     ("failed", "Could not be written"))
+
     def _update_summary(self):
-        """Update the summary page."""
+        """The summary page: every row in exactly one line (IMP-16, 10 Oct 2026; 'Skipped'
+        was always 0 and rows left out for errors were not mentioned)."""
+        from shared.import_core import summary_lines
         t = theme()
-        
-        self.summary_stats.setText(
-            f"Imported: {self.imported_count} specimens\n"
-            f"Skipped: {self.skipped_count} rows\n"
-            f"Errors: {self.error_count} rows"
-        )
+        counts = dict(getattr(self, "_summary_counts", {}) or {})
+        counts.update(new=self.imported_count, failed=self.error_count)
+        self.skipped_count = sum(counts.get(k, 0) for k in
+                                 ("duplicates_skipped", "errors_left_out", "warnings_left_out"))
+        self.summary_stats.setText("\n".join(summary_lines(counts, self.SUMMARY_ORDER)))
         
         if self.error_count > 0:
             self.summary_icon.setText("⚠")

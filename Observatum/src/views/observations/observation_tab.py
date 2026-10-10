@@ -50,6 +50,7 @@ class ObservationTab(
     
     # Data change signals - emitted when data is modified
     data_imported = Signal()  # Emitted when import wizard completes successfully
+    records_changed = Signal()  # records deleted / edited / re-typed here (OBS-10: stats refresh)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -59,6 +60,8 @@ class ObservationTab(
         self._current_view_mode = 'normal'  # 'normal' or 'new_species_list'
         self._all_observations: List = []  # Cache all observations for filtering
         self._current_detail_dialog = None  # Track open detail dialog
+        self._wizard_filters: Dict = {}     # the Filter Wizard's applied filters
+        self._wizard_ids = None             # ids they keep (None = no wizard filter)
         self._setup_ui()
         self._connect_signals()
 
@@ -78,7 +81,8 @@ class ObservationTab(
         # Filter Wizard (collapsible visual filter builder)
         self.filter_wizard = FilterWizard(
             accent_color=TabColors.OBSERVATION,
-            show_save_controls=True
+            show_save_controls=True,
+            tab_name="observations"
         )
         self.filter_wizard.setVisible(False)  # Hidden by default
         layout.addWidget(self.filter_wizard)
@@ -292,7 +296,8 @@ class ObservationTab(
         # Filter Wizard signals
         self.filter_wizard.filters_applied.connect(self._on_wizard_filters_applied)
         self.filter_wizard.filters_reset.connect(self._on_wizard_filters_reset)
-        self.toolbar.clear_filters_requested.connect(self.filter_bar.clear_filters)
+        self.toolbar.clear_filters_requested.connect(self.clear_all_filters)
+        self.filter_bar.clear_all_requested.connect(self.clear_all_filters)
 
         # Filter bar signals
         self.filter_bar.data_type_changed.connect(self._on_data_type_changed)
@@ -331,205 +336,67 @@ class ObservationTab(
         self.filter_wizard.setVisible(visible)
 
     def _on_wizard_filters_applied(self, filters: dict):
-        """Handle filter wizard apply button."""
-        print(f"[ObservationTab] Wizard filters applied: {filters}")
-        
-        # Store wizard filters for filtering
-        self._wizard_filters = filters
+        """Filter Wizard Apply: keep its filters (they survive reloads and combine with the
+        filter bar), and show the result.
+
+        10 Oct 2026 (OBS-07, SRCH4, SRCH9): the wizard used to filter the loaded list in
+        Python -- up to 54 s (a list-membership test per record), "Specific year" and
+        "Notes search" ignored, no species exclusion (Coleoptera 8,174 vs the bar's 8,149)
+        and lost on the next reload. Now the shared builder queries the database once."""
+        self._wizard_filters = dict(filters or {})
         if getattr(self, "_project_filter", None):    # a wizard search replaces the pin
             self._project_filter = None
             self._project_banner.setVisible(False)
-        
-        # Apply filters directly to table
-        self._apply_wizard_filters(filters)
-    
-    def _apply_wizard_filters(self, filters: dict):
-        """Apply wizard filters to the observation table."""
+        self._refresh_wizard_ids()
         if not self._all_observations:
-            self._load_data()
-            if not self._all_observations:
-                return
-        
-        filtered = self._all_observations.copy()
-        
-        # What filters use OR logic: show records matching ANY species/order/family
-        species_list = filters.get('species', [])
-        if isinstance(species_list, str): species_list = [species_list] if species_list else []
-        orders = filters.get('taxon_group', [])
-        if isinstance(orders, str): orders = [orders] if orders else []
-        families = filters.get('family', [])
-        if isinstance(families, str): families = [families] if families else []
-        
-        if species_list or orders or families:
-            what_filtered = []
-            for obs in filtered:
-                if species_list and obs.species_name in species_list:
-                    what_filtered.append(obs)
-                elif orders and getattr(obs, 'order_name', None) in orders:
-                    what_filtered.append(obs)
-                elif families and getattr(obs, 'family', None) in families:
-                    what_filtered.append(obs)
-            filtered = what_filtered
-            print(f"[Filter] What (OR): {len(filtered)} records")
-        # Where filters use OR logic: show records matching ANY grid_ref/site_name/vice_county
-        grid_refs = filters.get('grid_ref', [])
-        if isinstance(grid_refs, str): grid_refs = [grid_refs] if grid_refs else []
-        sites = filters.get('site_name', [])
-        if isinstance(sites, str): sites = [sites] if sites else []
-        vcs = filters.get('vice_county', [])
-        if isinstance(vcs, str): vcs = [vcs] if vcs else []
-        
-        # Extract VC numbers for matching
-        vc_nums = []
-        for vc in vcs:
-            if ' - ' in str(vc):
-                vc_nums.append(vc.split(' - ')[0])
-            else:
-                vc_nums.append(str(vc))
-        
-        has_where_filters = bool(grid_refs or sites or vc_nums)
-        
-        if has_where_filters:
-            where_filtered = []
-            for obs in filtered:
-                # Check grid ref (prefix match)
-                if grid_refs:
-                    obs_grid = getattr(obs, 'grid_ref', '') or ''
-                    for ref in grid_refs:
-                        if obs_grid.upper().startswith(ref.upper()):
-                            where_filtered.append(obs)
-                            break
-                    else:
-                        pass  # Continue to check other criteria
-                    if obs in where_filtered:
-                        continue
-                
-                # Check site name (partial or exact)
-                if sites:
-                    obs_site = getattr(obs, 'site_name', '') or ''
-                    for site in sites:
-                        if site.startswith('~'):
-                            if site[1:].lower() in obs_site.lower():
-                                where_filtered.append(obs)
-                                break
-                        else:
-                            if obs_site == site:
-                                where_filtered.append(obs)
-                                break
-                    if obs in where_filtered:
-                        continue
-                
-                # Check vice county
-                if vc_nums:
-                    obs_vc = str(getattr(obs, 'vice_county', '')).split(' - ')[0]
-                    if obs_vc in vc_nums:
-                        where_filtered.append(obs)
-            
-            filtered = where_filtered
-            print(f"[Filter] Where (OR): {len(filtered)} records - grids:{grid_refs}, sites:{len(sites)}, vcs:{vc_nums}")
-            print(f"[Filter] VC filter: {len(filtered)} records")
-        
-
-        # Who filters (recorder/determiner) - OR logic with partial match support
-        recorders = filters.get('recorder', [])
-        if isinstance(recorders, str): recorders = [recorders] if recorders else []
-        determiners = filters.get('determiner', [])
-        if isinstance(determiners, str): determiners = [determiners] if determiners else []
-        
-        if recorders or determiners:
-            who_filtered = []
-            for obs in filtered:
-                # Check recorder
-                if recorders:
-                    obs_recorder = getattr(obs, 'recorder', '') or ''
-                    for rec in recorders:
-                        if rec.startswith('~'):
-                            if rec[1:].lower() in obs_recorder.lower():
-                                who_filtered.append(obs)
-                                break
-                        else:
-                            if obs_recorder == rec:
-                                who_filtered.append(obs)
-                                break
-                    if obs in who_filtered:
-                        continue
-                
-                # Check determiner
-                if determiners:
-                    obs_det = getattr(obs, 'determiner', '') or ''
-                    for det in determiners:
-                        if det.startswith('~'):
-                            if det[1:].lower() in obs_det.lower():
-                                who_filtered.append(obs)
-                                break
-                        else:
-                            if obs_det == det:
-                                who_filtered.append(obs)
-                                break
-            filtered = who_filtered
-            print(f"[Filter] Who (OR): {len(filtered)} records")
-
-        # How filters (method) - searches method, comment, internal_notes, sample_comment
-        methods = filters.get('method', [])
-        if isinstance(methods, str): methods = [methods] if methods else []
-        
-        if methods:
-            how_filtered = []
-            for obs in filtered:
-                obs_method = getattr(obs, 'method', '') or ''
-                obs_comment = getattr(obs, 'comment', '') or ''
-                obs_internal = getattr(obs, 'internal_notes', '') or ''
-                obs_sample = getattr(obs, 'sample_comment', '') or ''
-                combined = f"{obs_method} {obs_comment} {obs_internal} {obs_sample}".lower()
-                
-                for method in methods:
-                    if method.startswith('~'):
-                        if method[1:].lower() in combined:
-                            how_filtered.append(obs)
-                            break
-                    else:
-                        if obs_method == method:
-                            how_filtered.append(obs)
-                            break
-            filtered = how_filtered
-            print(f"[Filter] How: {len(filtered)} records")
-        # Filter by verification status
-        if 'verification_status' in filters and filters['verification_status']:
-            statuses = filters['verification_status']
-            filtered = [obs for obs in filtered if getattr(obs, 'verification_status', '') in statuses]
-            print(f"[Filter] Status filter: {len(filtered)} records")
-        
-        # Filter by record type
-        if 'record_type' in filters and filters['record_type']:
-            types = filters['record_type']
-            filtered = [obs for obs in filtered if getattr(obs, 'record_type', '') in types]
-            print(f"[Filter] Type filter: {len(filtered)} records")
-        
-        # Filter by date range
-        if 'date_from' in filters and filters['date_from']:
-            date_from = filters['date_from']
-            filtered = [obs for obs in filtered if obs.date and obs.date >= date_from]
-        if 'date_to' in filters and filters['date_to']:
-            date_to = filters['date_to']
-            filtered = [obs for obs in filtered if obs.date and obs.date <= date_to]
-        
-        # Update table with filtered data
-        self.table_model.set_observations(filtered)
-        
-        # Update status
-        total = len(self._all_observations)
-        shown = len(filtered)
-        if hasattr(self, '_count_species_with_exclusion'):
-            species_count = self._count_species_with_exclusion(filtered)
+            self._load_data()          # loads, then applies bar + wizard
         else:
-            species_count = len(set(obs.species_name for obs in filtered if obs.species_name))
-        self.toolbar.set_counts(shown, species_count)
-        
-        print(f"[Filter] Final: {shown}/{total} records displayed")
+            self._apply_current_filters(use_cache=True)
+
+    def _refresh_wizard_ids(self):
+        """Re-run the wizard's query (after Apply, and after any reload of the data)."""
+        filters = getattr(self, "_wizard_filters", None)
+        try:
+            self._wizard_ids = self.filter_wizard.matching_ids(filters) if filters else None
+        except Exception as e:
+            print(f"[ObservationTab] Wizard filter failed: {e}")
+            self._wizard_ids = None
+
+    def clear_wizard_filters(self):
+        """Forget the wizard's filters without reloading (navigation to a species, OBS-08)."""
+        self._wizard_filters = {}
+        self._wizard_ids = None
+        self.filter_wizard.clear_filters()
+
+    def clear_all_filters(self):
+        """Toolbar "Clear Filters" and the filter bar's "Clear All" -- one behaviour
+        (Wil 10 Oct): the filter bar, the saved-filter choice and the Filter Wizard and
+        the pinned project
+        are all cleared, then one reload. (Clear Filters cleared the bar only, so a
+        wizard filter stayed on and it looked as if nothing happened; on the Insect
+        Collection it was not connected at all.) The wizard's own Reset still clears
+        the wizard alone."""
+        self.clear_wizard_filters()
+        if getattr(self, "_project_filter", None):
+            self._project_filter = None
+            self._project_banner.setVisible(False)
+        self.filter_bar.clear_filters()               # applies once
+
+    def show_species(self, species_name: str):
+        """Show one species' records with no other filter left over: filter bar,
+        Filter Wizard and pinned project all cleared (OBS-08)."""
+        self.clear_wizard_filters()
+        if getattr(self, "_project_filter", None):
+            self._project_filter = None
+            self._project_banner.setVisible(False)
+        self.filter_bar.set_species_filter(species_name)   # clears the bar, applies once
+        self.toolbar.set_filters_visible(True)
 
     def _on_wizard_filters_reset(self):
-        """Handle filter wizard reset."""
-        self.filter_bar.clear_filters()
+        """Wizard Reset: drop the wizard's filters; the filter bar's stay."""
+        self._wizard_filters = {}
+        self._wizard_ids = None
+        self._apply_current_filters(use_cache=True)
 
     # -- one commercial project, pinned from Commercial Reports ----------------
     def set_project_filter(self, project: str, client: str = ""):
@@ -558,6 +425,8 @@ class ObservationTab(
         """Handle data type toggle change from filter bar."""
         if self._current_view_mode == 'normal':
             self._apply_current_filters()
+        elif self._current_view_mode == 'new_species_list':
+            self._show_new_species_list()          # follows Personal/Commercial (OBS-24)
 
     def _on_data_changed(self, top_left, bottom_right, roles):
         """Handle checkbox changes - update selection count in toolbar."""
@@ -629,6 +498,7 @@ class ObservationTab(
                 )
                 print(f"[ObservationTab] Marked {len(checked_ids)} records as commercial")
                 self._load_data()
+                self.records_changed.emit()
             except Exception as e:
                 print(f"[ObservationTab] Error marking commercial: {e}")
 
@@ -794,6 +664,7 @@ class ObservationTab(
             self.table_model.set_all_checked(False)
             self._load_data()
             self._update_selection_count()
+            self.records_changed.emit()
         except Exception as e:
             print(f"[ObservationTab] Error deleting: {e}")
             QMessageBox.critical(self, "Delete Failed", f"Could not delete records:\n{e}")

@@ -207,13 +207,41 @@ class StagingTableModel(QAbstractTableModel):
             made.append(fresh)
         for i, row in enumerate(made):
             self._rows.insert(at + i, row)
-        for i, row in enumerate(self._rows, start=1):
-            if row.get("id") is not None:
-                self._conn.execute(
-                    "UPDATE entry_staging SET row_order=? WHERE id=?", (i, row["id"]))
+        self._renumber_entry_order([r["id"] for r in made], at)
         self._conn.commit()
         self.endResetModel()
         return len(made)
+
+    def _renumber_entry_order(self, new_ids, at: int) -> None:
+        """Give rows just inserted at view index `at` their place in ENTRY order.
+
+        Entry order is the stored row_order, not the view: renumbering by the view
+        made a sort permanent as soon as a row was inserted or repeated (review DE3).
+        The new rows go straight after the row above them (whose context they copy);
+        at the top, before the row below. Unsorted, that is exactly the view position.
+        """
+        stored = dict(self._conn.execute(
+            "SELECT id, row_order FROM entry_staging WHERE job_id=?", (self._job_id,)).fetchall())
+        new = set(new_ids)
+        old = [r["id"] for r in self._rows if r.get("id") is not None and r["id"] not in new]
+        entry = sorted(old, key=lambda i: (stored.get(i) if stored.get(i) is not None else i, i))
+        n = len(new_ids)
+        above = self._rows[at - 1].get("id") if at > 0 else None
+        below = self._rows[at + n].get("id") if at + n < len(self._rows) else None
+        if above in entry:
+            pos = entry.index(above) + 1
+        elif below in entry:
+            pos = entry.index(below)
+        else:
+            pos = len(entry) if at > 0 else 0
+        entry[pos:pos] = list(new_ids)
+        order = {rid: i for i, rid in enumerate(entry, start=1)}
+        for rid, i in order.items():
+            if stored.get(rid) != i:
+                self._conn.execute("UPDATE entry_staging SET row_order=? WHERE id=?", (i, rid))
+        for row in self._rows:
+            if row.get("id") in order:
+                row["row_order"] = order[row["id"]]
 
     def delete_rows(self, rows) -> int:
         """Delete real staging rows by view index. Virtual rows are ignored. Returns count."""
@@ -285,6 +313,26 @@ class StagingTableModel(QAbstractTableModel):
         if (index.isValid() and role in (Qt.ItemDataRole.BackgroundRole, Qt.ItemDataRole.ToolTipRole)
                 and COLUMNS[index.column()][0] == "date" and not self._is_virtual(index.row())):
             return self._date_flag(self._rows[index.row()].get("date"), role)
+        if (index.isValid() and role in (Qt.ItemDataRole.BackgroundRole, Qt.ItemDataRole.ToolTipRole)
+                and COLUMNS[index.column()][0] == "vc_number" and not self._is_virtual(index.row())):
+            from DataEntry.commit_service import read_vc
+            if read_vc(self._rows[index.row()].get("vc_number"))[0]:
+                return None
+            if role == Qt.ItemDataRole.BackgroundRole:
+                from PySide6.QtGui import QColor
+                return QColor(theme.CLAY_BG)
+            return ("Can't read this VC number -- type a vice-county number from 1 to 113, "
+                    "or leave it blank. The row stays in staging until it can be read.")
+        if (index.isValid() and role in (Qt.ItemDataRole.BackgroundRole, Qt.ItemDataRole.ToolTipRole)
+                and COLUMNS[index.column()][0] == "quantity" and not self._is_virtual(index.row())):
+            from DataEntry.commit_service import read_qty
+            if read_qty(self._rows[index.row()].get("quantity")) is not None:
+                return None
+            if role == Qt.ItemDataRole.BackgroundRole:
+                from PySide6.QtGui import QColor
+                return QColor(theme.CLAY_BG)
+            return ("Can't read this number -- type a whole number of 1 or more. "
+                    "The row stays in staging until it can be read.")
         if not index.isValid() or role not in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole):
             return None
         if self._is_virtual(index.row()):
@@ -423,7 +471,14 @@ class StagingTableModel(QAbstractTableModel):
 
         if kind == "number":
             sval = str(value).strip()
-            newv = None if sval == "" else self._as_qty(sval)
+            if sval == "":
+                newv = None
+            elif key == "vc_number":                            # unreadable: kept as typed
+                from DataEntry.commit_service import read_vc
+                ok, n = read_vc(sval)
+                newv = n if ok else sval
+            else:
+                newv = self._as_qty(sval)                       # unreadable: kept as typed
         elif key == "date":
             from DataEntry import date_utils
             newv = (date_utils.normalise(str(value).strip()) or None)
@@ -476,11 +531,12 @@ class StagingTableModel(QAbstractTableModel):
                                   [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole])
 
     @staticmethod
-    def _as_qty(sval: str) -> int:
-        try:
-            return max(1, int(sval))
-        except (TypeError, ValueError):
-            return 1
+    def _as_qty(sval: str):
+        """A whole number of 1 or more, else the text as typed -- shown flagged in its cell
+        and kept in staging (DE9: 'c.20' or '0' silently became 1)."""
+        from DataEntry.commit_service import read_qty
+        n = read_qty(sval)
+        return sval if n is None else n
 
     def add_row(self, data: Optional[Dict] = None) -> int:
         new_id = repo.insert_row(self._conn, self._job_id, data or {})
@@ -616,23 +672,10 @@ class _OptionDelegate(_EnterMovesDown, QStyledItemDelegate):
         model.setData(index, editor.currentText(), Qt.ItemDataRole.EditRole)
 
 
-class _NumberDelegate(_EnterMovesDown, QStyledItemDelegate):
-    def createEditor(self, parent, option, index):
-        sp = QSpinBox(parent)
-        sp.setRange(1, 100000)
-        sp.setValue(1)
-        return sp
-
-    def setEditorData(self, editor, index):
-        try:
-            editor.setValue(int(index.data(Qt.ItemDataRole.EditRole)))
-        except (TypeError, ValueError):
-            editor.setValue(1)
-        _select_all(editor)
-
-    def setModelData(self, editor, model, index):
-        editor.interpretText()
-        model.setData(index, editor.value(), Qt.ItemDataRole.EditRole)
+class _NumberDelegate(_TextDelegate):
+    """No. / VC No.: typed as text. A spin box turned anything it could not read ('c.20',
+    '0') into 1 without a word (review DE9); now the model keeps what was typed and flags
+    it, and the row stays in staging until it is a whole number."""
 
 
 from shared.species_rank import resolve_name   # one decision for every species search
@@ -677,7 +720,8 @@ class SpeciesPickerDialog(QDialog):
         self.setStyleSheet(theme.input_qss())
 
         v = QVBoxLayout(self)
-        lbl = QLabel(f"Multiple matches for \u201c{term}\u201d \u2014 choose one:")
+        lbl = QLabel(f"{'Multiple matches' if len(results) > 1 else 'A close match'} for "
+                     f"\u201c{term}\u201d \u2014 choose one:")
         lbl.setStyleSheet(f"color: {theme.INK}; font-size: 13px;")
         lbl.setWordWrap(True)
         v.addWidget(lbl)
@@ -697,6 +741,10 @@ class SpeciesPickerDialog(QDialog):
                 label += f"   ({cn})"
             if fam:
                 label += f"   [{fam}]"
+            if r.get("old_name"):            # shared species search: a hit through an old name
+                label += f"   \u2014 old name: {r['old_name']}"
+            elif r.get("match_type") == "fuzzy":
+                label += "   \u2014 close spelling"
             it = QListWidgetItem(label)
             it.setData(Qt.ItemDataRole.UserRole, r)
             self.listw.addItem(it)
@@ -1752,6 +1800,10 @@ class EntryGridPage(QWidget):
             detail.append(f"{summary['skipped_date']} skipped (no date)")
         if summary.get("skipped_bad_date"):
             detail.append(f"{summary['skipped_bad_date']} skipped (date unreadable)")
+        if summary.get("skipped_bad_qty"):
+            detail.append(f"{summary['skipped_bad_qty']} skipped (No. unreadable)")
+        if summary.get("skipped_bad_vc"):
+            detail.append(f"{summary['skipped_bad_vc']} skipped (VC No. unreadable)")
         if summary.get("taxonomy_error"):
             detail.append("taxon group and sort key not written (UKSI unreadable: "
                           f"{summary['taxonomy_error']})")
@@ -1783,12 +1835,15 @@ class EntryGridPage(QWidget):
             return shown + (f" \u2026 (+{len(v) - limit} more)" if len(v) > limit else "")
 
         labels = {"unreadable date": "a date that can't be read (left in staging)",
+                  "unreadable No.": "a No. that can't be read (left in staging)",
+                  "unreadable VC No.": "a VC No. that can't be read (left in staging)",
                   "future date": "a date in the future",
                   "no site": "no site name", "no grid ref": "no grid reference",
                   "no VC": "no vice-county", "no recorder": "no recorder",
                   "no TVK": "species not matched (no TVK)"}
         lines = []
-        for key in ("unreadable date", "future date", "no site", "no grid ref", "no VC",
+        for key in ("unreadable date", "unreadable No.", "unreadable VC No.", "future date", "no site",
+                    "no grid ref", "no VC",
                     "no recorder", "no TVK"):
             if key in found:
                 v = found[key]

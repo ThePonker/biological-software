@@ -17,9 +17,10 @@ def export_for_irecord(parent, conn, job) -> bool:
         more = " …" if len(bad) > 20 else ""
         QMessageBox.warning(
             parent, "Export for iRecord",
-            f"{len(bad)} row(s) have a species but no date iRecord can read: rows "
+            f"{len(bad)} row(s) have a species but no date or No. iRecord can read: rows "
             f"{', '.join(str(n) for n in bad[:20])}{more}.\n\n"
-            "Type a date (dd/mm/yyyy, mm/yyyy or a year) or clear the row, then export.")
+            "Type a date (dd/mm/yyyy, mm/yyyy or a year) and a whole-number No., "
+            "or clear the row, then export.")
         return False
     n = sum(1 for r in rows if (r.get("species_name") or "").strip())
     if not n:
@@ -86,7 +87,7 @@ def check_return(parent, conn, job_id) -> bool:
         return False
     box.setIcon(QMessageBox.Icon.Question)
     box.setText("\n".join(lines) + "\n\nAll are back. Close the job?")
-    box.setInformativeText("Closing keeps the job and its rows (tick “Show committed” to "
+    box.setInformativeText("Closing keeps the job and its rows (tick “Show finished jobs” to "
                            "see it) but no longer counts them as staged.")
     close = box.addButton("Close job", QMessageBox.ButtonRole.AcceptRole)
     box.addButton("Not now", QMessageBox.ButtonRole.RejectRole)

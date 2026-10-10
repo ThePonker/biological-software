@@ -39,21 +39,74 @@ def _simplify(ring: List[Tuple[float, float]], tol: float) -> List[Tuple[float, 
     return out
 
 
+def _prethin(ll: List[Tuple[float, float]], tol: float) -> List[Tuple[float, float]]:
+    """Thin a (lat, lon) ring before projecting it: drop points nearer than tol / 2 metres
+    to the last kept one (a degree of longitude counted as only 0.5 of a degree of latitude,
+    so the distance is never over-estimated in GB)."""
+    d = tol * 0.5 / 111320.0
+    d2 = d * d
+    out = [ll[0]]
+    la, lo = ll[0]
+    for lat, lon in ll[1:-1]:
+        dy, dx = lat - la, (lon - lo) * 0.5
+        if dy * dy + dx * dx >= d2:
+            out.append((lat, lon))
+            la, lo = lat, lon
+    out.append(ll[-1])
+    return out
+
+
+def ring_area(ring) -> float:
+    """Signed area (shoelace) of a ring of (x, y) points; > 0 anticlockwise."""
+    a = 0.0
+    n = len(ring)
+    for i in range(n):
+        x1, y1 = ring[i]
+        x2, y2 = ring[(i + 1) % n]
+        a += x1 * y2 - x2 * y1
+    return a / 2.0
+
+
 def _rings_from_geometry(geom) -> List[List[Tuple[float, float]]]:
-    """Return exterior rings (lon/lat) from a Polygon or MultiPolygon geometry."""
+    """Every ring (as stored) of a Polygon or MultiPolygon geometry, holes included; the
+    caller keeps the outer rings (see _outer_rings)."""
     if not geom:
         return []
     t = geom.get("type")
     coords = geom.get("coordinates", [])
-    rings = []
     if t == "Polygon":
-        if coords:
-            rings.append(coords[0])          # exterior ring only
-    elif t == "MultiPolygon":
-        for poly in coords:
-            if poly:
-                rings.append(poly[0])
-    return rings
+        return [r for r in coords if r]
+    if t == "MultiPolygon":
+        return [r for poly in coords if poly for r in poly if r]
+    return []
+
+
+def _outer_rings(geom, rings_en):
+    """The outer rings among a feature's projected rings (holes dropped).
+
+    MultiPolygon: the first ring of each polygon. Polygon: scripts/convert_vc_shapefile.py
+    (before 10 Oct 2026) wrote EVERY part of a multi-part vice-county -- islands and holes --
+    as the rings of ONE Polygon, so taking only the first ring (as this did) dropped the
+    mainland of 40 of the 112 VCs (VC1 West Cornwall was drawn as one Scilly islet, a
+    triangle after the converter's thinning). So for a Polygon the rings turning the same
+    way as the largest ring are outer rings (islands); those turning the other way are holes.
+    """
+    if not rings_en:
+        return []
+    if geom.get("type") == "MultiPolygon":
+        out, i = [], 0
+        for poly in geom.get("coordinates", []):
+            if not poly:
+                continue
+            if rings_en[i] is not None:
+                out.append(rings_en[i])
+            i += sum(1 for r in poly if r)
+        return out
+    kept = [(r, ring_area(r)) for r in rings_en if r is not None]
+    if not kept:
+        return []
+    big = max(kept, key=lambda ra: abs(ra[1]))[1]
+    return [r for r, a in kept if a * big > 0]
 
 
 def load_vc_polygons(path: str, tol: float = _SIMPLIFY_TOL):
@@ -83,23 +136,35 @@ def load_vc_polygons(path: str, tol: float = _SIMPLIFY_TOL):
             vc = int(vc)
         except (TypeError, ValueError):
             continue
-        rings_en: List[List[Tuple[float, float]]] = []
-        for ring in _rings_from_geometry(feat.get("geometry")):
-            en = []
+        geom = feat.get("geometry") or {}
+        all_en: List[Optional[List[Tuple[float, float]]]] = []
+        for ring in _rings_from_geometry(geom):
+            ll = []
             for pt in ring:
                 try:
                     # NB: this BRC GeoJSON stores [lat, lon], not the usual [lon, lat]
-                    lat, lon = float(pt[0]), float(pt[1])
+                    ll.append((float(pt[0]), float(pt[1])))
                 except (TypeError, ValueError, IndexError):
                     continue
-                e, n = wgs84_to_osgb_en(lat, lon)
-                en.append((e, n))
+            if tol > 0 and len(ll) > 8:
+                # thin in degrees first (projecting every point is the slow part); half the
+                # tolerance, longitude under-weighted, so nothing _simplify keeps is lost
+                kept = _prethin(ll, tol)
+                ll = kept if len(kept) >= 4 else ll
+            en = [wgs84_to_osgb_en(lat, lon) for lat, lon in ll]
+            if len(en) >= 4 and tol > 0:
+                thin = _simplify(en, tol)
+                # an islet smaller than `tol` keeps a few of its points rather than vanish
+                # (a far-off islet sets the extent County view zooms to, e.g. VC103)
+                en = thin if len(thin) >= 4 else en[::max(1, len(en) // 6)] + [en[-1]]
+            all_en.append(en if len(en) >= 4 else None)
+        rings_en = _outer_rings(geom, all_en)
+        for en in rings_en:
+            for e, n in en:
                 if e < minE: minE = e
                 if e > maxE: maxE = e
                 if n < minN: minN = n
                 if n > maxN: maxN = n
-            if len(en) >= 4:
-                rings_en.append(en if tol <= 0 else _simplify(en, tol))
         if rings_en:
             vc_rings.setdefault(vc, []).extend(rings_en)
 
@@ -176,12 +241,16 @@ class MiniMap(QWidget):
 
         base_pen = QPen(QColor(theme.LINE)); base_pen.setWidthF(0.6)
         active_brush = QBrush(QColor(74, 124, 89, 90))   # moss tint for derived VC
-        for vc, rings in self._vc_rings.items():
+        size = (self.width(), self.height())
+        if getattr(self, "_poly_cache", (None,))[0] != size:   # every islet now: project once
+            self._poly_cache = (size, {vc: [QPolygonF([self._to_px(e, n) for (e, n) in ring])
+                                            for ring in rings]
+                                       for vc, rings in self._vc_rings.items()})
+        for vc, polys in self._poly_cache[1].items():
             active = (vc == self._active_vc)
             p.setPen(base_pen)
             p.setBrush(active_brush if active else Qt.BrushStyle.NoBrush)
-            for ring in rings:
-                poly = QPolygonF([self._to_px(e, n) for (e, n) in ring])
+            for poly in polys:
                 p.drawPolygon(poly)
 
         if self._dot_en is not None:

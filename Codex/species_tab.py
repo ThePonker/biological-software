@@ -5,12 +5,12 @@ v2: aligned to Codex v5 / 11-track scheme.
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QFrame,
-    QScrollArea
+    QScrollArea, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
+    QPushButton
 )
 from PySide6.QtCore import Qt, QTimer
 
 from . import theme
-from shared.db_open import connect_ro  # D9: reference data, read-only
 
 
 # ============================================================
@@ -51,6 +51,8 @@ class SpeciesTab(QWidget):
         self._debounce.setSingleShot(True)
         self._debounce.setInterval(300)
         self._debounce.timeout.connect(self._do_search)
+        self._from_group = None        # (tvk, name) of the group a species was opened from
+        self.group_table = None
         self._setup_ui()
 
     # ============================================================
@@ -120,51 +122,19 @@ class SpeciesTab(QWidget):
             self.results_frame.hide()
             return
 
-        try:
+        try:   # the suite's shared species search (CDX-2, 10 Oct 2026): all ranks, old
+            # names (-> the current taxon), common names, typing slips, every word
             import paths
-            conn = connect_ro(str(paths.UKSI_DB))
-
-            words = text.lower().split()
-
-            common_join_query = (
-                "SELECT DISTINCT t.tvk, t.scientific_name, "
-                "  (SELECT c2.common_name FROM common_names c2 "
-                "   WHERE c2.tvk = t.tvk ORDER BY c2.preferred DESC LIMIT 1) AS common_name "
-                "FROM taxa t "
-                "LEFT JOIN common_names c ON t.tvk = c.tvk "
-                "WHERE t.rank = 'Species' "
-            )
-
-            if len(words) == 1:
-                term = f"%{words[0]}%"
-                rows = conn.execute(
-                    common_join_query +
-                    "AND (LOWER(t.scientific_name) LIKE ? "
-                    "     OR LOWER(c.common_name) LIKE ?) "
-                    "ORDER BY CASE "
-                    "  WHEN LOWER(t.scientific_name) LIKE ? THEN 0 "
-                    "  ELSE 1 END, "
-                    "t.scientific_name "
-                    "LIMIT 15",
-                    (term, term, f"{words[0]}%")
-                ).fetchall()
-            else:
-                conditions = []
-                params = []
-                for w in words:
-                    conditions.append(
-                        "(LOWER(t.scientific_name || ' ' || COALESCE(c.common_name, '')) LIKE ?)"
-                    )
-                    params.append(f"%{w}%")
-                where = " AND ".join(conditions)
-                rows = conn.execute(
-                    common_join_query +
-                    f"AND {where} "
-                    f"ORDER BY t.scientific_name LIMIT 15",
-                    params
-                ).fetchall()
-
-            conn.close()
+            from shared.species_search import rank_group, search
+            rows = []
+            for r in search(text, limit=25, db_path=str(paths.UKSI_DB)):
+                note = (f"old name: {r['old_name']}" if r.get("old_name")
+                        else "close spelling" if r.get("match_type") == "fuzzy" else "")
+                if rank_group(r.get("rank")) != 0 and r.get("rank"):
+                    note = f"{r['rank']}" + (f" \u2014 {note}" if note else "")
+                rows.append((r["tvk"], r.get("label") or r["scientific_name"],
+                             r.get("common_name") or "", note))
+            rows += self._codex_only(text, {r[0] for r in rows})
         except Exception as e:
             self.results_frame.show()
             err = QLabel(f"Search error: {e}")
@@ -182,11 +152,35 @@ class SpeciesTab(QWidget):
             return
 
         self.results_frame.show()
-        for tvk, sci_name, common in rows:
-            item = self._make_result_item(tvk, sci_name, common or "")
+        for tvk, sci_name, common, note in rows:
+            item = self._make_result_item(tvk, sci_name, common or "", note)
             self.results_layout.addWidget(item)
 
-    def _make_result_item(self, tvk, sci_name, common):
+    @staticmethod
+    def _codex_only(text, shown):
+        """Status-holding TVKs UKSI's current taxa don't include (66 in Oct 2026: older
+        concepts Codex keeps), found by the names Codex holds for them -- every word."""
+        import paths
+        from shared.db_open import connect_ro
+        from shared.species_search import get_index
+        words = [w for w in text.lower().split() if w]
+        if not words:
+            return []
+        idx = get_index(str(paths.UKSI_DB))
+        cond = " AND ".join("LOWER(species_name) LIKE ?" for _ in words)
+        conn = connect_ro(str(paths.CODEX_DB))
+        try:
+            found = conn.execute(
+                f"SELECT tvk, MIN(species_name) FROM (SELECT tvk, species_name FROM designations "
+                f"UNION SELECT tvk, species_name FROM manual_entries) WHERE {cond} "
+                f"AND tvk IN (SELECT tvk FROM status_summary) GROUP BY tvk LIMIT 50",
+                [f"%{w}%" for w in words]).fetchall()
+        finally:
+            conn.close()
+        return [(t, n, "", "not a current UKSI taxon") for t, n in found
+                if t not in idx.pos and t not in shown]
+
+    def _make_result_item(self, tvk, sci_name, common, note=""):
         item = QFrame()
         item.setStyleSheet(f"""
             QFrame {{
@@ -209,11 +203,17 @@ class SpeciesTab(QWidget):
             common_lbl.setStyleSheet(f"color: {theme.TEXT_SECONDARY}; font-size: 11px;")
             il.addWidget(common_lbl)
 
+        if note:   # rank above species, an old name, or a close spelling
+            note_lbl = QLabel(note)
+            note_lbl.setStyleSheet(f"color: {theme.TEXT_SECONDARY}; font-size: 11px; font-style: italic;")
+            il.addWidget(note_lbl)
+
         il.addStretch()
         item.mousePressEvent = lambda e, t=tvk, s=sci_name: self._select_species(t, s)
         return item
 
-    def _select_species(self, tvk, sci_name):
+    def _select_species(self, tvk, sci_name, from_group=None):
+        self._from_group = from_group
         self.results_frame.hide()
         self._debounce.stop()
         self.search_input.blockSignals(True)
@@ -227,6 +227,23 @@ class SpeciesTab(QWidget):
     def _show_profile(self, tvk, sci_name):
         self._clear_profile()
 
+        try:   # a genus, family, order...: its species with a status (Wil 10 Oct)
+            from .group_statuses import is_group
+            if is_group(tvk):
+                self._show_group(tvk, sci_name)
+                return
+        except Exception as e:
+            print(f"[Codex SpeciesTab] rank lookup failed: {e}")
+
+        if self._from_group:
+            g_tvk, g_name = self._from_group
+            back = QPushButton(f"\u25c2 Back to {g_name}")
+            back.setCursor(Qt.CursorShape.PointingHandCursor)
+            back.setStyleSheet(f"QPushButton {{ border: none; color: {theme.ACCENT}; "
+                               f"font-size: 12px; text-align: left; padding: 2px 0; }}")
+            back.clicked.connect(lambda: self._select_species(g_tvk, g_name))
+            self.profile_layout.insertWidget(0, back)
+
         try:
             from shared.repositories.codex_repository import CodexRepository
             repo = CodexRepository()
@@ -238,7 +255,7 @@ class SpeciesTab(QWidget):
             self.profile_layout.insertWidget(0, err)
             return
 
-        idx = 0
+        idx = 1 if self._from_group else 0
 
         # ----- Header card -----
         header_card = self._make_header_card(sci_name, summary)
@@ -273,6 +290,91 @@ class SpeciesTab(QWidget):
             )
             self.profile_layout.insertWidget(idx, empty)
             idx += 1
+
+    def _show_group(self, tvk, sci_name):
+        """A taxon above species: its member species (UKSI) holding any Codex status,
+        each with its statuses in short; click one for its own status view."""
+        from shared.repositories.codex_repository import CodexRepository
+        from shared.species_search import get_index
+        from .group_statuses import species_with_status
+        try:
+            repo = CodexRepository()
+            try:
+                found = species_with_status(tvk, repo)
+            finally:
+                repo.close()
+        except Exception as e:
+            err = QLabel(f"Error loading statuses: {e}")
+            err.setStyleSheet("color: red; padding: 12px;")
+            self.profile_layout.insertWidget(0, err)
+            return
+        rows, n = found["rows"], len(found["rows"])
+        idx = get_index()
+        rank = idx.rank[idx.pos[tvk]] if tvk in idx.pos else ""
+
+        card = QFrame()
+        card.setObjectName("headerCard")
+        card.setStyleSheet(f"""
+            QFrame#headerCard {{
+                background-color: {theme.ACCENT_LIGHT};
+                border: none;
+                border-left: 4px solid {theme.ACCENT};
+            }}
+            QFrame#headerCard QLabel {{ border: none; background-color: transparent; }}
+        """)
+        cl = QVBoxLayout(card)
+        cl.setContentsMargins(16, 12, 16, 12)
+        cl.setSpacing(4)
+        self.group_header = QLabel(
+            f"<i>{sci_name}</i> \u2014 {n:,} species with a conservation status")
+        self.group_header.setStyleSheet(
+            f"color: {theme.ACCENT_DARK}; font-size: 20px; font-weight: 700;")
+        cl.addWidget(self.group_header)
+        sub = QLabel(f"{rank + ': ' if rank else ''}{found['members']:,} species and "
+                     f"subspecies under it in UKSI. Click one to see its statuses.")
+        sub.setStyleSheet(f"color: {theme.TEXT_SECONDARY}; font-size: 12px;")
+        cl.addWidget(sub)
+        self.profile_layout.insertWidget(0, card)
+
+        if not rows:
+            empty = QLabel(f"No species under {sci_name} holds a conservation status in Codex.")
+            empty.setStyleSheet(f"color: {theme.TEXT_SECONDARY}; padding: 16px; "
+                                f"font-style: italic; font-size: 13px;")
+            self.profile_layout.insertWidget(1, empty)
+            return
+
+        table = QTableWidget(n, 2)
+        table.setHorizontalHeaderLabels(["Species", "Statuses"])
+        table.verticalHeader().setVisible(False)
+        table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        table.setShowGrid(False)
+        table.setAlternatingRowColors(True)
+        table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        table.setStyleSheet(f"""
+            QTableWidget {{ background-color: {theme.SURFACE};
+                            alternate-background-color: {theme.SURFACE_ALT};
+                            border: 1px solid {theme.BORDER}; color: {theme.TEXT_PRIMARY}; }}
+            QTableWidget::item:hover {{ background-color: {theme.ACCENT_LIGHT}; }}
+        """)
+        table.viewport().setCursor(Qt.CursorShape.PointingHandCursor)
+        for i, (t, name, r_rank, codes, note) in enumerate(rows):
+            label = name if r_rank == "Species" else f"{name} ({r_rank.lower()})"
+            it = QTableWidgetItem(label)
+            it.setData(Qt.ItemDataRole.UserRole, (t, name))
+            f = it.font()
+            f.setItalic(True)
+            it.setFont(f)
+            table.setItem(i, 0, it)
+            table.setItem(i, 1, QTableWidgetItem(
+                ", ".join(codes) + (f"  ({note})" if note else "")))
+        table.setMinimumHeight(min(600, 32 + 26 * n))
+        table.cellClicked.connect(
+            lambda row, col, _t=table, g=(tvk, sci_name): self._select_species(
+                *_t.item(row, 0).data(Qt.ItemDataRole.UserRole), from_group=g))
+        self.group_table = table
+        self.profile_layout.insertWidget(1, table, 1)
 
     # ----------------------------------------------------------
     # Helpers: header card, profile card, track card

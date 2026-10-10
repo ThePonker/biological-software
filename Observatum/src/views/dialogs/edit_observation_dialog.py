@@ -22,8 +22,11 @@ class EditObservationDialog(QDialog):
     """Modal dialog for editing a local observation."""
 
     def __init__(self, parent=None, uksi_model=None, vc_service=None,
-                 observation: Dict[str, Any] = None, db=None):
+                 observation: Dict[str, Any] = None, db=None,
+                 require_date_and_grid: bool = True):
         super().__init__(parent)
+        # False for scheme records, many of which have no date or grid ref (OBS-04)
+        self._require_date_and_grid = require_date_and_grid
         self._uksi_model = uksi_model
         self._vc_service = vc_service
         self._observation = observation or {}
@@ -270,11 +273,11 @@ class EditObservationDialog(QDialog):
                 "Please select a species from the search results.")
             self.species_search.search_input.setFocus()
             return
-        if not self.date_edit.text().strip():
+        if self._require_date_and_grid and not self.date_edit.text().strip():
             QMessageBox.warning(self, "Missing Date", "Please enter a date.")
             self.date_edit.setFocus()
             return
-        if not self.gridref_edit.text().strip():
+        if self._require_date_and_grid and not self.gridref_edit.text().strip():
             QMessageBox.warning(self, "Missing Grid Ref", "Please enter a grid reference.")
             self.gridref_edit.setFocus()
             return

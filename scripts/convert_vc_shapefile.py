@@ -40,12 +40,17 @@ OUT_PATH = PROJECT_ROOT / "data" / "maps" / "vc_brc_wgs84.geojson"
 SIMPLIFY_KEEP_EVERY = 5
 
 
+# Rings with this many points or fewer are kept whole: thinning a small island to every 5th
+# point turned it into a triangle (VC1's Scilly islets, 10 Oct 2026).
+KEEP_WHOLE_BELOW = 50
+
+
 def simplify_coords(coords, keep_every):
     """
     Reduce vertex count by keeping every Nth point.
     Always keeps first and last point to close polygons.
     """
-    if len(coords) <= 10:
+    if len(coords) <= KEEP_WHOLE_BELOW:
         return coords
     simplified = [coords[0]]
     for i in range(1, len(coords) - 1):
@@ -53,6 +58,50 @@ def simplify_coords(coords, keep_every):
             simplified.append(coords[i])
     simplified.append(coords[-1])
     return simplified
+
+
+def _signed_area(ring):
+    a = 0.0
+    for (x1, y1), (x2, y2) in zip(ring, ring[1:] + ring[:1]):
+        a += x1 * y2 - x2 * y1
+    return a / 2.0
+
+
+def _inside(pt, ring):
+    """Point-in-polygon (ray casting)."""
+    x, y = pt
+    c = False
+    j = len(ring) - 1
+    for i in range(len(ring)):
+        xi, yi = ring[i]
+        xj, yj = ring[j]
+        if (yi > y) != (yj > y) and x < (xj - xi) * (y - yi) / (yj - yi) + xi:
+            c = not c
+        j = i
+    return c
+
+
+def ring_points_list(shape):
+    """The shape's rings in OSGB metres, in file order."""
+    parts = list(shape.parts) + [len(shape.points)]
+    return [shape.points[parts[p]:parts[p + 1]] for p in range(len(parts) - 1)]
+
+
+def multipolygon(osgb_rings, out_rings):
+    """MultiPolygon: each clockwise (outer) ring with the anticlockwise rings (holes) inside
+    it. Orientation and containment are judged on the OSGB rings; out_rings are the
+    converted rings in the same order."""
+    outers = [i for i, r in enumerate(osgb_rings) if _signed_area(r) < 0]
+    if not outers:                       # no clockwise ring: treat them all as outer rings
+        outers = list(range(len(osgb_rings)))
+    polys = {i: [out_rings[i]] for i in outers}
+    for i, r in enumerate(osgb_rings):
+        if i in polys:
+            continue
+        home = next((o for o in outers if _inside(r[0], osgb_rings[o])), None)
+        if home is not None:
+            polys[home].append(out_rings[i])
+    return {"type": "MultiPolygon", "coordinates": [polys[i] for i in outers]}
 
 
 def transform_ring(ring, transformer, keep_every):
@@ -110,11 +159,11 @@ def main():
                 )
                 rings.append(transformed_ring)
 
-            if len(rings) == 1:
-                geometry = {"type": "Polygon", "coordinates": rings}
-            else:
-                # Multiple rings — could be holes or multipart
-                geometry = {"type": "Polygon", "coordinates": rings}
+            # Shapefile rule: outer rings run clockwise, holes anticlockwise. Until 10 Oct
+            # 2026 every part went into ONE Polygon, which readers take as one outer ring
+            # plus holes -- so islands (and the mainland of 40 VCs) were lost. Now each outer
+            # ring is its own polygon, with the holes that lie inside it.
+            geometry = multipolygon(ring_points_list(shape), rings)
         else:
             print(f"  WARNING: Skipping non-polygon shape type {shape.shapeType} at record {i}")
             continue
@@ -134,7 +183,11 @@ def main():
         "features": features,
     }
 
-    # Write output
+    # Write output (an existing file is kept, renamed, never deleted)
+    if OUT_PATH.exists():
+        kept = OUT_PATH.with_name(f"vc_brc_wgs84_before_{time.strftime('%Y%m%d_%H%M%S')}.geojson")
+        OUT_PATH.rename(kept)
+        print(f"\nPrevious file kept as: {kept.name}")
     print(f"\nWriting: {OUT_PATH}")
     with open(OUT_PATH, "w", encoding="utf-8") as f:
         json.dump(geojson, f, separators=(",", ":"))

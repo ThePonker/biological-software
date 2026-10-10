@@ -71,6 +71,7 @@ class QuickEntryForm(QuickEntryFieldsMixin, Card):
             ("Method", self._create_method_field(), 'method'),
             ("Comment", self._create_comment_field(), 'comment'),
             ("Data Type", self._create_record_type_field(), 'record_type'),
+            ("Project", self._create_project_field(), None),
             ("", self._create_never_upload_field(), None),
         ]
         
@@ -200,16 +201,30 @@ class QuickEntryForm(QuickEntryFieldsMixin, Card):
                 "Please correct:\n\n• " + "\n• ".join(errors))
             return
         
-        observation = self._create_observation(form_data)
+        tax = self._taxonomy(form_data.get('species_tvk'))
+        observation = self._create_observation(form_data, tax)
         
         try:
             db = get_database()
             model = ObservationModel(db)
             new_id = model.create(observation)
             
+            if new_id and (tax.get('superfamily') or tax.get('taxonomic_sort_key')):
+                # the two taxonomy columns create() does not write (as Data Entry's commit);
+                # the record is saved either way
+                try:
+                    db.execute_main_write(
+                        "UPDATE observations SET superfamily=?, taxonomic_sort_key=? WHERE id=?",
+                        (tax.get('superfamily'), tax.get('taxonomic_sort_key'), new_id))
+                except Exception as e:
+                    print(f"[QuickEntry] superfamily/sort key not written for {new_id}: {e}")
+
             if new_id:
                 species_name = self._selected_species.get('scientific_name', 'Unknown')
-                self.status_bar.show_success(f"Record saved - {species_name}")
+                note = ""
+                if form_data.get('record_type') == 'Commercial' and not observation.embargo_until:
+                    note = " (no embargo set: the project's records differ or have none)"
+                self.status_bar.show_success(f"Record saved - {species_name}{note}")
                 
                 tvk = self._selected_species.get('tvk')
                 if tvk:
@@ -244,6 +259,7 @@ class QuickEntryForm(QuickEntryFieldsMixin, Card):
             'method': self.method_combo.currentText() or None,
             'comment': self.comment_edit.text().strip() or None,
             'record_type': self.record_type_combo.currentText(),
+            'project': self.project_combo.currentData() if self.project_combo.isEnabled() else None,
             'never_upload_to_irecord': 1 if self.never_upload_check.isChecked() else 0,
         }
     
@@ -263,11 +279,32 @@ class QuickEntryForm(QuickEntryFieldsMixin, Card):
             errors.append("Recorder is required")
         if not data.get('determiner'):
             errors.append("Determiner is required")
+        if data.get('record_type') == 'Commercial' and not data.get('project'):
+            # A Commercial record with no project reached no report or embargo (OBS-16)
+            errors.append("A Commercial record needs its project (new projects are "
+                          "started in Data Entry)")
         
         return errors
     
-    def _create_observation(self, data: Dict[str, Any]) -> Observation:
+    @staticmethod
+    def _taxonomy(tvk) -> Dict[str, Any]:
+        """Kingdom, rank, taxon group, superfamily and sort key of the TVK from UKSI
+        (shared/taxon_groups.py). Quick Entry saved none of them until 10 Oct 2026 (OBS-16);
+        {} if UKSI can't be read -- the record still saves, the group then comes from its
+        order and family, and scripts/backfill_taxon_groups.py fills the rest later."""
+        if not tvk:
+            return {}
+        try:
+            from shared.taxon_groups import taxonomy_for_tvks
+            return taxonomy_for_tvks([tvk]).get(tvk) or {}
+        except Exception as e:
+            print(f"[QuickEntry] taxonomy lookup failed: {e}")
+            return {}
+
+    def _create_observation(self, data: Dict[str, Any], tax: Optional[Dict[str, Any]] = None) -> Observation:
         """Create observation object."""
+        from shared.taxon_groups import taxon_group
+        tax = tax or {}
         grid_precision = None
         vice_county = None
         vc_number = None
@@ -280,20 +317,20 @@ class QuickEntryForm(QuickEntryFieldsMixin, Card):
                 vice_county = vc_info.get('name')
                 vc_number = vc_info.get('number')
         
-        comment_parts = []
-        if data.get('comment'):
-            comment_parts.append(data['comment'])
-        if data.get('certainty'):
-            comment_parts.append(f"Certainty: {data['certainty']}")
-        
-        combined_comment = "; ".join(comment_parts) if comment_parts else None
-        
+        # Certainty has its own column (recorder_certainty); it used to be appended
+        # to the comment as "Certainty: ..." (OBS-16)
+        project = data.get('project') if data.get('record_type') == 'Commercial' else None
+        project = project or {}
+
         return Observation(
             species_name=data['species_name'],
             species_tvk=data['species_tvk'],
             common_name=data['common_name'],
             order_name=data.get('order_name'),
             family=data.get('family'),
+            kingdom=tax.get('kingdom'),
+            taxon_group=tax.get('taxon_group') or taxon_group(data.get('order_name'), data.get('family')),
+            taxon_rank=tax.get('taxon_rank'),
             date=data['date'],
             date_type='D',
             grid_ref=data['grid_ref'] or None,
@@ -307,9 +344,14 @@ class QuickEntryForm(QuickEntryFieldsMixin, Card):
             stage=data['stage'] if data['stage'] else None,
             quantity=data['quantity'],
             method=data['method'] if data.get('method') else None,
-            comment=combined_comment,
+            comment=data.get('comment') or None,
+            recorder_certainty=data.get('certainty') or None,
             verification_status='Pending',
             record_type=data.get('record_type', 'Personal'),
+            project_name=project.get('project'),
+            client=project.get('client') or None,
+            embargo_status=project.get('embargo_status'),
+            embargo_until=project.get('embargo_until'),
             never_upload_to_irecord=data.get('never_upload_to_irecord', 0),
         )
     

@@ -8,13 +8,14 @@ family list with draggable dividers, and allocation summary.
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QComboBox, QFrame, QSplitter, QScrollArea, QSpinBox, QFileDialog,
+    QMessageBox,
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont
 
 from .planner_data import (
     load_orders, load_families, allocate_to_boxes,
-    ProfileManager, BoxAllocation, calculate_family_rows,
+    ProfileManager, BoxAllocation, calculate_family_rows, config_problems,
 )
 from .planner_preview import BoxPreviewPanel
 from .planner_family_list import FamilyListPanel
@@ -56,6 +57,7 @@ class BoxLayoutView(QWidget):
         self._break_indices = []
         self._setup_ui()
         self._populate_orders()
+        self.show_problems()
 
     def _setup_ui(self):
         main_layout = QHBoxLayout(self)
@@ -70,6 +72,12 @@ class BoxLayoutView(QWidget):
         ll = QVBoxLayout(left)
         ll.setContentsMargins(12, 12, 12, 12)
         ll.setSpacing(10)
+
+        # Missing or unreadable config files, said on screen (CUR-3)
+        self.problem_label = QLabel("")
+        self.problem_label.setWordWrap(True)
+        self.problem_label.setStyleSheet("color: #a63d40; font-size: 11px;")
+        ll.addWidget(self.problem_label)
 
         ll.addWidget(QLabel("Order"))
         self.order_combo = QComboBox()
@@ -153,6 +161,11 @@ class BoxLayoutView(QWidget):
         splitter.setStretchFactor(1, 1)
         main_layout.addWidget(splitter)
 
+    def show_problems(self):
+        problems = config_problems()
+        self.problem_label.setText("\n".join("\u26a0 " + p for p in problems))
+        self.problem_label.setVisible(bool(problems))
+
     def _populate_orders(self):
         orders = load_orders()
         self.order_combo.blockSignals(True)
@@ -183,11 +196,14 @@ class BoxLayoutView(QWidget):
         self._update_all()
 
     def _compute_break_indices(self):
+        # A family split across boxes (CUR-1) is one family in the list: its
+        # later parts do not advance the index, and a box holding only a later
+        # part adds no divider.
         breaks = [0]
         idx = 0
         for box in self._boxes:
-            idx += len(box.families)
-            if idx < len(self._families):
+            idx += sum(1 for f in box.families if getattr(f, "part", 0) <= 1)
+            if idx < len(self._families) and idx not in breaks:
                 breaks.append(idx)
         return breaks
 
@@ -247,11 +263,21 @@ class BoxLayoutView(QWidget):
 
     def _export_pdf(self):
         if not self._boxes:
+            problem = getattr(self._profile_mgr, "problem", "")
+            QMessageBox.information(self, "Export PDF",
+                                    "There is no layout to export"
+                                    + (": " + problem if problem else "."))
             return
         path, _ = QFileDialog.getSaveFileName(
             self, "Export PDF", "collection_layout.pdf", "PDF Files (*.pdf)")
-        if path:
-            from .planner_export import export_layout_pdf
-            box_key = self.box_combo.currentData()
-            growth = self.growth_spin.value()
+        if not path:
+            return
+        from .planner_export import export_layout_pdf
+        box_key = self.box_combo.currentData()
+        growth = self.growth_spin.value()
+        try:
             export_layout_pdf(path, self._boxes, self._profile_mgr, box_key, growth)
+        except Exception as e:  # noqa: BLE001 -- shown, not printed to a console (CUR-3)
+            QMessageBox.warning(self, "Export failed", f"The PDF could not be written.\n\n{e}")
+            return
+        QMessageBox.information(self, "PDF exported", f"Written to:\n{path}")

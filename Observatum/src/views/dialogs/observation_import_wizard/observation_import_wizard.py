@@ -485,8 +485,6 @@ class ObservationImportWizard(
             self.stack.setCurrentIndex(4)
         
         elif current == 4:  # Confirmation -> Import
-            # Capture checkbox state before page change (widget becomes invisible)
-            self._include_errors_at_import = self.include_errors_checkbox.isChecked() if hasattr(self, "include_errors_checkbox") else False
             self.stack.setCurrentIndex(5)
             # Auto-start import
             self._do_import()
@@ -538,8 +536,7 @@ class ObservationImportWizard(
         
         # Next button text and state
         if current == 4:
-            valid_count = sum(1 for r in self.validated_rows if r.status != RowStatus.ERROR
-                              and not self._skips_duplicate(r, import_mode))
+            valid_count = sum(1 for r in self.validated_rows if self._will_import(r, import_mode))
             skip_count = len(self.validated_rows) - valid_count
             if skip_count > 0:
                 self.next_btn.setText(f"Import {valid_count} Records ({skip_count} skipped)")

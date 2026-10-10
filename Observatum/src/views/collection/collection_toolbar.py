@@ -69,7 +69,9 @@ class CollectionToolbar(QFrame):
         self.clear_filters_btn = QPushButton("Clear Filters")
         self.clear_filters_btn.setStyleSheet(get_clear_button_style())
         self.clear_filters_btn.clicked.connect(self.clear_filters_requested.emit)
-        layout.addWidget(self.clear_filters_btn)
+        # Not shown (Wil, 10 Oct 2026): the filter bar's Clear All, beside Species, does the
+        # same (bar + wizard + saved choice, one reload). Kept as an object for the signal.
+        self.clear_filters_btn.setVisible(False)
 
         # Add specimen button (Moss Green - primary action, left side)
         self.add_btn = QPushButton("+ Add Specimen")
@@ -268,7 +270,8 @@ class CollectionToolbar(QFrame):
     
     def set_counts(self, species_count: int, specimen_count: int):
         """Set the counts display."""
-        self.count_label.setText(f"{species_count} species • {specimen_count} specimens")
+        from ...utils.text import counted
+        self.count_label.setText(f"{counted(species_count, 'species', 'species')} • {counted(specimen_count, 'specimen')}")
     
     def set_selected_count(self, count: int):
         """Update the selection count display."""

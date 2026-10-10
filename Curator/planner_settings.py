@@ -38,8 +38,10 @@ def load_settings() -> dict:
             with open(SETTINGS_PATH, "r", encoding="utf-8") as f:
                 saved = json.load(f)
             settings.update(saved)
-        except Exception:
-            pass
+        except Exception as e:  # noqa: BLE001 -- defaults, but say so (CUR-3)
+            from .planner_data import note_config_problem
+            note_config_problem(f"{SETTINGS_PATH.name} could not be read ({e}): "
+                                "default settings used.")
     return settings
 
 
@@ -148,7 +150,13 @@ class SettingsDialog(QDialog):
         self._settings["show_my_specimens"] = self.show_my_specimens_cb.isChecked()
         self._settings["show_my_species"] = self.show_my_species_cb.isChecked()
         self._settings["show_fauna"] = self.show_fauna_cb.isChecked()
-        save_settings(self._settings)
+        try:
+            save_settings(self._settings)
+        except OSError as e:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Curator Settings",
+                                f"The settings could not be saved.\n\n{e}")
+            return
         self.accept()
 
     def get_settings(self) -> dict:

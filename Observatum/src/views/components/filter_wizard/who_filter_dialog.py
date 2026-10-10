@@ -20,6 +20,7 @@ from ....core.config import ButtonColors
 
 from .chip_display import FilterChip  # I9: one copy
 from .fuzzy import picking_from_popup, FuzzyCompleter
+from .chip_values import typed_chip
 
 
 class WhoFilterDialog(QDialog):
@@ -29,23 +30,24 @@ class WhoFilterDialog(QDialog):
         self,
         accent_color: str = None,
         current_values: Dict[str, Any] = None,
-        recorder_list: List[str] = None,  # Kept for compatibility but not used
-        determiner_list: List[str] = None,  # Kept for compatibility but not used
+        recorder_list: List[str] = None,
+        determiner_list: List[str] = None,
         parent=None
     ):
         super().__init__(parent)
         self._accent_color = accent_color or "#5f8575"
         self._current = current_values or {}
         
-        self._recorder_list: List[str] = []
-        self._determiner_list: List[str] = []
+        # The people in this tab's own records, from the wizard (SRCH12; for the
+        # collection "recorder" is the collector). The dialog used to read Observations
+        # itself, read-write, on every tab (SRCH20).
+        self._recorder_list: List[str] = list(recorder_list or [])
+        self._determiner_list: List[str] = list(determiner_list or [])
         
         self._chips: Dict[str, List[FilterChip]] = {}
         
         # Flag to prevent double handling of Enter
         self._handling_selection = False
-        
-        self._load_user_people()
         
         self.setWindowTitle("Filter by Who")
         self.setMinimumWidth(500)
@@ -54,39 +56,6 @@ class WhoFilterDialog(QDialog):
         
         self._setup_ui()
         self._load_current_values()
-    
-    def _load_user_people(self):
-        """Load recorder/determiner data from user's observations."""
-        try:
-            from ....core.config import Paths
-            import sqlite3
-            
-            db_path = Paths.default_main_db()
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
-            
-            # Recorders
-            cursor.execute("""
-                SELECT DISTINCT recorder 
-                FROM observations 
-                WHERE recorder IS NOT NULL AND recorder != ''
-                ORDER BY recorder
-            """)
-            self._recorder_list = [row[0] for row in cursor.fetchall()]
-            
-            # Determiners
-            cursor.execute("""
-                SELECT DISTINCT determiner 
-                FROM observations 
-                WHERE determiner IS NOT NULL AND determiner != ''
-                ORDER BY determiner
-            """)
-            self._determiner_list = [row[0] for row in cursor.fetchall()]
-            
-            conn.close()
-            print(f"[WhoFilterDialog] Loaded {len(self._recorder_list)} recorders, {len(self._determiner_list)} determiners")
-        except Exception as e:
-            print(f"[WhoFilterDialog] Error loading people: {e}")
     
     def _setup_ui(self):
         """Set up the dialog UI."""
@@ -373,8 +342,10 @@ class WhoFilterDialog(QDialog):
             value = f"~{text}"
             display = f"{prefix}: *{text}*"
         else:
-            value = text
-            display = f"{prefix}: {text}"
+            # Exact if the text is one of the names, else contains (SRCH13)
+            offered = self._recorder_list if category == "recorder" else self._determiner_list
+            value, label = typed_chip(text, offered)
+            display = f"{prefix}: {label}"
         
         self._add_chip(category, value, display)
         input_widget.clear()
@@ -449,8 +420,9 @@ class WhoFilterDialog(QDialog):
         if not text:
             return
         
-        display = f"{prefix}: {text}"
-        self._add_chip(category, text, display)
+        offered = self._recorder_list if category == "recorder" else self._determiner_list
+        value, label = typed_chip(text, offered)      # SRCH13
+        self._add_chip(category, value, f"{prefix}: {label}")
         input_widget.clear()
     
     def _add_chip(self, category: str, value: str, display_text: str):

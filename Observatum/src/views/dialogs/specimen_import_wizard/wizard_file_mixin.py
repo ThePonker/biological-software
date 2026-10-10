@@ -17,6 +17,25 @@ from ..import_common.problem_export import ProblemExportMixin
 from ....themes import theme
 
 
+# '=x': the whole heading only. Sex added (IMP-7).
+SPECIMEN_COLUMN_PATTERNS = {
+    'species_name': ['scientific name', 'species', 'species name', 'taxon', 'taxon name', '=name'],
+    'date_collected': ['date collected', 'collection date', 'date', 'collected'],
+    'grid_ref': ['grid ref', 'grid reference', 'gridref', 'grid', '=gr', 'osgr'],
+    'site_name': ['site name', 'site', 'location', 'locality'],
+    'collector': ['collector', 'collected by', '=col', '=coll', 'leg'],
+    'determiner': ['determiner', 'determined by', 'identifier', 'identified by', '=det'],
+    'sex': ['sex', 'gender'],
+    'specimen_code': ['specimen code', 'specimen id', 'code', 'catalog', 'catalogue number', '=id'],
+    'preparation_type': ['preparation', 'prep type', 'prep', 'mount', 'mounting'],
+    'storage_location': ['storage location', 'storage', 'cabinet', 'box'],
+    'drawer_number': ['drawer', 'drawer number', 'unit', 'tray'],
+    'condition': ['condition', 'state'],
+    'label_data': ['label data', 'label', 'labels'],
+    'notes': ['notes', 'remarks', 'comments'],
+}
+
+
 class WizardFileMixin(ProblemExportMixin):
     """Mixin providing file handling methods for SpecimenImportWizard."""
 
@@ -115,6 +134,7 @@ class WizardFileMixin(ProblemExportMixin):
             ('site_name', 'Site/Location Name', False),
             ('collector', 'Collector', False),
             ('determiner', 'Determiner', False),
+            ('sex', 'Sex', False),
             ('specimen_code', 'Specimen Code', False),
             ('preparation_type', 'Preparation Type', False),
             ('storage_location', 'Storage Location', False),
@@ -124,8 +144,8 @@ class WizardFileMixin(ProblemExportMixin):
             ('notes', 'Notes', False),
         ]
         
-        # Track columns that have already been auto-matched
-        # Track columns that have already been auto-matched
+        # Auto-match once for all fields: whole words, each column once (IMP-11)
+        auto = self._auto_mapping()
         used_columns = set()
 
         # Create mapping rows
@@ -147,7 +167,7 @@ class WizardFileMixin(ProblemExportMixin):
             combo.addItem("-- Not mapped --", "")
             
             # Auto-match columns
-            best_match = self._find_best_column_match(field_id, used_columns)
+            best_match = auto.get(field_id)
             
             for col in self.columns:
                 # Skip columns already matched to OTHER fields
@@ -182,39 +202,20 @@ class WizardFileMixin(ProblemExportMixin):
         
         self.mapping_layout.addStretch()
     
-    def _find_best_column_match(self, field_id: str, used_columns: set = None) -> Optional[str]:
-        """Try to auto-match a database field to a file column."""
-        patterns = {
-            'species_name': ['scientific name', 'species', 'taxon', 'name'],
-            'date_collected': ['date', 'date collected', 'collection date'],
-            'grid_ref': ['grid ref', 'grid reference', 'gridref', 'gr'],
-            'site_name': ['location', 'site', 'site name', 'locality'],
-            'collector': ['collector', 'col', 'collected by', 'coll'],
-            'determiner': ['determiner', 'det', 'determined by', 'identifier'],
-            'specimen_code': ['specimen code', 'code', 'specimen id', 'id', 'catalog'],
-            'preparation_type': ['prep', 'preparation', 'prep type', 'mount', 'mounting'],
-            'storage_location': ['storage', 'cabinet', 'box', 'storage location'],
-            'drawer_number': ['drawer', 'unit', 'tray'],
-            'condition': ['condition', 'state'],
-            'label_data': ['label', 'labels', 'label data'],
-            'notes': ['notes', 'remarks', 'comments'],
-        }
+    def _auto_mapping(self) -> Dict[str, str]:
+        """{field: column} matched by whole words, each column once (IMP-11, 10 Oct 2026).
 
-        if used_columns is None:
-            used_columns = set()
-        
-        search_patterns = patterns.get(field_id, [])
-        
-        for col in self.columns:
-            if col in used_columns:
-                continue  # Skip columns already matched
-            col_lower = col.lower().strip()
-            for pattern in search_patterns:
-                if pattern in col_lower or col_lower in pattern:
-                    return col
-        
-        return None
-    
+        Substrings used to match: 'name' made 'Site name' the species column, 'col' and
+        'gr' matched inside other headings, and a short heading matched any longer pattern
+        containing it ('id' in 'identifier')."""
+        from shared.import_core import auto_map_columns
+        return auto_map_columns(self.columns, SPECIMEN_COLUMN_PATTERNS)
+
+    def _find_best_column_match(self, field_id: str, used_columns: set = None) -> Optional[str]:
+        """The column auto-matched to a field (kept for callers of the old name)."""
+        col = self._auto_mapping().get(field_id)
+        return None if used_columns and col in used_columns else col
+
     def _get_column_mapping(self) -> Dict[str, str]:
         """Get the current column mapping from combos."""
         mapping = {}

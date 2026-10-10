@@ -20,7 +20,8 @@ from ....core.config import ButtonColors
 
 
 from .chip_display import FilterChip  # I9: one copy
-from .fuzzy import picking_from_popup, FuzzyCompleter
+from .fuzzy import picking_from_popup, FuzzyCompleter, SpeciesCompleter
+from .chip_values import typed_chip, chip_label
 
 
 class WhatFilterDialog(QDialog):
@@ -35,6 +36,7 @@ class WhatFilterDialog(QDialog):
         family_list: List[str] = None,
         taxon_family_map: Dict[str, List[str]] = None,
         search_service=None,
+        group_list: List[str] = None,
         parent=None
     ):
         super().__init__(parent)
@@ -45,7 +47,11 @@ class WhatFilterDialog(QDialog):
         self._species_display_list: List[str] = []
         self._species_map: Dict[str, str] = {}  # display_text -> scientific_name
         
-        self._order_list = taxon_groups or []
+        self._order_list = taxon_groups or []     # orders, under the key 'taxon_group'
+        # Real taxon groups (shared/taxon_groups.py display labels), key 'group' -- shown only
+        # when the tab passes them, i.e. applies them (10 Oct 2026, SRCH14)
+        self._group_list = group_list or []
+        self._group_input = None
         self._family_list = family_list or []
         self._species_param = species_list
 
@@ -77,8 +83,9 @@ class WhatFilterDialog(QDialog):
             from ....core.config import Paths
             import sqlite3
             
+            # Fallback only: the wizard passes the tab's own lists. Read-only (SRCH20).
             db_path = Paths.default_main_db()
-            conn = sqlite3.connect(db_path)
+            conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
             cursor = conn.cursor()
             
             # Orders
@@ -165,6 +172,14 @@ class WhatFilterDialog(QDialog):
         species_section = self._create_species_section()
         layout.addWidget(species_section)
         
+        # TAXON GROUP (only where the tab filters by it)
+        if self._group_list:
+            group_section = self._create_text_section(
+                "Taxon group", "Search groups (e.g., 'beetle' or 'spider')...",
+                self._group_list, "group", "Group")
+            self._group_input = group_section['input']
+            layout.addWidget(group_section['widget'])
+
         # ORDER
         order_section = self._create_text_section("Order", "Search orders (e.g., 'dip' or 'col')...", self._order_list, "taxon_group", "Order")
         self._order_input = order_section['input']
@@ -333,7 +348,8 @@ class WhatFilterDialog(QDialog):
         """)
         
         if self._species_display_list:
-            completer = FuzzyCompleter(self._species_display_list, self._species_input)
+            completer = SpeciesCompleter(self._species_display_list, self._species_input,
+                                         names=self._species_map)
             self._species_input.setCompleter(completer)
             completer.activated.connect(self._on_species_completer_activated)
         
@@ -422,7 +438,10 @@ class WhatFilterDialog(QDialog):
             return
         text = input_widget.text().strip()
         if text:
-            self._add_chip(category, text, f"{prefix}: {text}")
+            # SRCH13: typed text is the list's value if it is one, else a contains-match
+            offered = self._order_list if category == "taxon_group" else self._family_list
+            value, label = typed_chip(text, offered)
+            self._add_chip(category, value, f"{prefix}: {label}")
             input_widget.clear()
     
     def _add_chip(self, category: str, value: str, display_text: str):
@@ -472,6 +491,8 @@ class WhatFilterDialog(QDialog):
         """Clear everything."""
         self._clear_all_chips()
         self._species_input.clear()
+        if self._group_input is not None:
+            self._group_input.clear()
         self._order_input.clear()
         self._family_input.clear()
     
@@ -499,11 +520,14 @@ class WhatFilterDialog(QDialog):
                     break
             self._add_chip("species", sp, f"Species: {display}")
         
+        for group in self._current.get('group', []):
+            self._add_chip("group", group, f"Group: {group}")
+
         for order in self._current.get('taxon_group', []):
-            self._add_chip("taxon_group", order, f"Order: {order}")
+            self._add_chip("taxon_group", order, f"Order: {chip_label(order)}")
         
         for fam in self._current.get('family', []):
-            self._add_chip("family", fam, f"Family: {fam}")
+            self._add_chip("family", fam, f"Family: {chip_label(fam)}")
     
     def get_values(self) -> Dict[str, Any]:
         """Get the filter values."""
