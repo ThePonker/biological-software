@@ -16,14 +16,16 @@ SHEET_NAMES = {
     "genus": "Genus only", "family_plus": "Family or higher", "agg": "Aggregates",
     "sl": "Sensu lato", "subsp": "Subspecies, var, form", "hybrid": "Hybrids",
     "no_tvk": "No TVK", "synonym": "Synonyms", "date": "Date", "grid": "Grid ref",
+    "latlon": "Lat-long not grid ref",
 }
 HEADERS = ["Species", "Rank", "Date", "Grid ref", "Site", "Recorder", "Problem",
-           "iRecord ID", "iRecord link", "Observatum ID"]
+           "iRecord ID", "iRecord link", "Observatum ID", "Source"]
 
 
 def _row(r) -> list:
     return [r.species, r.rank, r.date, r.grid_ref, r.site, r.recorder, r.detail,
-            r.irecord_id if r.irecord_id else "", irecord_url(r.irecord_id) or "", r.record_id]
+            r.irecord_id if r.irecord_id else "", irecord_url(r.irecord_id) or "", r.record_id,
+            r.dataset]
 
 
 def summary_rows(report: CleaningReport) -> List[list]:
@@ -36,7 +38,7 @@ def summary_rows(report: CleaningReport) -> List[list]:
     counts = report.counts
     out += [[label, counts[k]] for k, label in PROBLEMS]
     out += [[], ["A record with several problems is on each of their sheets."],
-            ["iRecord link pattern (to be confirmed)", IRECORD_URL.format(id="<iRecord ID>")]]
+            ["iRecord link pattern", IRECORD_URL.format(id="<iRecord ID>")]]
     return out
 
 
@@ -60,7 +62,7 @@ def export_xlsx(report: CleaningReport, path: str) -> str:
         for r in report.rows.get(k, []):
             sh.append(_row(r))
         sh.freeze_panes = "A2"
-        for col, width in zip("ABCDEFGHIJ", (34, 18, 12, 14, 30, 24, 40, 12, 52, 12)):
+        for col, width in zip("ABCDEFGHIJK", (34, 18, 12, 14, 30, 24, 40, 12, 52, 12, 40)):
             sh.column_dimensions[col].width = width
     wb.save(path)
     wb.close()

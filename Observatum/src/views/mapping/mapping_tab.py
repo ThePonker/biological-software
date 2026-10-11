@@ -30,6 +30,10 @@ cleared when the map is made again and never printed (L13/L31); the atlas page c
 full extent or the current view (L14/L32); one Clear all (L33); 2 km tetrad grid refs held
 back unless "Include 2 km (tetrad) grid refs" is ticked (decision 10); the subtitle and PNG
 say when embargoed records are included (decision 13).
+
+Round 3 (11 Oct): a reversed date range stops the map at once and the old map is taken off,
+so it is never mistaken for the new one (R9-4); VC labels with a switch, and the selected VC
+outlined (R9-5); the atlas footer counts what is in view on a "Current view" page (R9-6).
 """
 
 import time
@@ -168,6 +172,7 @@ class MappingTab(AtlasExportMixin, QWidget):
 
         self.display_bar.style_changed.connect(self._restyle)
         self.display_bar.period_changed.connect(self._on_period_changed)
+        self.display_bar.attach_map(self.map_widget)   # VC labels / boundaries / districts
 
         self.map_widget.square_clicked.connect(self._on_grid_clicked)
 
@@ -223,7 +228,10 @@ class MappingTab(AtlasExportMixin, QWidget):
         """Generate/refresh the map with current settings."""
         filters, error = self.filter_panel.filters()
         if filters is None:                         # MAP3: say so rather than ignore it
-            self.map_widget.set_message(error)
+            self._clear_map()                       # R9-4: no old map left as if it were new
+            self.map_header.set_selection(self.filter_panel.selection())
+            self.filter_panel.set_chip_counts(None)
+            self.map_widget.set_message(f"Map not made. {error}")
             return
         sources = self._source()
         if not sources:
@@ -306,6 +314,7 @@ class MappingTab(AtlasExportMixin, QWidget):
         """A vice-county chosen in the filters: show it (County view, zoomed to it) and map
         its records; "All vice-counties" goes back to National view. The VC stays a filter."""
         vc = self.filter_panel.vc_combo.currentData()
+        self.map_widget.set_outlined_vc(vc)      # R9-5: the chosen VC's border; none for "All"
         view = "county" if vc else "national"
         if self.toolbar.get_view() != view:
             self.toolbar.set_view(view)          # -> _on_view_changed zooms
@@ -348,6 +357,7 @@ class MappingTab(AtlasExportMixin, QWidget):
         if self.toolbar.get_view() != "national":
             self.toolbar.set_view("national")      # -> fit_to_gb
         self._clear_map()
+        self.map_widget.set_outlined_vc(None)      # the VC box went back to "All" (no signal)
         self._initial_update()
 
     def _on_filters_toggled(self, visible: bool):

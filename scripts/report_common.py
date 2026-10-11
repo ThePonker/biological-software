@@ -9,7 +9,6 @@ other check scripts write theirs), named <report>_<YYYYMMDD>.csv unless --csv is
 """
 import csv
 import os
-import re
 import sqlite3
 import sys
 from datetime import datetime
@@ -46,43 +45,10 @@ def write_csv(path: str, header, rows) -> int:
     return n
 
 
-def blank(v) -> bool:
-    return v is None or (isinstance(v, str) and not v.strip())
-
-
-def norm_ref(ref) -> str:
-    """A grid reference as compared: upper case, no spaces (Mapping's MAP2 rule)."""
-    return "" if ref is None else str(ref).upper().replace(" ", "")
-
-
-def norm_text(v) -> str:
-    """Case, spacing and punctuation folded: 'Heeney, W.J.' == 'heeney  w j'."""
-    return " ".join(re.sub(r"[^\w]+", " ", str(v or "")).casefold().split())
-
-
-# words that are not a person: titles, fillers, and the methods that ended up in some
-# observations' recorder column ('Collected', 'Net', 'Field sighting', 'Swept')
-_NOT_NAMES = {"unknown", "anon", "anonymous", "and", "the", "per", "via", "mr", "mrs", "ms",
-              "dr", "miss", "prof", "collected", "collection", "net", "netted", "swept",
-              "sweep", "sweeping", "beaten", "beating", "field", "sighting", "trap", "trapped",
-              "pitfall", "light", "malaise", "reared", "specimen", "searched"}
-
-
-def name_words(v) -> set:
-    """The words of a recorder / collector field that could be a surname (3+ letters)."""
-    return {w for w in norm_text(v).split() if len(w) >= 3 and w.isalpha()
-            and w not in _NOT_NAMES}
-
-
-def comparable_people(a, b) -> bool:
-    """Both fields name somebody (not blank, not just a method word like 'Collected')."""
-    return bool(name_words(a)) and bool(name_words(b))
-
-
-def same_person(a, b) -> bool:
-    """True when two recorder / collector fields share a surname-like word: 'Heeney, W.J.',
-    'Wil Heeney' and 'Heeney, Wil. Lamin, John' all agree; 'Collected' agrees with nobody."""
-    return bool(name_words(a) & name_words(b))
+# The comparison rules live in shared/record_match.py (the Edit Specimen dialog uses them
+# too); re-exported here so the report scripts keep calling rc.blank, rc.same_person, ...
+from shared.record_match import (  # noqa: E402,F401
+    blank, comparable_people, name_words, norm_ref, norm_text, same_person)
 
 
 def backup(db_path, what: str, backup_dir=BACKUP_DIR) -> str:

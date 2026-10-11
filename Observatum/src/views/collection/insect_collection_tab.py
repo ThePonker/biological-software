@@ -20,6 +20,7 @@ from .ic_sidebar_mixin import ICSidebarMixin
 from .ic_data_mixin import ICDataMixin
 from .ic_export_mixin import ICExportMixin
 from ..dialogs import AddSpecimenDialog, SpecimenImportWizard
+from ..components.hscroll_strip import HScrollStrip
 from ...models.database import get_database
 from ...models.specimen import SpecimenModel
 from ...models.uksi import UKSIModel
@@ -72,12 +73,12 @@ class InsectCollectionTab(ICSidebarMixin, ICDataMixin, ICExportMixin, QWidget):
 
         # Toolbar
         self.toolbar = CollectionToolbar()
-        layout.addWidget(self.toolbar)
+        layout.addWidget(HScrollStrip(self.toolbar))   # never forces the window wider (R4)
 
         # Filters — hidden by default
         self.filters = CollectionFilterBar()
         self.filters.setVisible(False)
-        layout.addWidget(self.filters)
+        layout.addWidget(HScrollStrip(self.filters))
 
         # Filter Wizard (hidden by default)
         self.filter_wizard = FilterWizard(

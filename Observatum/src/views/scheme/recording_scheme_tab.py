@@ -19,9 +19,10 @@ from ..components import tick_column
 from .scheme_data_worker import SchemeDataWorker
 from ..dialogs import SchemeRecordDetailDialog  # CHANGED: moved to dialogs folder
 from ..dialogs.scheme_import_wizard import SchemeImportWizard
+from ..components.hscroll_strip import HScrollStrip
 from ...models.database import get_database
 from ...themes import theme
-from ...core.config import TabColors, Settings
+from ...core.config import TabColors, scheme_families
 from ..components.filter_wizard import FilterWizard
 
 
@@ -110,7 +111,7 @@ class RecordingSchemeTab(QWidget):
         
         # View selector row (full width with counts, export, import)
         self.toolbar = SchemeToolbar()
-        layout.addWidget(self.toolbar)
+        layout.addWidget(HScrollStrip(self.toolbar))   # never forces the window wider (R4)
         
         # Filter bar row (full width) - visibility from settings
         self.filter_bar = SchemeFilterBar()
@@ -118,7 +119,7 @@ class RecordingSchemeTab(QWidget):
         from PySide6.QtCore import QSettings
         # Filter bar - always starts hidden, settings applied after show
         self.filter_bar.setVisible(False)
-        layout.addWidget(self.filter_bar)
+        layout.addWidget(HScrollStrip(self.filter_bar))
 
         # Filter Wizard (hidden by default)
         self.filter_wizard = FilterWizard(
@@ -338,6 +339,17 @@ class RecordingSchemeTab(QWidget):
         self._wizard_filters = {}
         self.filter_wizard.clear_filters()
 
+    def show_species(self, species_name: str):
+        """One taxon's records with no other filter left over (Stats > Species lookup,
+        "View N scheme records"): the wizard and filter bar are cleared and the species box
+        set, one load. The box finds the taxon as the lookup does (shared/species_filter, by
+        TVK) and counts as it does, so the numbers agree (R4, 11 Oct)."""
+        self.clear_wizard_filters()
+        self.filter_bar.setVisible(True)
+        if hasattr(self, 'toolbar'):
+            self.toolbar.filter_btn.setChecked(True)
+        self.filter_bar.set_species_filter(species_name)   # filters_changed -> _load_data
+
     def clear_all_filters(self):
         """Toolbar "Clear Filters" and the filter bar's "Clear All" -- one behaviour
         (Wil 10 Oct): the filter bar, the saved-filter choice and the Filter Wizard
@@ -379,11 +391,10 @@ class RecordingSchemeTab(QWidget):
             db_path = str(paths.OBSERVATUM_DB)
 
         # Inject scheme family scope from settings
-        from PySide6.QtCore import QSettings
         filters = dict(filters or {})
-        scheme_fam = QSettings().value(Settings.SCHEME_FAMILIES, "", str).strip()
+        scheme_fam = scheme_families()
         if scheme_fam:
-            filters['_scheme_families'] = [f.strip() for f in scheme_fam.split(',') if f.strip()]
+            filters['_scheme_families'] = scheme_fam
         # The Filter Wizard's filters, on every load until Reset (SRCH9: lost on reload)
         if self._wizard_filters:
             from ...services.filter_builder import build_where
@@ -563,6 +574,30 @@ class RecordingSchemeTab(QWidget):
         self._main_db_path = db_path
         self._preload_started = True
         self._load_data()
+
+    def stop_loading(self, wait_ms: int = 5000):
+        """Closing the window: stop any load still running and wait for its thread to end.
+        A QThread destroyed while it runs aborts the whole process -- closing Observatum in
+        the first seconds, while the records still loaded in the background, ended in a
+        crash (review R4, 11 Oct 2026)."""
+        if self._poll_timer is not None:
+            self._poll_timer.stop()
+        for w in [self._data_worker, *self._old_workers]:
+            if w is not None and w.isRunning():
+                if hasattr(w, 'cancel'):
+                    w.cancel()           # interrupts its query
+                w.wait(wait_ms)
+
+    def reload_preload(self):
+        """A setting the load depends on (scheme families, the species-counting switches)
+        changed before the tab was first opened: the records read in the background were
+        read under the old setting, so read them again (review R4, 11 Oct 2026: the first
+        opening showed the old family scope or dimming). Nothing to do once opened (the
+        caller refreshes the tab) or when no background load was started."""
+        if self._initialized or not self._preload_started:
+            return
+        self._preload_records = None
+        self._load_data()                # replaces a load still running
 
     def initialize(self, db_path=None, uksi_path=None):
         """Initialize with database connection (called on first tab visit)."""

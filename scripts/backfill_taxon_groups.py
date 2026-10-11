@@ -6,6 +6,10 @@ review SRCH14 / MAP10 / OBS-11, 10 Oct 2026).
     py -3.14 scripts\\backfill_taxon_groups.py --apply         # fill blanks, after a backup
     py -3.14 scripts\\backfill_taxon_groups.py --apply --relabel   # also correct OUR old labels
 
+    Only some tables / columns (decision 8, 11 Oct: kingdom and taxon group on observations):
+    py -3.14 scripts\\backfill_taxon_groups.py --tables observations --columns kingdom,taxon_group
+    py -3.14 scripts\\backfill_taxon_groups.py --tables observations --columns kingdom,taxon_group --apply
+
 Why
 ---
 `taxon_group` was blank on 1,440 observations (every Data Entry commit until 9 Oct), 430
@@ -31,6 +35,11 @@ What it writes
 --apply backs observatum.db up first with SQLite's backup API, then writes in one
 transaction, each UPDATE guarded so it only touches a value that is still blank (or, for a
 relabel, still the old label).
+
+For the records with no kingdom or no taxon group, the dry run also shows what they get, by
+kingdom and group, and how many cannot be resolved and why (no TVK, TVK not in UKSI, UKSI
+gives no kingdom / no group for the TVK). --tables / --columns narrow what is written (and
+--relabel needs taxon_group among the columns).
 
 The dry run shows, per table and column, how many blanks it fills and how many values are
 already there (kept), with 5 sample records before -> after. Sort keys that are not our
@@ -78,19 +87,24 @@ def _is_our_key(v) -> bool:
     return isinstance(v, str) and v.strip().isdigit() and len(v.strip()) <= 9
 
 
-def plan(conn, uksi_path) -> dict:
+def plan(conn, uksi_path, tables=TABLES, columns=FILL_COLUMNS) -> dict:
     """What a backfill would do, per table:
     {table: {"rows": n, "fill": {col: [(id, new, tvk)]}, "relabel": [(id, old, new)],
              "differ": Counter((order, stored, ours)) on labels that came with the record,
              "not_in_uksi": n, "no_tvk": n, "kept": {col: n already filled},
              "samples": {col: [(id, name, before, after)]} (first SAMPLES fills),
-             "odd_keys": [(id, name, key)] sort keys not in our number format}}"""
+             "odd_keys": [(id, name, key)] sort keys not in our number format,
+             "kg": {"rows": n with no kingdom or no taxon group, "fills": Counter((kingdom,
+                    group)) they would get, "unresolved": Counter(reason)}}}"""
     out = {}
-    for table in TABLES:
+    for table in tables:
         cols = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
         if "species_tvk" not in cols:
             continue
-        fill_cols = [c for c in FILL_COLUMNS if c in cols]
+        fill_cols = [c for c in FILL_COLUMNS if c in cols and c in columns]
+        kg_cols = [c for c in ("kingdom", "taxon_group") if c in cols and c in columns]
+        if not fill_cols:
+            continue
         src = "source" if "source" in cols else "NULL"
         name = "species_name" if "species_name" in cols else "NULL"
         rows = conn.execute(
@@ -99,7 +113,8 @@ def plan(conn, uksi_path) -> dict:
         tax = taxonomy_for_tvks({r[1] for r in rows if not _blank(r[1])}, uksi_path)
         t = {"rows": len(rows), "fill": {c: [] for c in fill_cols}, "relabel": [],
              "differ": Counter(), "not_in_uksi": 0, "no_tvk": 0,
-             "kept": Counter(), "samples": {c: [] for c in fill_cols}, "odd_keys": []}
+             "kept": Counter(), "samples": {c: [] for c in fill_cols}, "odd_keys": [],
+             "kg": {"rows": 0, "fills": Counter(), "unresolved": Counter()}}
         for r in rows:
             rid, tvk, source, order, sp = r[0], r[1], r[2], r[3], r[4]
             stored = dict(zip(fill_cols, r[5:]))
@@ -109,13 +124,30 @@ def plan(conn, uksi_path) -> dict:
             key = stored.get("taxonomic_sort_key")
             if not _blank(key) and not _is_our_key(key):
                 t["odd_keys"].append((rid, sp, key))
+            kg_blank = [c for c in kg_cols if _blank(stored[c])]
+            if kg_blank:
+                t["kg"]["rows"] += 1
             if _blank(tvk):
                 t["no_tvk"] += 1
+                if kg_blank:
+                    t["kg"]["unresolved"]["no TVK"] += 1
                 continue
             x = tax.get(tvk)
             if x is None:
                 t["not_in_uksi"] += 1
+                if kg_blank:
+                    t["kg"]["unresolved"]["TVK not in UKSI"] += 1
                 continue
+            if kg_blank:                         # each record counted once
+                missing = [c.replace("_", " ") for c in kg_blank if _blank(x.get(c))]
+                if missing:
+                    t["kg"]["unresolved"][f"UKSI gives no {' or '.join(missing)} for the TVK"
+                                          + (" (the rest is filled)" if len(missing) < len(kg_blank)
+                                             else "")] += 1
+                else:
+                    t["kg"]["fills"][tuple(
+                        (x.get(c) if c in kg_blank else stored[c]) or "(none)"
+                        for c in ("kingdom", "taxon_group") if c in kg_cols)] += 1
             for c in fill_cols:
                 if _blank(stored[c]) and not _blank(x.get(c)):
                     t["fill"][c].append((rid, x[c], tvk))
@@ -147,6 +179,16 @@ def report(found) -> None:
                   f"(left as they are -- a decision for Wil; they sort after every number)")
             for rid, sp, key in t["odd_keys"][:SAMPLES]:
                 print(f"      e.g. id {rid:<7} {str(sp or '')[:34]:<34} {key!r}")
+        kg = t["kg"]
+        if kg["rows"]:
+            print(f"  records with no kingdom or no taxon group: {kg['rows']:,}")
+            for key, n in sorted(kg["fills"].items(), key=lambda kv: (-kv[1], kv[0])):
+                print(f"    {n:>7,}  get  {' / '.join(key)}")
+            if kg["unresolved"]:
+                for why, n in kg["unresolved"].most_common():
+                    print(f"    {n:>7,}  cannot be resolved: {why}")
+            else:
+                print("    every one of them can be resolved")
         groups = Counter(new for _, new, _ in t["fill"].get("taxon_group", []))
         if groups:
             print("  taxon_group fills by group:")
@@ -203,19 +245,33 @@ def main(argv=None) -> int:
     ap.add_argument("--apply", action="store_true", help="write (after a backup)")
     ap.add_argument("--relabel", action="store_true",
                     help="with --apply: also correct labels this suite wrote that disagree")
+    ap.add_argument("--tables", default=",".join(TABLES),
+                    help=f"comma-separated, from {', '.join(TABLES)} (default all)")
+    ap.add_argument("--columns", default=",".join(FILL_COLUMNS),
+                    help=f"comma-separated, from {', '.join(FILL_COLUMNS)} (default all)")
     ap.add_argument("--db", default=str(paths.OBSERVATUM_DB), help=argparse.SUPPRESS)
     ap.add_argument("--uksi", default=str(paths.UKSI_DB), help=argparse.SUPPRESS)
     ap.add_argument("--backup-dir", default=BACKUP_DIR, help=argparse.SUPPRESS)
     a = ap.parse_args(argv)
+    tables = [t.strip() for t in a.tables.split(",") if t.strip()]
+    columns = [c.strip() for c in a.columns.split(",") if c.strip()]
+    bad = [t for t in tables if t not in TABLES] + [c for c in columns if c not in FILL_COLUMNS]
+    if bad or not tables or not columns:
+        ap.error(f"unknown or missing table / column: {', '.join(bad) or '(none given)'}")
+    if a.relabel and "taxon_group" not in columns:
+        ap.error("--relabel needs taxon_group among --columns")
 
     print("")
     print("Taxon groups and UKSI taxonomy -- blanks filled from UKSI by TVK")
     print("=" * 74)
     print(f"  observatum.db: {a.db}")
     print(f"  uksi.db:       {a.uksi}")
+    if tables != list(TABLES) or columns != list(FILL_COLUMNS):
+        print(f"  only tables:   {', '.join(tables)}")
+        print(f"  only columns:  {', '.join(columns)}")
     ro = sqlite3.connect(f"file:{a.db}?mode=ro", uri=True)
     try:
-        found = plan(ro, a.uksi)
+        found = plan(ro, a.uksi, tables, columns)
     finally:
         ro.close()
     report(found)

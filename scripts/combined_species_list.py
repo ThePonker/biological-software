@@ -1,8 +1,8 @@
-"""Combined species list -- Birmingham - Wheels Park, Wil + J. Moore.
+"""Combined species list for a joint survey -- Wil + J. Moore.
 
-Reads Wil's records from staging job 6 and J. Moore's from his spreadsheet,
-resolves every name against UKSI (TVK, then name, then synonym -- the same
-resolve() the review importer uses), and writes one spreadsheet:
+Reads Wil's committed records for the project from `observations` and
+J. Moore's from his spreadsheet, resolves every name against UKSI (TVK, then
+name, then synonym -- the same resolve() the review importer uses), and writes one spreadsheet:
 
   Combined    one row per species, taxonomic order: name, common name, order,
               family, TVK, records by Wil, records by J. Moore, recorded by
@@ -12,8 +12,13 @@ READ ONLY on the databases. Writes only the output spreadsheet.
 
 Run:
   python scripts\\combined_species_list.py "data\\contributed\\Birmingham_Wheels.xlsx"
+  python scripts\\combined_species_list.py "data\\contributed\\Sundon_Beds_corrected.xlsx" --project Sundon
+
+--project defaults to Birmingham - Wheels Park. Until 11 Oct 2026 Wil's side was
+read from Data Entry staging job 6; that job was committed and its staging rows
+cleared, so the committed records under the project name are read instead.
 """
-import os, sqlite3, sys
+import argparse, os, re, sqlite3, sys
 from collections import defaultdict
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -25,13 +30,18 @@ from import_status_review import resolve      # import the rule, don't restate i
 import openpyxl
 from openpyxl.styles import Font, PatternFill
 
-JOB_ID = 6
-SITE = "Birmingham - Wheels Park"
-OUT = os.path.join(ROOT, "Birmingham_Wheels_Park_combined_species.xlsx")
-
-if len(sys.argv) < 2 or not os.path.exists(sys.argv[1]):
+ap = argparse.ArgumentParser()
+ap.add_argument("xlsx", help="J. Moore's spreadsheet")
+ap.add_argument("--project", default="Birmingham - Wheels Park",
+                help="the project name on Wil's own records (observations)")
+ap.add_argument("--out", default=None, help="output path (default: <project>_combined_species.xlsx)")
+args = ap.parse_args()
+if not os.path.exists(args.xlsx):
     sys.exit("Give the path to J. Moore's spreadsheet.")
-moore_path = sys.argv[1]
+moore_path = args.xlsx
+SITE = args.project
+OUT = args.out or os.path.join(ROOT, re.sub(r"[^A-Za-z0-9]+", "_", SITE).strip("_")
+                               + "_combined_species.xlsx")
 
 u = sqlite3.connect(f"file:{paths.UKSI_DB}?mode=ro", uri=True)
 o = sqlite3.connect(f"file:{paths.OBSERVATUM_DB}?mode=ro", uri=True)
@@ -60,9 +70,9 @@ def add(name, tvk, who):
 
 # ---------------------------------------------------------------- Wil
 n_w = 0
-for name, tvk in o.execute("""SELECT species_name, species_tvk FROM entry_staging
-                              WHERE job_id=? AND species_name IS NOT NULL
-                                AND trim(species_name)!=''""", (JOB_ID,)):
+for name, tvk in o.execute("""SELECT species_name, species_tvk FROM observations
+                              WHERE project_name=? AND species_name IS NOT NULL
+                                AND trim(species_name)!=''""", (SITE,)):
     add(name, tvk, "wil")
     n_w += 1
 
@@ -117,7 +127,7 @@ un.column_dimensions["A"].width = 40
 
 out.save(OUT)
 
-print("Combined species list -- Birmingham - Wheels Park")
+print(f"Combined species list -- {SITE}")
 print("=" * 60)
 print(f"  W.J. Heeney: {n_w} records    J. Moore: {n_m} records")
 print(f"  species: {len(species)}   both: {both}   W. Heeney only: {only_w}   J. Moore only: {only_m}")

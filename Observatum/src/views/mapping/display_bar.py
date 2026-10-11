@@ -1,15 +1,51 @@
 """The Mapping tab's display bar, under the map header: how the squares are coloured
 (Style, Period) and the on-screen legend that says what each colour means (backlog item 4,
 review SRCH18: "Period" used to sit with the filters although it only recolours).
+
+R9-5 (11 Oct 2026): a "VC labels" tick box (on by default, remembered) for the vice-county
+numbers (national scale) / names (zoomed in) drawn on the map and on its atlas page.
+R4: a "VC boundaries" tick box beside it (on by default, remembered) for the boundary lines,
+and "Districts (modern)" (off by default, remembered) for gb_outline.json's district borders.
 """
 from typing import List, Tuple
 
-from PySide6.QtCore import Signal
-from PySide6.QtWidgets import QComboBox, QFrame, QHBoxLayout, QLabel, QSizePolicy, QWidget
+from PySide6.QtCore import QSettings, Signal
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QFrame, QHBoxLayout, QLabel, QSizePolicy,
+                               QWidget)
 
 from ...services.map_square_service import BAND_PRESET_LABELS
 from ...themes import theme
 from .square_style import STYLES
+
+VC_LABELS_SETTING = "mapping/vc_labels"      # R9-5: VC numbers / names on the map (default on)
+VC_BOUNDS_SETTING = "mapping/vc_boundaries"  # R4: VC boundary lines on the map (default on)
+DISTRICTS_SETTING = "mapping/districts"      # R4: modern district lines (default off)
+
+
+def _saved(key: str, default: bool = True) -> bool:
+    try:
+        return QSettings().value(key, default, type=bool)
+    except Exception:
+        return default
+
+
+def saved_vc_labels() -> bool:
+    return _saved(VC_LABELS_SETTING)
+
+
+def saved_vc_boundaries() -> bool:
+    return _saved(VC_BOUNDS_SETTING)
+
+
+def saved_districts() -> bool:
+    return _saved(DISTRICTS_SETTING, False)
+
+
+def _save(key: str, on: bool):
+    try:
+        QSettings().setValue(key, bool(on))
+    except Exception as e:
+        print(f"[MapDisplayBar] {key} not saved: {e}")
 
 
 def swatch_css(colour) -> str:
@@ -30,6 +66,9 @@ class MapDisplayBar(QFrame):
 
     style_changed = Signal(str)
     period_changed = Signal(str)
+    vc_labels_changed = Signal(bool)
+    vc_boundaries_changed = Signal(bool)
+    districts_changed = Signal(bool)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -64,6 +103,31 @@ class MapDisplayBar(QFrame):
             lambda _i: self.period_changed.emit(self.period()))
         lay.addWidget(self.period_combo)
 
+        self.vc_labels_check = QCheckBox("VC labels")
+        self.vc_labels_check.setStyleSheet(lab_style)
+        self.vc_labels_check.setToolTip(
+            "Vice-county numbers on the whole-country map, names when zoomed in or in County "
+            "view; printed on the atlas PNG too. Remembered.")
+        self.vc_labels_check.setChecked(saved_vc_labels())
+        self.vc_labels_check.toggled.connect(self._on_vc_labels)
+        lay.addWidget(self.vc_labels_check)
+
+        self.vc_bounds_check = QCheckBox("VC boundaries")
+        self.vc_bounds_check.setStyleSheet(lab_style)
+        self.vc_bounds_check.setToolTip(
+            "A line round every vice-county, on the map and on the atlas PNG. Remembered.")
+        self.vc_bounds_check.setChecked(saved_vc_boundaries())
+        self.vc_bounds_check.toggled.connect(self._on_vc_bounds)
+        lay.addWidget(self.vc_bounds_check)
+
+        self.districts_check = QCheckBox("Districts (modern)")
+        self.districts_check.setStyleSheet(lab_style)
+        self.districts_check.setToolTip(
+            "Modern local-authority district borders (ONS 2013), as faint lines. Remembered.")
+        self.districts_check.setChecked(saved_districts())
+        self.districts_check.toggled.connect(self._on_districts)
+        lay.addWidget(self.districts_check)
+
         lay.addSpacing(12)
         self.legend_box = QWidget()
         self.legend_box.setStyleSheet("border: none;")
@@ -88,6 +152,43 @@ class MapDisplayBar(QFrame):
         self.style_combo.setCurrentIndex(i)
         self.style_combo.blockSignals(False)
         self._on_style(emit=emit)
+
+    def vc_labels(self) -> bool:
+        return self.vc_labels_check.isChecked()
+
+    def _on_vc_labels(self, on: bool):
+        _save(VC_LABELS_SETTING, on)
+        self.vc_labels_changed.emit(bool(on))
+
+    def vc_boundaries(self) -> bool:
+        return self.vc_bounds_check.isChecked()
+
+    def _on_vc_bounds(self, on: bool):
+        _save(VC_BOUNDS_SETTING, on)
+        self.vc_boundaries_changed.emit(bool(on))
+
+    def attach_map(self, m):
+        """Wire the three map switches to the map (GridMap) and give it their saved state."""
+        self.vc_labels_changed.connect(m.set_vc_labels)
+        m.set_vc_labels(self.vc_labels())
+        self.vc_boundaries_changed.connect(m.set_vc_boundaries)
+        m.set_vc_boundaries(self.vc_boundaries())
+        self.districts_changed.connect(m.set_districts)
+        m.set_districts(self.districts())
+        self.set_districts_available(m.has_districts())
+
+    def districts(self) -> bool:
+        return self.districts_check.isChecked()
+
+    def set_districts_available(self, ok: bool):
+        """Greyed out when the map has no district file (data/maps/gb_outline.json)."""
+        self.districts_check.setEnabled(bool(ok))
+        if not ok:
+            self.districts_check.setToolTip("Needs data/maps/gb_outline.json (not found).")
+
+    def _on_districts(self, on: bool):
+        _save(DISTRICTS_SETTING, on)
+        self.districts_changed.emit(bool(on))
 
     def period(self) -> str:
         return self.period_combo.currentData() or "default"

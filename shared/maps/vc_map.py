@@ -18,10 +18,12 @@ from PySide6.QtGui import QPainter, QPen, QBrush, QColor, QPolygonF
 from PySide6.QtWidgets import QWidget
 
 from shared.maps._theme import theme
-from shared.osgb import wgs84_to_osgb_en
+from shared.maps.project_many import project_many
 
 # module cache: path -> (vc_rings, bounds)
 _CACHE: Dict[str, Tuple[Dict[int, List[List[Tuple[float, float]]]], Tuple[float, float, float, float]]] = {}
+
+_NAMES: Dict[str, Dict[int, str]] = {}   # path -> {vc number: VCNAME} (R9-5 map labels)
 
 _SIMPLIFY_TOL = 300.0  # metres between kept points (finer, so adjacent VC borders meet cleanly)
 DOT_HALF = 100.0       # metres: half the side of the small square drawn for a 1-3 point islet
@@ -141,6 +143,7 @@ def load_vc_polygons(path: str, tol: float = _SIMPLIFY_TOL):
         gj = json.load(f)
 
     vc_rings: Dict[int, List[List[Tuple[float, float]]]] = {}
+    names = _NAMES.setdefault(path, {})
     minE = minN = float("inf")
     maxE = maxN = float("-inf")
     for feat in gj.get("features", []):
@@ -150,9 +153,12 @@ def load_vc_polygons(path: str, tol: float = _SIMPLIFY_TOL):
             vc = int(vc)
         except (TypeError, ValueError):
             continue
+        if props.get("VCNAME"):
+            names[vc] = str(props["VCNAME"]).strip()
         geom = feat.get("geometry") or {}
         all_en: List[Optional[List[Tuple[float, float]]]] = []
         dots = set()
+        lls = []
         for ring in _rings_from_geometry(geom):
             ll = []
             for pt in ring:
@@ -166,7 +172,14 @@ def load_vc_polygons(path: str, tol: float = _SIMPLIFY_TOL):
                 # tolerance, longitude under-weighted, so nothing _simplify keeps is lost
                 kept = _prethin(ll, tol)
                 ll = kept if len(kept) >= 4 else ll
-            en = [wgs84_to_osgb_en(lat, lon) for lat, lon in ll]
+            lls.append(ll)
+        # every ring of the feature projected in one go (shared/maps/project_many: the same
+        # sums as wgs84_to_osgb_en on arrays; one point at a time was most of the Mapping
+        # tab's first opening -- review R4, 11 Oct 2026)
+        flat = project_many([pt for ll in lls for pt in ll])
+        at = 0
+        for ll in lls:
+            en, at = flat[at:at + len(ll)], at + len(ll)
             if len(en) >= 4 and tol > 0:
                 thin = _simplify(en, tol)
                 # an islet smaller than `tol` keeps a few of its points rather than vanish
@@ -192,6 +205,13 @@ def load_vc_polygons(path: str, tol: float = _SIMPLIFY_TOL):
         bounds = (minE, minN, maxE, maxN)
     _CACHE[key] = (vc_rings, bounds)
     return _CACHE[key]
+
+
+def vc_names(path: str) -> Dict[int, str]:
+    """{vc number: name} from the GeoJSON's VCNAME (filled by load_vc_polygons)."""
+    if path and path not in _NAMES:
+        load_vc_polygons(path)
+    return dict(_NAMES.get(path, {}))
 
 
 class MiniMap(QWidget):

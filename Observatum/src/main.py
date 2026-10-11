@@ -10,6 +10,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root.parent))  # Biological Software root
 import paths
+import src.startup_timing  # noqa: F401  (starts the startup clock)
 
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt, QTimer, QSettings
@@ -46,9 +47,15 @@ def finish_and_show(splash, window):
     window.connect_tab_signal()
     # Apply filter settings after a delay
     QTimer.singleShot(200, lambda: apply_filter_settings(window))
+    # Home's figures, then the Recording Scheme records in the background
+    if hasattr(window, "load_after_show"):
+        window.load_after_show()
 
 
 def main():
+    from src.startup_timing import timer
+    timing = timer()
+
     # Enable high DPI scaling
     QApplication.setHighDpiScaleFactorRoundingPolicy(
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
@@ -63,17 +70,17 @@ def main():
     splash = ObservatumSplashScreen()
     splash.show()
     app.processEvents()
+    timing.mark("splash shown")
 
     # Database paths
-    base_path = Path(__file__).parent.parent
     main_db_path = str(paths.OBSERVATUM_DB)
     uksi_db_path = str(paths.UKSI_DB)
 
     splash.set_progress(10, "Loading configuration...")
 
-
     # Import main window
     from src.views.main_window import MainWindow
+    timing.mark("main window imported")
 
     splash.set_progress(30, "Creating main window...")
 
@@ -83,57 +90,25 @@ def main():
         uksi_db_path=uksi_db_path,
         splash=splash
     )
-    
-    splash.set_progress(90, "Loading recording scheme data...")
+    timing.mark("main window built")
 
-    # Wait for RS background worker to finish before showing window. The window opens
-    # whatever happens: the worker always sets results_ready (error or not), there is a
-    # time limit, and any failure preparing a tab is reported, not left on the splash
-    # screen (review OBS-02 / SRCH20b, 9 Oct 2026).
-    import time
-    wait_started = time.monotonic()
-    MAX_WAIT_S = 120
+    # Startup speed (11 Oct 2026): the window no longer waits for the Recording Scheme
+    # records, nor reads the Recording Scheme / Insect Collection records while hidden.
+    # Those tabs read their records when first opened (MainWindow._on_tab_changed); the
+    # Recording Scheme records start loading in the background once the window is up,
+    # and a load that fails is reported when the tab is opened.
+    splash.set_progress(100, "Ready!")
+    app.processEvents()
 
-    def check_and_show():
-        rs_tab = window.recording_scheme_tab
-        worker = getattr(rs_tab, '_data_worker', None)
-        if (worker and hasattr(worker, 'results_ready') and not worker.results_ready.is_set()
-                and time.monotonic() - wait_started < MAX_WAIT_S):
-            # Still loading - update splash and check again
-            app.processEvents()
-            QTimer.singleShot(100, check_and_show)
-            return
-        # Worker done (or no worker, or out of time) - prepare the tabs while hidden
-        splash.set_progress(95, "Preparing interface...")
-        app.processEvents()
-        problems = []
-        if worker is not None and hasattr(worker, 'results_ready') and not worker.results_ready.is_set():
-            problems.append(f"Recording Scheme records were still loading after {MAX_WAIT_S} s; "
-                            "they will appear when ready.")
-        err = rs_tab.worker_error() if hasattr(rs_tab, 'worker_error') else None
-        if err:
-            rs_tab._load_error = err             # reported here; the tab won't repeat it
-            problems.append(f"Recording Scheme records could not be loaded:\n{err}")
-        for name, tab, idx in (("Recording Scheme", rs_tab, 2),
-                               ("Insect Collection", window.insect_collection_tab, 3)):
-            try:
-                tab.initialize(main_db_path, uksi_db_path)
-                window._initialized_tabs.add(idx)
-            except Exception as e:
-                import traceback
-                traceback.print_exc()
-                problems.append(f"{name} could not be prepared:\n{e}")
-        splash.set_progress(100, "Ready!")
-        app.processEvents()
+    def show():
+        finish_and_show(splash, window)
+        timing.mark("window shown")
 
-        def show():
-            finish_and_show(splash, window)
-            if problems:
-                from PySide6.QtWidgets import QMessageBox
-                QMessageBox.warning(window, "Observatum", "\n\n".join(problems))
-        QTimer.singleShot(200, show)
-
-    check_and_show()
+        def idle():
+            timing.mark("idle (startup work done)")
+        # after the post-show timers (filters 200 ms, Home fill)
+        QTimer.singleShot(250, lambda: QTimer.singleShot(0, idle))
+    QTimer.singleShot(0, show)
 
     sys.exit(app.exec())
 

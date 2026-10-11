@@ -373,6 +373,25 @@ class SchemeFilterBar(QFrame, SavedFiltersMixin):
         self._set_quietly(change)
         self._emit_filters()
     
+    def set_species_filter(self, species_name: str):
+        """Show this species alone: every other filter cleared, applied once (as the
+        Observation Data bar). The species box searches by name, so an aggregate or slash
+        pair named here keeps its records counted (shared/species_counting.kinds_for_search)."""
+        def change():
+            self.species_edit.setText(species_name)
+            self.location_edit.clear()
+            self.date_from_edit.clear()
+            self.date_to_edit.clear()
+            self.subfamily_combo.resetToFirst()
+            self.vc_combo.resetToFirst()
+            self.recorder_edit.clear()
+            self.source_combo.resetToFirst()
+            self.status_combo.resetToFirst()
+            self.saved_combo.setCurrentIndex(0)
+            self.only_excluded_chk.setChecked(False)
+        self._set_quietly(change)
+        self._emit_filters()
+
     def _apply_saved_filter(self, filters: dict):
         """Apply a saved filter configuration (one reload). Required by SavedFiltersMixin."""
         def change():

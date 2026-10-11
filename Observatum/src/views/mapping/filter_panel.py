@@ -15,6 +15,10 @@ Round 2 (10 Oct evening): data sources as tick boxes (L8); the date error goes a
 dates are put right or emptied (L9); one Clear all for the whole panel (L33); the panel
 follows the width the tab's divider gives it and never scrolls sideways (L11, L30: its left
 edge was clipped in full screen); "Include 2 km (tetrad) grid refs" (decision 10).
+
+R9-4 (11 Oct): a reversed range (From 2021, To 2019) is flagged as soon as both dates are set,
+not only on Generate, and Generate is greyed out until it is put right; the message goes the
+moment the dates are valid again.
 """
 from datetime import date
 from typing import List, Optional, Tuple
@@ -24,11 +28,11 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QCompleter, QFrame, QHBoxLa
                                QLineEdit, QPushButton, QScrollArea, QSizePolicy, QVBoxLayout,
                                QWidget)
 
-from shared.import_core import date_bounds
 from ...core.config import TabColors
 from ...services.map_selection import MapFilters, distinct_values, vc_choices
 from ...themes import theme
 from ..components.filter_styles import get_clear_button_style
+from .date_check import date_problems, reversed_text
 from .selection_box import MapSelectionBox
 from .source_picker import MapSourcePicker
 from .square_list import MapSquareList
@@ -287,6 +291,8 @@ class MapFilterPanel(QFrame):
                 font-size: 13px;
             }}
             QPushButton:hover {{ background-color: {self._accent_dark}; }}
+            QPushButton:disabled {{ background-color: {t.get('disabled_bg')};
+                                    color: {t.get('disabled_text')}; }}
         """)
         self.generate_btn.clicked.connect(self.generate_requested.emit)
         layout.addWidget(self.generate_btn)
@@ -329,40 +335,35 @@ class MapFilterPanel(QFrame):
         self._on_sources(self.source_picker.sources(), emit=False)
         self.date_error.clear()
         self.date_error.hide()
+        self._refresh_date_error()
         self.cleared.emit()
 
     def _date_problems(self):
-        """([what is wrong], {'From': iso or None, 'To': iso or None})."""
-        bad = []
-        bounds = {}
-        for name, box, end in (("From", self.date_from, False), ("To", self.date_to, True)):
-            text = box.text().strip()
-            if not text:
-                bounds[name] = None
-                continue
-            b = date_bounds(text)
-            if b is None:
-                bad.append(f"{name} date '{text}' not understood: use 2020, 06/2020 or 01/06/2020.")
-                bounds[name] = None
-            else:
-                bounds[name] = b[1] if end else b[0]
-        if bounds["From"] and bounds["To"] and bounds["From"] > bounds["To"]:
-            bad.append("The From date is after the To date.")
-        return bad, bounds
+        """([what is wrong], {'From': iso or None, 'To': iso or None}, reversed)."""
+        return date_problems(self.date_from.text(), self.date_to.text())
 
     def _refresh_date_error(self, *_a):
-        """L9: as the dates are edited, an error already shown is updated, and goes as soon
-        as the dates are right or empty (new errors still wait for Generate / Enter)."""
+        """As the dates are edited: a reversed range is flagged at once and Generate greyed
+        out until it is put right (R9-4); an error already shown is updated, and goes as
+        soon as the dates are right or empty (L9). A date not understood is still only
+        reported on Generate / Enter (it may be half typed)."""
+        bad, _b, backwards = self._date_problems()
         if not self.date_error.text():
-            return
-        bad, _b = self._date_problems()
+            bad = [reversed_text(self.date_from.text(), self.date_to.text())] if backwards else []
         self.date_error.setText(" ".join(bad))
         self.date_error.setVisible(bool(bad))
+        self.generate_btn.setEnabled(not backwards)
+        self.generate_btn.setToolTip("Put the dates right first: From is after To."
+                                     if backwards else "")
+
+    def dates_reversed(self) -> bool:
+        """True while From is after To (Generate is greyed out)."""
+        return self._date_problems()[2]
 
     def filters(self) -> Tuple[Optional[MapFilters], str]:
         """(MapFilters, '') or (None, what is wrong) -- an unreadable date stops the map
         rather than being ignored (MAP3)."""
-        bad, bounds = self._date_problems()
+        bad, bounds, _r = self._date_problems()
         self.date_error.setText(" ".join(bad))
         self.date_error.setVisible(bool(bad))
         if bad:

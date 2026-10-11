@@ -16,6 +16,12 @@ from shared.species_counting import counted_clause
 
 CACHE_TTL_SECONDS = 300
 
+# Month charts place only records dated to a day: year-only, month-only and range dates
+# (date_type Y/YY, O/OO, DD) are left out rather than counted in their first month --
+# 34 / 62 / 81 scheme records on 10 Oct (decision D3, 11 Oct 2026; the observation month
+# charts do the same since decision 9).
+DAY_ONLY = "AND COALESCE(date_type, 'D') = 'D'"
+
 
 class RecordingSchemeStatsService:
     """
@@ -287,7 +293,7 @@ class RecordingSchemeStatsService:
                     COUNT(*) as count
                 FROM recording_scheme
                 WHERE date IS NOT NULL
-                {family_clause}
+                {DAY_ONLY}{family_clause}
                 GROUP BY month
                 ORDER BY month
             """
@@ -393,6 +399,26 @@ class RecordingSchemeStatsService:
             self._valid = True
             self._last_refresh = datetime.now()
 
+
+    def get_monthly_counts_by_species(self, species_name: str) -> list:
+        """Twelve monthly record counts for one species (the Monthly Distribution chart's
+        species picker), selected as the all-species chart: day dates only, family scope.
+        The picker called this but it did not exist, so picking a species did nothing."""
+        if not self._db:
+            return [0] * 12
+        try:
+            result = self._db.execute_main(f"""
+                SELECT CAST(strftime('%m', date) AS INTEGER) as month, COUNT(*) as count
+                FROM recording_scheme
+                WHERE species_name = ? AND date IS NOT NULL
+                {DAY_ONLY}{self._get_family_clause()}
+                GROUP BY month
+            """, (species_name,))
+            data = {r['month']: r['count'] for r in result} if result else {}
+            return [data.get(m, 0) for m in range(1, 13)]
+        except Exception as e:
+            print(f"[RecordingSchemeStatsService] monthly counts for {species_name}: {e}")
+            return [0] * 12
 
     def get_vc_details(self, vc_number: int) -> Dict[str, Any]:
         """Get detailed statistics for a specific Vice County."""
@@ -527,7 +553,7 @@ class RecordingSchemeStatsService:
                 FROM recording_scheme
                 WHERE vc_number = ?
                 AND date IS NOT NULL
-                {family_clause}
+                {DAY_ONLY}{family_clause}
                 GROUP BY month
                 ORDER BY month
             """

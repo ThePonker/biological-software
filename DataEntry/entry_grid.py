@@ -62,6 +62,7 @@ class StagingTableModel(QAbstractTableModel):
         self._rows: List[Dict] = repo.fetch_rows(conn, job_id)
         self._min_display = DEFAULT_DISPLAY_ROWS
         self._copy_context = True  # tickbox: fill empty context cells from the nearest row above
+        self._sorted = False       # view sorted by a column: 'row above' is not the entry order
         self._entry_recorder = ""   # from the Recorder box (applied on species match)
         self._entry_determiner = ""  # from the Determiner box
 
@@ -76,6 +77,10 @@ class StagingTableModel(QAbstractTableModel):
 
     def set_copy_context(self, on: bool) -> None:
         self._copy_context = bool(on)
+
+    def copies_context(self) -> bool:
+        """Copy from the row above now? Only with the tick on and the rows in entry order."""
+        return self._copy_context and not self._sorted
 
     # fields a repeat (B2) carries over besides the context keys: the species and its stage
     _REPEAT_KEYS = ("species_name", "species_tvk", "common_name", "order_name", "family",
@@ -288,12 +293,14 @@ class StagingTableModel(QAbstractTableModel):
             real.sort(key=lambda r: (sort_key(r)[0], str(sort_key(r)[1])), reverse=descending)
         self.beginResetModel()
         self._rows = real + blanks
+        self._sorted = True
         self.endResetModel()
 
     def restore_entry_order(self) -> None:
         """Re-read the job's rows in their stored row_order."""
         self.beginResetModel()
         self._rows = repo.fetch_rows(self._conn, self._job_id)
+        self._sorted = False
         self.endResetModel()
 
     def _is_virtual(self, r: int) -> bool:
@@ -430,18 +437,19 @@ class StagingTableModel(QAbstractTableModel):
             changed_cols = [index.column()]
             if name:
                 ctx = {}
+                copy_above = self.copies_context()
                 # Recorder / Determiner: box wins over row-above; never overwrite a typed cell
                 for k, boxval in (("recorder", self._entry_recorder),
                                   ("determiner", self._entry_determiner)):
                     if row.get(k) in (None, ""):
                         if boxval:
                             ctx[k] = boxval
-                        elif self._copy_context:
+                        elif copy_above:
                             v = self._nearest_above(r, k)
                             if v not in (None, ""):
                                 ctx[k] = v
                 # other context fields: nearest row above only (when copy-context on)
-                if self._copy_context:
+                if copy_above:
                     for k in self._CONTEXT_COPY_KEYS:
                         if k in ("recorder", "determiner"):
                             continue
@@ -1384,7 +1392,11 @@ class EntryGridPage(QWidget):
             self._dist_svc = None
         self._info = InfoPanel(self._info_svc, self._vc_service, self._geojson_path,
                                self._tiles_dir, dist_service=self._dist_svc, maps_dir=self._maps_dir)
-        v.addWidget(self._info)
+        # in a horizontal scroll area: on a window too narrow for even the cards that must
+        # stay, a scroll bar appears under the banner instead of the window being forced wider
+        from DataEntry.banner_layout import BannerScroll
+        self._banner_scroll = BannerScroll(self._info)
+        v.addWidget(self._banner_scroll)
 
         self._view = EntryTableView()
         self._view.setModel(self._model)
@@ -1442,13 +1454,16 @@ class EntryGridPage(QWidget):
 
         # ---- controls widget: sits in the banner (middle column), not at the bottom ----
         from PySide6.QtWidgets import QLineEdit
-        from DataEntry.info_panel import _BANNER_H
         controls = QWidget()
-        controls.setStyleSheet(theme.card_qss())
-        controls.setFixedHeight(_BANNER_H)
+        # card look on the panel only: unscoped, the border cascaded onto every label and
+        # check box inside it (boxed "Recorder", 2 px taller rows)
+        controls.setObjectName("deControls")
+        controls.setStyleSheet("QWidget#deControls { %s }" % theme.card_qss())
+        # No fixed height here (R9-8): the banner is made as tall as these rows need at the
+        # machine's font (Segoe UI is taller), so no button is squeezed and its text clipped.
         cv = QVBoxLayout(controls)
-        cv.setContentsMargins(12, 10, 12, 10)
-        cv.setSpacing(6)
+        cv.setContentsMargins(12, 6, 12, 6)
+        cv.setSpacing(3)
 
         # Recorder / Determiner boxes (applied to a row on species match: box -> row above -> empty)
         def _box(lbl):
@@ -1484,7 +1499,9 @@ class EntryGridPage(QWidget):
         self._copy_ctx.setToolTip(
             "When a species matches, fill any empty Date / Grid ref / Site / VC / Recorder /\n"
             "Determiner / Method cells from the nearest filled row above. Never overwrites what\n"
-            "you've already typed.")
+            "you've already typed.\n"
+            "While the grid is sorted nothing is copied (the row above isn't the one\n"
+            "entered before); the tick is kept and works again in entry order.")
         self._copy_ctx.setStyleSheet(f"color: {theme.INK}; font-size: 12px;")
         self._copy_ctx.toggled.connect(self._model.set_copy_context)
         cv.addWidget(self._copy_ctx)
@@ -1495,22 +1512,13 @@ class EntryGridPage(QWidget):
         addr.addWidget(add_lbl)
         for n in (10, 100, 1000):
             b = QPushButton(f"+{n}")
-            b.setStyleSheet(theme.button_primary_qss())
+            b.setStyleSheet(theme.button_primary_qss(compact=True))
             b.setCursor(Qt.CursorShape.PointingHandCursor)
             b.clicked.connect(lambda _=False, k=n: self._model.add_display_rows(k))
             addr.addWidget(b)
-        # Only while sorted: one click back to the order the rows were entered (L21)
-        self._sort_btn = QPushButton("Back to entry order")
-        self._sort_btn.setStyleSheet(theme.button_secondary_qss())
-        self._sort_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._sort_btn.setToolTip("Show the rows in the order they were entered.\n"
-                                  "Sorting only changes the view: the entry order is kept.")
-        self._sort_btn.clicked.connect(self._restore_entry_order)
-        self._sort_btn.setVisible(False)
-        addr.addWidget(self._sort_btn)
 
         self._del_btn = QPushButton("Remove empty tail")
-        self._del_btn.setStyleSheet(theme.button_delete_qss())
+        self._del_btn.setStyleSheet(theme.button_delete_qss(compact=True))
         self._del_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._del_btn.clicked.connect(self._remove_row)
         addr.addWidget(self._del_btn); addr.addStretch(1)
@@ -1520,7 +1528,7 @@ class EntryGridPage(QWidget):
         cnt_row = QHBoxLayout(); cnt_row.setSpacing(8)
         self._count_btn = QPushButton("Count mode (F9)")
         self._count_btn.setCheckable(True)
-        self._count_btn.setStyleSheet(theme.button_secondary_qss())
+        self._count_btn.setStyleSheet(theme.button_secondary_qss(compact=True))
         self._count_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._count_btn.setToolTip(
             "Count the current row's No. with a key or a foot pedal: Space or + adds one,\n"
@@ -1534,6 +1542,11 @@ class EntryGridPage(QWidget):
         self._counter.setVisible(False)
         cnt_row.addWidget(self._counter)
         cnt_row.addStretch(1)
+        # room for the big counter now, so turning count mode on never moves the grid
+        self._counter.setText("0")
+        cnt_row.addStrut(max(self._counter.sizeHint().height(),
+                             self._count_btn.sizeHint().height()))
+        self._counter.setText("")
         cv.addLayout(cnt_row)
         self._view.on_toggle_count = self._count_btn.toggle
         self._view.on_count_done = lambda: self._count_btn.setChecked(False)
@@ -1544,7 +1557,7 @@ class EntryGridPage(QWidget):
         fin = QLabel("Finish job:"); fin.setStyleSheet(f"color: {theme.MUTED}; font-size: 12px;")
         fin_row.addWidget(fin)
         self._commit_btn = QPushButton("Commit to Observatum")
-        self._commit_btn.setStyleSheet(theme.button_primary_qss())
+        self._commit_btn.setStyleSheet(theme.button_primary_qss(compact=True))
         self._commit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         if not self._is_commercial():
             # Personal records go to iRecord first and come back by the sync (DE7)
@@ -1560,12 +1573,12 @@ class EntryGridPage(QWidget):
             self._commit_btn.clicked.connect(self._do_commit)
         fin_row.addWidget(self._commit_btn)
         self._export_btn = QPushButton("Export\u2026")
-        self._export_btn.setStyleSheet(theme.button_secondary_qss())
+        self._export_btn.setStyleSheet(theme.button_secondary_qss(compact=True))
         self._export_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._export_btn.clicked.connect(self._do_export)
         fin_row.addWidget(self._export_btn)
         self._discard_btn = QPushButton("Discard job")
-        self._discard_btn.setStyleSheet(theme.button_delete_qss())
+        self._discard_btn.setStyleSheet(theme.button_delete_qss(compact=True))
         self._discard_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._discard_btn.clicked.connect(self._do_discard)
         fin_row.addWidget(self._discard_btn)
@@ -1586,6 +1599,18 @@ class EntryGridPage(QWidget):
         self._order_lbl.setToolTip("Click a column heading to sort the view; click it again "
                                    "to reverse.\nSorting never changes the entry order.")
         meta.addWidget(self._order_lbl)
+        # Only while sorted: one click back to the order the rows were entered (L21). On
+        # the "Showing" line, beside the order it undoes (R9-8: it used to take +1000's place)
+        self._sort_btn = QPushButton("Back to entry order")
+        self._sort_btn.setStyleSheet(theme.button_secondary_qss(compact=True))
+        self._sort_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._sort_btn.setToolTip("Show the rows in the order they were entered.\n"
+                                  "Sorting only changes the view: the entry order is kept.")
+        self._sort_btn.clicked.connect(self._restore_entry_order)
+        self._sort_btn.setVisible(False)
+        meta.addWidget(self._sort_btn)
+        # the line keeps the button's height while it is hidden: no jump when it appears
+        meta.addStrut(self._sort_btn.sizeHint().height())
         self._show_order(None, False)
         meta.addStretch(1)
         self._count.hide()  # duplicated by the This-workbook card; keep object, don't show
@@ -1656,17 +1681,13 @@ class EntryGridPage(QWidget):
             self._sort_col, self._sort_desc = column, False
         self._model.sort_rows(column, self._sort_desc)
         self._show_order(column, self._sort_desc)
-        if self._copy_ctx.isChecked():
-            self._ctx_was_on = True
-            self._copy_ctx.setChecked(False)   # 'row above' is meaningless while sorted
+        # The "Copy context" tick is the user's and is left alone (R9-8: sorting used to
+        # untick it). While sorted the model copies nothing, as 'row above' means nothing.
 
     def _restore_entry_order(self):
         self._sort_col, self._sort_desc = None, False
         self._model.restore_entry_order()
         self._show_order(None, False)
-        if getattr(self, "_ctx_was_on", False):
-            self._copy_ctx.setChecked(True)
-            self._ctx_was_on = False
 
     def _show_order(self, column, descending: bool):
         """Say which order the grid shows: the label, and the 'Back to entry order'

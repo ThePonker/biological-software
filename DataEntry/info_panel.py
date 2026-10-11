@@ -16,6 +16,7 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
 
 from DataEntry import theme
 from DataEntry import species_dist_map as _src
+from DataEntry.banner_layout import BannerCard, ElidedCheckBox, banner_height
 
 # QSettings key per map source -- used by both the restore block and _on_source_toggle.
 SRC_SETTING_KEYS = {
@@ -26,7 +27,7 @@ SRC_SETTING_KEYS = {
     "staging": "srcStaging",
 }
 
-_BANNER_H = 194  # common height for the banner cards (trimmed to fit content)
+_BANNER_H = 194  # least height of the banner cards; taller if the font needs it (R9-8)
 
 # Conservation chips sit in one 316 px row: full labels were cut off ("Priority (NER",
 # "Protected (B" -- L22, 10 Oct). The chip shows a short form; its tooltip the full label.
@@ -310,12 +311,17 @@ class InfoPanel(QWidget):
         self._svc = service
         self._vc = vc_service
         self.setStyleSheet("background: transparent; border: none;")
-        from PySide6.QtWidgets import QHBoxLayout, QCheckBox, QPushButton
+        from PySide6.QtWidgets import QHBoxLayout, QPushButton
         outer = QHBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(8)
         self._outer = outer
         self._controls_widget = None
+        self._banner_cards = []   # every card in the row: all share one height (_fit_banner)
+        self._collapsible = []
+        from PySide6.QtWidgets import QSizePolicy
+        # the width is the window's; _fit_width sets the real minimum (the cards that must stay)
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
 
         # remember construction params so pop-out windows can build their own live map copies
         self._tiles_dir = tiles_dir
@@ -358,23 +364,25 @@ class InfoPanel(QWidget):
         text_col.addWidget(self._chips_row)
         text_col.addWidget(self._pills_row)
         text_col.addStretch(1)
-        # fixed footprint so selecting/deselecting a row changes only the text, never the layout
-        from PySide6.QtWidgets import QWidget as _QW
-        readout_w = _QW()
+        # fixed height so selecting/deselecting a row changes only the text, never the layout.
+        # 316 wide when there's room (272 was too narrow once the specimen pill gained its sex
+        # breakdown); it narrows on a small window -- the chip rows fold into "+n" (R9-8)
+        readout_w = BannerCard(316, 240)
         readout_w.setLayout(text_col)
         readout_w.setStyleSheet(theme.card_qss())
-        readout_w.setFixedWidth(316)   # 272 was too narrow once the specimen
-        # pill gained its sex breakdown -- 'Spec. 12 (F1 +11)' clipped.
-        readout_w.setFixedHeight(_BANNER_H)
+        self._banner_cards.append(readout_w)
         outer.addWidget(readout_w, 0, Qt.AlignmentFlag.AlignTop)
-        outer.addWidget(self._build_workbook_card(), 0, Qt.AlignmentFlag.AlignTop)
-        outer.addWidget(self._build_locations_card(), 0, Qt.AlignmentFlag.AlignTop)
+        wb_card = self._build_workbook_card()
+        traps_card = self._build_locations_card()
+        outer.addWidget(wb_card, 0, Qt.AlignmentFlag.AlignTop)
+        outer.addWidget(traps_card, 0, Qt.AlignmentFlag.AlignTop)
+        # on a window too narrow for every card even at its smallest, these step aside, in
+        # this order, and come back when there's room (R9-8: the legend was cut off instead)
+        self._collapsible = [traps_card, wb_card]
 
         # ---- maps area ----
-        maps_card = QWidget()
+        maps_card = BannerCard(330, 0)   # no narrower than its two maps (layout minimum)
         maps_card.setStyleSheet(theme.card_qss())
-        maps_card.setFixedHeight(_BANNER_H)
-        maps_card.setFixedWidth(330)
         maps_col = QVBoxLayout(maps_card)
         maps_col.setContentsMargins(10, 8, 10, 8)
         maps_col.setSpacing(3)
@@ -388,9 +396,10 @@ class InfoPanel(QWidget):
 
         # row 1: map visibility toggles + pop-out buttons
         vis = QHBoxLayout(); vis.setSpacing(8)
-        self._chk_loc = QCheckBox("This record")
+        # labels shorten with "..." rather than widen the card past its maps (R3 fix)
+        self._chk_loc = ElidedCheckBox("This record")
         self._btn_pop_loc = _pop_btn("Pop out the location map")
-        self._chk_dist = QCheckBox("All my records")
+        self._chk_dist = ElidedCheckBox("All my records")
         self._btn_pop_dist = _pop_btn("Pop out the distribution map")
         for chk in (self._chk_loc, self._chk_dist):
             chk.setStyleSheet(f"color: {theme.MUTED}; font-size: 11px; border: none;")
@@ -458,8 +467,10 @@ class InfoPanel(QWidget):
         # the left and pins BOTH maps (fixed size, side by side) to the right so they never clip.
         outer.addStretch(1)
         if self._map is not None or self._dist is not None:
+            self._banner_cards.append(maps_card)
             outer.addWidget(maps_card, 0, Qt.AlignmentFlag.AlignTop)
             outer.addWidget(self._build_legend(), 0, Qt.AlignmentFlag.AlignTop)
+        self._fit_banner()
 
         # restore persisted toggle states (default all on), then wire persistence + recompute
         S = self._settings
@@ -476,11 +487,11 @@ class InfoPanel(QWidget):
         self.clear()
 
     def _build_legend(self):
-        from PySide6.QtWidgets import QVBoxLayout, QHBoxLayout, QCheckBox, QLabel, QWidget
+        from PySide6.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel
         cols = _src.source_colours()
-        panel = QWidget()
-        panel.setFixedWidth(168); panel.setFixedHeight(_BANNER_H)
+        panel = BannerCard(168, 168)    # labels shorten with "..." if the font is wide (R9-8)
         panel.setStyleSheet(theme.card_qss())
+        self._banner_cards.append(panel)
         v = QVBoxLayout(panel); v.setContentsMargins(10, 8, 10, 8); v.setSpacing(4)
         title = QLabel("Records"); title.setStyleSheet(
             f"color: {theme.HEADING}; font-size: 12px; font-weight: 700; border: none; background: transparent;")
@@ -490,9 +501,9 @@ class InfoPanel(QWidget):
             row = QHBoxLayout(); row.setSpacing(6)
             sw = QLabel(); sw.setFixedSize(11, 11)
             sw.setStyleSheet(f"background: {cols[k]}; border-radius: 5px; border: none;")
-            chk = QCheckBox(_src.SOURCE_LABELS[k]); chk.setChecked(True)
+            chk = ElidedCheckBox(_src.SOURCE_LABELS[k]); chk.setChecked(True)
             chk.setStyleSheet(f"color: {theme.INK}; font-size: 11px; border: none; background: transparent;")
-            row.addWidget(sw); row.addWidget(chk); row.addStretch(1)
+            row.addWidget(sw); row.addWidget(chk, 1)
             v.addLayout(row)
             self._src_chk[k] = chk; self._src_swatch[k] = sw; self._src_lbl[k] = chk
         self._dist_count = QLabel("")
@@ -592,7 +603,97 @@ class InfoPanel(QWidget):
         """Insert the entry controls (boxes + buttons) as the middle column of the banner."""
         self._controls_widget = w
         # place between the readout (index 0) and the maps column
-        self._outer.insertWidget(1, w, 0)
+        self._outer.insertWidget(1, w, 0, Qt.AlignmentFlag.AlignTop)
+        self._banner_cards.append(w)
+        self._fit_banner()
+
+    def _fit_banner(self):
+        """Give every banner card one height: _BANNER_H, or more if a card's rows need it at
+        this font (R9-8: a fixed 194 px squeezed the controls' buttons and clipped their text
+        on Windows)."""
+        cards = getattr(self, "_banner_cards", None)   # changeEvent can come mid-build
+        if not cards:
+            return
+        h = banner_height(_BANNER_H, cards)
+        for c in cards:
+            c.setFixedHeight(h)
+        self._fit_width()
+
+    @staticmethod
+    def _least_width(c) -> int:
+        """The narrowest a card can be, measured from its contents at this font (R3 fix: a
+        fixed minimum under-counted on Wil's PC, so cards were squeezed and the row overran)."""
+        if isinstance(c, BannerCard):
+            return c.least_width()
+        c.ensurePolished()
+        return max(c.minimumWidth(), c.minimumSizeHint().width())
+
+    def _row_width(self, cards) -> int:
+        """Width the banner row needs to show `cards` at their narrowest."""
+        if not cards:
+            return 0
+        m = self._outer.contentsMargins()
+        return (sum(self._least_width(c) for c in cards)
+                + self._outer.spacing() * (len(cards) - 1) + m.left() + m.right())
+
+    def _fit_width(self):
+        """Hide the collapsible cards (Traps, then This workbook) only while the row can't fit
+        them at their smallest; nothing is ever drawn past the right edge."""
+        self._fit_pending = False
+        cards = getattr(self, "_banner_cards", None)
+        if not cards:
+            return
+        for c in cards:
+            if isinstance(c, BannerCard):
+                c.refit()
+            if not getattr(c, "_de_watched", False):   # re-fit when a card's contents change
+                c.installEventFilter(self)
+                c._de_watched = True
+        steps = [c for c in self._collapsible if c in cards]
+        keep = [c for c in cards if c not in steps]
+        # what must stay sets the least width; if even that is more than the window, the
+        # banner's scroll area (BannerScroll) shows a scroll bar: the window isn't widened
+        least = self._row_width(keep)
+        if self.minimumWidth() != least:
+            self.setMinimumWidth(least)
+        avail = self.width()
+        hide = []
+        for k in range(len(steps) + 1):
+            hide = steps[:k]
+            # a card steps aside only when the row can't hold it even at its narrowest:
+            # a narrower card (the readout folds its chips into "+n") beats a missing one
+            if self._row_width([c for c in cards if c not in hide]) <= avail:
+                break
+        for c in steps:
+            if c.isHidden() != (c in hide):
+                c.setVisible(c not in hide)
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        self._fit_width()
+
+    def eventFilter(self, obj, e):
+        # a card's contents changed size (e.g. "Back to entry order" appeared): measure again
+        # once the event loop is free, so many changes cost one re-fit
+        from PySide6.QtCore import QEvent, QTimer
+        if (e.type() == QEvent.Type.LayoutRequest and obj in getattr(self, "_banner_cards", ())
+                and not getattr(self, "_fit_pending", False)):
+            self._fit_pending = True
+            QTimer.singleShot(0, self, self._fit_width)
+        return super().eventFilter(obj, e)
+
+    def banner_height(self) -> int:
+        return self._banner_cards[0].height() if self._banner_cards else 0
+
+    def changeEvent(self, e):
+        super().changeEvent(e)
+        from PySide6.QtCore import QEvent
+        if e.type() in (QEvent.Type.FontChange, QEvent.Type.StyleChange):
+            self._fit_banner()
+
+    def showEvent(self, e):
+        self._fit_banner()          # fonts and style sheets are final by now
+        super().showEvent(e)
 
     @staticmethod
     def _chip(label, kind):
@@ -634,9 +735,9 @@ class InfoPanel(QWidget):
     def _build_locations_card(self):
         """Distinct trap / sub-location / grid-ref combinations in this job. Click to copy."""
         from PySide6.QtWidgets import QVBoxLayout, QLabel, QWidget, QScrollArea
-        card = QWidget()
-        card.setFixedWidth(210); card.setFixedHeight(_BANNER_H)
+        card = BannerCard(210, 150)
         card.setStyleSheet(theme.card_qss())
+        self._banner_cards.append(card)
         v = QVBoxLayout(card); v.setContentsMargins(12, 10, 12, 6); v.setSpacing(4)
 
         head = QLabel("Traps")
@@ -723,10 +824,10 @@ class InfoPanel(QWidget):
         self._loc_lay.addStretch(1)
 
     def _build_workbook_card(self):
-        from PySide6.QtWidgets import QVBoxLayout, QGridLayout, QLabel, QWidget
-        card = QWidget()
-        card.setFixedWidth(330); card.setFixedHeight(_BANNER_H)
+        from PySide6.QtWidgets import QVBoxLayout, QGridLayout, QLabel
+        card = BannerCard(330, 230)
         card.setStyleSheet(theme.card_qss())
+        self._banner_cards.append(card)
         v = QVBoxLayout(card); v.setContentsMargins(12, 10, 12, 10); v.setSpacing(4)
         head = QLabel("This workbook")
         head.setStyleSheet(f"color: {theme.HEADING}; font-size: 13px; font-weight: 700; border: none; background: transparent;")

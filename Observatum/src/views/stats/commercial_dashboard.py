@@ -22,6 +22,7 @@ from .stat_widgets import (
     AccumulationCurveChart, DataTable
 )
 from .order_accumulation_grid import OrderAccumulationGrid
+from .species_list_dialogs import SpeciesListsMixin
 from ...themes import theme
 from ...services.observation_stats_service import get_observation_stats
 from shared.species_counting import counted_clause
@@ -29,8 +30,10 @@ from shared.species_counting import counted_clause
 
 
 
-class CommercialStatsDashboard(QScrollArea):
+class CommercialStatsDashboard(SpeciesListsMixin, QScrollArea):
     """Dashboard showing commercial recording statistics."""
+
+    LIST_RECORD_TYPE = 'Commercial'          # species-list dialogs (species_list_dialogs.py)
 
     view_all_species_requested = Signal()
     navigate_to_order = Signal(str)  # Emits order name for filtering observations
@@ -231,96 +234,6 @@ class CommercialStatsDashboard(QScrollArea):
         else:
             self.navigate_to_family.emit(name)
 
-    def _show_species_for_group(self, field: str, value: str, dialog_title: str):
-        """Show species list dialog for a taxonomic group (order or family)."""
-        from ..dialogs.species_list_dialog import SpeciesListDialog
-        try:
-            from ...models.database import get_database
-            db = get_database()
-            exclusion = counted_clause("observations")
-            if db is None:
-                return
-            query = f"""
-                SELECT species_name,
-                       MIN(date) as first_date,
-                       MAX(date) as last_date
-                FROM observations
-                WHERE {field} = ?
-                AND record_type = 'Commercial'
-                AND species_name IS NOT NULL AND species_name != ''
-                {exclusion}
-                GROUP BY species_name
-                ORDER BY species_name
-            """
-            results = db.execute_main(query, (value,))
-            species_list = []
-            for r in results:
-                sp_name = r['species_name'] or r[0]
-                first = r['first_date'] or ''
-                last = r['last_date'] or ''
-                if sp_name:
-                    species_list.append({
-                        'species_name': sp_name,
-                        'first_date': str(first)[:10] if first else '',
-                        'last_date': str(last)[:10] if last else ''
-                    })
-            if not species_list:
-                return
-            title = f"{dialog_title} ({len(species_list)} species)"
-            dlg = SpeciesListDialog(title, species_list, parent=self)
-            dlg.exec()
-        except Exception as e:
-            print(f"Error showing species for {field}={value}: {e}")
-
-    def _show_species_for_month(self, month: int):
-        """Show a dialog listing unique species for a given month (all years)."""
-        from ..dialogs.species_list_dialog import SpeciesListDialog
-        MONTH_NAMES = ['', 'January', 'February', 'March', 'April', 'May', 'June',
-                       'July', 'August', 'September', 'October', 'November', 'December']
-        month_name = MONTH_NAMES[month] if 1 <= month <= 12 else str(month)
-
-        try:
-            from ...models.database import get_database
-            db = get_database()
-            exclusion = counted_clause("observations")
-            if db is None:
-                return
-            query = f"""
-                SELECT species_name,
-                       MIN(date) as first_date,
-                       MAX(date) as last_date
-                FROM observations
-                WHERE date IS NOT NULL
-                AND record_type = 'Commercial'
-                AND species_name IS NOT NULL AND species_name != ''
-                AND CAST(strftime('%m', date) AS INTEGER) = ?
-                AND COALESCE(date_type, 'D') = 'D'  -- a day only: year/month/range dates skip month charts (decision 9)
-                {exclusion}
-                GROUP BY species_name
-                ORDER BY species_name
-            """
-            results = db.execute_main(query, (month,))
-            species_list = []
-            for r in results:
-                name = r['species_name'] or r[0]
-                first = r['first_date'] or ''
-                last = r['last_date'] or ''
-                if name:
-                    species_list.append({
-                        'species_name': name,
-                        'first_date': str(first)[:10] if first else '',
-                        'last_date': str(last)[:10] if last else ''
-                    })
-
-            if not species_list:
-                return
-
-            title = f"Species Recorded in {month_name} ({len(species_list)} species, all years)"
-            dlg = SpeciesListDialog(title, species_list, parent=self)
-            dlg.exec()
-        except Exception as e:
-            print(f"Error showing species for month: {e}")
-
     def _on_profile_requested(self, record: dict):
         """Handle profile view/create request from detail dialog."""
         from ..home.species_profile_dialog import SpeciesProfileDialog
@@ -380,80 +293,6 @@ class CommercialStatsDashboard(QScrollArea):
         except Exception as e:
             print(f"Error showing species detail for {species_name}: {e}")
 
-    def _show_species_for_year(self, year: int):
-        """Show species list dialog for a given year."""
-        from ..dialogs.species_list_dialog import SpeciesListDialog
-        try:
-            from ...models.database import get_database
-            db = get_database()
-            exclusion = counted_clause("observations")
-            if db is None:
-                return
-            result = db.execute_main(f"""
-                SELECT species_name, MIN(date) as first_date, MAX(date) as last_date
-                FROM observations
-                WHERE strftime('%Y', date) = ?
-                AND record_type = 'Commercial'
-                AND species_name IS NOT NULL AND species_name != ''
-                {exclusion}
-                GROUP BY species_name ORDER BY species_name
-            """, (str(year),))
-            species_list = []
-            for r in (result or []):
-                sp_name = r['species_name'] or r[0]
-                first = r['first_date'] or ''
-                last = r['last_date'] or ''
-                if sp_name:
-                    species_list.append({
-                        'species_name': sp_name,
-                        'first_date': str(first)[:10] if first else '',
-                        'last_date': str(last)[:10] if last else ''
-                    })
-            if not species_list:
-                return
-            title = f"Species Recorded in {year} ({len(species_list)} species)"
-            dlg = SpeciesListDialog(title, species_list, parent=self)
-            dlg.exec()
-        except Exception as e:
-            print(f"Error showing species for year {year}: {e}")
-
-    def _show_new_species_for_year(self, year: int):
-        """Show new species (first records) for a given year."""
-        from ..dialogs.species_list_dialog import SpeciesListDialog
-        try:
-            from ...models.database import get_database
-            db = get_database()
-            exclusion = counted_clause("observations")
-            if db is None:
-                return
-            result = db.execute_main(f"""
-                SELECT species_name, MIN(date) as first_date
-                FROM observations
-                WHERE species_name IS NOT NULL AND species_name != '' AND date IS NOT NULL
-                AND record_type = 'Commercial'
-                {exclusion}
-                GROUP BY species_name
-                HAVING strftime('%Y', MIN(date)) = ?
-                ORDER BY first_date
-            """, (str(year),))
-            species_list = []
-            for r in (result or []):
-                sp_name = r['species_name'] or r[0]
-                first = r['first_date'] or ''
-                if sp_name:
-                    species_list.append({
-                        'species_name': sp_name,
-                        'first_date': str(first)[:10] if first else '',
-                        'last_date': str(first)[:10] if first else ''
-                    })
-            if not species_list:
-                return
-            title = f"New Species in {year} (+{len(species_list)})"
-            dlg = SpeciesListDialog(title, species_list, parent=self)
-            dlg.exec()
-        except Exception as e:
-            print(f"Error showing new species for year {year}: {e}")
-
     def _populate_order_curves(self, force=False):
         """Populate species accumulation curves grouped by taxon_group from stats cache."""
         if not force and getattr(self, "_order_curves_populated", False):
@@ -496,61 +335,6 @@ class CommercialStatsDashboard(QScrollArea):
             print(f"Error populating group curves: {e}")
             import traceback
             traceback.print_exc()
-
-    def _show_species_for_order_curve(self, group_label: str):
-        """Show species list dialog when a group chart is clicked."""
-        group_values = getattr(self, '_group_label_map', {}).get(group_label)
-        if group_values:
-            self._show_species_for_taxon_groups(group_values, group_label)
-        else:
-            self._show_species_for_group('order_name', group_label, f"Species in {group_label}")
-
-    def _show_species_for_taxon_groups(self, group_values: list, label: str):
-        """Show species list dialog with family breakdown for taxon_group values."""
-        from ..dialogs.species_list_dialog import SpeciesListDialog
-        try:
-            from ...models.database import get_database
-            db = get_database()
-            exclusion = counted_clause("observations")
-            if db is None:
-                return
-            placeholders = ','.join(['?' for _ in group_values])
-            from shared.taxon_groups import group_sql   # stored label, else order/family
-
-            # Get species with family info
-            query = f"""
-                SELECT species_name, family,
-                       MIN(date) as first_date,
-                       MAX(date) as last_date
-                FROM observations
-                WHERE {group_sql()} IN ({placeholders})
-                AND record_type = 'Commercial'
-                AND species_name IS NOT NULL AND species_name != ''
-                {exclusion}
-                GROUP BY species_name
-                ORDER BY species_name
-            """
-            results = db.execute_main(query, tuple(group_values))
-            species_list = []
-            for r in results:
-                sp_name = r['species_name'] or r[0]
-                first = r['first_date'] or ''
-                last = r['last_date'] or ''
-                family = r['family'] or 'Unknown'
-                if sp_name:
-                    species_list.append({
-                        'species_name': sp_name,
-                        'family': family,
-                        'first_date': str(first)[:10] if first else '',
-                        'last_date': str(last)[:10] if last else ''
-                    })
-            if not species_list:
-                return
-            title = f"Species in {label} ({len(species_list)} species)"
-            dlg = SpeciesListDialog(title, species_list, parent=self, show_families=True)
-            dlg.exec()
-        except Exception as e:
-            print(f"Error showing species for {label}: {e}")
 
     def apply_theme(self):
         """Apply the current theme to all components."""

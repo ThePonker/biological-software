@@ -181,10 +181,13 @@ class DataEntryWidget(QWidget):
             f"color: {theme.MUTED}; font-size: 11px; padding: 6px 10px;"
             f"border-top: 1px solid {theme.LINE}; background: {theme.PAPER};"
         )
+        # long lines wrap rather than set a minimum width on the window (R3 fix, Wil's PC)
+        self._status.setWordWrap(True)
         root.addWidget(self._status)
 
     def _safety_banner(self) -> QWidget:
         w = QLabel()
+        w.setWordWrap(True)   # wraps on a narrow window instead of widening it (R3 fix)
         go_live = getattr(self, "_embedded", False) and self._allow_commit is True
         def _st(bg, fg, accent, bold=600):
             return (f"color: {fg}; background: {bg}; font-weight: {bold}; font-size: 12px;"
@@ -235,9 +238,9 @@ class DataEntryWidget(QWidget):
         if job.get("project"): bits.append("project: " + job["project"])
         lab = QLabel("  \u00b7  ".join(b for b in bits if b))
         lab.setTextFormat(Qt.TextFormat.RichText)
+        lab.setWordWrap(True)  # a long job / client / project name wraps (R3 fix)
         lab.setStyleSheet(f"color: {theme.INK}; font-size: 13px; padding-left: 10px;")
-        top.addWidget(lab)
-        top.addStretch(1)
+        top.addWidget(lab, 1)   # takes the free width, so it wraps only when it must
         tw = QWidget(); tw.setLayout(top)
         self._job_layout.addWidget(tw)
 

@@ -466,6 +466,13 @@ def set_setting(key: str, value):
     settings.setValue(key, value)
 
 
+def scheme_families() -> list:
+    """The families the Recording Scheme tab is limited to (Settings > General), [] = all.
+    One reading for the tab and for counts that promise what it will show."""
+    text = str(get_setting(Settings.SCHEME_FAMILIES, "", str) or "").strip()
+    return [f.strip() for f in text.split(',') if f.strip()]
+
+
 def get_db_path(db_type: str = 'main') -> Optional[str]:
     """
     Get a database path, checking QSettings first then falling back to defaults.

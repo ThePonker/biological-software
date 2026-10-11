@@ -8,7 +8,7 @@ for Commercial (observation_stats_card.py, L16 10 Oct).
 
 from typing import Dict, Any
 
-from PySide6.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel, QFrame, QWidget
+from PySide6.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel, QFrame, QWidget, QSizePolicy
 from PySide6.QtCore import QTimer, Qt
 
 from .card import Card
@@ -144,6 +144,10 @@ class QuickStatsPanel(Card):
             background: transparent;
             border: none;
         """)
+        # The leader dots fill the room there is; they never widen the card (R4: 80 dots
+        # held each Home card, and so the window, ~300 px wider than its figures)
+        dots_widget.setMinimumWidth(8)
+        dots_widget.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         row.addWidget(dots_widget, 1)
         
         value_widget = QLabel(value)

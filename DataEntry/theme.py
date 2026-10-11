@@ -54,22 +54,29 @@ RADIUS_LG = _g("radius_lg", "8px")
 def card_qss():
     return "background-color: %s; border: 1px solid %s; border-radius: %s;" % (CARD, LINE, RADIUS_LG)
 
-def button_primary_qss():
+def _vpad(compact):
+    """Top/bottom button padding: 6 px, or 3 px for the compact banner buttons (R9-8)."""
+    return 3 if compact else 6
+
+def button_primary_qss(compact=False):
     return ("QPushButton { background-color: %s; color: #ffffff; border: none;"
-            " border-radius: %s; padding: 6px 14px; font-weight: 600; font-size: 12px; }"
+            " border-radius: %s; padding: %dpx 14px;"
+            " font-weight: 600; font-size: 12px; }"
             "QPushButton:hover { background-color: %s; }"
             "QPushButton:disabled { background-color: %s; color: %s; }"
-            % (MOSS, RADIUS_MD, MOSS_HOVER, DISABLED_BG, DISABLED_TEXT))
+            % (MOSS, RADIUS_MD, _vpad(compact), MOSS_HOVER, DISABLED_BG, DISABLED_TEXT))
 
-def button_secondary_qss():
+def button_secondary_qss(compact=False):
     return ("QPushButton { background-color: transparent; color: %s;"
-            " border: 1px solid %s; border-radius: %s; padding: 6px 12px; font-size: 12px; }"
-            "QPushButton:hover { background-color: %s; }" % (SLATE, SLATE, RADIUS_MD, HOVER))
+            " border: 1px solid %s; border-radius: %s; padding: %dpx 12px;"
+            " font-size: 12px; }"
+            "QPushButton:hover { background-color: %s; }" % (SLATE, SLATE, RADIUS_MD, _vpad(compact), HOVER))
 
-def button_delete_qss():
+def button_delete_qss(compact=False):
     return ("QPushButton { background-color: transparent; color: %s;"
-            " border: 1px solid %s; border-radius: %s; padding: 6px 12px; font-size: 12px; }"
-            "QPushButton:hover { background-color: %s; }" % (CLAY, CLAY, RADIUS_MD, CLAY_BG))
+            " border: 1px solid %s; border-radius: %s; padding: %dpx 12px;"
+            " font-size: 12px; }"
+            "QPushButton:hover { background-color: %s; }" % (CLAY, CLAY, RADIUS_MD, _vpad(compact), CLAY_BG))
 
 def input_qss():
     return ("QLineEdit, QComboBox, QSpinBox { background: %s; border: 1px solid %s;"

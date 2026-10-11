@@ -1,3 +1,4 @@
+from __future__ import annotations   # pd.DataFrame annotations: never evaluated
 from src.utils.constants import compute_taxonomic_sort_key
 import paths
 from shared.species_lookup import lookup_names
@@ -14,7 +15,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional, Dict, List
 
-import pandas as pd
+from src.utils.lazy_module import lazy_module
+pd = lazy_module("pandas")   # imported on first use, not at startup (11 Oct 2026)
 from PySide6.QtCore import QThread, Signal
 
 

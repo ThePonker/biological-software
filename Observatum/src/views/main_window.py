@@ -21,9 +21,9 @@ from .observations import ObservationTab
 from .contributed import ContributedTab
 from .scheme import RecordingSchemeTab
 from .collection import InsectCollectionTab
-from .stats import StatsReportsTab
-from .mapping import MappingTab
-from .settings import SettingsTab
+# Stats/Reports, Mapping and Settings are imported and built on first opening
+# (LazyTabPage) -- startup speed, 11 Oct 2026
+from .lazy_tab import LazyTabPage
 
 from ..models.database import get_database
 from ..models.uksi import UKSIModel
@@ -134,15 +134,17 @@ class MainWindow(QMainWindow):
         self.insect_collection_tab = InsectCollectionTab()
         self.tabs.addTab(self.insect_collection_tab, "Insect Collection")
 
-        self.stats_reports_tab = StatsReportsTab()
-        self.tabs.addTab(self.stats_reports_tab, "Stats/Reports")
-
-        self.mapping_tab = MappingTab()
-        self.tabs.addTab(self.mapping_tab, "Mapping")
-
-        self.settings_tab = SettingsTab(db_manager=get_database())
-        self.settings_tab.settings_changed.connect(self._on_settings_changed)
-        self.tabs.addTab(self.settings_tab, "Settings")
+        # Built the first time they are opened (None until then): nothing needs them at
+        # startup, and the Mapping tab alone took several seconds to build
+        self.stats_reports_tab = None
+        self.mapping_tab = None
+        self.settings_tab = None
+        self._stats_page = LazyTabPage(self._build_stats_tab, "Stats/Reports")
+        self.tabs.addTab(self._stats_page, "Stats/Reports")
+        self._mapping_page = LazyTabPage(self._build_mapping_tab, "Mapping")
+        self.tabs.addTab(self._mapping_page, "Mapping")
+        self._settings_page = LazyTabPage(self._build_settings_tab, "Settings")
+        self.tabs.addTab(self._settings_page, "Settings")
 
         # Track initialized tabs for lazy loading
         self._initialized_tabs = set()
@@ -155,11 +157,72 @@ class MainWindow(QMainWindow):
         self._data_changed = False
         self._connect_cross_tab_signals()
 
+    # ── Tabs built on first opening ─────────────────────────────────
+
+    def _build_stats_tab(self):
+        from .stats import StatsReportsTab
+        tab = StatsReportsTab()
+        self.stats_reports_tab = tab
+        self._connect_stats_signals()
+        self._theme_tab(tab)
+        return tab
+
+    def _build_mapping_tab(self):
+        from .mapping import MappingTab
+        tab = MappingTab()
+        self.mapping_tab = tab
+        self._theme_tab(tab)
+        return tab
+
+    def _build_settings_tab(self):
+        from .settings import SettingsTab
+        tab = SettingsTab(db_manager=get_database())
+        self.settings_tab = tab
+        tab.settings_changed.connect(self._on_settings_changed)
+        self._theme_tab(tab)
+        try:
+            tab.initialize()            # database paths and figures
+        except Exception as e:
+            print(f"Warning: Could not initialize Settings tab: {e}")
+        return tab
+
+    def ensure_tab(self, name: str):
+        """The tab called `name` ('stats_reports_tab', 'mapping_tab', 'settings_tab' or any
+        tab built at startup), building it now if it has not been opened yet."""
+        page = {'stats_reports_tab': getattr(self, '_stats_page', None),
+                'mapping_tab': getattr(self, '_mapping_page', None),
+                'settings_tab': getattr(self, '_settings_page', None)}.get(name)
+        if page is not None:
+            page.ensure_built()
+        return getattr(self, name, None)
+
+    def _theme_tab(self, tab):
+        if hasattr(tab, 'apply_theme'):
+            try:
+                tab.apply_theme()
+            except Exception as e:
+                print(f"Warning: Could not apply theme to {tab.__class__.__name__}: {e}")
+
+    def _observations_loaded(self) -> bool:
+        """Observation Data has read its records (it loads on first opening)."""
+        return bool(getattr(self.observation_tab, '_obs_initialized', False))
+
+    def _refresh_observations_if_loaded(self, *args):
+        """Re-read Observation Data -- only if it has been opened; otherwise it reads
+        fresh records when it is first opened anyway."""
+        if self._observations_loaded():
+            self.observation_tab.refresh()
+
     def _connect_cross_tab_signals(self):
-        """Connect signals between tabs for data synchronization."""
+        """Connect signals between tabs for data synchronization.
+        (The Stats/Reports tab's own signals: _connect_stats_signals, when it is built.)"""
         # When a record is saved on Home tab, refresh Observation tab
         self.home_tab.quick_entry.record_saved.connect(self._on_record_saved)
 
+        self._connect_other_signals()
+
+    def _connect_stats_signals(self):
+        """Stats/Reports -> the data tabs ("View records", county firsts, ...)."""
         # When "View more" is clicked on Stats tab, navigate to Observation Data
         self.stats_reports_tab.navigate_to_observations.connect(self._navigate_to_observation_tab)
         self.stats_reports_tab.navigate_to_order.connect(self._navigate_to_observation_tab_by_order)
@@ -177,6 +240,7 @@ class MainWindow(QMainWindow):
         self.stats_reports_tab.filter_collection_by_storage.connect(self._filter_collection_by_storage)
         self.stats_reports_tab.show_specimen_detail.connect(self._show_specimen_detail_by_id)
         self.stats_reports_tab.navigate_to_scheme.connect(self._navigate_to_scheme_tab)
+        self.stats_reports_tab.navigate_to_scheme_taxon.connect(self._navigate_to_scheme_taxon)
         self.stats_reports_tab.navigate_to_scheme_vc.connect(self._navigate_to_scheme_tab_with_vc)
         self.stats_reports_tab.navigate_to_scheme_record.connect(self._navigate_to_scheme_record)
         # Commercial Reports: manage a project's records (8 Oct 2026)
@@ -185,13 +249,14 @@ class MainWindow(QMainWindow):
             _crd.view_project_requested.connect(self._navigate_to_observation_tab_by_project)
             _crd.add_records_requested.connect(self._open_data_entry_for_project)
 
+        # Connect stats filter changes to RS data tab refresh
+        if hasattr(self.stats_reports_tab, 'scheme_dashboard'):
+            self.stats_reports_tab.scheme_dashboard.data_filters_changed.connect(self.recording_scheme_tab.refresh)
+
+    def _connect_other_signals(self):
         # Connect Recording Scheme tab navigation signals (from record detail dialog)
         self.recording_scheme_tab.navigate_to_observations.connect(self._navigate_to_observation_tab)
         self.recording_scheme_tab.navigate_to_collection.connect(self._navigate_to_collection_tab)
-
-        # Connect stats filter changes to RS data tab refresh
-        if hasattr(self, 'stats_reports_tab') and hasattr(self.stats_reports_tab, 'scheme_dashboard'):
-            self.stats_reports_tab.scheme_dashboard.data_filters_changed.connect(self.recording_scheme_tab.refresh)
 
         # When "View specimens" is clicked on Home tab, navigate to Insect Collection
         try:
@@ -238,7 +303,7 @@ class MainWindow(QMainWindow):
 
     def _get_stats_data_type(self) -> str:
         """Get data type filter based on active stats sub-tab."""
-        if hasattr(self, 'stats_reports_tab') and hasattr(self.stats_reports_tab, 'stack'):
+        if getattr(self, 'stats_reports_tab', None) is not None and hasattr(self.stats_reports_tab, 'stack'):
             idx = self.stats_reports_tab.stack.currentIndex()
             if idx == 0:
                 return 'personal'
@@ -261,9 +326,10 @@ class MainWindow(QMainWindow):
             get_recording_scheme_stats().invalidate()
         except Exception:
             pass
-        for step in (lambda: self.stats_reports_tab.mark_stale(),
+        for step in (lambda: self.stats_reports_tab is not None and self.stats_reports_tab.mark_stale(),
                      lambda: self.home_tab.refresh_data(),
-                     lambda: source == "observations" and self.observation_tab._apply_current_filters(),
+                     lambda: (source == "observations" and self._observations_loaded()
+                              and self.observation_tab._apply_current_filters()),
                      lambda: source == "recording_scheme" and self._refresh_scheme_tab_if_loaded()):
             try:
                 step()
@@ -473,6 +539,13 @@ class MainWindow(QMainWindow):
             fb = self.recording_scheme_tab.filter_bar
             fb.clear_filters()
 
+    def _navigate_to_scheme_taxon(self, species_name: str):
+        """Stats > Species lookup "View N scheme records": the Recording Scheme tab showing
+        that taxon as the lookup counted it (not by exact species_name, which missed
+        "Leiopus linnei/nebulosus agg." -- R4, 11 Oct)."""
+        self.tabs.setCurrentWidget(self.recording_scheme_tab)
+        self.recording_scheme_tab.show_species(species_name)
+
     def _navigate_to_scheme_tab_with_vc(self, species_filter: str, vc_number: int):
         """Navigate to the Recording Scheme tab and filter by species and vice county."""
         self.tabs.setCurrentWidget(self.recording_scheme_tab)
@@ -508,6 +581,18 @@ class MainWindow(QMainWindow):
     def _navigate_to_scheme_record(self, record_id: int):
         """Navigate to Recording Scheme tab and show a specific record."""
         self.tabs.setCurrentWidget(self.recording_scheme_tab)
+        # The background load of all records may still be running (it starts after the
+        # window opens): stop it, or it would replace the one record when it finishes
+        rs = self.recording_scheme_tab
+        worker = getattr(rs, '_data_worker', None)
+        if worker is not None and worker.isRunning():
+            if hasattr(worker, 'cancel'):
+                worker.cancel()
+            if getattr(rs, '_poll_timer', None) is not None:
+                rs._poll_timer.stop()
+            rs._preload_records = None
+            if hasattr(rs, '_stack'):
+                rs._stack.setCurrentIndex(0)
         if hasattr(self.recording_scheme_tab, 'show_record_by_id'):
             self.recording_scheme_tab.show_record_by_id(record_id)
 
@@ -729,6 +814,8 @@ class MainWindow(QMainWindow):
         ]
 
         for tab in tabs_with_theme:
+            if tab is None:                     # not opened yet: themed when built
+                continue
             if hasattr(tab, 'apply_theme'):
                 try:
                     tab.apply_theme()
@@ -773,34 +860,39 @@ class MainWindow(QMainWindow):
         except Exception as e:
             print(f"Warning: Could not initialize stats services: {e}")
 
-        # Initialize Home tab
-        self._update_splash(65, "Loading Home tab...")
+        # Startup speed (11 Oct 2026): the window opens first. Home's figures are read
+        # just after it is shown (load_after_show); Observation Data, Recording Scheme
+        # and Insect Collection read their records when first opened (_on_tab_changed),
+        # and the Recording Scheme records start loading in the background once the
+        # window is up. (Observation Data used to be read here "for the Home stats",
+        # but Home reads its own figures; Settings is built when first opened.)
+        self._update_splash(85, "Ready...")
+
+    def load_after_show(self):
+        """Work that used to hold the window back: run it once the window is on screen."""
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(0, self._fill_home)
+
+    def _fill_home(self):
+        timing = _timing()
         try:
             self.home_tab.initialize()
         except Exception as e:
             print(f"Warning: Could not initialize Home tab: {e}")
             self.statusbar.showMessage(f"Warning: {e}")
+        timing.mark("Home figures filled")
+        # Recording Scheme records load in a background thread, ready for its first opening
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(300, self._start_scheme_preload)
 
-        # Initialize Settings tab (to show db paths and stats)
+    def _start_scheme_preload(self):
+        rs = self.recording_scheme_tab
+        if getattr(rs, '_initialized', False) or getattr(rs, '_data_worker', None) is not None:
+            return                      # already opened (it loaded itself) or loading
         try:
-            self.settings_tab.initialize()
+            rs.start_preload(self._main_db_path)
         except Exception as e:
-            print(f"Warning: Could not initialize Settings tab: {e}")
-
-        # Initialize Observation tab (needed for Home tab stats)
-        self._update_splash(70, "Loading Observation Data...")
-        try:
-            self.observation_tab.initialize()
-        except Exception as e:
-            print(f"Warning: Could not initialize Observation tab: {e}")
-
-        # Pre-load Recording Scheme data in background thread
-        # Data loads while user views Observation tab, ready when they click RS
-        self.recording_scheme_tab.start_preload(self._main_db_path)
-
-        # Defer other tab UI init - they initialize on first visit via _on_tab_changed
-        # But RS data is already loading in background
-        self._update_splash(85, "Ready...")
+            print(f"Warning: Could not start loading Recording Scheme records: {e}")
 
     def set_status(self, message: str, timeout: int = 5000):
         """Show a message in the status bar."""
@@ -888,9 +980,17 @@ class MainWindow(QMainWindow):
             return
 
         w = self.tabs.widget(index)
+        if isinstance(w, LazyTabPage):          # Stats/Reports, Mapping, Settings
+            try:
+                w = w.ensure_built()
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                self.statusbar.showMessage(f"Error opening tab: {e}", 8000)
+                return
 
         # Refresh stats on every visit (data/settings may have changed)
-        if w is self.stats_reports_tab and index in self._initialized_tabs:
+        if w is not None and w is self.stats_reports_tab and index in self._initialized_tabs:
             try:
                 self.stats_reports_tab.refresh()
             except Exception:
@@ -913,6 +1013,13 @@ class MainWindow(QMainWindow):
             elif w is self.recording_scheme_tab:
                 self.recording_scheme_tab.initialize(self._main_db_path, self._uksi_db_path)
                 # Sorting enabled after async data load completes (in _on_data_loaded)
+                # A background load that failed before the tab was opened is reported
+                # now (main.py used to report it at startup)
+                err = self.recording_scheme_tab.worker_error()
+                if err:
+                    from PySide6.QtWidgets import QMessageBox
+                    QMessageBox.warning(self, "Recording Scheme",
+                                        f"The Recording Scheme records could not be loaded:\n\n{err}")
             elif w is self.insect_collection_tab:
                 self.insect_collection_tab.initialize(self._main_db_path, self._uksi_db_path)
                 if hasattr(self.insect_collection_tab, '_enable_sorting_on_first_view'):
@@ -930,7 +1037,7 @@ class MainWindow(QMainWindow):
     def _on_record_saved(self, record_data: dict):
         """Handle record saved from Home tab - refresh Observation tab and Home stats."""
         try:
-            self.observation_tab.refresh()
+            self._refresh_observations_if_loaded()
         except Exception as e:
             print(f"Warning: Could not refresh Observation tab: {e}")
 
@@ -974,7 +1081,8 @@ class MainWindow(QMainWindow):
 
         # Refresh Observation tab stats (species count respects exclusion setting)
         try:
-            self.observation_tab._apply_current_filters()
+            if self._observations_loaded():     # otherwise it reads them on first opening
+                self.observation_tab._apply_current_filters()
         except Exception as e:
             print(f"Warning: Could not refresh observation tab: {e}")
 
@@ -986,8 +1094,7 @@ class MainWindow(QMainWindow):
 
         # Refresh RS data (scheme family scope may have changed)
         try:
-            if hasattr(self.recording_scheme_tab, '_initialized') and self.recording_scheme_tab._initialized:
-                self.recording_scheme_tab.refresh()
+            self._refresh_scheme_tab_if_loaded()    # or re-read its background load
         except Exception as e:
             print(f"Warning: Could not refresh recording scheme data: {e}")
 
@@ -998,10 +1105,14 @@ class MainWindow(QMainWindow):
 
         # Refresh stats dashboards (scheme family scope may have changed)
         try:
+            if self.stats_reports_tab is None:  # not opened yet: reads fresh when opened
+                raise _NotBuilt
             self.stats_reports_tab.refresh()
             # Force scheme dashboard refresh even if not currently visible
             if hasattr(self.stats_reports_tab, 'scheme_dashboard'):
                 self.stats_reports_tab.scheme_dashboard.refresh()
+        except _NotBuilt:
+            pass
         except Exception as e:
             print(f"Warning: Could not refresh stats tab: {e}")
 
@@ -1050,6 +1161,8 @@ class MainWindow(QMainWindow):
     def _refresh_scheme_tab_if_loaded(self):
         if getattr(self.recording_scheme_tab, '_initialized', False):
             self.recording_scheme_tab.refresh()
+        elif hasattr(self.recording_scheme_tab, 'reload_preload'):
+            self.recording_scheme_tab.reload_preload()   # read in the background: again
 
     def _mark_data_changed(self, *args):
         """Mark that data was changed during this session and invalidate stats."""
@@ -1066,7 +1179,8 @@ class MainWindow(QMainWindow):
         # Figures on screen follow the change (review OBS-10: Stats kept its first
         # load until restart; Home only refreshed after Quick Entry or an import)
         try:
-            self.stats_reports_tab.mark_stale()
+            if self.stats_reports_tab is not None:      # None until first opened
+                self.stats_reports_tab.mark_stale()
         except Exception as e:
             print(f"[MainWindow] stats refresh after a change failed: {e}")
         try:
@@ -1076,6 +1190,13 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         """Handle window close with optional CSV backup."""
+        # The Recording Scheme records may still be loading in the background (they start
+        # after the window opens): stop that first -- a thread left running aborted the
+        # process on exit, and its open read held up the WAL checkpoint below (review R4)
+        try:
+            self.recording_scheme_tab.stop_loading()
+        except Exception as _e:
+            print(f"[RecordingScheme] could not stop the background load: {_e}")
         # Data Entry staging -> rolling CSV, before anything else can go wrong
         try:
             _de = getattr(self, "data_entry_tab", None)
@@ -1185,6 +1306,22 @@ class MainWindow(QMainWindow):
             print(f"CSV backup error: {e}")
 
 
+class _NotBuilt(Exception):
+    """A tab that is built on first opening has not been opened yet."""
+
+
+def _timing():
+    """The startup timer (src.startup_timing) -- a no-op unless --timing was given."""
+    try:
+        from src.startup_timing import timer
+        return timer()
+    except Exception:
+        class _Off:
+            def mark(self, *a, **k):
+                pass
+        return _Off()
+
+
 # Claude: deferred Observation-Data refresh worker (module-level; safe, auto-detecting)
 def _claude_wire_obs_refresh(mw):
     """Connect Data Entry 'committed' -> Observation Data refresh() once all tabs exist."""
@@ -1209,7 +1346,8 @@ def _claude_wire_obs_refresh(mw):
                 if obs is not None:
                     break
         if obs is not None:
-            de.committed.connect(obs.refresh)
+            # only once it has been opened (it reads fresh records on first opening)
+            de.committed.connect(getattr(mw, "_refresh_observations_if_loaded", obs.refresh))
         if hasattr(mw, "_mark_data_changed"):
             de.committed.connect(mw._mark_data_changed)   # Home / Stats follow a commit (OBS-10)
     except Exception:

@@ -168,6 +168,7 @@ class SpeciesInfoPanel(Card):
         # Placeholder
         self.placeholder = QLabel("Select a species to view details")
         self.placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.placeholder.setWordWrap(True)          # wraps rather than widen Home (R4)
         self.placeholder.setStyleSheet(f"color: {t.get('text_muted')}; font-style: italic; padding: 40px;")
         self.add_widget(self.placeholder)
         self.add_stretch()

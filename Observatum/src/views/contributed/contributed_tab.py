@@ -56,14 +56,17 @@ class ContributedTab(QWidget):
         self.search_edit = QLineEdit()
         self.search_edit.setPlaceholderText("Filter: species, site, recorder, project, file...")
         self.search_edit.setClearButtonEnabled(True)
-        self.search_edit.setFixedWidth(320)
+        self.search_edit.setMaximumWidth(320)        # narrower on a narrow window (R4)
+        self.search_edit.setMinimumWidth(160)
         self.search_edit.setStyleSheet(get_input_style())
         debounce_text(self.search_edit, self._load_records)   # once typing pauses
         bl.addWidget(self.search_edit)
         note = QLabel("Read only - records other people sent you. Not in stats, maps or iRecord.")
         note.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {t.font_size('sm')}; "
                            "border: none;")
-        bl.addWidget(note)
+        note.setWordWrap(True)                       # wraps rather than widen the window (R4)
+        note.setMinimumWidth(120)
+        bl.addWidget(note, 1)
         bl.addStretch()
         self.count_label = QLabel()
         self.count_label.setStyleSheet(f"color: {t.get('text_secondary')}; "

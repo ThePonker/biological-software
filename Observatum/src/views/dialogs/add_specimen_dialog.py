@@ -45,7 +45,8 @@ class AddSpecimenDialog(QDialog):
         uksi_model=None,
         vc_service=None,
         existing_specimen: Optional[Dict[str, Any]] = None,
-        db=None
+        db=None,
+        obs_db_path=None
     ):
         """
         Initialize the dialog.
@@ -63,6 +64,7 @@ class AddSpecimenDialog(QDialog):
         self._vc_service = vc_service
         self._existing_specimen = existing_specimen
         self._db = db
+        self._obs_db_path = obs_db_path      # observatum.db for the Field record box (tests)
         self._selected_species = None  # Store selected UKSI species info
         self._profile_text = None  # Store loaded profile text
         
@@ -319,6 +321,9 @@ class AddSpecimenDialog(QDialog):
         """)
         notes_group.addWidget(self.notes_edit)
         layout.addLayout(notes_group)
+
+        # Field record: the observation this specimen is the same find as
+        self._add_field_record_box(layout)
         
         # Species Profile Section
         self._add_profile_section(layout)
@@ -399,6 +404,33 @@ class AddSpecimenDialog(QDialog):
         setattr(self, attr_name, edit)
         layout.addLayout(group)
     
+    def _add_field_record_box(self, layout):
+        """The Field record box (field_record_box.py). Fails soft: no box, no crash."""
+        self.field_record = None
+        try:
+            import paths as _paths
+            from .field_record_box import FieldRecordBox
+            spec_id = (self._existing_specimen or {}).get('id')
+            self.field_record = FieldRecordBox(
+                spec_id, self._obs_db_path or _paths.OBSERVATUM_DB, self._field_record_context,
+                str(_paths.UKSI_DB), self)
+            layout.addWidget(self.field_record)
+        except Exception as e:  # noqa: BLE001
+            print(f"[AddSpecimen] field record box not shown: {e}")
+            self.field_record = None
+
+    def _field_record_context(self) -> Dict[str, Any]:
+        """The specimen as the dialog holds it now, for the field record chooser."""
+        sp = self._selected_species or {}
+        return {
+            'species_name': sp.get('scientific_name', ''),
+            'species_tvk': sp.get('tvk'),
+            'date_collected': self._get_date_for_db(),
+            'grid_ref': self.gridref_edit.text().strip().upper(),
+            'collector': self.collector_edit.text().strip(),
+            'sex': self.sex_combo.currentText() or None,
+        }
+
     def _add_profile_section(self, layout):
         """Add species profile section."""
         t = theme()
@@ -855,6 +887,10 @@ class AddSpecimenDialog(QDialog):
             data['order_name'] = self._selected_species.get('order')
             self._add_taxonomy_keys(data)
         
+        # Field record link / "checked: no field record" -- only what changed
+        if getattr(self, 'field_record', None) is not None:
+            data.update(self.field_record.changes())
+
         # Add vice county if available
         if self._vc_service and data['grid_ref']:
             try:

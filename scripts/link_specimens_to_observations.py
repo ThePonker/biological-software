@@ -18,10 +18,15 @@ link to that same observation counts it the same way. The Insect Collection show
 its "Obs ID" column.
 
 --apply backs observatum.db up with conn.backup() first, then writes in one transaction,
-each UPDATE guarded so it only fills an observation_id that is still empty.
+each UPDATE guarded so it only fills an observation_id that is still empty (and never on a
+specimen marked "Checked: no field record exists"). It then writes the links it set to
+scripts\\_oneoff\\specimen_links_set_<date_time>.csv (or --csv), so they can be undone with
+
+    py -3.14 scripts\\unlink_specimens_from_observations.py --csv <that file>
 """
 import argparse
 import sys
+from datetime import datetime
 
 try:
     from scripts import report_common as rc
@@ -35,13 +40,26 @@ import paths  # noqa: E402
 SAMPLES = 10
 
 
-def apply(conn, pairs) -> int:
-    n = 0
+SET_HEADER = ["specimen_id", "specimen_code", "observation_id", "species_name", "date",
+              "grid_ref", "set_at", "backup"]
+
+
+def apply(conn, pairs) -> list:
+    """Write the links; returns the (specimen id, observation id) pairs actually set."""
+    from shared.specimen_links import CHECK_COLUMN, has_check_column
+    guard = f" AND {CHECK_COLUMN} IS NULL" if has_check_column(conn) else ""
+    done = []
     with conn:
         for sid, oid in pairs:
-            n += conn.execute("UPDATE specimens SET observation_id = ? WHERE id = ? "
-                              "AND observation_id IS NULL", (oid, sid)).rowcount
-    return n
+            if conn.execute("UPDATE specimens SET observation_id = ? WHERE id = ? "
+                            "AND observation_id IS NULL" + guard, (oid, sid)).rowcount:
+                done.append((sid, oid))
+    return done
+
+
+def default_set_csv() -> str:
+    import os
+    return os.path.join(rc.REPORT_DIR, f"specimen_links_set_{datetime.now():%Y%m%d_%H%M%S}.csv")
 
 
 def main(argv=None) -> int:
@@ -49,6 +67,9 @@ def main(argv=None) -> int:
     ap.add_argument("--apply", action="store_true", help="write (after a backup)")
     ap.add_argument("--db", default=str(paths.OBSERVATUM_DB), help=argparse.SUPPRESS)
     ap.add_argument("--backup-dir", default=rc.BACKUP_DIR, help=argparse.SUPPRESS)
+    ap.add_argument("--csv", default=None,
+                    help="where --apply lists the links it set (default scripts\\_oneoff\\"
+                         "specimen_links_set_<date_time>.csv)")
     a = ap.parse_args(argv)
 
     print("")
@@ -90,8 +111,15 @@ def main(argv=None) -> int:
                              ).fetchone()[0]
     finally:
         conn.close()
-    print(f"  links set: {done:,} of {len(pairs):,}")
+    stamp = datetime.now().isoformat(timespec="seconds")
+    out = a.csv or default_set_csv()
+    rc.write_csv(out, SET_HEADER, ([sid, by_id[sid]["code"], oid, by_id[sid]["name"],
+                                    by_id[sid]["date"], by_id[sid]["ref"], stamp, dest]
+                                   for sid, oid in done))
+    print(f"  links set: {len(done):,} of {len(pairs):,}")
     print(f"  specimens linked: before {before:,}, after {after:,}")
+    print(f"  the links set are listed in {out}")
+    print("  (undo: py -3.14 scripts\\unlink_specimens_from_observations.py --csv <that file>)")
     print("  done.")
     return 0
 

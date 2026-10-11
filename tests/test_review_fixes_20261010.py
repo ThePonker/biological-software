@@ -400,8 +400,8 @@ def test_observations_tab_shows_aggregate_asked_for_by_name(qapp, monkeypatch):
         pytest.skip("no data copy")
     obs = [{"id": 5809, "species_tvk": OLIGIA_AGG, "species_name": "Oligia strigilis agg."},
            {"id": 2404, "species_tvk": "NBNSYS0000006438", "species_name": "Oligia fasciuncula"}]
-    import src.views.observations.observation_filter_mixin as mixin
-    monkeypatch.setattr(mixin, "excluded_kinds", sc.excluded_kinds)
+    # the tab asks shared/species_counting.kinds_for_search (decision D4), which reads
+    # the patched sc.excluded_kinds
     edit.setText("Oligia")
     assert len(tab._apply_record_exclusion(obs)) == 2           # every record listed ...
     assert len(tab._counted(obs)) == 1                          # ... the aggregate not counted

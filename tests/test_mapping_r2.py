@@ -138,7 +138,7 @@ def test_date_error_goes_when_dates_put_right(qapp, settings_sandbox):
     assert not fp.date_error.text() and fp.date_error.isHidden()
     fp.date_from.setText("2021")
     fp.date_to.setText("2019")
-    assert fp.filters()[0] is None and "after the To date" in fp.date_error.text()
+    assert fp.filters()[0] is None and "is after To" in fp.date_error.text()
     fp.date_to.clear()                                  # emptied: gone too
     assert not fp.date_error.text() and fp.date_error.isHidden()
     fp.date_from.setText("bad")                         # a new error waits for Generate

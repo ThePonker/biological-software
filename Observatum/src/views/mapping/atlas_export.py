@@ -5,6 +5,10 @@ county in County view; the default) or the current view, chosen beside the butto
 the clicked square's outline is never printed (L13/L31, shared/maps/grid_map.render_sheet);
 with no taxon chosen the title is "All records (no taxon chosen)" (L33). Split out of
 mapping_tab.py to keep it under 400 lines.
+
+R9-6 (11 Oct 2026): a "Current view" page zoomed in counts only what it shows: the squares
+drawn on the page (wholly or in part) and the records and species in them, "(in view)". A
+full-extent page keeps the whole map's figures and wording.
 """
 import os
 import re
@@ -58,11 +62,23 @@ class AtlasExportMixin:
         """The atlas page (QImage). extent: 'full' (all GB in National view, the whole county
         in County view) or 'current' (what is on screen). The clicked square's outline is
         never printed (L13/L31)."""
-        grid = GRID_LABELS[self._grid_size()].split(" (")[0]
-        n_sq = len(self._squares)
-        n_rec = sum(s["count"] for s in self._squares.values())
-        n_sp = len({r["species"] for r in self._records if r.get("species") and r.get("square")})
+        _ext, shown = self.map_widget.sheet_view(extent)
         return self.map_widget.render_sheet(
             self._title(), subtitle=self.map_header.subtitle.text(), legend=self._legend,
-            footer=f"{n_sq:,} {grid.lower()}s, {n_rec:,} records, {n_sp:,} species.",
-            extent=extent)
+            footer=self.atlas_footer(extent, shown), extent=extent)
+
+    def atlas_footer(self, extent: str = "full", shown=None) -> str:
+        """"n hectads, n records, n species." for the whole map; on a zoomed "current" page
+        (shown: the OSGB box the page's map shows) only the squares on the page, their
+        records and species, "(in view)" (R9-6)."""
+        grid = GRID_LABELS[self._grid_size()].split(" (")[0].lower()
+        squares = set(self._squares)
+        in_view = (extent == "current" and shown is not None
+                   and self.map_widget.resolve_extent("current") != self.map_widget.full_extent())
+        if in_view:
+            squares = set(self.map_widget.squares_in(shown))
+        n_rec = sum(self._squares[s]["count"] for s in squares)
+        n_sp = len({r["species"] for r in self._records
+                    if r.get("species") and r.get("square") in squares})
+        tail = " (in view)" if in_view else ""
+        return f"{len(squares):,} {grid}s, {n_rec:,} records, {n_sp:,} species{tail}."

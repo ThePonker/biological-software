@@ -20,7 +20,9 @@ Problems:
     date        no date, or a vague one: date_type other than D (single day) -- DD day range,
                 O month, OO month range, Y year, YY year range, ... (decision 9).
     grid        no grid ref, or 10 km or coarser (hectad, 100 km square). Tetrads (2 km) and
-                quadrants (5 km) are not coarse. Lat/long held as text is not flagged.
+                quadrants (5 km) are not coarse.
+    latlon      the grid ref field holds latitude/longitude text ("49.4557N2.5591W"), not a
+                grid ref (decision 6, 11 Oct; listed only -- nothing is converted).
 Verification status is not a problem (answer 12). A scheme count of 0 is presence
 (decision 8), so counts are not checked at all.
 """
@@ -37,9 +39,9 @@ from shared.db_open import connect_ro
 from shared.record_kinds import KIND_LABELS, classify, ranks_for_tvks
 from shared.species_filter import current_tvk_map
 
-# Link to one record in iRecord. TO BE CONFIRMED BY WIL on first use (claude/38 answer 14:
-# "likely"): if iRecord opens the wrong page, change this one line.
-IRECORD_URL = "https://irecord.org.uk/record-details?occurrence_id={id}"
+# Link to one record in iRecord: the one pattern lives in shared/irecord_links.py (confirmed
+# by Wil 11 Oct, R9-3); re-exported here for cleaning_export and the dashboard.
+from shared.irecord_links import IRECORD_URL, irecord_url  # noqa: F401
 
 SOURCES: List[Tuple[str, str]] = [("observations", "Observation"),
                                   ("recording_scheme", "Recording Scheme")]
@@ -50,6 +52,7 @@ PROBLEMS: List[Tuple[str, str]] = [(k, KIND_LABELS[k]) for k in NAME_KINDS] + [
     ("synonym", "Synonyms counted twice"),
     ("date", "No date or vague date"),
     ("grid", "No grid ref or coarse (10 km+)"),
+    ("latlon", "Not a grid ref (looks like latitude/longitude)"),
 ]
 PROBLEM_LABELS = dict(PROBLEMS)
 
@@ -61,15 +64,8 @@ DATE_TYPE_LABELS = {
 
 _COLUMNS = ("id", "irecord_id", "species_name", "species_tvk", "taxon_rank", "date",
             "date_type", "grid_ref", "site_name", "recorder", "latitude", "longitude")
-
-
-def irecord_url(irecord_id) -> Optional[str]:
-    """The iRecord page of a record, or None when the record holds no iRecord id."""
-    try:
-        n = int(irecord_id)
-    except (TypeError, ValueError):
-        return None
-    return IRECORD_URL.format(id=n) if n > 0 else None
+# where the record came from (scheme: the dataset / iRecord survey), first column present
+_SOURCE_COLUMNS = ("source", "dataset_name")
 
 
 # ------------------------------------------------------------------ dates and grid refs
@@ -120,6 +116,13 @@ def grid_size_m(ref: Optional[str]) -> Optional[int]:
     if not m or len(m.group(2)) % 2 or len(m.group(2)) > 10:
         return None
     return 10 ** (5 - len(m.group(2)) // 2)
+
+
+def latlon_problem(ref: Optional[str]) -> Optional[str]:
+    """'Latitude/longitude text, not a grid ref' when the grid ref field holds lat/long."""
+    if (ref or "").strip() and grid_size_m(ref) == 0:
+        return "Latitude/longitude text, not a grid ref"
+    return None
 
 
 def grid_problem(ref: Optional[str], has_latlon: bool = False) -> Optional[str]:
@@ -185,6 +188,7 @@ class CleaningRow:
     irecord_id: Optional[int]
     problem: str          # key in PROBLEM_LABELS
     detail: str           # what exactly is wrong, in plain words
+    dataset: str = ""     # where the record came from (stored source / dataset_name)
 
 
 @dataclass
@@ -211,7 +215,9 @@ def build_report(main_db, uksi_db, source: str) -> CleaningReport:
     t0 = time.perf_counter()
     conn = connect_ro(main_db)
     try:
-        rows = conn.execute(f"SELECT {', '.join(_COLUMNS)} FROM {source}").fetchall()
+        have = {r[1] for r in conn.execute(f"PRAGMA table_info({source})")}
+        src_col = next((c for c in _SOURCE_COLUMNS if c in have), "NULL")
+        rows = conn.execute(f"SELECT {', '.join(_COLUMNS)}, {src_col} FROM {source}").fetchall()
     finally:
         conn.close()
     pairs = {(r[3] or "", r[2] or "") for r in rows}
@@ -232,7 +238,7 @@ def build_report(main_db, uksi_db, source: str) -> CleaningReport:
                             rows={k: [] for k, _ in PROBLEMS})
     kind_cache: Dict[Tuple[str, str], frozenset] = {}
     flagged = set()
-    for (rid, irec, name, tvk, rank, date, dtype, grid, site, recorder, lat, lon) in rows:
+    for (rid, irec, name, tvk, rank, date, dtype, grid, site, recorder, lat, lon, ds) in rows:
         name, tvk = name or "", tvk or ""
         rank = (rank or "").strip() or uksi_ranks.get(tvk) or \
             uksi_ranks.get(current.get(tvk) or "", "")
@@ -256,6 +262,9 @@ def build_report(main_db, uksi_db, source: str) -> CleaningReport:
         g = grid_problem(grid, lat is not None and lon is not None)
         if g:
             problems.append(("grid", g))
+        ll = latlon_problem(grid)
+        if ll:
+            problems.append(("latlon", ll))
         if not problems:
             continue
         flagged.add(rid)
@@ -263,7 +272,7 @@ def build_report(main_db, uksi_db, source: str) -> CleaningReport:
             report.rows[k].append(CleaningRow(
                 record_id=rid, species=name, rank=rank, date=display_date(date, dtype),
                 grid_ref=grid or "", site=site or "", recorder=recorder or "",
-                irecord_id=irec, problem=k, detail=detail))
+                irecord_id=irec, problem=k, detail=detail, dataset=ds or ""))
     for lst in report.rows.values():
         lst.sort(key=lambda r: (r.species.lower(), r.date, r.record_id))
     report.records_with_problem = len(flagged)

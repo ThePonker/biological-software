@@ -170,7 +170,7 @@ def test_home_left_column_order(qapp):
     from src.views.home.observation_stats_card import ObservationStatsCard
     from src.views.home.quick_stats import QuickStatsPanel
     h = HomeTab()
-    lay = h.layout().itemAt(0).widget().layout()
+    lay = h.personal_stats.parentWidget().layout()   # the left column (in a scroll area since R4)
     widgets = [lay.itemAt(i).widget() for i in range(lay.count()) if lay.itemAt(i).widget()]
     assert [type(w) for w in widgets] == [ObservationStatsCard, ObservationStatsCard,
                                          QuickStatsPanel, GamificationLauncher]

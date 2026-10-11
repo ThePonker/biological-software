@@ -12,6 +12,7 @@ from ...models.observation import ObservationModel
 from ...models.uksi import UKSIModel
 from ...services.search_service import get_search_service
 from ...themes import theme
+from ..components.hscroll_strip import PageScroll
 
 # Repository for stats (preferred over model)
 try:
@@ -41,7 +42,13 @@ class HomeTab(QWidget):
         t = theme()
         self.setStyleSheet(f"background-color: {t.get('background')};")
 
-        layout = QHBoxLayout(self)
+        # The four panels sit in a scroll area: on a narrow (or short) window Home
+        # scrolls rather than hold the main window wide (R4, 11 Oct 2026)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        panels = QWidget()
+        outer.addWidget(PageScroll(panels))
+        layout = QHBoxLayout(panels)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(16)
         layout.setAlignment(Qt.AlignmentFlag.AlignTop)  # Align all panels to top

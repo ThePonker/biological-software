@@ -956,7 +956,9 @@ its "skip O" step was off by one. Tetrad **counts** were right; tetrad **labels*
 *Found 9 Oct by the E8b taxonomic summary.* 10 Kent Deadwood records named "Melanotus" carry
 BMSSYS0000020490, the Agaricales genus, so they appear as an "Agaricales" group in Examen.
 `saproxylic_scores.csv` gives the beetle genus the same TVK (harmless there: genus entries match
-by name). **Open** -- the records want the click-beetle genus TVK.
+by name). **Script ready (11 Oct)**: `scripts/_oneoff/fix_melanotus_tvk_20261011.py` (dry run,
+then `--apply`) moves them to NHMSYS0000079906 and re-derives kingdom / order / family / taxon
+group (also on iRecord rows -- none on the 10 Oct copy). Closed once Wil has run it.
 
 ### F44-F46. Suite review, 9 Oct 2026
 The full review is in the project (`claude/32_Suite_Review_20261009.md`), finding IDs OBS/SRCH/MAP/

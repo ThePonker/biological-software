@@ -43,8 +43,15 @@ class GamificationLauncher(QFrame):
 
         self._setup_ui()
 
-        if show_stats:
-            QTimer.singleShot(500, self._load_quick_stats)
+        # The tier figures are read once the card is on screen (showEvent), not on a
+        # fixed 500 ms timer that fired while the splash screen was still up and held
+        # the main window back (startup speed, 11 Oct 2026)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if self._show_stats and not getattr(self, '_stats_asked', False):
+            self._stats_asked = True             # once, even if the read fails
+            QTimer.singleShot(0, self._load_quick_stats)
 
     def _setup_ui(self):
         """Setup the widget UI."""
@@ -88,6 +95,7 @@ class GamificationLauncher(QFrame):
                 background: transparent;
                 border: none;
             """)
+            self.tier_label.setWordWrap(True)       # wraps rather than widen Home (R4)
             text_layout.addWidget(self.tier_label)
 
         layout.addLayout(text_layout, 1)
@@ -108,7 +116,9 @@ class GamificationLauncher(QFrame):
             }
         """)
         self.launch_btn.clicked.connect(self._launch_window)
-        layout.addWidget(self.launch_btn)
+        # under the text, not beside it: side by side the card held Home's first column,
+        # and so the window, ~130 px wider (R4, 11 Oct 2026)
+        text_layout.addWidget(self.launch_btn, 0, Qt.AlignmentFlag.AlignLeft)
 
     def _load_quick_stats(self):
         """Load quick tier stats for display."""

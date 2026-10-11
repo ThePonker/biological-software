@@ -22,6 +22,7 @@ from ...models.observation import ObservationModel
 
 # Import dashboard components from separate modules
 from .section_toggle import SectionToggle
+from ..components.hscroll_strip import HScrollStrip
 from .personal_dashboard import PersonalStatsDashboard
 from .commercial_dashboard import CommercialStatsDashboard
 from .all_stats_dashboard import AllStatsDashboard
@@ -49,6 +50,7 @@ class StatsReportsTab(QWidget):
     filter_collection_by_prep_type = Signal(str)   # Filter by preparation type
     filter_collection_by_storage = Signal(str)     # Filter by storage location
     navigate_to_scheme = Signal(str)  # Request to switch to Recording Scheme tab with species filter
+    navigate_to_scheme_taxon = Signal(str)  # Species lookup: one taxon, found and counted as there (R4)
     navigate_to_scheme_vc = Signal(str, int)  # Request to switch with species and VC filter
     navigate_to_scheme_record = Signal(int)  # Request to switch to Recording Scheme tab and show specific record
 
@@ -66,7 +68,7 @@ class StatsReportsTab(QWidget):
         # Section toggle
         self.section_toggle = SectionToggle()
         self.section_toggle.section_changed.connect(self._on_section_changed)
-        layout.addWidget(self.section_toggle)
+        layout.addWidget(HScrollStrip(self.section_toggle))   # never forces the window wider (R4)
 
         # Stacked widget for sections
         self.stack = QStackedWidget()
@@ -128,6 +130,7 @@ class StatsReportsTab(QWidget):
         self.species_dashboard = SpeciesDashboard()
         self.species_dashboard.navigate_to_observations.connect(self.navigate_to_observations.emit)
         self.species_dashboard.navigate_to_collection.connect(self.navigate_to_collection.emit)
+        self.species_dashboard.navigate_to_scheme.connect(self.navigate_to_scheme_taxon.emit)
         self.stack.addWidget(self.species_dashboard)
 
         # Cleaning Report (index 7): records to tidy in iRecord (backlog B)

@@ -22,6 +22,7 @@ from .observation_filter_mixin import ObservationFilterMixin
 from .observation_export_mixin import ObservationExportMixin
 from .observation_detail_mixin import ObservationDetailMixin
 from ..dialogs import ObservationImportWizard
+from ..components.hscroll_strip import HScrollStrip
 from ...models.database import get_database
 from ...models.observation import ObservationModel
 from ...models.uksi import UKSIModel
@@ -76,12 +77,12 @@ class ObservationTab(
 
         # Toolbar row (Show Filters toggle, counts, export buttons)
         self.toolbar = ObservationToolbar()
-        layout.addWidget(self.toolbar)
+        layout.addWidget(HScrollStrip(self.toolbar))   # never forces the window wider (R4)
 
         # Filter bar (collapsible) - always starts hidden, settings applied after show
         self.filter_bar = ObservationFilterBar()
         self.filter_bar.setVisible(False)
-        layout.addWidget(self.filter_bar)
+        layout.addWidget(HScrollStrip(self.filter_bar))
 
         # Filter Wizard (collapsible visual filter builder), under the bar as on the
         # Recording Scheme and Insect Collection tabs (L29)

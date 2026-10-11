@@ -266,6 +266,9 @@ class SpecimenTableModel(QStandardItemModel):
                 if col_key == 'import_notes' and value:
                     item.setForeground(QColor(t.get('warning_text')))
 
+                if col_key == 'observation_id':
+                    self._obs_link_tip(item, specimen)
+
                 row_items.append(item)
 
             self.appendRow(row_items)
@@ -309,10 +312,35 @@ class SpecimenTableModel(QStandardItemModel):
                 item.setFont(font)
             if col_key == 'import_notes' and value:
                 item.setForeground(QColor(t.get('warning_text')))
+            if col_key == 'observation_id':
+                self._obs_link_tip(item, specimen)
             row_items.append(item)
         self.appendRow(row_items)
 
+    CHECKED_NONE = "checked, none"
+
+    def _obs_link_tip(self, item, specimen):
+        """Obs ID tooltip: the link, or when 'Checked: no field record exists' was ticked."""
+        oid = self._get_specimen_value(specimen, 'observation_id')
+        if oid not in (None, '', self.CHECKED_NONE):
+            item.setToolTip(f"Linked to field record (observation) {oid}")
+        elif oid == self.CHECKED_NONE:
+            when = self._get_specimen_value(specimen, 'no_field_record_checked')
+            item.setToolTip("Checked: no field record exists (marked "
+                            f"{format_date_display(str(when)[:10], 'user')})")
+        else:
+            item.setToolTip("Not linked to a field record")
+
     def _get_specimen_value(self, specimen: Any, col_key: str):
+        """Value for a column; Obs ID reads 'checked, none' for a specimen marked
+        'Checked: no field record exists' (specimens.no_field_record_checked)."""
+        value = self._raw_specimen_value(specimen, col_key)
+        if col_key == 'observation_id' and value in (None, ''):
+            if self._raw_specimen_value(specimen, 'no_field_record_checked'):
+                return self.CHECKED_NONE
+        return value
+
+    def _raw_specimen_value(self, specimen: Any, col_key: str):
         """
         Get value from specimen, handling both dict and dataclass objects.
 

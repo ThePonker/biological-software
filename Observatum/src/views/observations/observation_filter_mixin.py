@@ -6,7 +6,7 @@ Handles filtering logic, data loading, and special views for ObservationTab.
 
 from typing import Optional, Dict, Any, List
 
-from shared.species_counting import default_db, excluded_kinds, excluded_reasons, species_key_map
+from shared.species_counting import default_db, excluded_reasons, kinds_for_search, species_key_map
 
 from ...services.filter_builder import same_text, status_is
 
@@ -329,17 +329,10 @@ class ObservationFilterMixin:
             import traceback
             traceback.print_exc()
 
-    def _asked_for_broad(self) -> bool:
-        """The species box names an aggregate or s.l. ('Oligia strigilis agg.'): its records
-        count (undimmed) in this view even when the switches leave aggregates out -- they
-        were asked for by name (review 10 Oct: navigating to an aggregate showed nothing)."""
+    def _species_box_text(self) -> str:
         fb = getattr(self, 'filter_bar', None)
         edit = getattr(fb, 'species_edit', None)
-        text = edit.text().strip() if edit is not None else ''
-        if not text:
-            return False
-        from shared.species_lookup import parse_qualifier
-        return parse_qualifier(text)[0] in ('agg.', 's.l.')
+        return edit.text().strip() if edit is not None else ''
 
     # ---- species-counting switches (backlog A; shared/species_counting.py) ----------
     def _counting_db(self):
@@ -355,9 +348,9 @@ class ObservationFilterMixin:
     def _apply_record_exclusion(self, observations) -> list:
         """Every record stays listed; those the switches leave out are dimmed (answer 5 of
         note 38). With "Show only excluded" ticked, only those are listed."""
-        kinds = set(excluded_kinds("observations"))
-        if self._asked_for_broad():                   # see kinds_for_search
-            kinds -= {"agg", "sl"}
+        # a species box naming an aggregate, s.l. or slash pair keeps those counted: they
+        # were asked for by name (shared/species_counting.kinds_for_search, decision D4)
+        kinds = kinds_for_search("observations", self._species_box_text())
         try:
             reasons = excluded_reasons(self._counting_db(), "observations", kinds)
         except Exception as e:

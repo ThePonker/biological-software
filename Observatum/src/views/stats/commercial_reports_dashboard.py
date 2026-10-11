@@ -28,6 +28,16 @@ from ...models.database import get_database
 from .stat_widgets import StatCard
 
 
+def species_count_sql(path: str, prefix: str = "") -> str:
+    """COUNT(DISTINCT ...) of species following the species-counting switches (decision D1,
+    11 Oct 2026): genus-only and other switched-off kinds left out, subspecies rolled up to
+    their species (shared/species_counting.py). Record counts beside it stay COUNT(*)."""
+    from shared.species_counting import counted_clause, species_key_expr
+    keep = counted_clause("observations", prefix, db=path)
+    sk = species_key_expr("observations", prefix, db=path)
+    return f"COUNT(DISTINCT CASE WHEN {prefix}species_tvk IS NOT NULL{keep} THEN {sk} END)"
+
+
 class EditProjectDialog(QDialog):
     """New project name and client for one project, with existing names to pick from."""
 
@@ -294,12 +304,13 @@ class CommercialReportsDashboard(QScrollArea):
                          else str(db._main_db_path))
             conn = sqlite3.connect(main_path)
             today = date.today().isoformat()
+            nsp = species_count_sql(main_path)
 
-            # Get project breakdown
-            cursor = conn.execute("""
+            # Get project breakdown (species follow the counting switches; records are all)
+            cursor = conn.execute(f"""
                 SELECT project_name, client, embargo_status, embargo_until,
                        COUNT(*) as record_count,
-                       COUNT(DISTINCT species_name) as species_count
+                       {nsp} as species_count
                 FROM observations
                 WHERE record_type = 'Commercial'
                 GROUP BY project_name, client, embargo_status, embargo_until
@@ -470,16 +481,17 @@ class CommercialReportsDashboard(QScrollArea):
                  "AND COALESCE(client,'') = ?")
         params = (project or "", client or "")
         try:
+            nsp_sql = species_count_sql(path)
             conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
             rows = conn.execute(f"""
                 SELECT substr(date,1,4), COALESCE(NULLIF(TRIM(site_name),''), '(no site)'),
-                       COUNT(*), COUNT(DISTINCT species_name), MIN(date), MAX(date),
+                       COUNT(*), {nsp_sql}, MIN(date), MAX(date),
                        MAX(CASE WHEN embargo_status='Active' THEN embargo_until END),
                        SUM(embargo_status='Released')
                 FROM observations WHERE {where}
                 GROUP BY 1, 2 ORDER BY 1 DESC, 2""", params).fetchall()
             n, nsp = conn.execute(
-                f"SELECT COUNT(*), COUNT(DISTINCT species_name) FROM observations WHERE {where}",
+                f"SELECT COUNT(*), {nsp_sql} FROM observations WHERE {where}",
                 params).fetchone()
             emb = conn.execute(
                 f"SELECT MAX(embargo_until) FROM observations WHERE {where} "

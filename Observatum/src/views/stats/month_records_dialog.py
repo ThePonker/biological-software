@@ -22,9 +22,11 @@ from ...themes import theme
 MONTH_NAMES = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July',
                'August', 'September', 'October', 'November', 'December']
 
-# Observations dated only to a year, month or range are left out of month charts (Wil's
-# decision 9, 10 Oct 2026) -- the same here as on the Species lookup phenology chart.
-DAY_ONLY = {"observations": "AND COALESCE(date_type, 'D') = 'D'"}
+# Records dated only to a year, month or range are left out of month charts (Wil's
+# decision 9, 10 Oct 2026, observations; decision D3, 11 Oct, Recording Scheme) -- the
+# same here as on the Species lookup phenology chart.
+DAY_ONLY = {"observations": "AND COALESCE(date_type, 'D') = 'D'",
+            "recording_scheme": "AND COALESCE(date_type, 'D') = 'D'"}
 
 # (table, label shown in the Source column)
 SOURCES = (("observations", "Observation"), ("recording_scheme", "Recording Scheme"))

@@ -4,35 +4,32 @@ as an observation (note 36 decision 13, review MAP2, 10 Oct 2026). READ ONLY.
     py -3.14 scripts\\report_specimen_observation_links.py
     py -3.14 scripts\\report_specimen_observation_links.py --csv D:\\somewhere\\links.csv
 
-The link already has a home: specimens.observation_id (empty on every specimen so far). The
-Mapping tab's "All records" counts a specimen as its observation through that link, else
-through the same TVK + date + grid ref (map_selection._SPECIMEN_OBS). This report lists, per
-specimen, the observations it matches so Wil can check them before the link is set
-(link_specimens_to_observations.py sets the certain ones).
+The link has a home: specimens.observation_id. The Mapping tab's "All records" counts a
+specimen as its observation through that link, else through the same TVK + date + grid ref
+(map_selection._SPECIMEN_OBS). This report lists, per specimen, the observations it matches
+so Wil can check them before the link is set (link_specimens_to_observations.py sets the
+certain ones; the Edit Specimen dialog's "Field record" box sets, changes or clears one by
+hand, or marks "Checked: no field record exists"; unlink_specimens_from_observations.py
+undoes links in bulk).
 
-A specimen matches an observation with the same species TVK, the same date (date_collected =
-date) and the same grid ref (case and spaces ignored, the Mapping rule), and -- where both
-name somebody -- a collector and recorder naming the same person ('Heeney, W.J.' / 'Wil
-Heeney' agree; a recorder field holding a method such as 'Collected' or 'Net' is not
-compared; see report_common.same_person).
-
-Tiers, per specimen
-  linked       observation_id already set (checked against the rule; mismatches listed)
-  certain      exactly one matching observation -- safe to link
-  quantity short  exactly one matching observation, but more specimens point at it than its
-               quantity (2 specimens, an observation of 1) -- Wil checks
-  ambiguous    two or more matching observations -- Wil chooses
-  recorder differs  same species, date and grid ref, but collector and recorder disagree
-  no match     none
-Several specimens may share one observation (two beetles from one record): that is
-allowed -- the link is on the specimen -- and counted separately.
+The rule and the tiers are in shared/specimen_links.py (one home, used by the dialog too):
+  linked                    observation_id set (those the rule does not support are listed)
+  checked: no field record  Wil ticked "Checked: no field record exists"
+  certain                   exactly one matching observation -- safe to link
+  quantity short            exactly one, but more specimens on it than its quantity
+  ambiguous                 two or more matching observations -- Wil chooses
+  recorder differs          same species, date and grid ref; collector and recorder disagree
+  no match                  none
+The first two are the work done; quantity short, ambiguous and recorder differs are the work
+still to do ("Progress" at the end). Several specimens may share one observation (two
+beetles from one record): that is allowed -- the link is on the specimen.
 
 CSV: one row per specimen-observation candidate (specimens with no match left out),
 scripts\\_oneoff\\specimen_observation_links_<date>.csv.
 """
 import argparse
 import sys
-from collections import Counter, defaultdict
+from collections import Counter
 
 try:
     from scripts import report_common as rc
@@ -40,79 +37,15 @@ except ImportError:                       # run as py scripts\<name>.py
     import report_common as rc
 
 import paths  # noqa: E402
+# the matching itself lives in shared/specimen_links.py (the Edit Specimen dialog uses it);
+# links.load / links.match / links.certain_links / links.TIERS keep working for the scripts
+from shared.specimen_links import (  # noqa: E402,F401
+    TIERS, TO_WORK_THROUGH, certain_links, load, match)
 
-TIERS = ("linked", "certain", "quantity short", "ambiguous", "recorder differs", "no match")
 HEADER = ["tier", "specimen_id", "specimen_code", "observation_id", "species_name",
           "species_tvk", "date", "specimen_grid_ref", "observation_grid_ref", "collector",
           "recorder", "same_person", "specimen_sex", "observation_sex", "record_type", "project_name", "specimen_site",
           "observation_site", "candidates"]
-
-
-def load(conn):
-    spec = conn.execute(
-        "SELECT id, specimen_code, species_name, species_tvk, date_collected, grid_ref, "
-        "collector, site_name, observation_id, sex FROM specimens ORDER BY id").fetchall()
-    obs = conn.execute(
-        "SELECT id, species_tvk, date, grid_ref, recorder, record_type, project_name, "
-        "site_name, sex, quantity FROM observations").fetchall()
-    return spec, obs
-
-
-def match(spec, obs) -> dict:
-    """{"specimens": [{...per specimen, "tier", "cands": [(obs row, same_person)]}],
-        "raw_text": n specimens matching on the exact stored grid-ref text (the review's
-        1,337 rule), "rule": n matching on the Mapping rule, recorder not checked}"""
-    by_key = defaultdict(list)
-    for o in obs:
-        if rc.blank(o[1]) or rc.blank(o[2]) or rc.blank(o[3]):
-            continue
-        by_key[(o[1], o[2], rc.norm_ref(o[3]))].append(o)
-    obs_by_id = {o[0]: o for o in obs}
-    out = {"specimens": [], "raw_text": 0, "rule": 0}
-    for s in spec:
-        sid, code, name, tvk, date, ref, collector, site, linked, sex = s
-        cands = []
-        if not (rc.blank(tvk) or rc.blank(date) or rc.blank(ref)):
-            cands = by_key.get((tvk, date, rc.norm_ref(ref)), [])
-        if cands:
-            out["rule"] += 1
-        if any(o[3] == ref for o in cands):
-            out["raw_text"] += 1
-        scored = []
-        for o in cands:
-            both = rc.comparable_people(collector, o[4])
-            scored.append((o, rc.same_person(collector, o[4]) if both else None))
-        ok = [c for c in scored if c[1] is not False]
-        if not rc.blank(linked):
-            tier = "linked"
-            o = obs_by_id.get(int(linked))
-            scored = [(o, None)] if o else []
-            agrees = any(c[0][0] == int(linked) for c in ok)
-        elif len(ok) == 1:
-            tier, agrees = "certain", None
-        elif len(ok) > 1:
-            tier, agrees = "ambiguous", None
-        elif scored:
-            tier, agrees = "recorder differs", None
-        else:
-            tier, agrees = "no match", None
-        out["specimens"].append({"id": sid, "code": code, "name": name, "tvk": tvk,
-                                 "date": date, "ref": ref, "collector": collector,
-                                 "site": site, "sex": sex, "tier": tier, "cands": scored,
-                                 "ok": ok, "link_agrees": agrees})
-    per_obs = Counter(s["ok"][0][0][0] for s in out["specimens"] if s["tier"] == "certain")
-    for s in out["specimens"]:
-        if s["tier"] == "certain":
-            o = s["ok"][0][0]
-            q = o[9]
-            if per_obs[o[0]] > 1 and isinstance(q, int) and q < per_obs[o[0]]:
-                s["tier"] = "quantity short"
-    return out
-
-
-def certain_links(found) -> list:
-    """[(specimen id, observation id)] for the certain tier -- what the link script writes."""
-    return [(s["id"], s["ok"][0][0][0]) for s in found["specimens"] if s["tier"] == "certain"]
 
 
 def csv_rows(found):
@@ -129,7 +62,7 @@ def report(found) -> None:
     tiers = Counter(s["tier"] for s in sp)
     print(f"  specimens: {len(sp):,}")
     for t in TIERS:
-        print(f"    {t:<18}{tiers[t]:>7,}")
+        print(f"    {t:<26}{tiers[t]:>7,}")
     certain = [s for s in sp if s["tier"] == "certain"]
     per_obs = Counter(s["ok"][0][0][0] for s in certain)
     shared = sum(1 for n in per_obs.values() if n > 1)
@@ -137,17 +70,15 @@ def report(found) -> None:
     print(f"  certain: {len(certain):,} specimens onto {len(per_obs):,} observations "
           f"({shared:,} observations hold 2+ specimens, within their quantity)")
     kinds = Counter((s["ok"][0][0][5] or "?") for s in certain)
-    print("    by the observation's record type: "
-          + ", ".join(f"{k} {v:,}" for k, v in kinds.most_common()))
+    if kinds:
+        print("    by the observation's record type: "
+              + ", ".join(f"{k} {v:,}" for k, v in kinds.most_common()))
     print(f"  quantity short: {tiers['quantity short']:,} specimens onto {len(short):,} "
           f"observations whose quantity is below their number of specimens")
     amb = [s for s in sp if s["tier"] == "ambiguous"]
     if amb:
         print(f"  ambiguous: {len(amb):,} specimens, "
               f"{sum(len(s['ok']) for s in amb):,} candidate observations")
-    bad = [s for s in sp if s["tier"] == "linked" and not s["link_agrees"]]
-    if tiers["linked"]:
-        print(f"  already linked that the rule does not support: {len(bad):,}")
     diff = [s for s in sp if s["tier"] == "recorder differs"]
     if diff:
         pairs = Counter((s["collector"], s["cands"][0][0][4]) for s in diff)
@@ -163,6 +94,33 @@ def report(found) -> None:
           f"{found['rule']:,}")
     print(f"    of those, collector and recorder agree or one is blank (certain, quantity short, ambiguous): "
           f"{tiers['certain'] + tiers['quantity short'] + tiers['ambiguous']:,}; disagree: {tiers['recorder differs']:,}")
+    progress(found)
+
+
+def progress(found) -> None:
+    """The work done (linked, checked) and still to do, with the links the rule does not
+    support listed so a hand-made link can be checked."""
+    sp = found["specimens"]
+    tiers = Counter(s["tier"] for s in sp)
+    linked = [s for s in sp if s["tier"] == "linked"]
+    off_rule = [s for s in linked if not s["link_agrees"]]
+    print("")
+    print("  Progress")
+    print(f"    linked to a field record:       {len(linked):>7,}"
+          f"  ({len(linked) - len(off_rule):,} the rule agrees with, {len(off_rule):,} chosen by hand"
+          " or not supported by the rule)")
+    print(f"    checked, no field record:       {tiers['checked: no field record']:>7,}")
+    print(f"    certain, ready for the link script: {tiers['certain']:>3,}")
+    todo = sum(tiers[t] for t in TO_WORK_THROUGH)
+    print(f"    still to decide:                {todo:>7,}  ("
+          + ", ".join(f"{t} {tiers[t]:,}" for t in TO_WORK_THROUGH) + ")")
+    print(f"    no matching observation:        {tiers['no match']:>7,}")
+    for s in off_rule[:10]:
+        o = s["cands"][0][0] if s["cands"] else None
+        what = (f"observation {o[0]} ({o[2]}, {o[3]})" if o else "an observation that no longer exists")
+        print(f"      specimen {s['id']} {str(s['name'] or '')[:30]} {s['date']} {s['ref']} -> {what}")
+    if len(off_rule) > 10:
+        print(f"      ... and {len(off_rule) - 10:,} more (tier 'linked' in the CSV)")
 
 
 def main(argv=None) -> int:

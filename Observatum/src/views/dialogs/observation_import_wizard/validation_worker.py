@@ -5,6 +5,7 @@ PANDAS REFACTOR: Uses vectorized operations for fast validation.
 Handles iRecord Sync and Personal Upload modes with
 different validation rules and column mappings for each.
 """
+from __future__ import annotations   # pd.DataFrame annotations: never evaluated
 
 import os
 import sys
@@ -14,7 +15,8 @@ import paths
 from pathlib import Path
 from typing import Optional, Dict, List
 
-import pandas as pd
+from src.utils.lazy_module import lazy_module
+pd = lazy_module("pandas")   # imported on first use, not at startup (11 Oct 2026)
 from PySide6.QtCore import QThread, Signal
 
 

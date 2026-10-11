@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS specimens (
     superfamily TEXT,
     taxonomic_sort_key INTEGER,
     observation_id INTEGER,
+    no_field_record_checked TEXT,  -- when "Checked: no field record exists" was ticked
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (observation_id) REFERENCES observations(id)

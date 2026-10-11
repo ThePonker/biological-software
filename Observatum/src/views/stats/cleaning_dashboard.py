@@ -28,8 +28,11 @@ from ...services.cleaning_report import (
 )
 from ...themes import theme
 
-COLUMNS = ["Species", "Rank", "Date", "Grid ref", "Site", "Recorder", "Problem", "iRecord ID"]
-_FIELDS = ["species", "rank", "date", "grid_ref", "site", "recorder", "detail", "irecord_id"]
+COLUMNS = ["Species", "Rank", "Date", "Grid ref", "Site", "Recorder", "Problem", "iRecord ID",
+           "Source"]
+_FIELDS = ["species", "rank", "date", "grid_ref", "site", "recorder", "detail", "irecord_id",
+           "dataset"]
+_TILES_PER_ROW = 6
 
 
 class CleaningRowModel(QAbstractTableModel):
@@ -122,7 +125,7 @@ class CleaningDashboard(QWidget):
             tile.setCursor(Qt.CursorShape.PointingHandCursor)
             tile.clicked.connect(lambda _c=False, n=i: self.tabs.setCurrentIndex(n))
             self._tiles[key] = tile
-            tiles.addWidget(tile, i // 5, i % 5)
+            tiles.addWidget(tile, i // _TILES_PER_ROW, i % _TILES_PER_ROW)
 
             model = CleaningRowModel(parent=self)
             proxy = QSortFilterProxyModel(self)
@@ -137,7 +140,7 @@ class CleaningDashboard(QWidget):
             view.verticalHeader().setVisible(False)
             view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
             view.horizontalHeader().setStretchLastSection(True)
-            for col, w in enumerate((220, 110, 90, 100, 200, 160, 260, 90)):
+            for col, w in enumerate((200, 110, 90, 140, 190, 150, 240, 90, 260)):
                 view.setColumnWidth(col, w)
             view.doubleClicked.connect(self._on_double_click)
             self._models[key], self._views[key] = model, view

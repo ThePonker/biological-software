@@ -6,28 +6,39 @@ palette, and the same scroll-zoom / drag-pan. On top it draws hectad / tetrad / 
 squares as polygons (geometry in grid_squares.py), reports the square under a click, and
 renders the current view to a print-resolution PNG (an atlas page).
 
+R9-5 (11 Oct 2026): vice-county labels (numbers at national scale, names zoomed in; a switch
+turns them off) and a thicker outline round the selected VC, on screen and on the page
+(vc_labels.py). R9-6: sheet_view() gives the area an atlas page really shows, so its footer
+can count what is in view. R4: labels drawn in device pixels (no more garbled names when
+zoomed), nudged off recorded squares; VC boundary lines with their own switch; the coast
+line is only the sea-facing edges (coast.py): it no longer strokes every district border of
+gb_outline.json (or every VC border without it); the districts have their own switch.
+
 No WebEngine, no tiles, no internet. Display only: it never touches a database.
 """
 from __future__ import annotations
 
-from datetime import date
-from typing import Dict, Optional, Sequence, Tuple
+from typing import Dict, Optional
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QBrush, QColor, QFont, QImage, QPainter, QPen, QPolygonF
+from PySide6.QtGui import QBrush, QColor, QPainter, QPen, QPolygonF
 from PySide6.QtWidgets import QToolTip, QWidget
 
 from shared.maps import grid_squares as gs
+from shared.maps.coast import split_edges_cached
+from shared.maps.atlas_sheet import AtlasSheetMixin, draw_split  # noqa: F401 (draw_split: old import path)
 from shared.maps._theme import theme
 from shared.maps.panzoom import PanZoomMixin
 from shared.maps.species_dist_map import (_COAST_C, _GRID10_C, _GRID100_C, _LAND_C, _SEA_C,
-                                          _VCLINE_C, _load_gb_outline)
-from shared.maps.vc_map import load_vc_polygons
+                                          _load_gb_outline)
+from shared.maps.vc_labels import (draw_boundaries, draw_labels, draw_outline, label_points,
+                                   point_in_ring)
+from shared.maps.vc_map import load_vc_polygons, vc_names
 
 _CLICK_SLOP = 4          # px of movement still counted as a click, not a drag
 
 
-class GridMap(PanZoomMixin, QWidget):
+class GridMap(AtlasSheetMixin, PanZoomMixin, QWidget):
     """GB basemap with coloured grid squares. Scroll to zoom, drag to pan, double-click resets.
 
     Signals:
@@ -40,9 +51,13 @@ class GridMap(PanZoomMixin, QWidget):
                  parent=None):
         super().__init__(parent)
         land, _b = _load_gb_outline(maps_dir) if maps_dir else ({}, None)
+        # R4: where the land comes from: "outline" (gb_outline.json: on Wil's PC the 2013 ONS
+        # local-authority districts), "vc" (the VC polygons at 100 m) or None
+        self._land_source = ("outline", maps_dir) if land else None
         vc_rings, _b = load_vc_polygons(geojson_path) if geojson_path else ({}, None)
         if not land and geojson_path:
             land, _b = load_vc_polygons(geojson_path, tol=100.0)
+            self._land_source = ("vc", geojson_path) if land else None
         self._land = [ring for rings in land.values() for ring in rings]
         self._vc_rings: Dict[int, list] = vc_rings
         self._extent = gs.GB_LAND
@@ -50,9 +65,17 @@ class GridMap(PanZoomMixin, QWidget):
         self._squares: Dict[str, dict] = {}       # label -> {count, fill, ...}
         self._selected: Optional[str] = None
         self._vc_highlight: set = set()
+        self._vc_names: Dict[int, str] = vc_names(geojson_path) if geojson_path else {}
+        self._label_pts = None                    # label_points(), worked out on first use
+        self._vc_labels_on = True
+        self._vc_bounds_on = True                 # R4: VC boundary lines (a switch)
+        self._vc_outline: Optional[int] = None    # the selected VC, outlined (R9-5)
         self._message = ""
         self._press = None
         self._poly_cache = None
+        self._geojson = geojson_path
+        self._districts_on = False                # R4: modern district lines (outline only)
+        self._line_cache: Dict[str, tuple] = {}   # name -> (fit key, projected polylines)
         self._init_panzoom(True)
         self.setMouseTracking(True)
         self.setMinimumSize(300, 360)
@@ -60,6 +83,15 @@ class GridMap(PanZoomMixin, QWidget):
     # ---------------------------------------------------------------- data in
     def has_basemap(self) -> bool:
         return bool(self._land)
+
+    def has_districts(self) -> bool:
+        """True when the land is gb_outline.json (whose inland edges are modern districts)."""
+        return bool(self._land_source) and self._land_source[0] == "outline"
+
+    def set_districts(self, on: bool):
+        """Modern district borders (gb_outline.json's inland edges), light, or none (R4)."""
+        self._districts_on = bool(on)
+        self.update()
 
     def set_squares(self, squares: Dict[str, dict], size: int):
         """squares: label -> dict with at least 'count' and 'fill' (a colour hex)."""
@@ -83,6 +115,21 @@ class GridMap(PanZoomMixin, QWidget):
 
     def highlight_vcs(self, vc_numbers):
         self._vc_highlight = {int(v) for v in vc_numbers or []}
+        self.update()
+
+    def set_vc_labels(self, on: bool):
+        """VC numbers / names on the map (and its atlas page), or none."""
+        self._vc_labels_on = bool(on)
+        self.update()
+
+    def set_vc_boundaries(self, on: bool):
+        """Vice-county boundary lines on the map (and its atlas page), or none (R4)."""
+        self._vc_bounds_on = bool(on)
+        self.update()
+
+    def set_outlined_vc(self, vc: Optional[int]):
+        """Outline this VC (the one chosen in County view / as a filter); None: no outline."""
+        self._vc_outline = int(vc) if vc else None
         self.update()
 
     def set_extent(self, extent):
@@ -123,33 +170,87 @@ class GridMap(PanZoomMixin, QWidget):
         p.fillRect(self.rect(), QColor(_SEA_C))
         p.save()
         self._apply_pan_zoom(p)
-        self.draw(p, self.fit(), k=1.0 / max(self._zoom, 1.0))
+        self.draw(p, self.fit(), k=1.0 / max(self._zoom, 1.0), zoom=self._zoom)
         p.restore()
         self._draw_overlay(p)
         p.end()
 
-    def draw(self, p: QPainter, fit: gs.MapFit, k: float = 1.0, selected: bool = True):
-        """Basemap, grid and squares through `fit`. k scales line widths (print > 1).
-        selected=False leaves out the clicked square's outline (the atlas page, L13/L31)."""
+    def draw(self, p: QPainter, fit: gs.MapFit, k: float = 1.0, selected: bool = True,
+             zoom: float = 1.0):
+        """Basemap, grid, squares, VC boundaries, the selected VC's outline and the VC labels
+        through `fit`. k scales line widths (print > 1). selected=False leaves out the clicked
+        square's outline (the atlas page, L13/L31). zoom: the screen's zoom (the labels' scale
+        rule). Labels are drawn in device pixels whatever the painter's zoom (vc_labels)."""
         land, coast = QColor(_LAND_C), QColor(_COAST_C)
         polys, vc_polys = self._polygons(fit)
-        p.setPen(QPen(land, 0.8 * k))
+        p.setPen(QPen(land, 0.8 * k))             # same-colour edge closes county slivers
         p.setBrush(QBrush(land))
         for poly in polys:
             p.drawPolygon(poly)
         hi = QColor(theme.MOSS)
         hi.setAlpha(40)
-        p.setPen(QPen(QColor(_VCLINE_C), 0.5 * k))
-        for vc, vpolys in vc_polys.items():
-            p.setBrush(QBrush(hi) if vc in self._vc_highlight else Qt.BrushStyle.NoBrush)
-            for poly in vpolys:
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QBrush(hi))
+        for vc in self._vc_highlight:             # VCs holding records: a light tint
+            for poly in vc_polys.get(vc, ()):
                 p.drawPolygon(poly)
+        # R4: the coast is the land's sea-facing edges only (coast.py). Stroking every land
+        # ring drew every district border of gb_outline.json (or, without it, every VC border
+        # again) in the coast colour: the thin lines Wil saw under the VCs.
+        if self._districts_on and self.has_districts():
+            p.setPen(QPen(QColor(theme.LINE), 0.5 * k))
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            for line in self._lines("districts", fit):
+                p.drawPolyline(line)
         p.setPen(QPen(coast, 0.7 * k))
         p.setBrush(Qt.BrushStyle.NoBrush)
-        for poly in polys:
-            p.drawPolyline(poly)
+        for line in self._lines("coast", fit):
+            p.drawPolyline(line)
         self._draw_grid(p, fit, k)
         self._draw_squares(p, fit, k, selected)
+        if self._vc_bounds_on and self._vc_rings:
+            draw_boundaries(p, [self._lines("vc_inland", fit)], k)  # the coast is drawn already
+        if self._vc_outline in vc_polys:
+            draw_outline(p, vc_polys[self._vc_outline], k)
+        if self._vc_labels_on and self._vc_rings:
+            if self._label_pts is None:
+                self._label_pts = label_points(self._vc_rings)
+            span = max(fit.w, fit.h) / fit.scale / max(zoom, 1.0)   # metres across the view
+            occupied, inside = self._label_tests(p, fit)
+            draw_labels(p, fit, self._label_pts, self._vc_names, span,
+                        bold_vc=self._vc_outline, occupied=occupied, inside=inside)
+
+    def _label_tests(self, p: QPainter, fit):
+        """(occupied, inside) for draw_labels, both taking DEVICE coordinates: does a rect
+        cover a recorded square; is a point inside a VC. Same rule on screen and page."""
+        inv, _ok = p.transform().inverted()
+        size = self._size
+
+        def to_en(pt):
+            q = inv.map(pt)
+            return fit.to_en(q.x(), q.y())
+
+        def occupied(rect) -> bool:
+            if not self._squares:
+                return False
+            e0, n1 = to_en(rect.topLeft())
+            e1, n0 = to_en(rect.bottomRight())
+            if (e1 - e0) * (n1 - n0) / (size * size) > 2500:    # far too many cells to look
+                return False
+            e = (int(e0) // size) * size
+            while e < e1:
+                n = (int(n0) // size) * size
+                while n < n1:
+                    if gs.square_for_point(e + 1, n + 1, size) in self._squares:
+                        return True
+                    n += size
+                e += size
+            return False
+
+        def inside(vc, pt) -> bool:
+            e, n = to_en(pt)
+            return any(point_in_ring(e, n, r) for r in self._vc_rings.get(vc, ()))
+        return occupied, inside
 
     def _polygons(self, fit):
         """Basemap rings projected through `fit`; the last projection is kept (paint is hot)."""
@@ -163,6 +264,27 @@ class GridMap(PanZoomMixin, QWidget):
         vcs = {vc: [poly(r) for r in rings] for vc, rings in self._vc_rings.items()}
         self._poly_cache = (key, land, vcs)
         return land, vcs
+
+    def _chains(self, name):
+        """OSGB polylines: "coast" / "districts" (the land's sea-facing / inland edges) or
+        "vc_inland" (VC borders that are not coast); split once per source (coast.py)."""
+        if name == "vc_inland":
+            return split_edges_cached(("vc", self._geojson, "300"),
+                                      [r for rs in self._vc_rings.values() for r in rs])[1]
+        if not self._land_source:
+            return []
+        coast, inland = split_edges_cached(self._land_source, self._land)
+        return coast if name == "coast" else inland
+
+    def _lines(self, name, fit):
+        """_chains(name) projected through `fit` (kept until the fit changes)."""
+        key = (fit.extent, fit.w, fit.h, fit.x0, fit.y0)
+        hit = self._line_cache.get(name)
+        if hit is None or hit[0] != key:
+            hit = (key, [QPolygonF([QPointF(*fit.to_px(e, n)) for e, n in c])
+                         for c in self._chains(name)])
+            self._line_cache[name] = hit
+        return hit[1]
 
     def _draw_grid(self, p, fit, k):
         minE, minN, maxE, maxN = fit.extent
@@ -266,108 +388,3 @@ class GridMap(PanZoomMixin, QWidget):
         """The whole extent of the view, whatever the zoom: all GB in National view, the
         whole vice-county in County view (set_extent)."""
         return self._extent
-
-    def render_sheet(self, title: str, subtitle: str = "",
-                     legend: Sequence[Tuple[str, str]] = (), footer: str = "",
-                     paper: str = "A4", dpi: int = 300, extent=None) -> QImage:
-        """An atlas page: title, map, legend and credits, at `dpi`. `extent`: an OSGB box,
-        "full" / None (the whole view's extent, L14/L32: the default) or "current" (what is
-        on screen after zooming and panning). The clicked square's outline is never drawn."""
-        if extent is None or extent == "full":
-            extent = self.full_extent()
-        elif extent == "current":
-            extent = self.visible_extent() if self._zoom > 1.0 else self._extent
-        ext = extent
-        landscape = (ext[2] - ext[0]) > 1.2 * (ext[3] - ext[1])
-        w, h = gs.print_size_px(paper, dpi, landscape)
-        img = QImage(w, h, QImage.Format.Format_RGB32)
-        img.setDotsPerMeterX(gs.dots_per_metre(dpi))
-        img.setDotsPerMeterY(gs.dots_per_metre(dpi))
-        img.fill(QColor("#ffffff"))
-        mm = dpi / 25.4
-        k = dpi / 96.0
-        p = QPainter(img)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        p.setRenderHint(QPainter.RenderHint.TextAntialiasing)
-        margin = 12 * mm
-        p.setPen(QColor(theme.INK))
-        p.setFont(_font(16, bold=True, italic=True))
-        p.drawText(QRectF(margin, margin, w - 2 * margin, 10 * mm),
-                   int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter), title)
-        p.setFont(_font(9))
-        p.setPen(QColor(theme.MUTED))
-        p.drawText(QRectF(margin, margin + 10 * mm, w - 2 * margin, 7 * mm),
-                   int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter), subtitle)
-        top, bottom = margin + 20 * mm, h - margin - 22 * mm
-        box = QRectF(margin, top, w - 2 * margin, bottom - top)
-        p.fillRect(box, QColor(_SEA_C))
-        p.save()
-        p.setClipRect(box)
-        self.draw(p, gs.MapFit(ext, box.width(), box.height(), pad=0, x0=box.x(), y0=box.y()), k,
-                  selected=False)
-        p.restore()
-        p.setPen(QPen(QColor(theme.LINE), 0.8 * k))
-        p.setBrush(Qt.BrushStyle.NoBrush)
-        p.drawRect(box)
-        self._draw_legend(p, legend, margin, bottom + 4 * mm, mm, k, w - margin)
-        p.setFont(_font(7))
-        p.setPen(QColor(theme.MUTED))
-        credit = (footer + "   " if footer else "") + \
-            ("Vice-county boundaries: BRC. " if self._vc_rings else "") + \
-            f"Produced {date.today():%d %B %Y} with Observatum."
-        p.drawText(QRectF(margin, h - margin - 6 * mm, w - 2 * margin, 6 * mm),
-                   int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter), credit)
-        p.end()
-        return img
-
-    @staticmethod
-    def _draw_legend(p, legend, x, y, mm, k, right=None):
-        """Swatches in a row, wrapping onto a second row (y + 6 mm) past `right`."""
-        p.setFont(_font(8))
-        x0 = x
-        for colour, label in legend:
-            need = 5.5 * mm + p.fontMetrics().horizontalAdvance(label)
-            if right is not None and x > x0 and x + need > right:
-                x, y = x0, y + 6 * mm
-            sw = QRectF(x, y, 4 * mm, 4 * mm)
-            if isinstance(colour, (tuple, list)):       # a split (overlap) swatch
-                draw_split(p, sw, colour, QPen(QColor(theme.INK), 0.4 * k))
-            else:
-                p.setPen(QPen(QColor(theme.INK), 0.4 * k))
-                p.setBrush(QBrush(QColor(colour)))
-                p.drawRect(sw)
-            p.setPen(QColor(theme.INK))
-            text_w = p.fontMetrics().horizontalAdvance(label)
-            p.drawText(QRectF(x + 5.5 * mm, y - 1 * mm, text_w + 2 * mm, 6 * mm),
-                       int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter), label)
-            x += 5.5 * mm + text_w + 8 * mm
-
-
-def draw_split(p: QPainter, r: QRectF, colours, pen):
-    """A square shared by several taxa: two colours as diagonal halves (upper left, lower
-    right), three or more as equal upright stripes; then the outline (pen) round it all."""
-    cols = [QColor(c) for c in colours] or [QColor(theme.CLAY)]
-    p.setPen(Qt.PenStyle.NoPen)
-    if len(cols) == 2:
-        tl, tr, bl, br = r.topLeft(), r.topRight(), r.bottomLeft(), r.bottomRight()
-        p.setBrush(QBrush(cols[0]))
-        p.drawPolygon(QPolygonF([tl, tr, bl]))
-        p.setBrush(QBrush(cols[1]))
-        p.drawPolygon(QPolygonF([tr, br, bl]))
-    else:
-        w = r.width() / len(cols)
-        for i, c in enumerate(cols):
-            p.setBrush(QBrush(c))
-            p.drawRect(QRectF(r.x() + i * w, r.y(), w, r.height()))
-    p.setPen(pen)
-    p.setBrush(Qt.BrushStyle.NoBrush)
-    p.drawRect(r)
-
-
-def _font(pt: int, bold: bool = False, italic: bool = False) -> QFont:
-    f = QFont()
-    f.setPointSize(pt)
-    f.setBold(bold)
-    f.setItalic(italic)
-    return f
-

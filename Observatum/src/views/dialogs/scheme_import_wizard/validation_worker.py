@@ -5,6 +5,7 @@ PANDAS REFACTOR: Uses vectorized operations for fast validation.
 Handles iRecord, NBN Atlas, and generic CSV imports with
 different validation rules and column mappings for each.
 """
+from __future__ import annotations   # pd.DataFrame annotations: never evaluated
 import os
 import sys
 from dataclasses import dataclass, field
@@ -13,7 +14,8 @@ import paths  # noqa: F401  (sets up the suite paths)
 from pathlib import Path
 from typing import Optional, Dict, List, Any
 
-import pandas as pd
+from src.utils.lazy_module import lazy_module
+pd = lazy_module("pandas")   # imported on first use, not at startup (11 Oct 2026)
 from PySide6.QtCore import QThread, Signal
 
 
@@ -532,7 +534,12 @@ class SchemeValidationWorker(QThread):
             date_str = "-".join(x.zfill(2) for x in (g('year'), g('month'), g('day')) if x)
             if g('day') and not g('month'):
                 date_str = g('year')
-        date_fields = self._date_fields(date_str)
+        # A year or month the Atlas wrote as its 1st day keeps its date type (11 Oct 2026:
+        # 11,363 year-only records sat on 1 January as exact days)
+        from .nbn_dates import nbn_date_kind
+        date_fields = nbn_date_kind(self._date_fields(date_str), date_str,
+                                    g('datePrecision', 'Date precision'),
+                                    g('year'), g('month'), g('day'))
 
         return {
             "row_idx": idx,

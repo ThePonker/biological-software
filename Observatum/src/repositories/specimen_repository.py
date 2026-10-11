@@ -188,7 +188,9 @@ class SpecimenRepository:
             'date_collected', 'grid_ref',
             'vice_county', 'vc_number', 'site_name', 'site_name_local', 'collector', 'determiner',
             'sex', 'preparation_type', 'storage_location', 'drawer_number',
-            'condition', 'label_data', 'notes', 'import_notes', 'observation_id'
+            'condition', 'label_data', 'notes', 'import_notes', 'observation_id',
+            # only sent once scripts/add_specimen_link_check_column.py has added it
+            'no_field_record_checked',
         }
         
         for field in allowed_fields:
@@ -233,7 +235,9 @@ class SpecimenRepository:
             'date_collected', 'grid_ref',
             'vice_county', 'vc_number', 'site_name', 'site_name_local', 'collector', 'determiner',
             'sex', 'preparation_type', 'storage_location', 'drawer_number',
-            'condition', 'label_data', 'notes', 'import_notes', 'observation_id'
+            'condition', 'label_data', 'notes', 'import_notes', 'observation_id',
+            # only sent once scripts/add_specimen_link_check_column.py has added it
+            'no_field_record_checked',
         }
         
         set_parts = []

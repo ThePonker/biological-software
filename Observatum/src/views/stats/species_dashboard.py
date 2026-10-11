@@ -16,7 +16,7 @@ from ...models.observation import ObservationModel
 
 from .stat_widgets import StatCard, MonthlyActivityChart
 from ...themes import theme
-from ...core.config import TabColors
+from ...core.config import TabColors, scheme_families
 
 
 class SpeciesDashboard(QScrollArea):
@@ -25,6 +25,7 @@ class SpeciesDashboard(QScrollArea):
     # Navigation signals - emit species_name to filter by
     navigate_to_observations = Signal(str)
     navigate_to_collection = Signal(str)
+    navigate_to_scheme = Signal(str)        # the Recording Scheme tab, this taxon (R4)
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -263,11 +264,32 @@ class SpeciesDashboard(QScrollArea):
 
     def _counted(self, table: str, species_name: str) -> str:
         """The species-counting switches on observations and scheme records (backlog A);
-        specimens are never left out. Asked for by an aggregate's name, it counts."""
+        specimens are never left out. The taxon picked from the list is never left out
+        of its own counts: an aggregate picked by name shows its aggregate records (R9-1)."""
         if table not in ("observations", "recording_scheme"):
             return ""
-        from shared.species_counting import counted_clause_for
+        from shared.species_counting import counted_clause_for, counted_clause_for_taxon
+        if species_name and species_name == getattr(self, '_current_name', None):
+            return counted_clause_for_taxon(table, species_name,
+                                            getattr(self, '_current_rank', None), db=self._db)
         return counted_clause_for(table, species_name, db=self._db)
+
+    def _taxon_note(self, species_name: str) -> str:
+        """'Aggregate records are counted here ...' when the picked taxon's own kind is
+        switched off in Settings > Species counting (R9-1), else ''."""
+        if species_name != getattr(self, '_current_name', None):
+            return ""
+        from shared.species_counting import excluded_kinds, kind_label, kinds_for_taxon
+        kept = []
+        for source in ("observations", "recording_scheme"):
+            for k in sorted(excluded_kinds(source)
+                            - kinds_for_taxon(source, species_name, self._current_rank)):
+                if kind_label(k) not in kept:
+                    kept.append(kind_label(k))
+        if not kept:
+            return ""
+        return (f"{' and '.join(kept)} records are counted here because you picked this "
+                f"taxon by name. Settings › Species counting leaves them out elsewhere.")
 
     def _count(self, table: str, species_name: str, extra: str = "") -> int:
         clause, params = self._by_species(table, species_name)
@@ -282,6 +304,8 @@ class SpeciesDashboard(QScrollArea):
             if self._display(r) == text:
                 species_name = r.scientific_name
                 self._current_tvk = r.tvk
+                self._current_name = species_name           # its own kind counts (R9-1)
+                self._current_rank = getattr(r, 'rank', None)
                 self._clause_cache = {}          # the tables may have changed since
                 
                 # Get counts from all data sources
@@ -290,6 +314,7 @@ class SpeciesDashboard(QScrollArea):
                 commercial_count = self._get_commercial_records_count(species_name)
                 specimen_count = self._get_specimen_count(species_name)
                 scheme_count = self._get_scheme_records_count(species_name)
+                scheme_tab_count = self._get_scheme_tab_count(species_name, scheme_count)
                 phenology = self._get_phenology_data(species_name)
                 
                 species_data = {
@@ -303,6 +328,7 @@ class SpeciesDashboard(QScrollArea):
                     'specimens': specimen_count,
                     'commercialRecords': commercial_count,
                     'schemeRecords': scheme_count,
+                    'schemeTabRecords': scheme_tab_count,
                     'phenology': phenology
                 }
                 
@@ -360,6 +386,23 @@ class SpeciesDashboard(QScrollArea):
             print(f"[SpeciesDashboard] Error getting scheme records: {e}")
             return 0
     
+    def _get_scheme_tab_count(self, species_name: str, scheme_count: int) -> int:
+        """The records "View N scheme records" opens: the Scheme Records count, within the
+        scheme families the Recording Scheme tab is limited to (Settings), if any."""
+        fams = scheme_families()
+        if not fams or not self._db or not scheme_count:
+            return scheme_count
+        try:
+            marks = ",".join("?" * len(fams))
+            clause, params = self._by_species("recording_scheme", species_name)
+            result = self._db.execute_main(
+                f"SELECT COUNT(*) FROM recording_scheme WHERE {clause} AND family IN ({marks})"
+                f"{self._counted('recording_scheme', species_name)}", (*params, *fams))
+            return result[0][0] if result else 0
+        except Exception as e:
+            print(f"[SpeciesDashboard] Error getting scheme tab count: {e}")
+            return 0
+
     def _get_phenology_data(self, species_name: str) -> list:
         """Get monthly observation counts for phenology chart."""
         if not self._db:
@@ -396,6 +439,7 @@ class SpeciesDashboard(QScrollArea):
                     COUNT(*) as count
                 FROM recording_scheme 
                 WHERE {clause} AND date IS NOT NULL{self._counted("recording_scheme", species_name)}
+                AND COALESCE(date_type, 'D') = 'D'  -- a day only, as observations (decision D3)
                 GROUP BY month
             """, tuple(params))
             
@@ -500,57 +544,51 @@ class SpeciesDashboard(QScrollArea):
         stats_container.setLayout(stats_row)
         self._detail_layout.addWidget(stats_container)
 
+        note = self._taxon_note(species['species'])
+        if note:
+            self._counting_note = QLabel(note)
+            self._counting_note.setWordWrap(True)
+            self._counting_note.setStyleSheet(
+                f"color: {t.get('text_muted')}; font-size: {t.font_size('sm')};")
+            self._detail_layout.addWidget(self._counting_note)
+
         # Navigation buttons row
         nav_row = QHBoxLayout()
         nav_row.setSpacing(12)
-        
+        buttons = []
+
         # The button opens the Observations tab, which shows personal AND commercial
         # records: its number is that count (review 10 Oct: said 56, opened 62)
         n_obs = species.get('observationRecords', species['personalRecords'])
         if n_obs > 0:
-            view_records_btn = QPushButton(f"View {n_obs:,} Record{'s' if n_obs != 1 else ''}")
-            view_records_btn.setToolTip("Personal and commercial records, on the Observations tab")
-            view_records_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            view_records_btn.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {t.get('success_bg')};
-                    color: {t.get('success_text')};
-                    border: 1px solid {t.get('success')};
-                    border-radius: {t.get('radius_md')};
-                    padding: 8px 16px;
-                    font-weight: 600;
-                }}
-                QPushButton:hover {{
-                    background-color: {t.get('success')};
-                    color: white;
-                }}
-            """)
-            view_records_btn.clicked.connect(lambda checked, s=species['species']: self.navigate_to_observations.emit(s))
-            nav_row.addWidget(view_records_btn)
-        
+            buttons.append(self._nav_button(
+                f"View {n_obs:,} Record{'s' if n_obs != 1 else ''}",
+                "Personal and commercial records, on the Observations tab",
+                t.get('success_bg'), t.get('success_text'), t.get('success'),
+                lambda checked, s=species['species']: self.navigate_to_observations.emit(s)))
+
+        # Scheme records on the Recording Scheme tab (R4, 11 Oct): the records the Scheme
+        # Records card counts, within the scheme families set in Settings, if any
+        n_scheme = species.get('schemeTabRecords', 0)
+        if n_scheme > 0:
+            self._scheme_btn = self._nav_button(
+                f"View {n_scheme:,} scheme record{'s' if n_scheme != 1 else ''}",
+                "These records on the Recording Scheme tab",
+                TabColors.RECORDING_SCHEME_LIGHT, TabColors.RECORDING_SCHEME_DARK,
+                TabColors.RECORDING_SCHEME,
+                lambda checked, s=species['species']: self.navigate_to_scheme.emit(s))
+            buttons.append(self._scheme_btn)
+
         if species['specimens'] > 0:
-            view_specimens_btn = QPushButton(f"View {species['specimens']} Specimens")
-            view_specimens_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            view_specimens_btn.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {t.get('warning_bg')};
-                    color: {t.get('warning_text')};
-                    border: 1px solid {t.get('warning')};
-                    border-radius: {t.get('radius_md')};
-                    padding: 8px 16px;
-                    font-weight: 600;
-                }}
-                QPushButton:hover {{
-                    background-color: {t.get('warning')};
-                    color: white;
-                }}
-            """)
-            view_specimens_btn.clicked.connect(lambda checked, s=species['species']: self.navigate_to_collection.emit(s))
-            nav_row.addWidget(view_specimens_btn)
-        
-        nav_row.addStretch()
-        
-        if n_obs > 0 or species['specimens'] > 0:
+            buttons.append(self._nav_button(
+                f"View {species['specimens']} Specimens", "",
+                t.get('warning_bg'), t.get('warning_text'), t.get('warning'),
+                lambda checked, s=species['species']: self.navigate_to_collection.emit(s)))
+
+        if buttons:
+            for btn in buttons:
+                nav_row.addWidget(btn)
+            nav_row.addStretch()
             nav_container = QWidget()
             nav_container.setLayout(nav_row)
             self._detail_layout.addWidget(nav_container)
@@ -566,6 +604,31 @@ class SpeciesDashboard(QScrollArea):
 
         # Species accounts -- yours, then published review and atlas accounts, newest first
         self._add_accounts(species)
+
+    @staticmethod
+    def _nav_button(text: str, tip: str, bg: str, fg: str, border: str, on_click) -> QPushButton:
+        """A "View ..." button in the colours of the place it opens."""
+        t = theme()
+        btn = QPushButton(text)
+        if tip:
+            btn.setToolTip(tip)
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {bg};
+                color: {fg};
+                border: 1px solid {border};
+                border-radius: {t.get('radius_md')};
+                padding: 8px 16px;
+                font-weight: 600;
+            }}
+            QPushButton:hover {{
+                background-color: {border};
+                color: white;
+            }}
+        """)
+        btn.clicked.connect(on_click)
+        return btn
 
     def _show_month_records(self, species_name: str, month: int):
         """Click on a phenology month: that month's records (all years), the same

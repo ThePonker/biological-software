@@ -249,7 +249,7 @@ def link_db(tmp_path):
         (7, "T6", "2025-06-01", "SP123456", "Heeney, W.J.", "Personal", None, "A", None, 2),
     ])
     c.executemany("INSERT INTO specimens VALUES (?,?,?,?,?,?,?,?,?,?)", [
-        (1, None, "a", "T1", "2025-06-01", "sp 123 456", "Heeney, W.J.", "A", None, None),  # certain
+        (1, None, "a", "T1", "2025-06-01", "sp 123 456", "Heeney, W.J.", "A", None, None),  # qty short (10 is on obs 1)
         (2, None, "b", "T2", "2025-06-01", "SP123456", "Heeney, W.J.", "A", None, None),    # ambiguous
         (3, None, "c", "T3", "2025-06-01", "SP123456", "Falk, S.J.", "A", None, None),      # differs
         (4, None, "d", "T4", "2025-06-01", "SP123456", "Heeney, W.J.", "A", None, None),    # certain
@@ -270,11 +270,13 @@ def test_specimen_match_tiers(link_db):
     found = links.match(*links.load(conn))
     conn.close()
     tier = {s["id"]: s["tier"] for s in found["specimens"]}
-    assert tier == {1: "certain", 2: "ambiguous", 3: "recorder differs", 4: "certain",
+    # 1 matches observation 1 only, but specimen 10 is already linked to it and its quantity
+    # is 1: since 11 Oct linked specimens count against the quantity, so 1 is quantity short
+    assert tier == {1: "quantity short", 2: "ambiguous", 3: "recorder differs", 4: "certain",
                     5: "quantity short", 6: "quantity short", 7: "certain", 8: "certain",
                     9: "no match", 10: "linked"}
     assert found["rule"] == 9 and found["raw_text"] == 8   # 'sp 123 456' only by the rule
-    assert sorted(links.certain_links(found)) == [(1, 1), (4, 5), (7, 7), (8, 7)]
+    assert sorted(links.certain_links(found)) == [(4, 5), (7, 7), (8, 7)]
 
 
 def test_link_dry_run_and_apply(link_db, tmp_path, capsys):
@@ -283,12 +285,16 @@ def test_link_dry_run_and_apply(link_db, tmp_path, capsys):
     assert "DRY RUN. Nothing has been changed." in capsys.readouterr().out
     assert _md5(link_db) == before
     bdir = tmp_path / "bk"
-    assert link_script.main(["--db", str(link_db), "--apply", "--backup-dir", str(bdir)]) == 0
+    set_csv = tmp_path / "set.csv"
+    assert link_script.main(["--db", str(link_db), "--apply", "--backup-dir", str(bdir),
+                             "--csv", str(set_csv)]) == 0
     assert len(os.listdir(bdir)) == 1
+    assert sorted((r["specimen_id"], r["observation_id"]) for r in _csv(set_csv)) == [
+        ("4", "5"), ("7", "7"), ("8", "7")]
     c = sqlite3.connect(link_db)
     got = dict(c.execute("SELECT id, observation_id FROM specimens"))
     c.close()
-    assert got == {1: 1, 2: None, 3: None, 4: 5, 5: None, 6: None, 7: 7, 8: 7, 9: None, 10: 1}
+    assert got == {1: None, 2: None, 3: None, 4: 5, 5: None, 6: None, 7: 7, 8: 7, 9: None, 10: 1}
 
 
 # ---------------------------------------------------------------- commercial embargo

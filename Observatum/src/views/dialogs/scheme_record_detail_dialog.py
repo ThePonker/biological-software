@@ -526,6 +526,12 @@ class SchemeRecordDetailDialog(QDialog):
         btn_layout.addWidget(note)
         btn_layout.addStretch()
 
+        # Open in iRecord: any record that has been into iRecord (R9-3)
+        from ..components.irecord_button import irecord_button_for
+        self.irecord_btn = irecord_button_for(self.record, btn_frame)
+        if self.irecord_btn is not None:
+            btn_layout.addWidget(self.irecord_btn)
+
         close_btn = QPushButton("Close")
         close_btn.setStyleSheet(t.button_cancel_style())
         close_btn.setCursor(Qt.CursorShape.PointingHandCursor)

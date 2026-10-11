@@ -97,16 +97,31 @@ def set_excluded(source: str, kinds: Iterable[str]) -> None:
 
 
 def kinds_for_search(source: str, text: Optional[str] = None) -> FrozenSet[str]:
-    """The switched-off kinds for a view filtered by species text: a search that names an
-    aggregate or s.l. ("Oligia strigilis agg.") keeps those records counted -- they were
-    asked for by name (review 10 Oct: navigating to an aggregate showed nothing)."""
+    """The switched-off kinds for a view filtered by species text (the Observation Data and
+    Recording Scheme tabs): a search that names an aggregate or s.l. keeps those records
+    counted -- they were asked for by name (review 10 Oct: navigating to an aggregate showed
+    nothing). "Names an aggregate" is the one rule, record_kinds.classify: "agg.", "s.l." /
+    "sensu lato", and a slash pair ("Leiopus linnei/nebulosus", decision D4 11 Oct, so
+    Species lookup's "View N records" lands on a tab counting the same records); plus the
+    looser endings parse_qualifier reads ("Bombus lucorum s.l" without its last dot).
+    Only agg./s.l. are released: a genus typed in the box stays left out."""
     kinds = set(excluded_kinds(source))
     text = (text or "").strip()
     if text and kinds & {"agg", "sl"}:
         from shared.species_lookup import parse_qualifier
-        if parse_qualifier(text)[0] in ("agg.", "s.l."):
+        if classify(text) & {"agg", "sl"} or parse_qualifier(text)[0] in ("agg.", "s.l."):
             kinds -= {"agg", "sl"}
     return frozenset(kinds)
+
+
+def kinds_for_taxon(source: str, name: Optional[str], rank: Optional[str] = None) -> FrozenSet[str]:
+    """The switched-off kinds for a view of ONE taxon picked from UKSI (Stats > Species
+    lookup): the taxon's own kinds are never left out. Picking "Leiopus linnei/nebulosus"
+    (rank Species aggregate) shows its aggregate records though the Aggregate switch is on
+    (R9-1, 11 Oct: it showed 0 Scheme records). Other switched-off kinds still apply.
+    `rank` is the taxon's UKSI rank; the name's own markers (agg., s.l., a slash pair)
+    count too, by the one rule in shared/record_kinds.classify."""
+    return frozenset(excluded_kinds(source) - classify(name, rank))
 
 
 def kind_label(kind: str) -> str:
@@ -390,6 +405,13 @@ def counted_clause(source: str, prefix: str = "", db=None) -> str:
 def counted_clause_for(source: str, text: Optional[str], prefix: str = "", db=None) -> str:
     """counted_clause for a view filtered by species text (see kinds_for_search)."""
     return not_excluded_sql(db or default_db(), source, f"{prefix}id", kinds_for_search(source, text))
+
+
+def counted_clause_for_taxon(source: str, name: Optional[str], rank: Optional[str] = None,
+                             prefix: str = "", db=None) -> str:
+    """counted_clause for a view of one taxon picked from UKSI (see kinds_for_taxon)."""
+    return not_excluded_sql(db or default_db(), source, f"{prefix}id",
+                            kinds_for_taxon(source, name, rank))
 
 
 def species_key_expr(source: str, prefix: str = "", db=None) -> str:

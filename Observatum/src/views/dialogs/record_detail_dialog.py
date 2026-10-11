@@ -726,6 +726,13 @@ class RecordDetailDialog(QDialog):
             """)
             delete_btn.setCursor(Qt.CursorShape.ArrowCursor)
 
+        # Open in iRecord: any record that has been into iRecord (R9-3)
+        from ..components.irecord_button import irecord_button_for
+        self.irecord_btn = irecord_button_for(self.record, btn_frame)
+        if self.irecord_btn is not None:
+            btn_layout.addStretch()
+            btn_layout.addWidget(self.irecord_btn)
+
         layout.addWidget(btn_frame)
     
     def _add_label_value_row(self, layout, label: str, value: str, mono: bool = False):
