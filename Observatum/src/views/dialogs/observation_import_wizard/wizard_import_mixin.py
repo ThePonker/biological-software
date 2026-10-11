@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 
-from .validation_worker import ObservationImportRow, RowStatus, ImportMode
+from .validation_worker import COUNT_ZERO, ObservationImportRow, RowStatus, ImportMode
 
 from src.themes import theme
 
@@ -154,8 +154,9 @@ class WizardImportMixin:
                                 "errors_left_out", "warnings_left_out", "failed"), 0)
         rows_to_import = []
         for row in self.validated_rows:
-            if row.status == RowStatus.ERROR and handling != "everything":
-                counts["errors_left_out"] += 1
+            if row.status == RowStatus.ERROR and (handling != "everything"
+                                                  or COUNT_ZERO in (row.error_message or "")):
+                counts["errors_left_out"] += 1     # a count of 0 is never stored (decision 8)
                 continue
             if row.status == RowStatus.WARNING and handling == "valid_only":
                 counts["warnings_left_out"] += 1

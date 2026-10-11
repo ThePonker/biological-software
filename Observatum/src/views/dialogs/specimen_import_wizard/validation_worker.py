@@ -246,11 +246,13 @@ class ValidationWorker(QThread):
         if not unique_species:
             return df
 
-        # One rule set for all three wizards (shared/species_lookup.py): exact names and
-        # synonyms; anything else is an error naming the closest UKSI names, to be confirmed
+        # One rule set for all three wizards (shared/species_lookup.py): exact names,
+        # synonyms, and a close spelling of one species of the same genus (decision 3, 10 Oct,
+        # warned "Close spelling"); anything else is an error naming the closest UKSI names, to be confirmed
         # with Resolve Species. Saved aliases are no longer used.
         species_lookup = entries(lookup_names(unique_species, self.uksi_model,
-                                              cancelled=lambda: self._cancelled))
+                                              cancelled=lambda: self._cancelled,
+                                              close_spellings=True))
 
         # Apply to DataFrame
         for idx, row in df.iterrows():

@@ -19,6 +19,9 @@ Data sources, split as the rest of the suite splits them:
                  observation_id, else the same TVK, date and grid ref) is shown as that
                  observation; a scheme row that is one of your observations (same iRecord id)
                  likewise.
+Several sources at once (L8, 10 Oct 2026: tick boxes, e.g. Personal + Contributed): a list of
+keys. Each record is still shown once: a specimen or scheme row is folded into its observation
+only when that observation's source (Personal / Commercial) is among those chosen.
 Embargo (MAP1/OBS-12): an observation under an active embargo -- embargo_status 'Active' and
 embargo_until after today, the iRecord export's rule -- is not mapped unless
 include_embargoed is set; a specimen whose observation is embargoed is held back with it.
@@ -73,6 +76,35 @@ TABLES: Dict[str, MapTable] = {
 }
 
 _COMMERCIAL = "LOWER(COALESCE(record_type, '')) LIKE 'comm%'"
+BASE_SOURCES = ("personal", "commercial", "collection", "scheme", "contributed")
+
+
+def normalise_sources(source) -> Tuple[str, ...]:
+    """'all', one key or a list of keys -> the chosen sources, in BASE_SOURCES order.
+    An unknown single key falls back to Personal (as before); an empty list is empty."""
+    keys = [source] if isinstance(source, str) else list(source or ())
+    chosen = set()
+    for k in keys:
+        chosen |= set(BASE_SOURCES) if k == "all" else {k}
+    out = tuple(s for s in BASE_SOURCES if s in chosen)
+    return out or (("personal",) if isinstance(source, str) else ())
+
+
+def _obs_kinds(p: str, srcs, project: str) -> Tuple[Optional[str], list]:
+    """The observations shown for these sources, as SQL on prefix `p` ('1' = all of them),
+    or None when neither Personal nor Commercial is chosen."""
+    per, com = "personal" in srcs, "commercial" in srcs
+    comm = _COMMERCIAL.replace("record_type", p + "record_type")
+    proj = ([f"{p}project_name = ?"], [project]) if project and com else ([], [])
+    if per and com:
+        return (f"(NOT {comm} OR ({comm} AND {proj[0][0]}))", proj[1]) if proj[0] else ("1", [])
+    if per:
+        return f"NOT {comm}", []
+    if com:
+        return " AND ".join([comm] + proj[0]), proj[1]
+    return None, []
+
+
 _EMBARGOED = "(COALESCE({p}embargo_status, '') = 'Active' AND COALESCE({p}embargo_until, '') > ?)"
 # a specimen's observation: the stored link, else the same taxon, date and grid ref
 _SPECIMEN_OBS = ("(o.id = specimens.observation_id OR (specimens.observation_id IS NULL "
@@ -137,17 +169,36 @@ def _selection_sql(table: str, selection: List[dict], ctx: TaxonContext) -> Tupl
     return "(" + (" OR ".join(parts) or "0") + ")", params
 
 
-def build_query(table: str, selection: List[dict], source: str, filters: MapFilters,
-                ctx: TaxonContext, part: str = "mapped", today: Optional[str] = None
-                ) -> Tuple[str, list]:
+def counting_exclusions(db) -> Dict[str, str]:
+    """{table: "id NOT IN (...)"} -- the records the species-counting switches leave off the
+    map (backlog A): observations by the Observation set, recording_scheme by the Scheme
+    set. Specimens and contributed records are never left out."""
+    from shared.species_counting import not_excluded_sql
+    out = {}
+    for table in ("observations", "recording_scheme"):
+        sql = not_excluded_sql(db, table, "id")
+        if sql:
+            out[table] = sql[len(" AND "):]
+    return out
+
+
+def build_query(table: str, selection: List[dict], source, filters: MapFilters,
+                ctx: TaxonContext, part: str = "mapped", today: Optional[str] = None,
+                counting: Optional[Dict[str, str]] = None) -> Tuple[str, list]:
     """(WHERE clause, params) for one table: selection + source + filters. The one place
-    the Mapping tab's records are chosen. `part`:
+    the Mapping tab's records are chosen. `source`: a key or a list of keys. `part`:
         'mapped'    the records the map shows;
         'embargoed' the records held back by the embargo rule (to say so on the map);
         'merged'    (source 'all') specimens / scheme rows shown once, as their observation.
+    `counting` (counting_exclusions): records left off by the species-counting switches.
     """
     today = today or _dt.date.today().isoformat()
+    counting = counting or {}
+    obs_ok = (" AND o." + counting["observations"]) if counting.get("observations") else ""
+    srcs = normalise_sources(source)
     where, params = ["COALESCE(grid_ref, '') <> ''"], []
+    if counting.get(table):
+        where.append(counting[table])
     sql, p = _selection_sql(table, selection, ctx)
     if sql:
         where.append(sql)
@@ -158,13 +209,10 @@ def build_query(table: str, selection: List[dict], source: str, filters: MapFilt
         params += p
     hold = not filters.include_embargoed
     if table == "observations":
-        if source == "personal":
-            where.append(f"NOT {_COMMERCIAL}")
-        elif source == "commercial":
-            where.append(_COMMERCIAL)
-            if filters.project:
-                where.append("project_name = ?")
-                params.append(filters.project)
+        kinds, kp = _obs_kinds("", srcs, filters.project)
+        if kinds and kinds != "1":
+            where.append(kinds)
+            params += kp
         if part == "embargoed":
             where.append(_EMBARGOED.format(p=""))
             params.append(today)
@@ -174,32 +222,46 @@ def build_query(table: str, selection: List[dict], source: str, filters: MapFilt
             where.append("NOT " + _EMBARGOED.format(p=""))
             params.append(today)
     elif table == "specimens":
-        any_obs = f"EXISTS (SELECT 1 FROM observations o WHERE {_SPECIMEN_OBS})"
+        # shown as its observation when that observation's source is chosen too ('all': any)
+        kinds, kp = _obs_kinds("o.", srcs, filters.project)
+        shown = (f"EXISTS (SELECT 1 FROM observations o WHERE {_SPECIMEN_OBS} AND {kinds}{obs_ok})"
+                 if kinds else None)
+        # held back with an embargoed observation whether or not the counting switches
+        # count that observation (an excluded one must not let its specimen out)
         held = (f"EXISTS (SELECT 1 FROM observations o WHERE {_SPECIMEN_OBS} AND "
                 f"{_EMBARGOED.format(p='o.')})")
-        if part == "embargoed":                # (in 'all' they are counted as their observation)
-            where.append(held if source != "all" else "0")
-            params += [today] if source != "all" else []
+        if part == "embargoed":                # (those shown as their observation count there)
+            where.append(held)
+            params.append(today)
+            if shown:
+                where.append("NOT " + shown)
+                params += kp
         elif part == "merged":
-            where += [any_obs] if source == "all" else ["0"]
-            if source == "all" and hold:       # the embargoed ones are counted as held back
+            if not shown:
+                where.append("0")
+            else:
+                where.append(shown)
+                params += kp
+                if hold:                       # the embargoed ones are counted as held back
+                    where.append("NOT " + held)
+                    params.append(today)
+        else:
+            if shown:
+                where.append("NOT " + shown)
+                params += kp
+            if hold:
                 where.append("NOT " + held)
                 params.append(today)
-        elif source == "all":
-            where.append("NOT " + any_obs)
-        elif hold:
-            where.append("NOT " + held)
-            params.append(today)
     elif table == "recording_scheme":
-        mine = ("COALESCE(irecord_id, '') <> '' AND irecord_id IN (SELECT irecord_id FROM "
-                "observations WHERE COALESCE(irecord_id, '') <> ''"
-                + (" AND NOT " + _EMBARGOED.format(p="") if hold else "") + ")")
+        kinds, kp = _obs_kinds("", srcs, filters.project)
         if part == "embargoed":
             where.append("0")
-        elif source == "all":
+        elif kinds:                            # one of your observations, shown as that
+            mine = ("COALESCE(irecord_id, '') <> '' AND irecord_id IN (SELECT o.irecord_id FROM "
+                    f"observations o WHERE COALESCE(o.irecord_id, '') <> '' AND {kinds}{obs_ok}"
+                    + (" AND NOT " + _EMBARGOED.format(p="") if hold else "") + ")")
             where.append(mine if part == "merged" else f"NOT ({mine})")
-            if hold:
-                params.append(today)
+            params += kp + ([today] if hold else [])
         elif part == "merged":
             where.append("0")
     elif part != "mapped":
@@ -215,22 +277,27 @@ class MapResult:
     merged: int = 0                                           # shown once, as their observation
 
 
-def fetch(selection: List[dict], source: str = "personal", filters: Optional[MapFilters] = None,
+def fetch(selection: List[dict], source="personal", filters: Optional[MapFilters] = None,
           db_path=None, uksi_path=None) -> MapResult:
     """The records for the map, with what was held back. Each record: source, table, id,
     species_name, tvk, common_name, grid_ref, date, year, site_name, person, extra, vc,
-    chips (indexes of the chips it falls under) and species (its key for richness)."""
+    chips (indexes of the chips it falls under) and species (its key for richness).
+    `source`: a key of SOURCES or a list of them (several sources at once)."""
     filters = filters or MapFilters()
     db = db_path or paths.OBSERVATUM_DB
     ctx = get_context(db, uksi_path)
     res = MapResult(chip_counts=[0] * len(selection))
     tests = _chip_tests(selection, ctx)
     want_group = any(c.get("kind") == "group" for c in selection)
+    counting = counting_exclusions(db)
     conn = connect_ro(db)
     try:
-        for table in SOURCE_TABLES.get(source, SOURCE_TABLES["personal"]):
+        srcs = normalise_sources(source)
+        tables = [t for t in TABLES if any(t in SOURCE_TABLES[s] for s in srcs)]
+        for table in tables:
             mt = TABLES[table]
-            where, params = build_query(table, selection, source, filters, ctx)
+            where, params = build_query(table, selection, source, filters, ctx,
+                                        counting=counting)
             rtype = "record_type" if table == "observations" else "NULL"
             gcol = GROUP_COLUMN.get(table)
             gexpr = gcol if (want_group and gcol) else "NULL"
@@ -254,7 +321,8 @@ def fetch(selection: List[dict], source: str = "personal", filters: Optional[Map
                     "vc": vc if isinstance(vc, int) else None, "chips": chips,
                     "species": ctx.species_key(tvk, sp)})
             for part in ("embargoed", "merged"):
-                w, p = build_query(table, selection, source, filters, ctx, part=part)
+                w, p = build_query(table, selection, source, filters, ctx, part=part,
+                                   counting=counting)
                 n = conn.execute(f"SELECT COUNT(*) FROM {table} WHERE {w}", p).fetchone()[0]
                 setattr(res, part, getattr(res, part) + n)
     finally:

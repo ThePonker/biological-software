@@ -1,27 +1,39 @@
 """
 Map Filter Panel component for Observatum V2.
 
-What to map (rank picker + several taxa as chips, selection_box.py), then the filters:
-date range, quick date presets, vice-county, recorder, site, Commercial project and the
-embargo switch; the Generate button and the list of mapped squares.
+What to map (rank picker + several taxa as chips, selection_box.py), the data sources (tick
+boxes, source_picker.py), then the filters: date range, quick date presets, vice-county,
+recorder, site, Commercial project and the embargo switch; the Generate button and the list
+of mapped squares.
 
 Backlog item 4 (10 Oct 2026): the date boxes read 2020, 06/2020, 01/06/2020 or ISO and say
 when they can't (MAP3); the Vice County list is one entry per VC and filters (MAP8); Quick
 Select runs to the current year (MAP13); recorder and site filters; Display Style and Period
 moved above the map (display_bar.py).
+
+Round 2 (10 Oct evening): data sources as tick boxes (L8); the date error goes as soon as the
+dates are put right or emptied (L9); one Clear all for the whole panel (L33); the panel
+follows the width the tab's divider gives it and never scrolls sideways (L11, L30: its left
+edge was clipped in full screen); "Include 2 km (tetrad) grid refs" (decision 10).
 """
 from datetime import date
 from typing import List, Optional, Tuple
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QSettings, Qt, Signal
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QCompleter, QFrame, QHBoxLayout, QLabel,
-                               QLayout, QLineEdit, QPushButton, QScrollArea, QVBoxLayout, QWidget)
+                               QLineEdit, QPushButton, QScrollArea, QSizePolicy, QVBoxLayout,
+                               QWidget)
 
 from shared.import_core import date_bounds
 from ...core.config import TabColors
 from ...services.map_selection import MapFilters, distinct_values, vc_choices
 from ...themes import theme
+from ..components.filter_styles import get_clear_button_style
 from .selection_box import MapSelectionBox
+from .source_picker import MapSourcePicker
+from .square_list import MapSquareList
+
+TETRAD_SETTING = "mapping/include_tetrad_refs"     # decision 10: on by default (the maps already showed them since 9 Oct)
 
 
 def quick_presets(today: Optional[date] = None) -> List[Tuple[str, str, str]]:
@@ -32,14 +44,25 @@ def quick_presets(today: Optional[date] = None) -> List[Tuple[str, str, str]]:
             (f"{y - 5}–{str(y)[2:]}", str(y - 5), str(y)), ("All", "", "")]
 
 
+def include_tetrads() -> bool:
+    """The saved "Include 2 km (tetrad) grid refs" choice (default on)."""
+    try:
+        return QSettings().value(TETRAD_SETTING, True, type=bool)
+    except Exception:
+        return False
+
+
 class MapFilterPanel(QFrame):
     """Side panel: what to map, and the filters."""
 
     selection_changed = Signal(list)
+    sources_changed = Signal(list)
     generate_requested = Signal()
+    cleared = Signal()             # Clear all: everything back to the start, in one go
+    tetrads_changed = Signal(bool)
     square_clicked = Signal(str)   # a row in the grid-square list (H4)
 
-    GRID_LIST_MAX = 200            # rows shown; the rest are summarised in one line
+    MIN_WIDTH = 310                # the divider can't squeeze it below this (the source boxes)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -56,34 +79,52 @@ class MapFilterPanel(QFrame):
 
     def _setup_ui(self):
         t = theme()
-        self.setFixedWidth(300)
+        self.setMinimumWidth(self.MIN_WIDTH)
         self.setObjectName("mapFilterPanel")       # the border is the panel's, not every label's
         self.setStyleSheet(f"QFrame#mapFilterPanel {{ background-color: {t.get('surface')}; "
                            f"border-right: 1px solid {t.get('border')}; }}")
-        scroll = QScrollArea()
+        self.scroll = scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setStyleSheet("QScrollArea { border: none; }")
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         container = QWidget()
+        # L30: the contents take the viewport's width, never more. (A minimum width wider than
+        # the panel let it scroll sideways, e.g. when a box got the focus: the left edge was
+        # cut off -- "ap", "ice County".) Height still scrolls rather than squashing.
+        container.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         layout = QVBoxLayout(container)
-        # scroll rather than squash the chips and the square list when the panel is full
-        layout.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(14)
 
+        head = QHBoxLayout()
         title = QLabel("MAP FILTERS")
         title.setStyleSheet(f"font-weight: 600; color: {t.get('text_heading')}; font-size: 11px; letter-spacing: 1px;")
-        layout.addWidget(title)
+        head.addWidget(title)
+        head.addStretch()
+        self.clear_all_btn = QPushButton("Clear all")
+        self.clear_all_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.clear_all_btn.setToolTip("Taxa, data sources, dates, vice-county, recorder, site, "
+                                      "project and the embargo box back to the start")
+        self.clear_all_btn.setStyleSheet(get_clear_button_style())
+        self.clear_all_btn.clicked.connect(self.clear_all)
+        head.addWidget(self.clear_all_btn)
+        layout.addLayout(head)
 
         self.selection_box = MapSelectionBox()
         self.selection_box.selection_changed.connect(self.selection_changed.emit)
         layout.addWidget(self.selection_box)
 
+        self.source_picker = MapSourcePicker()
+        self.source_picker.sources_changed.connect(self._on_sources)
+        layout.addWidget(self.source_picker)
+
         self._setup_dates(layout)
         self._setup_place_and_people(layout)
         self._setup_commercial(layout)
         self._setup_generate_button(layout)
-        self._setup_grid_list(layout)
+        self.square_list = MapSquareList()
+        self.square_list.square_clicked.connect(self.square_clicked.emit)
+        layout.addWidget(self.square_list)
         layout.addStretch()
 
         scroll.setWidget(container)
@@ -103,8 +144,10 @@ class MapFilterPanel(QFrame):
         self.date_to.setPlaceholderText("To")
         for box in (self.date_from, self.date_to):
             box.setMinimumHeight(28)
+            box.setClearButtonEnabled(True)
             box.setToolTip("A year (2020), a month (06/2020) or a day (01/06/2020 or 2020-06-01)")
             box.returnPressed.connect(self.generate_requested.emit)
+            box.textChanged.connect(self._refresh_date_error)
             row.addWidget(box)
         group.addLayout(row)
         self.date_error = QLabel("")
@@ -134,12 +177,19 @@ class MapFilterPanel(QFrame):
         group.addLayout(presets)
         layout.addLayout(group)
 
+    @staticmethod
+    def _narrow(combo: QComboBox):
+        """A combo as wide as the panel lets it be, not as wide as its longest entry (L30)."""
+        combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        combo.setMinimumContentsLength(10)
+        combo.setMinimumHeight(28)
+
     def _setup_place_and_people(self, layout: QVBoxLayout):
         group = QVBoxLayout()
         group.setSpacing(4)
         group.addWidget(self._label("Vice County"))
         self.vc_combo = QComboBox()
-        self.vc_combo.setMinimumHeight(28)
+        self._narrow(self.vc_combo)
         self._populate_vc_combo()
         group.addWidget(self.vc_combo)
 
@@ -182,27 +232,46 @@ class MapFilterPanel(QFrame):
         group.setSpacing(4)
         group.addWidget(self._label("Commercial project"))
         self.project_combo = QComboBox()
-        self.project_combo.setMinimumHeight(28)
+        self._narrow(self.project_combo)
         self.project_combo.addItem("All projects", "")
         try:
             for p in distinct_values("project"):
                 self.project_combo.addItem(p, p)
         except Exception as e:
             print(f"[FilterPanel] projects not loaded: {e}")
-        self.project_combo.setToolTip("Choose Data: Commercial records to map one project")
+        self.project_combo.setToolTip("Tick Commercial under Data sources to map one project")
         group.addWidget(self.project_combo)
         self.embargo_check = QCheckBox("Include embargoed records")
         self.embargo_check.setToolTip(
             "Commercial records under an active embargo are left off every map (and its atlas "
-            "PNG) unless this is ticked.")
+            "PNG) unless this is ticked. Ticked, the map's subtitle and the PNG say so.")
         group.addWidget(self.embargo_check)
+        self.tetrad_check = QCheckBox("Include 2 km (tetrad) grid refs")
+        self.tetrad_check.setToolTip(
+            "Records with a 2 km tetrad grid ref (e.g. SP46Q; Recording Scheme only) are mapped "
+            "on hectad and tetrad maps, never on 1 km maps. Off: they are left off and the map "
+            "says how many. Remembered.")
+        self.tetrad_check.setStyleSheet(f"color: {theme().get('text_secondary')}; font-size: 11px;")
+        self.tetrad_check.setChecked(include_tetrads())
+        self.tetrad_check.toggled.connect(self._on_tetrads)
+        group.addWidget(self.tetrad_check)
         layout.addLayout(group)
-        self.set_source("personal")
+        self._on_sources(self.source_picker.sources(), emit=False)
 
-    def set_source(self, source: str):
-        """The toolbar's data source: the project list applies to Commercial only."""
-        self.project_combo.setEnabled(source == "commercial")
-        self.embargo_check.setEnabled(source in ("commercial", "collection", "all"))
+    def _on_sources(self, sources: list, emit: bool = True):
+        """The project list applies to Commercial; the embargo box to Commercial and the
+        Collection (a specimen whose observation is embargoed is held back with it)."""
+        self.project_combo.setEnabled("commercial" in sources)
+        self.embargo_check.setEnabled(bool({"commercial", "collection"} & set(sources)))
+        if emit:
+            self.sources_changed.emit(list(sources))
+
+    def _on_tetrads(self, on: bool):
+        try:
+            QSettings().setValue(TETRAD_SETTING, bool(on))
+        except Exception as e:
+            print(f"[FilterPanel] tetrad setting not saved: {e}")
+        self.tetrads_changed.emit(bool(on))
 
     def _setup_generate_button(self, layout: QVBoxLayout):
         t = theme()
@@ -222,22 +291,6 @@ class MapFilterPanel(QFrame):
         self.generate_btn.clicked.connect(self.generate_requested.emit)
         layout.addWidget(self.generate_btn)
 
-    def _setup_grid_list(self, layout: QVBoxLayout):
-        t = theme()
-        group = QVBoxLayout()
-        group.setSpacing(8)
-        sep = QFrame()
-        sep.setFixedHeight(1)
-        sep.setStyleSheet(f"background-color: {t.get('separator')};")
-        group.addWidget(sep)
-        self.grid_title = QLabel("GRID SQUARES (0)")
-        self.grid_title.setStyleSheet(f"font-weight: 600; color: {t.get('text_heading')}; font-size: 11px; letter-spacing: 1px;")
-        group.addWidget(self.grid_title)
-        self.grid_list = QVBoxLayout()
-        self.grid_list.setSpacing(4)
-        group.addLayout(self.grid_list)
-        layout.addLayout(group)
-
     # ---------------------------------------------------------------- values
     def _on_date_preset(self, d_from: str, d_to: str):
         self.date_from.setText(d_from)
@@ -247,9 +300,39 @@ class MapFilterPanel(QFrame):
     def selection(self) -> List[dict]:
         return self.selection_box.selection()
 
-    def filters(self) -> Tuple[Optional[MapFilters], str]:
-        """(MapFilters, '') or (None, what is wrong) -- an unreadable date stops the map
-        rather than being ignored (MAP3)."""
+    def sources(self) -> List[str]:
+        return self.source_picker.sources()
+
+    def include_tetrads(self) -> bool:
+        return self.tetrad_check.isChecked()
+
+    def clear_all(self):
+        """L33: taxa, sources, dates, vice-county, recorder, site, project and the embargo box
+        back to the start in one go; then one `cleared` (no signal per box). The tetrad
+        choice is a setting, not a filter: it stays."""
+        widgets = (self.selection_box, self.source_picker, self.date_from, self.date_to,
+                   self.vc_combo, self.recorder_edit, self.site_edit, self.project_combo,
+                   self.embargo_check)
+        for w in widgets:
+            w.blockSignals(True)
+        try:
+            self.selection_box.clear(emit=False)
+            self.source_picker.reset(emit=False)
+            for box in (self.date_from, self.date_to, self.recorder_edit, self.site_edit):
+                box.clear()
+            self.vc_combo.setCurrentIndex(0)
+            self.project_combo.setCurrentIndex(0)
+            self.embargo_check.setChecked(False)
+        finally:
+            for w in widgets:
+                w.blockSignals(False)
+        self._on_sources(self.source_picker.sources(), emit=False)
+        self.date_error.clear()
+        self.date_error.hide()
+        self.cleared.emit()
+
+    def _date_problems(self):
+        """([what is wrong], {'From': iso or None, 'To': iso or None})."""
         bad = []
         bounds = {}
         for name, box, end in (("From", self.date_from, False), ("To", self.date_to, True)):
@@ -265,6 +348,21 @@ class MapFilterPanel(QFrame):
                 bounds[name] = b[1] if end else b[0]
         if bounds["From"] and bounds["To"] and bounds["From"] > bounds["To"]:
             bad.append("The From date is after the To date.")
+        return bad, bounds
+
+    def _refresh_date_error(self, *_a):
+        """L9: as the dates are edited, an error already shown is updated, and goes as soon
+        as the dates are right or empty (new errors still wait for Generate / Enter)."""
+        if not self.date_error.text():
+            return
+        bad, _b = self._date_problems()
+        self.date_error.setText(" ".join(bad))
+        self.date_error.setVisible(bool(bad))
+
+    def filters(self) -> Tuple[Optional[MapFilters], str]:
+        """(MapFilters, '') or (None, what is wrong) -- an unreadable date stops the map
+        rather than being ignored (MAP3)."""
+        bad, bounds = self._date_problems()
         self.date_error.setText(" ".join(bad))
         self.date_error.setVisible(bool(bad))
         if bad:
@@ -281,36 +379,5 @@ class MapFilterPanel(QFrame):
         self.selection_box.set_counts(counts)
 
     def set_grid_squares(self, squares: list):
-        """Update the grid squares list (most records first). Click a row to see its records."""
-        t = theme()
-        while self.grid_list.count():
-            item = self.grid_list.takeAt(0)
-            if item.widget():
-                item.widget().hide()          # gone now, not at the next event loop
-                item.widget().deleteLater()
-        self.grid_title.setText(f"GRID SQUARES ({len(squares):,})")
-        ordered = sorted(squares, key=lambda sq: (-sq['count'], sq['grid']))
-        for sq in ordered[:self.GRID_LIST_MAX]:
-            row = QHBoxLayout()
-            row.setContentsMargins(4, 2, 4, 2)
-            grid_label = QLabel(sq['grid'])
-            grid_label.setStyleSheet(f"font-family: monospace; color: {t.get('text_heading')};")
-            row.addWidget(grid_label)
-            row.addStretch()
-            n, k = sq['count'], sq.get('species', 0)
-            count_label = QLabel(f"{n:,} record{'s' if n != 1 else ''} · {k} sp.")
-            count_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 11px;")
-            row.addWidget(count_label)
-            container = QFrame()
-            container.setLayout(row)
-            container.setCursor(Qt.CursorShape.PointingHandCursor)
-            container.setToolTip((f"{sq['taxa']}: " if sq.get('taxa') else "")
-                                + "Show the records in this square")
-            container.setStyleSheet(f"QFrame:hover {{ background-color: {self._accent_light}; }}")
-            container.mousePressEvent = lambda e, g=sq['grid']: self.square_clicked.emit(g)
-            self.grid_list.addWidget(container)
-        if len(ordered) > self.GRID_LIST_MAX:
-            more = QLabel(f"… and {len(ordered) - self.GRID_LIST_MAX:,} more "
-                          f"(click them on the map)")
-            more.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 11px;")
-            self.grid_list.addWidget(more)
+        """The list of mapped squares under the Generate button (square_list.py)."""
+        self.square_list.set_squares(squares)

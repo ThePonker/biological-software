@@ -56,6 +56,13 @@ def square_for_ref(ref, size: int) -> Optional[str]:
     return square_for_point(e, n, size)
 
 
+def is_tetrad_ref(ref) -> bool:
+    """True for a 2 km tetrad grid reference (SP46Q): the Mapping tab can hold these back
+    (decision 10, 10 Oct 2026: shown on hectad and tetrad maps once switched on)."""
+    p = gridref_to_en(ref)
+    return bool(p) and p[2] == TETRAD
+
+
 def square_bounds(label) -> Optional[Tuple[float, float, float, float]]:
     """(e0, n0, e1, n1) of a square label (any precision shared/osgb accepts)."""
     p = gridref_to_en(label)

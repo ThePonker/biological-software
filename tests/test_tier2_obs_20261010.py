@@ -209,82 +209,9 @@ def test_specimen_dialog_profile_button_opens_account(qapp, monkeypatch):
 
 # ── OBS-04 Edit / Delete that did nothing ───────────────────────────────────
 
-def _scheme_row(path):
-    conn = sqlite3.connect(path)
-    _insert(conn, "recording_scheme", id=7, species_name="Rhagium mordax", species_tvk="T1",
-            date="2020-05-01", grid_ref="SP5822", vc_number=23, vice_county="Oxfordshire",
-            comment="keep me", site_name="Bicester")
-    conn.close()
-
-
-def _scheme_ids(path):
-    conn = _ro(path)
-    try:
-        return [r[0] for r in conn.execute("SELECT id FROM recording_scheme")]
-    finally:
-        conn.close()
-
-
-def test_scheme_detail_delete_backs_up_then_deletes(temp_db, tmp_path, monkeypatch):
-    db, path = temp_db
-    _scheme_row(path)
-    from PySide6.QtWidgets import QMessageBox
-    monkeypatch.setattr(QMessageBox, "warning",
-                        staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes))
-    from src.views.dialogs import SchemeRecordDetailDialog
-    from src.views.scheme.recording_scheme_tab import RecordingSchemeTab
-    tab = RecordingSchemeTab()
-    changed = []
-    tab.records_changed.connect(lambda: changed.append(1))
-    monkeypatch.setattr(tab, "refresh", lambda: None)
-    dlg = SchemeRecordDetailDialog({"id": 7, "species": "Rhagium mordax",
-                                    "species_name": "Rhagium mordax"}, parent=tab)
-    tab._wire_edit_delete(dlg)
-    dlg._on_delete()                                      # confirms, then emits
-    assert _scheme_ids(path) == [] and changed == [1]
-    kept = os.listdir(tmp_path / "backups" / "kept")
-    assert len(kept) == 1 and "pre-delete" in kept[0]
-
-
-def test_scheme_delete_refused_when_backup_fails(temp_db, monkeypatch):
-    db, path = temp_db
-    _scheme_row(path)
-    import shared.backup_service as bs
-    from PySide6.QtWidgets import QMessageBox
-    monkeypatch.setattr(bs, "backup_main_only", lambda label="": False)
-    said = []
-    monkeypatch.setattr(QMessageBox, "critical", staticmethod(lambda *a, **k: said.append(a[2])))
-    from src.views.scheme.scheme_record_actions import delete_scheme_record
-    assert delete_scheme_record(None, {"id": 7}, db) is False
-    assert _scheme_ids(path) == [7] and "nothing has been deleted" in said[0]
-
-
-def test_scheme_edit_writes_and_rederives_vc(temp_db, monkeypatch):
-    db, path = temp_db
-    _scheme_row(path)
-    import src.views.scheme.scheme_record_actions as sra
-    from src.views.dialogs.edit_observation_dialog import EditObservationDialog
-
-    class _VC:
-        def assess(self, ref):
-            return {"vc_number": 16, "vc_name": "West Kent", "note": ""}
-    monkeypatch.setattr(sra, "_vc_service", lambda: _VC())
-    seen = {}
-
-    def fake_exec(self):
-        seen["record"] = self._observation
-        seen["require"] = self._require_date_and_grid
-        self.gridref_edit.setText("TQ5070")
-        self.site_edit.setText("Darenth")
-        return True
-    monkeypatch.setattr(EditObservationDialog, "exec", fake_exec)
-    assert sra.edit_scheme_record(None, {"id": 7, "species_name": "Rhagium mordax"}, db)
-    assert seen["require"] is False and seen["record"]["comment"] == "keep me"   # full row read
-    conn = _ro(path)
-    row = conn.execute("SELECT grid_ref, vc_number, vice_county, site_name, comment, latitude "
-                       "FROM recording_scheme WHERE id=7").fetchone()
-    conn.close()
-    assert row[:5] == ("TQ5070", 16, "West Kent", "Darenth", "keep me") and 51 < row[5] < 52
+# Scheme records became read-only (L15, 10 Oct): their Edit / Delete and the tests of
+# them were retired (scheme_record_actions.py -> _archive/scheme_record_actions_20261010/;
+# tests/test_apps_r2.py checks the detail dialog has no Edit / Delete).
 
 
 def test_specimen_detail_delete_backs_up(qapp, tmp_path, monkeypatch):
@@ -337,8 +264,9 @@ def test_tabs_announce_record_changes(qapp):
     from src.views.scheme.recording_scheme_tab import RecordingSchemeTab
     from src.views.stats.scheme_dashboard import SchemeDashboard
     assert hasattr(ObservationTab, "records_changed")
-    assert hasattr(RecordingSchemeTab, "records_changed")
-    assert hasattr(SchemeDashboard, "scheme_records_changed")
+    # scheme records are read-only (L15): nothing on those screens changes a record
+    assert not hasattr(RecordingSchemeTab, "records_changed")
+    assert not hasattr(SchemeDashboard, "scheme_records_changed")
 
 
 # ── OBS-16 Quick Entry ──────────────────────────────────────────────────────

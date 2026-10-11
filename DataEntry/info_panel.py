@@ -28,30 +28,113 @@ SRC_SETTING_KEYS = {
 
 _BANNER_H = 194  # common height for the banner cards (trimmed to fit content)
 
+# Conservation chips sit in one 316 px row: full labels were cut off ("Priority (NER",
+# "Protected (B" -- L22, 10 Oct). The chip shows a short form; its tooltip the full label.
+_PRIORITY_SHORT = {
+    "NERC S.41 England": "S.41",
+    "Scottish Biodiversity List": "SBL",
+    "Env (Wales) Act S7": "S7",
+    "NI Priority Species": "NI Priority",
+    "UK BAP": "UK BAP",
+}
+_CHIP_MAX = 14   # characters; anything longer is shortened with an ellipsis
+
+
+def chip_text(label: str) -> str:
+    """The short text a conservation chip shows for `label` (its tooltip keeps `label`)."""
+    label = (label or "").strip()
+    if label.startswith("Priority (") and label.endswith(")"):
+        inner = label[len("Priority ("):-1]
+        return _PRIORITY_SHORT.get(inner, "Priority")
+    if label.startswith("Protected"):
+        return "Protected"
+    if len(label) > _CHIP_MAX:
+        return label[:_CHIP_MAX - 1].rstrip() + "\u2026"
+    return label
+
 
 class _FlowRow(QWidget):
     """A single horizontal strip of small widgets (chips/pills), left-aligned.
 
     Keeps a fixed height whether or not it has items, so the readout never changes size.
+    What doesn't fit the width is folded into a "+n" chip whose tooltip names the rest, so
+    nothing is ever cut off whatever the font (Windows' Segoe UI is wider: PC test, 10 Oct).
     """
+    SPACING = 6
+
     def __init__(self, parent=None):
         super().__init__(parent)
-        from PySide6.QtWidgets import QHBoxLayout
+        from PySide6.QtWidgets import QHBoxLayout, QLayout, QSizePolicy
         self.setFixedHeight(22)
+        # the chips must never widen the readout: the row takes the width it is given and
+        # folds what doesn't fit (a layout minimum would otherwise force the width up)
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        self.setMinimumWidth(0)
         self._lay = QHBoxLayout(self)
+        self._lay.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
         self._lay.setContentsMargins(0, 2, 0, 0)
-        self._lay.setSpacing(6)
+        self._lay.setSpacing(self.SPACING)
         self._lay.addStretch(1)
+        self._items = []
+        self._more = None
 
     def set_items(self, widgets):
         while self._lay.count():
             it = self._lay.takeAt(0)
             w = it.widget()
             if w is not None:
+                w.hide()
+                w.setParent(None)        # leave now, not at the next event loop turn
                 w.deleteLater()
-        for w in widgets:
+        self._items = list(widgets)
+        for w in self._items:
             self._lay.addWidget(w)
+        self._more = QLabel("")
+        self._more.setStyleSheet(theme.badge_qss("default") + " border: none;")
+        self._more.hide()
+        self._lay.addWidget(self._more)
         self._lay.addStretch(1)
+        self._fit()
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        self._fit()
+
+    def visible_count(self) -> int:
+        return sum(1 for w in self._items if not w.isHidden())
+
+    def _fit(self):
+        """Show the items that fit; fold the rest into "+n" (tooltip lists them)."""
+        if not self._items or self._more is None:
+            return
+        avail = self.contentsRect().width()
+        if avail <= 0:                              # not laid out yet: show all for now
+            for w in self._items:
+                w.show()
+            self._more.hide()
+            return
+        widths = [w.sizeHint().width() for w in self._items]
+        total = sum(widths) + self.SPACING * (len(widths) - 1)
+        if total <= avail:
+            for w in self._items:
+                w.show()
+            self._more.hide()
+            return
+        n = len(self._items)
+        keep = 0
+        for k in range(n - 1, -1, -1):              # most items that fit beside a "+n" chip
+            self._more.setText(f"+{n - k}")
+            more_w = self._more.sizeHint().width()
+            used = sum(widths[:k]) + self.SPACING * k + more_w
+            if used <= avail:
+                keep = k
+                break
+        self._more.setText(f"+{n - keep}")
+        hidden = self._items[keep:]
+        self._more.setToolTip("\n".join((w.toolTip() or w.text()) for w in hidden))
+        for i, w in enumerate(self._items):
+            w.setVisible(i < keep)
+        self._more.show()
 
 
 class _PopOut(QWidget):
@@ -514,7 +597,8 @@ class InfoPanel(QWidget):
     @staticmethod
     def _chip(label, kind):
         k = "success" if label.strip().upper() in ("LC", "LEAST CONCERN") else kind
-        w = QLabel(label)
+        w = QLabel(chip_text(label))       # short form; the whole label on hover (L22)
+        w.setToolTip(label)
         w.setStyleSheet(theme.badge_qss(k) + " border: none;")
         return w
 

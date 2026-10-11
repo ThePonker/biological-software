@@ -185,13 +185,13 @@ class WizardValidationMixin:
         # Status column
         status_item = QTableWidgetItem()
         if row.status == RowStatus.VALID:
-            status_item.setText("[OK]")
+            status_item.setText("\u2713")
             status_item.setForeground(self._cached_success_color)
         elif row.status == RowStatus.WARNING:
-            status_item.setText("[!]")
+            status_item.setText("\u26a0")
             status_item.setForeground(self._cached_warning_color)
         else:
-            status_item.setText("[X]")
+            status_item.setText("\u2717")
             status_item.setForeground(self._cached_error_color)
         status_item.setFlags(status_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
         self.validation_table.setItem(row_idx, 0, status_item)
@@ -241,13 +241,13 @@ class WizardValidationMixin:
         # Status column
         status_item = QTableWidgetItem()
         if row.status == RowStatus.VALID:
-            status_item.setText('[OK]')
+            status_item.setText('\u2713')
             status_item.setForeground(self._cached_success_color)
         elif row.status == RowStatus.WARNING:
-            status_item.setText('[!]')
+            status_item.setText('\u26a0')
             status_item.setForeground(self._cached_warning_color)
         else:
-            status_item.setText('[X]')
+            status_item.setText('\u2717')
             status_item.setForeground(self._cached_error_color)
         status_item.setFlags(status_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
         self.validation_table.setItem(row_idx, 0, status_item)
@@ -354,12 +354,12 @@ class WizardValidationMixin:
         if not row.species_name:
             errors.append("Species name is required")
         elif not row.species_tvk and self.uksi_model:
-            # The same rules as validation (shared/species_lookup.py): a search hit is a
-            # suggestion, never a match
+            # The same rules as validation (shared/species_lookup.py): a close spelling of
+            # one species of the same genus is accepted; any other search hit is a suggestion
             from shared.species_lookup import lookup_names
             from shared.species_lookup_entries import entry
             typed = row.species_name
-            e = entry(lookup_names([typed], self.uksi_model)[typed])
+            e = entry(lookup_names([typed], self.uksi_model, close_spellings=True)[typed])
             if "error" in e:
                 errors.append(e["error"])
             else:

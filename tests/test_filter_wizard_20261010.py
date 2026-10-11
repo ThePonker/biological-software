@@ -289,13 +289,9 @@ def on_copy(qapp, db_copy, monkeypatch):
 
 
 def _excluded_count(sql_where):
-    """Hand SQL with Observation Data's default exclusion (TVK, binomial, no agg./s.l.)."""
-    return _hand(
-        "SELECT COUNT(*) FROM observations WHERE " + sql_where +
-        " AND COALESCE(species_tvk, '') <> '' AND species_name LIKE '% %'"
-        " AND LOWER(species_name) NOT LIKE '%agg.%' AND LOWER(species_name) NOT LIKE '%agg %'"
-        " AND LOWER(species_name) NOT LIKE '% agg' AND LOWER(species_name) NOT LIKE '%s.l.%'"
-        " AND LOWER(species_name) NOT LIKE '%sensu lato%'")
+    """Hand SQL for the rows Observation Data lists. Since the species-counting switches
+    (backlog A, 10 Oct) every record is listed -- the excluded ones dimmed, not hidden."""
+    return _hand("SELECT COUNT(*) FROM observations WHERE " + sql_where)
 
 
 def test_observation_tab_wizard(on_copy):

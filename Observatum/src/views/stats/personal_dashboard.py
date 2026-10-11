@@ -23,7 +23,8 @@ from .stat_widgets import (
 )
 from .order_accumulation_grid import OrderAccumulationGrid
 from ...themes import theme
-from ...services.observation_stats_service import get_observation_stats, get_observation_exclusion_clause
+from ...services.observation_stats_service import get_observation_stats
+from shared.species_counting import counted_clause
 
 
 
@@ -236,7 +237,7 @@ class PersonalStatsDashboard(QScrollArea):
         try:
             from ...models.database import get_database
             db = get_database()
-            exclusion = get_observation_exclusion_clause()
+            exclusion = counted_clause("observations")
             if db is None:
                 return
             query = f"""
@@ -281,7 +282,7 @@ class PersonalStatsDashboard(QScrollArea):
         try:
             from ...models.database import get_database
             db = get_database()
-            exclusion = get_observation_exclusion_clause()
+            exclusion = counted_clause("observations")
             if db is None:
                 return
             query = f"""
@@ -292,6 +293,7 @@ class PersonalStatsDashboard(QScrollArea):
                 WHERE date IS NOT NULL
                 AND species_name IS NOT NULL AND species_name != ''
                 AND CAST(strftime('%m', date) AS INTEGER) = ?
+                AND COALESCE(date_type, 'D') = 'D'  -- a day only: year/month/range dates skip month charts (decision 9)
                 AND record_type = 'Personal'
                 {exclusion}
                 GROUP BY species_name
@@ -340,7 +342,7 @@ class PersonalStatsDashboard(QScrollArea):
             from ...models.database import get_database
             from ..dialogs import RecordDetailDialog
             db = get_database()
-            exclusion = get_observation_exclusion_clause()
+            exclusion = counted_clause("observations")
             if db is None:
                 return
             # Get the most recent observation for this species
@@ -368,6 +370,9 @@ class PersonalStatsDashboard(QScrollArea):
                 )
                 dlg.navigate_to_observations.connect(self.navigate_to_species.emit)
                 dlg.profile_requested.connect(self._on_profile_requested)
+                # Edit / Delete go to the Observation tab's flows (they did nothing)
+                from ..observations.observation_record_actions import wire_observation_detail
+                wire_observation_detail(dlg, self)
                 self._current_detail_dialog = dlg
                 dlg.exec()
                 self._current_detail_dialog = None
@@ -380,7 +385,7 @@ class PersonalStatsDashboard(QScrollArea):
         try:
             from ...models.database import get_database
             db = get_database()
-            exclusion = get_observation_exclusion_clause()
+            exclusion = counted_clause("observations")
             if db is None:
                 return
             result = db.execute_main(f"""
@@ -417,7 +422,7 @@ class PersonalStatsDashboard(QScrollArea):
         try:
             from ...models.database import get_database
             db = get_database()
-            exclusion = get_observation_exclusion_clause()
+            exclusion = counted_clause("observations")
             if db is None:
                 return
             result = db.execute_main(f"""
@@ -505,7 +510,7 @@ class PersonalStatsDashboard(QScrollArea):
         try:
             from ...models.database import get_database
             db = get_database()
-            exclusion = get_observation_exclusion_clause()
+            exclusion = counted_clause("observations")
             if db is None:
                 return
             placeholders = ','.join(['?' for _ in group_values])

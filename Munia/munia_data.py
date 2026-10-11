@@ -230,23 +230,80 @@ def set_project_annual_days(conn, project_id: int, year: int, data: dict):
          data.get("notes", "")))
     conn.commit()
 
-def get_project_field_total(conn, project_id: int) -> float:
+def _year_clause(year):
+    return (" AND year = ?", (year,)) if year is not None else ("", ())
+
+
+def get_project_field_total(conn, project_id: int, year: int = None) -> float:
+    """Field days of a project: all business years, or one (year=...)."""
+    yc, yp = _year_clause(year)
     row = conn.execute("SELECT COALESCE(SUM(field_days), 0) AS t "
-                       "FROM project_field_months WHERE project_id = ?",
-                       (project_id,)).fetchone()
+                       f"FROM project_field_months WHERE project_id = ?{yc}",
+                       (project_id, *yp)).fetchone()
     return row["t"]
 
-def get_project_micro_total(conn, project_id: int) -> float:
+def get_project_micro_total(conn, project_id: int, year: int = None) -> float:
+    yc, yp = _year_clause(year)
     row = conn.execute("SELECT COALESCE(SUM(micro_days), 0) AS t "
-                       "FROM project_annual_days WHERE project_id = ?",
-                       (project_id,)).fetchone()
+                       f"FROM project_annual_days WHERE project_id = ?{yc}",
+                       (project_id, *yp)).fetchone()
     return row["t"]
 
-def get_project_report_total(conn, project_id: int) -> float:
+def get_project_report_total(conn, project_id: int, year: int = None) -> float:
+    yc, yp = _year_clause(year)
     row = conn.execute("SELECT COALESCE(SUM(report_days), 0) AS t "
-                       "FROM project_annual_days WHERE project_id = ?",
-                       (project_id,)).fetchone()
+                       f"FROM project_annual_days WHERE project_id = ?{yc}",
+                       (project_id, *yp)).fetchone()
     return row["t"]
+
+
+# -- MUN-4 / decision 12 (10 Oct): a project spanning several business years -------
+# Its quote value is split across the years by the days planned/logged in each year
+# (field + micro + report, as stored per year), or evenly where no days are recorded.
+# Days are already held per business year, so they need no splitting.
+
+def project_days_by_year(conn, project_id: int) -> dict:
+    """{business year: field + micro + report days} for one project."""
+    out: dict = {}
+    for r in conn.execute("SELECT year, COALESCE(SUM(field_days), 0) AS d "
+                          "FROM project_field_months WHERE project_id = ? GROUP BY year",
+                          (project_id,)):
+        out[r["year"]] = out.get(r["year"], 0) + (r["d"] or 0)
+    for r in conn.execute("SELECT year, COALESCE(micro_days, 0) + COALESCE(report_days, 0) AS d "
+                          "FROM project_annual_days WHERE project_id = ?", (project_id,)):
+        out[r["year"]] = out.get(r["year"], 0) + (r["d"] or 0)
+    return out
+
+
+def year_share(project: dict, year: int, days_by_year: dict) -> tuple:
+    """(fraction of the project's value that belongs to `year`, how: 'single' / 'days' /
+    'even'). Only days inside the project's own years count."""
+    sy = project.get("start_year") or year
+    ey = project.get("end_year") or sy
+    if ey <= sy:
+        return (1.0 if year == sy else 0.0), "single"
+    if not (sy <= year <= ey):
+        return 0.0, "days"
+    span = range(sy, ey + 1)
+    total = sum(days_by_year.get(y, 0) or 0 for y in span)
+    if total > 0:
+        return (days_by_year.get(year, 0) or 0) / total, "days"
+    return 1.0 / len(span), "even"
+
+
+def apportion_projects(conn, projects: list, year: int) -> list:
+    """Copies of `projects` with 'year_value' (this business year's share of the quote
+    value) and 'value_split' ('single' / 'days' / 'even'). 'quote_value' stays the
+    whole quote -- the form edits that."""
+    out = []
+    for p in projects:
+        q = dict(p)
+        share, how = year_share(p, year, project_days_by_year(conn, p["id"])
+                                if (p.get("end_year") or 0) > (p.get("start_year") or 0) else {})
+        q["year_value"] = (p.get("quote_value") or 0) * share
+        q["value_split"] = how
+        out.append(q)
+    return out
 
 def get_field_totals_by_month(conn, year: int, statuses: tuple) -> dict:
     ph = ",".join("?" for _ in statuses)
@@ -286,7 +343,8 @@ def summarise_pipeline(projects: list) -> dict:
 
     {'counts': {...}, 'values': {...}, 'confirmed': £ accepted + complete,
      'lost': £ declined + no response, 'total': number of projects}
-    An unknown status counts as quoted.
+    An unknown status counts as quoted. A project's value is its 'year_value' when
+    apportion_projects() has set one (MUN-4), else its whole quote value.
     """
     keys = ("quoted", "accepted", "complete", "declined", "no_response")
     counts = {k: 0 for k in keys}
@@ -296,11 +354,9 @@ def summarise_pipeline(projects: list) -> dict:
         if st not in counts:
             st = "quoted"
         counts[st] += 1
-        values[st] += p.get("quote_value") or 0
-    # MUN-4: a project spanning several business years carries one quote value,
-    # and is counted in full in every year it spans. How to apportion it is
-    # Wil's decision (docs/03_Backlog.md); until then the summary says how much
-    # of each figure is such projects.
+        values[st] += _value(p)
+    # MUN-4: projects spanning several business years -- the summary says how much of
+    # each figure is such projects (their share of this year, decision 12)
     multi = [p for p in projects
              if (p.get("end_year") or 0) > (p.get("start_year") or 0)]
     return {
@@ -309,6 +365,12 @@ def summarise_pipeline(projects: list) -> dict:
         "lost": values["declined"] + values["no_response"],
         "total": len(projects),
         "multi_year_count": len(multi),
-        "multi_year_confirmed": sum(p.get("quote_value") or 0 for p in multi
+        "multi_year_confirmed": sum(_value(p) for p in multi
                                     if (p.get("status") or "quoted") in COMMITTED_STATUSES),
+        "multi_year_even": sum(1 for p in multi if p.get("value_split") == "even"),
     }
+
+
+def _value(p: dict) -> float:
+    v = p.get("year_value")
+    return (p.get("quote_value") or 0) if v is None else v

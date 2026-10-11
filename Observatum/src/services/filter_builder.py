@@ -21,6 +21,10 @@ Rules (one place):
   * Verification "Accepted" also matches "Accepted - correct" etc. (iRecord's sub-statuses).
   * Dates: ISO text; records with no date never match a date or year filter.
   * A key the tab has no column for is ignored, and reported by unsupported_keys().
+  * Dataset / provider (Recording Scheme only, decision 4, 10 Oct): the stored `source`
+    -- the NBN Atlas data provider's dataset or the iRecord survey a record came from.
+    Exact name, ignoring case. The scheme bar's Source (iRecord / NBN Atlas / Other,
+    the import route) is a different thing and stays on the bar.
 """
 
 import sqlite3
@@ -35,7 +39,7 @@ CARD_KEYS: Dict[str, Tuple[str, ...]] = {
     'when': ('date_from', 'date_to', 'year'),
     'who': ('recorder', 'determiner'),
     'how': ('method', 'notes_search'),
-    'status': ('verification_status', 'record_type'),
+    'status': ('verification_status', 'record_type', 'dataset'),
 }
 KEY_TO_CARD: Dict[str, str] = {k: card for card, keys in CARD_KEYS.items() for k in keys}
 # Cards whose keys are alternatives; the others are combined with AND
@@ -61,6 +65,7 @@ class TabColumns:
     notes: Tuple[str, ...] = ('comment', 'internal_notes', 'sample_comment')
     verification: Optional[str] = 'verification_status'
     record_type: Optional[str] = 'record_type'
+    dataset: Optional[str] = None         # where the record came from (scheme: `source`)
 
     def column_for(self, key: str):
         return {
@@ -71,13 +76,15 @@ class TabColumns:
             'recorder': self.recorder, 'determiner': self.determiner,
             'method': self.method, 'notes_search': self.notes or None,
             'verification_status': self.verification, 'record_type': self.record_type,
+            'dataset': self.dataset,
         }.get(key)
 
 
 TAB_COLUMNS: Dict[str, TabColumns] = {
     'observations': TabColumns(table='observations'),
     # Every scheme row is record_type "Recording Scheme": nothing to choose
-    'recording_scheme': TabColumns(table='recording_scheme', record_type=None),
+    'recording_scheme': TabColumns(table='recording_scheme', record_type=None,
+                                   dataset='source'),
     'specimens': TabColumns(table='specimens', date='date_collected', recorder='collector',
                             method=None, notes=('notes', 'label_data'),
                             verification=None, record_type=None),
@@ -285,6 +292,13 @@ def _group_labels(conn, cols: TabColumns) -> List[str]:
     return display_labels(r[0] for r in conn.execute(f"SELECT DISTINCT {expr} FROM {cols.table}"))
 
 
+def dataset_counts(values_with_counts: Iterable[Tuple[str, int]]) -> List[Tuple[str, int]]:
+    """[(dataset, records)] sorted by name ignoring case; blanks left out."""
+    out = [(str(v).strip(), int(n)) for v, n in values_with_counts
+           if v is not None and str(v).strip()]
+    return sorted(out, key=lambda vn: (vn[0].casefold(), vn[0]))
+
+
 def tab_values(db_path, tab: str, only: Optional[Iterable[str]] = None) -> Dict[str, list]:
     """Distinct values present in the tab's table, for the wizard's dialogs (SRCH12) and
     the filter bars' lists (OBS-15). `only` limits which lists are read."""
@@ -322,6 +336,7 @@ def tab_values(db_path, tab: str, only: Optional[Iterable[str]] = None) -> Dict[
         'methods': lambda: merge_case_variants(counted(cols.method)),
         'statuses': lambda: status_groups(distinct(cols.verification)),
         'record_types': lambda: distinct(cols.record_type),
+        'datasets': lambda: dataset_counts(counted(cols.dataset)),
         'years': years,
     }
     try:

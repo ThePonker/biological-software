@@ -24,6 +24,7 @@ from shared.osgb import wgs84_to_osgb_en
 _CACHE: Dict[str, Tuple[Dict[int, List[List[Tuple[float, float]]]], Tuple[float, float, float, float]]] = {}
 
 _SIMPLIFY_TOL = 300.0  # metres between kept points (finer, so adjacent VC borders meet cleanly)
+DOT_HALF = 100.0       # metres: half the side of the small square drawn for a 1-3 point islet
 
 
 def _simplify(ring: List[Tuple[float, float]], tol: float) -> List[Tuple[float, float]]:
@@ -81,7 +82,18 @@ def _rings_from_geometry(geom) -> List[List[Tuple[float, float]]]:
     return []
 
 
-def _outer_rings(geom, rings_en):
+def dot_ring(points: List[Tuple[float, float]], half: float = DOT_HALF):
+    """A tiny islet stored with fewer than 4 points (e.g. The Smalls, VC45, in the older
+    2 MB geojson): a small closed square round its points, so it is still drawn and still
+    counts towards the VC's extent (County view zooms to it). It has no turning of its own,
+    so _outer_rings always keeps it as an outer ring (an islet), never a hole."""
+    es = [e for e, _n in points]
+    ns = [n for _e, n in points]
+    e0, e1, n0, n1 = min(es) - half, max(es) + half, min(ns) - half, max(ns) + half
+    return [(e0, n0), (e0, n1), (e1, n1), (e1, n0), (e0, n0)]
+
+
+def _outer_rings(geom, rings_en, dots=()):
     """The outer rings among a feature's projected rings (holes dropped).
 
     MultiPolygon: the first ring of each polygon. Polygon: scripts/convert_vc_shapefile.py
@@ -90,6 +102,7 @@ def _outer_rings(geom, rings_en):
     mainland of 40 of the 112 VCs (VC1 West Cornwall was drawn as one Scilly islet, a
     triangle after the converter's thinning). So for a Polygon the rings turning the same
     way as the largest ring are outer rings (islands); those turning the other way are holes.
+    `dots`: indexes of dot_ring islets (no turning of their own): always outer rings.
     """
     if not rings_en:
         return []
@@ -102,11 +115,12 @@ def _outer_rings(geom, rings_en):
                 out.append(rings_en[i])
             i += sum(1 for r in poly if r)
         return out
-    kept = [(r, ring_area(r)) for r in rings_en if r is not None]
-    if not kept:
-        return []
-    big = max(kept, key=lambda ra: abs(ra[1]))[1]
-    return [r for r, a in kept if a * big > 0]
+    kept = [(r, ring_area(r)) for i, r in enumerate(rings_en) if r is not None and i not in dots]
+    out = []
+    if kept:
+        big = max(kept, key=lambda ra: abs(ra[1]))[1]
+        out = [r for r, a in kept if a * big > 0]
+    return out + [rings_en[i] for i in sorted(dots) if rings_en[i] is not None]
 
 
 def load_vc_polygons(path: str, tol: float = _SIMPLIFY_TOL):
@@ -138,6 +152,7 @@ def load_vc_polygons(path: str, tol: float = _SIMPLIFY_TOL):
             continue
         geom = feat.get("geometry") or {}
         all_en: List[Optional[List[Tuple[float, float]]]] = []
+        dots = set()
         for ring in _rings_from_geometry(geom):
             ll = []
             for pt in ring:
@@ -157,8 +172,11 @@ def load_vc_polygons(path: str, tol: float = _SIMPLIFY_TOL):
                 # an islet smaller than `tol` keeps a few of its points rather than vanish
                 # (a far-off islet sets the extent County view zooms to, e.g. VC103)
                 en = thin if len(thin) >= 4 else en[::max(1, len(en) // 6)] + [en[-1]]
-            all_en.append(en if len(en) >= 4 else None)
-        rings_en = _outer_rings(geom, all_en)
+            if 0 < len(en) < 4:                  # L34: a 1-3 point islet -> a small dot
+                dots.add(len(all_en))
+                en = dot_ring(en)
+            all_en.append(en if en else None)
+        rings_en = _outer_rings(geom, all_en, dots)
         for en in rings_en:
             for e, n in en:
                 if e < minE: minE = e

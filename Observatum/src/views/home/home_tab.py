@@ -3,6 +3,7 @@ from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QMessageBox
 from PySide6.QtCore import Qt, Signal
 from .quick_entry import QuickEntryForm
 from .quick_stats import QuickStatsPanel
+from .observation_stats_card import ObservationStatsCard
 from .recent_species import RecentSpeciesPanel
 from .species_info import SpeciesInfoPanel
 from .species_profile_dialog import SpeciesProfileDialog
@@ -45,15 +46,21 @@ class HomeTab(QWidget):
         layout.setSpacing(16)
         layout.setAlignment(Qt.AlignmentFlag.AlignTop)  # Align all panels to top
 
-        # Panel 1 - Quick Stats + Gamification (smaller)
+        # Panel 1 - Quick Stats cards, then Achievements below them (L16, 10 Oct):
+        # Personal, Commercial, Recording Scheme + Insect Collection, Achievements
         left_column = QVBoxLayout()
         left_column.setSpacing(12)
         left_column.setContentsMargins(0, 0, 0, 0)
 
+        self.personal_stats = ObservationStatsCard("Personal")
+        left_column.addWidget(self.personal_stats)
+        self.commercial_stats = ObservationStatsCard("Commercial")
+        left_column.addWidget(self.commercial_stats)
+
         self.stats_panel = QuickStatsPanel()
         left_column.addWidget(self.stats_panel)
 
-        # Gamification launcher card
+        # Gamification launcher card (Achievements), below the figures
         self.gamification_card = GamificationLauncher(parent=self)
         left_column.addWidget(self.gamification_card)
         
@@ -240,12 +247,11 @@ class HomeTab(QWidget):
         if not self._observation_model and not self._obs_repo:
             return
         try:
-            # Use repository for observation stats if available (faster, cleaner)
+            # Observation figures, one card per record type (L16). Only the repository
+            # splits by record type; without it the cards keep their last figures.
             if self._obs_repo:
-                stats = self._obs_repo.get_quick_stats()
-            else:
-                stats = self._observation_model.get_stats()
-            self.stats_panel.update_stats(stats)
+                for card in (self.personal_stats, self.commercial_stats):
+                    card.update_stats(self._obs_repo.get_quick_stats(record_type=card.record_type))
             
             # Refresh Recording Scheme and Insect Collection stats
             self.stats_panel.refresh_all_stats()
@@ -287,8 +293,8 @@ class HomeTab(QWidget):
         self.setStyleSheet(f"background-color: {t.get('background')};")
         
         # Propagate to children
-        if hasattr(self.stats_panel, 'apply_theme'):
-            self.stats_panel.apply_theme()
+        for card in (self.personal_stats, self.commercial_stats, self.stats_panel):
+            card.apply_theme()
         if hasattr(self.recent_panel, 'apply_theme'):
             self.recent_panel.apply_theme()
         if hasattr(self.quick_entry, 'apply_theme'):

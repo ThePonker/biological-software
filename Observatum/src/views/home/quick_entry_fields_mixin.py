@@ -127,13 +127,29 @@ class QuickEntryFieldsMixin:
         return self.record_type_combo
 
     def _create_project_field(self) -> QWidget:
-        """Project for a Commercial record (OBS-16): one of the existing projects."""
+        """Project for a Commercial record (OBS-16): a choice of the existing projects only --
+        no typing, no new project here (Wil's decision 7, 10 Oct 2026: new projects start in
+        Data Entry, where the client and embargo are set)."""
+        t = theme()
+        box = QWidget()
+        box.setStyleSheet("background: transparent; border: none;")
+        lay = QVBoxLayout(box)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(2)
         self.project_combo = QComboBox()
+        self.project_combo.setEditable(False)
         self.project_combo.setMinimumHeight(32)
         self.project_combo.setEnabled(False)
-        self.project_combo.setToolTip("Commercial records belong to a project. "
-                                      "New projects are started in Data Entry.")
-        return self.project_combo
+        self.project_combo.setToolTip("Commercial records belong to an existing project. "
+                                      "New projects start in Data Entry.")
+        lay.addWidget(self.project_combo)
+        self.project_hint = QLabel("New projects start in Data Entry")
+        self.project_hint.setStyleSheet(f"color: {t.get('text_secondary')}; "
+                                        f"font-size: {t.font_size('sm')}; "
+                                        "background: transparent; border: none;")
+        self.project_hint.setVisible(False)
+        lay.addWidget(self.project_hint)
+        return box
 
     def _on_record_type_changed(self, text: str):
         """List the projects when Commercial is chosen; none for Personal."""
@@ -141,6 +157,9 @@ class QuickEntryFieldsMixin:
         if combo is None:
             return
         combo.clear()
+        hint = getattr(self, 'project_hint', None)
+        if hint is not None:
+            hint.setVisible(text == 'Commercial')
         if text != 'Commercial':
             combo.setEnabled(False)
             return

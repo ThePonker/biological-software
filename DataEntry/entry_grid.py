@@ -331,6 +331,10 @@ class StagingTableModel(QAbstractTableModel):
             if role == Qt.ItemDataRole.BackgroundRole:
                 from PySide6.QtGui import QColor
                 return QColor(theme.CLAY_BG)
+            from DataEntry.commit_service import is_zero_qty
+            if is_zero_qty(self._rows[index.row()].get("quantity")):     # decision 8
+                return ("Count of 0 \u2014 fix the count. Absence isn't recorded: type 1 or more. "
+                        "The row stays in staging and is not committed until it is fixed.")
             return ("Can't read this number -- type a whole number of 1 or more. "
                     "The row stays in staging until it can be read.")
         if not index.isValid() or role not in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole):
@@ -1495,10 +1499,12 @@ class EntryGridPage(QWidget):
             b.setCursor(Qt.CursorShape.PointingHandCursor)
             b.clicked.connect(lambda _=False, k=n: self._model.add_display_rows(k))
             addr.addWidget(b)
-        self._sort_btn = QPushButton("Entry order")
+        # Only while sorted: one click back to the order the rows were entered (L21)
+        self._sort_btn = QPushButton("Back to entry order")
         self._sort_btn.setStyleSheet(theme.button_secondary_qss())
         self._sort_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._sort_btn.setToolTip("Restore the rows to their entry order.")
+        self._sort_btn.setToolTip("Show the rows in the order they were entered.\n"
+                                  "Sorting only changes the view: the entry order is kept.")
         self._sort_btn.clicked.connect(self._restore_entry_order)
         self._sort_btn.setVisible(False)
         addr.addWidget(self._sort_btn)
@@ -1574,6 +1580,13 @@ class EntryGridPage(QWidget):
             meta.addWidget(note)
         self._count = QLabel("")
         self._count.setStyleSheet(f"color: {theme.MUTED}; font-size: 12px;")
+        # Which order the grid is showing, always in view (L21, 10 Oct): "Entry order"
+        # on a button that appeared only once sorted left it unclear which order was on
+        self._order_lbl = QLabel()
+        self._order_lbl.setToolTip("Click a column heading to sort the view; click it again "
+                                   "to reverse.\nSorting never changes the entry order.")
+        meta.addWidget(self._order_lbl)
+        self._show_order(None, False)
         meta.addStretch(1)
         self._count.hide()  # duplicated by the This-workbook card; keep object, don't show
         cv.addLayout(meta)
@@ -1642,9 +1655,7 @@ class EntryGridPage(QWidget):
         else:
             self._sort_col, self._sort_desc = column, False
         self._model.sort_rows(column, self._sort_desc)
-        arrow = "\u25be" if self._sort_desc else "\u25b4"
-        self._sort_btn.setText(f"Entry order  (sorted by {COLUMNS[column][1]} {arrow})")
-        self._sort_btn.setVisible(True)
+        self._show_order(column, self._sort_desc)
         if self._copy_ctx.isChecked():
             self._ctx_was_on = True
             self._copy_ctx.setChecked(False)   # 'row above' is meaningless while sorted
@@ -1652,10 +1663,24 @@ class EntryGridPage(QWidget):
     def _restore_entry_order(self):
         self._sort_col, self._sort_desc = None, False
         self._model.restore_entry_order()
-        self._sort_btn.setVisible(False)
+        self._show_order(None, False)
         if getattr(self, "_ctx_was_on", False):
             self._copy_ctx.setChecked(True)
             self._ctx_was_on = False
+
+    def _show_order(self, column, descending: bool):
+        """Say which order the grid shows: the label, and the 'Back to entry order'
+        button (shown only while sorted). View only (L21). No heading arrow: the style
+        draws ascending as a down arrow on some platforms, against the label's."""
+        if column is None:
+            self._order_lbl.setText("Showing: entry order")
+            self._order_lbl.setStyleSheet(f"color: {theme.MUTED}; font-size: 12px;")
+            self._sort_btn.setVisible(False)
+            return
+        arrow = "\u25be" if descending else "\u25b4"
+        self._order_lbl.setText(f"Showing: sorted by {COLUMNS[column][1]} {arrow}  (view only)")
+        self._order_lbl.setStyleSheet(f"color: {theme.INK}; font-size: 12px; font-weight: 600;")
+        self._sort_btn.setVisible(True)
 
     def _locations_summary(self):
         """[(sub_location, trap_number, grid_ref, count)] for this job, most-used first."""
@@ -1802,6 +1827,8 @@ class EntryGridPage(QWidget):
             detail.append(f"{summary['skipped_bad_date']} skipped (date unreadable)")
         if summary.get("skipped_bad_qty"):
             detail.append(f"{summary['skipped_bad_qty']} skipped (No. unreadable)")
+        if summary.get("skipped_zero_qty"):
+            detail.append(f"{summary['skipped_zero_qty']} not committed (count of 0 \u2014 fix the count)")
         if summary.get("skipped_bad_vc"):
             detail.append(f"{summary['skipped_bad_vc']} skipped (VC No. unreadable)")
         if summary.get("taxonomy_error"):
@@ -1835,6 +1862,7 @@ class EntryGridPage(QWidget):
             return shown + (f" \u2026 (+{len(v) - limit} more)" if len(v) > limit else "")
 
         labels = {"unreadable date": "a date that can't be read (left in staging)",
+                  "count of 0": "a count of 0 \u2014 fix the count (left in staging, never committed)",
                   "unreadable No.": "a No. that can't be read (left in staging)",
                   "unreadable VC No.": "a VC No. that can't be read (left in staging)",
                   "future date": "a date in the future",
@@ -1842,7 +1870,7 @@ class EntryGridPage(QWidget):
                   "no VC": "no vice-county", "no recorder": "no recorder",
                   "no TVK": "species not matched (no TVK)"}
         lines = []
-        for key in ("unreadable date", "unreadable No.", "unreadable VC No.", "future date", "no site",
+        for key in ("unreadable date", "count of 0", "unreadable No.", "unreadable VC No.", "future date", "no site",
                     "no grid ref", "no VC",
                     "no recorder", "no TVK"):
             if key in found:

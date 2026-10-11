@@ -121,12 +121,11 @@ def qapp():
 
 def test_scheme_vc_records_dialog_opens_clicked_record_after_sort(qapp, monkeypatch):
     """The records dialog is sorted by Location, row 0 double-clicked: the detail dialog
-    (which now has Edit / Delete) gets that row's record, not results[0]."""
+    (view only since L15) gets that row's record, not results[0]."""
     from PySide6.QtCore import Qt
     from PySide6.QtWidgets import QDialog, QTableWidget
     import src.services.recording_scheme_stats_service as rss
     import src.views.dialogs as dlgs
-    import src.views.scheme.scheme_record_actions as sra
     from src.views.stats.scheme_dashboard import SchemeDashboard
 
     rows = [{"id": 11, "date": "2024-06-01", "site_name": "Zeal Wood", "grid_ref": "SU1",
@@ -161,7 +160,6 @@ def test_scheme_vc_records_dialog_opens_clicked_record_after_sort(qapp, monkeypa
 
     monkeypatch.setattr(rss, "get_recording_scheme_stats", lambda: FakeService())
     monkeypatch.setattr(dlgs, "SchemeRecordDetailDialog", FakeDetail)
-    monkeypatch.setattr(sra, "wire_scheme_detail", lambda *a, **k: None)
     shown = []
 
     def fake_exec(self):
@@ -240,7 +238,8 @@ def test_species_lookup_counts_match_the_tab(qapp, tmp_path):
     conn = sqlite3.connect(tmp_path / "o.db")
     for t in ("observations", "specimens", "recording_scheme"):
         conn.execute(f"CREATE TABLE {t} (id INTEGER PRIMARY KEY, species_tvk TEXT, "
-                     "species_name TEXT, common_name TEXT, record_type TEXT, date TEXT)")
+                     "species_name TEXT, common_name TEXT, record_type TEXT, date TEXT, "
+                     "date_type TEXT)")      # date_type: month charts read it (decision 9)
     rows = [("NHMSYS0000530315", "Corvus corone", "Personal")] * 3 + [
         ("NHMSYS0000533191", "Corvus corone corone", "Personal"),
         ("NHMSYS0000530315", "Corvus corone", "Commercial"),
@@ -384,20 +383,29 @@ def test_backfill_dry_run_per_column_samples_and_odd_keys(dbs, capsys):  # noqa:
 # ---------------------------------------------------------------- 3 the tab shows an asked-for aggregate
 
 def test_observations_tab_shows_aggregate_asked_for_by_name(qapp, monkeypatch):
-    """With "exclude incomplete species" on (the default), aggregates are hidden -- unless the
-    species box names one ('Oligia strigilis agg.'): navigating there showed an empty table."""
+    """Aggregates are left out of counts by default (dimmed rows since backlog A) -- unless
+    the species box names one ('Oligia strigilis agg.'): then they count as asked for."""
     from types import SimpleNamespace
-    from PySide6.QtCore import QSettings
     from PySide6.QtWidgets import QLineEdit
+    import shared.species_counting as sc
     from src.views.observations.observation_filter_mixin import ObservationFilterMixin
-    monkeypatch.setattr(QSettings, "value", lambda self, key, default=None, type=None: True)
+    monkeypatch.setattr(sc, "excluded_kinds", lambda source: frozenset({"genus", "agg", "sl"}))
     tab = ObservationFilterMixin()
+    tab._obs_repo = None
+    tab.table_model = SimpleNamespace(set_dimmed=lambda d: None)
     edit = QLineEdit()
     tab.filter_bar = SimpleNamespace(species_edit=edit)
-    obs = [{"species_tvk": OLIGIA_AGG, "species_name": "Oligia strigilis agg."},
-           {"species_tvk": OLIGIA_STRIGILIS, "species_name": "Oligia strigilis"}]
+    monkeypatch.setattr(tab, "_counting_db", lambda: str(paths.OBSERVATUM_DB), raising=False)
+    if not os.path.exists(paths.OBSERVATUM_DB):
+        pytest.skip("no data copy")
+    obs = [{"id": 5809, "species_tvk": OLIGIA_AGG, "species_name": "Oligia strigilis agg."},
+           {"id": 2404, "species_tvk": "NBNSYS0000006438", "species_name": "Oligia fasciuncula"}]
+    import src.views.observations.observation_filter_mixin as mixin
+    monkeypatch.setattr(mixin, "excluded_kinds", sc.excluded_kinds)
     edit.setText("Oligia")
-    assert len(tab._apply_record_exclusion(obs)) == 1          # the setting, as before
+    assert len(tab._apply_record_exclusion(obs)) == 2           # every record listed ...
+    assert len(tab._counted(obs)) == 1                          # ... the aggregate not counted
     edit.setText("Oligia strigilis agg.")
     assert len(tab._apply_record_exclusion(obs)) == 2
+    assert len(tab._counted(obs)) == 2                          # asked for: counted
     assert tab._count_species_with_exclusion(obs[:1]) == 1

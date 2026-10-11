@@ -8,16 +8,19 @@ from PySide6.QtWidgets import (
     QScrollArea, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QGroupBox, QGridLayout, QFrame, QFileDialog, QMessageBox
 )
-from PySide6.QtCore import Signal, QSettings, Qt
+from PySide6.QtCore import Qt
 
 from ...themes import theme
 
 
 class DatabaseSettingsPanel(QScrollArea):
-    """Database settings panel."""
-    
-    database_changed = Signal()
-    
+    """Database settings panel.
+
+    The database locations are shown, not changed: the "Change" / "Update" buttons
+    were removed (decision 11, 10 Oct) because they switched only part of the app.
+    Where the data live belongs in the first-run setup of the installable version.
+    """
+
     def __init__(self, db_manager=None, parent=None):
         super().__init__(parent)
         self.db_manager = db_manager
@@ -52,11 +55,6 @@ class DatabaseSettingsPanel(QScrollArea):
         t = theme()
         return f"background-color: {t.get('surface_alt')}; border: 1px solid {t.get('border')}; border-radius: 6px; padding: 12px;"
     
-    def _get_link_button_style(self) -> str:
-        """Get link-style button."""
-        t = theme()
-        return f"color: {t.get('success')}; border: none; padding: 4px;"
-    
     def _setup_paths_section(self, layout):
         """Set up database paths section."""
         t = theme()
@@ -77,12 +75,7 @@ class DatabaseSettingsPanel(QScrollArea):
         self.main_db_path.setWordWrap(True)
         main_db_info.addWidget(self.main_db_path)
         main_db_layout.addLayout(main_db_info, 1)
-        
-        change_main_btn = QPushButton("Change")
-        change_main_btn.setStyleSheet(self._get_link_button_style())
-        change_main_btn.clicked.connect(self._change_main_db)
-        main_db_layout.addWidget(change_main_btn)
-        
+
         paths_layout.addWidget(main_db_frame)
         
         # UKSI database
@@ -97,12 +90,7 @@ class DatabaseSettingsPanel(QScrollArea):
         self.uksi_db_path.setWordWrap(True)
         uksi_db_info.addWidget(self.uksi_db_path)
         uksi_db_layout.addLayout(uksi_db_info, 1)
-        
-        update_uksi_btn = QPushButton("Update")
-        update_uksi_btn.setStyleSheet(self._get_link_button_style())
-        update_uksi_btn.clicked.connect(self._update_uksi_db)
-        uksi_db_layout.addWidget(update_uksi_btn)
-        
+
         paths_layout.addWidget(uksi_db_frame)
         
         layout.addWidget(paths_group)
@@ -187,10 +175,13 @@ class DatabaseSettingsPanel(QScrollArea):
         self._load_settings()
     
     def _load_settings(self):
-        """Load settings from QSettings."""
-        settings = QSettings()
-        self.main_db_path.setText(settings.value("databases/main_path", "Not configured"))
-        self.uksi_db_path.setText(settings.value("databases/uksi_path", "Not configured"))
+        """Show the databases the app actually has open (refresh() fills them).
+
+        The old "databases/*_path" settings were written only by the removed Change
+        buttons and never read at startup, so they are not shown.
+        """
+        self.main_db_path.setText("Not connected")
+        self.uksi_db_path.setText("Not connected")
     
     def refresh(self):
         """Refresh the panel after database connection."""
@@ -258,67 +249,6 @@ class DatabaseSettingsPanel(QScrollArea):
                 
         except Exception as e:
             print(f"Error refreshing stats: {e}")
-    
-    def _change_main_db(self):
-        """Change main database path."""
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Select Main Database", "", "SQLite Database (*.db)"
-        )
-        if path:
-            try:
-                import sqlite3
-                conn = sqlite3.connect(path)
-                conn.execute("SELECT 1")
-                conn.close()
-            except Exception as e:
-                QMessageBox.warning(self, "Invalid Database", 
-                    f"The selected file is not a valid SQLite database:\n{e}")
-                return
-            
-            settings = QSettings()
-            settings.setValue("databases/main_path", path)
-            settings.sync()
-            self.main_db_path.setText(path)
-            
-            if self.db_manager:
-                try:
-                    self.db_manager.set_main_path(path)
-                    self._refresh_stats()
-                    self.database_changed.emit()
-                    QMessageBox.information(self, "Database Connected",
-                        f"Main database connected successfully.\n\nPath: {path}")
-                except Exception as e:
-                    QMessageBox.warning(self, "Connection Error", f"Could not connect: {e}")
-    
-    def _update_uksi_db(self):
-        """Update UKSI database path."""
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Select UKSI Database", "", "SQLite Database (*.db)"
-        )
-        if path:
-            try:
-                import sqlite3
-                conn = sqlite3.connect(path)
-                conn.execute("SELECT 1")
-                conn.close()
-            except Exception as e:
-                QMessageBox.warning(self, "Invalid Database", 
-                    f"The selected file is not a valid SQLite database:\n{e}")
-                return
-            
-            settings = QSettings()
-            settings.setValue("databases/uksi_path", path)
-            settings.sync()
-            self.uksi_db_path.setText(path)
-            
-            if self.db_manager:
-                try:
-                    self.db_manager.set_uksi_path(path)
-                    self.database_changed.emit()
-                    QMessageBox.information(self, "Database Connected",
-                        f"UKSI database connected successfully.\n\nPath: {path}")
-                except Exception as e:
-                    QMessageBox.warning(self, "Connection Error", f"Could not connect: {e}")
     
     def _backup_database(self):
         """Backup database by copying the file."""

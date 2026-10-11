@@ -34,6 +34,25 @@ def sql1(q):
         conn.close()
 
 
+@pytest.fixture(scope="module", autouse=True)
+def counting_switches_off():
+    """These tests check the selection against hand SQL over every record: the species-
+    counting switches (backlog A, which take excluded records off the map -- tested in
+    test_counting_r2.py) are switched off in an isolated settings store."""
+    from PySide6.QtCore import QCoreApplication, QSettings
+    org, app = QCoreApplication.organizationName(), QCoreApplication.applicationName()
+    QCoreApplication.setOrganizationName("ObservatumTests")
+    QCoreApplication.setApplicationName("mapping_selection_counting_off")
+    QSettings().clear()
+    import shared.species_counting as sc
+    sc.set_excluded("observations", [])
+    sc.set_excluded("recording_scheme", [])
+    yield
+    QSettings().clear()
+    QCoreApplication.setOrganizationName(org)
+    QCoreApplication.setApplicationName(app)
+
+
 @pytest.fixture(scope="module")
 def ms():
     from src.services import map_selection
@@ -278,7 +297,7 @@ def tab():
 def test_tab_coleoptera_all_sources(tab, ms, taxa):
     sb = tab.filter_panel.selection_box
     sb.clear()
-    tab.toolbar.data_combo.setCurrentIndex(tab.toolbar.data_combo.findData("all"))
+    tab.filter_panel.source_picker.set_sources("all")  # L8: tick boxes
     sb.rank_combo.setCurrentIndex(sb.rank_combo.findData("order"))
     sb.search.setText("Coleoptera")
     sb.run_search()
@@ -308,7 +327,7 @@ def test_tab_coleoptera_all_sources(tab, ms, taxa):
 def test_tab_filters_and_bad_date(tab):
     fp = tab.filter_panel
     fp.selection_box.clear()
-    tab.toolbar.data_combo.setCurrentIndex(tab.toolbar.data_combo.findData("personal"))
+    tab.filter_panel.source_picker.set_sources("personal")  # L8: tick boxes
     fp.vc_combo.setCurrentIndex(fp.vc_combo.findData(23))
     tab._generate_map()
     assert {r["vc"] for r in tab._records} == {23}
@@ -331,7 +350,7 @@ def test_tab_square_dialog_count_column(tab, taxa):
     from src.views.mapping.square_records_dialog import SquareRecordsDialog
     sb = tab.filter_panel.selection_box
     sb.clear()
-    tab.toolbar.data_combo.setCurrentIndex(tab.toolbar.data_combo.findData("personal"))
+    tab.filter_panel.source_picker.set_sources("personal")  # L8: tick boxes
     sb.add(chip(taxa, "Rutpela maculata"))
     lab = max(tab._squares, key=lambda k: tab._squares[k]["count"])
     recs = s.records_in_square(tab._records, lab, tab._grid_size())

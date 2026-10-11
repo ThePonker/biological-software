@@ -113,7 +113,7 @@ class CompRow:
         if s is None or not n:
             return 0, "-"
         if not getattr(s, "reliable", False):
-            return n, f"({n} spp)"
+            return n, f"({n} sp)" if n == 1 else f"({n} spp)"   # L25: not "1 spp"
         return n, int(round(s.sqi))
 
 

@@ -12,7 +12,7 @@ from typing import Dict, List, Optional
 
 from PySide6.QtWidgets import QFileDialog, QMessageBox
 
-from ...services.observation_stats_service import get_observation_exclusion_clause
+from shared.species_counting import EXPORT_COUNTED, excluded_ids, export_sql
 
 # Real observations columns, in export order, with their CSV headers
 YEAR_RECORD_COLUMNS = [
@@ -26,14 +26,17 @@ YEAR_RECORD_COLUMNS = [
 ]
 
 
-def year_records(db, year: int, record_type: Optional[str]) -> List[Dict]:
-    """The records behind one row of the Year-by-Year table (same WHERE as its count)."""
+def year_records(db, year: int, record_type: Optional[str],
+                 mode: str = EXPORT_COUNTED) -> List[Dict]:
+    """The records behind one row of the Year-by-Year table (same WHERE as its count).
+    mode: the counted records (default), or with / only the ones the species-counting
+    switches leave out (shared/species_counting.py EXPORT_*)."""
     cols = ", ".join(c for c, _ in YEAR_RECORD_COLUMNS)
     sql = f"""
         SELECT {cols} FROM observations
         WHERE date IS NOT NULL AND species_tvk IS NOT NULL
           AND strftime('%Y', date) = ?
-          {get_observation_exclusion_clause()}
+          {export_sql(db, "observations", mode)}
     """
     params: list = [str(year)]
     if record_type:
@@ -88,8 +91,14 @@ def wire_year_exports(table, record_type: Optional[str], label: str, parent) -> 
 
     def export_year(year: str):
         from ...models.database import get_database
+        mode = EXPORT_COUNTED
+        if excluded_ids(get_database(), "observations"):
+            from ..components.counting_widgets import ask_export_mode
+            mode = ask_export_mode(parent, "records")
+            if mode is None:
+                return
         try:
-            rows = year_records(get_database(), int(year), record_type)
+            rows = year_records(get_database(), int(year), record_type, mode)
         except Exception as e:
             QMessageBox.critical(parent, "Export failed", str(e))
             return

@@ -29,6 +29,7 @@ from .commercial_reports_dashboard import CommercialReportsDashboard
 from .scheme_dashboard import SchemeDashboard
 from .collection_dashboard import CollectionStatsDashboard
 from .species_dashboard import SpeciesDashboard
+from .cleaning_dashboard import CleaningDashboard
 
 
 class StatsReportsTab(QWidget):
@@ -129,6 +130,12 @@ class StatsReportsTab(QWidget):
         self.species_dashboard.navigate_to_collection.connect(self.navigate_to_collection.emit)
         self.stack.addWidget(self.species_dashboard)
 
+        # Cleaning Report (index 7): records to tidy in iRecord (backlog B)
+        self.cleaning_dashboard = CleaningDashboard()
+        self.cleaning_dashboard.navigate_to_observations.connect(self.navigate_to_observations.emit)
+        self.cleaning_dashboard.navigate_to_collection.connect(self.navigate_to_collection.emit)
+        self.stack.addWidget(self.cleaning_dashboard)
+
         layout.addWidget(self.stack, 1)
 
     def initialize(self, main_db_path: str = None, uksi_db_path: str = None):
@@ -167,7 +174,8 @@ class StatsReportsTab(QWidget):
             'commercial_reports': 3,
             'scheme': 4,
             'collection': 5,
-            'species': 6
+            'species': 6,
+            'cleaning': 7
         }
         self.stack.setCurrentIndex(index_map.get(section_id, 0))
         self._refresh_current_dashboard()
@@ -192,6 +200,8 @@ class StatsReportsTab(QWidget):
         elif current_index == 6 and self._observation_model:
             # Species dashboard still uses observation_model
             self.species_dashboard.refresh(self._observation_model)
+        elif current_index == 7:
+            self.cleaning_dashboard.refresh()
 
 
     def _on_view_all_specimens(self):
@@ -218,6 +228,7 @@ class StatsReportsTab(QWidget):
         for d in (self.personal_dashboard, self.commercial_stats_dashboard,
                   self.all_stats_dashboard):
             d._dashboard_refreshed = False
+        self.cleaning_dashboard.mark_stale()
         if self.isVisible():
             self._refresh_current_dashboard()
 
@@ -243,3 +254,4 @@ class StatsReportsTab(QWidget):
         self.scheme_dashboard.apply_theme()
         self.collection_dashboard.apply_theme()
         self.species_dashboard.apply_theme()
+        self.cleaning_dashboard.apply_theme()

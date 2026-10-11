@@ -28,6 +28,7 @@ except ImportError:
     CHARTS_AVAILABLE = False
 
 from .stat_widgets import StatCard, MonthlyActivityChart
+from ..components.sort_items import date_item, number_item
 from ...themes import theme
 from ...core.config import TabColors
 from ...services.recording_scheme_stats_service import get_recording_scheme_stats
@@ -1189,7 +1190,6 @@ class SchemeDashboard(QScrollArea):
     species_selected = Signal(str)  # Emits species name to navigate to filtered data
     species_vc_selected = Signal(str, int)  # Emits species name and VC number
     data_filters_changed = Signal()  # Emitted when exclusion filters toggled
-    scheme_records_changed = Signal()  # a record was edited or deleted from a detail dialog
     record_selected = Signal(int)  # Emits record_id when clicked to navigate to specific record
     vc_details_requested = Signal(str)  # Emits species name to show VC details dialog
 
@@ -1251,70 +1251,57 @@ class SchemeDashboard(QScrollArea):
 
         layout.addLayout(cards_layout)
 
+    # Short chip labels; Settings > Species counting uses the long ones (KIND_LABELS)
+    _CHIP_LABELS = {"family_plus": "Family or higher", "genus": "Genus-only", "ss": "s.s.",
+                    "sl": "s.l.", "agg": "Aggregates", "hybrid": "Hybrids",
+                    "subsp": "Subspecies"}
+
     def _setup_filter_chips(self, layout):
-        """Set up filter chips for excluding genus-only, s.s., s.l., aggregates."""
-        from PySide6.QtCore import QSettings
+        """The Recording Scheme species-counting switches as chips. They change the same
+        settings as Settings > Species counting (shared/species_counting.py), both ways."""
+        from shared.species_counting import OFFERED, excluded_kinds, kind_label, notifier
         t = theme()
-        
+
         chips_row = QHBoxLayout()
         chips_row.setSpacing(12)
-        
-        # Label
+
         filter_label = QLabel("Exclude:")
         filter_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {t.font_size('sm')};")
         chips_row.addWidget(filter_label)
-        
-        # Load saved settings
-        settings = QSettings()
-        
-        # Genus-only filter
-        self.filter_genus = FilterChip("Genus-only")
-        self.filter_genus.setChecked(settings.value("stats/scheme_exclude_genus", False, type=bool))
-        self.filter_genus.toggled.connect(self._on_filter_changed)
-        chips_row.addWidget(self.filter_genus)
-        
-        # s.s. filter
-        self.filter_ss = FilterChip("s.s.")
-        self.filter_ss.setChecked(settings.value("stats/scheme_exclude_ss", False, type=bool))
-        self.filter_ss.toggled.connect(self._on_filter_changed)
-        chips_row.addWidget(self.filter_ss)
-        
-        # s.l. filter
-        self.filter_sl = FilterChip("s.l.")
-        self.filter_sl.setChecked(settings.value("stats/scheme_exclude_sl", False, type=bool))
-        self.filter_sl.toggled.connect(self._on_filter_changed)
-        chips_row.addWidget(self.filter_sl)
-        
-        # Aggregates filter
-        self.filter_agg = FilterChip("Aggregates")
-        self.filter_agg.setChecked(settings.value("stats/scheme_exclude_agg", False, type=bool))
-        self.filter_agg.toggled.connect(self._on_filter_changed)
-        chips_row.addWidget(self.filter_agg)
 
-        # Family-only filter (names ending in -idae/-inae)
-        self.filter_family = FilterChip("Family-only")
-        self.filter_family.setChecked(settings.value("stats/scheme_exclude_family", False, type=bool))
-        self.filter_family.toggled.connect(self._on_filter_changed)
-        chips_row.addWidget(self.filter_family)
-        
+        on = excluded_kinds("recording_scheme")
+        self._kind_chips = {}
+        for kind in OFFERED["recording_scheme"]:
+            chip = FilterChip(self._CHIP_LABELS.get(kind, kind))
+            chip.setToolTip(f"Leave {kind_label(kind)} records out of the scheme's counts, "
+                            "maps and lists (Settings > Species counting)")
+            chip.setChecked(kind in on)
+            chip.toggled.connect(self._on_filter_changed)
+            chips_row.addWidget(chip)
+            self._kind_chips[kind] = chip
+
         chips_row.addStretch()
         layout.addLayout(chips_row)
+        notifier().changed.connect(self._on_counting_changed)
 
     def _on_filter_changed(self):
-        """Handle filter chip toggle - save to settings and refresh."""
-        from PySide6.QtCore import QSettings
-        settings = QSettings()
-        settings.setValue("stats/scheme_exclude_genus", self.filter_genus.isChecked())
-        settings.setValue("stats/scheme_exclude_ss", self.filter_ss.isChecked())
-        settings.setValue("stats/scheme_exclude_sl", self.filter_sl.isChecked())
-        settings.setValue("stats/scheme_exclude_agg", self.filter_agg.isChecked())
-        settings.setValue("stats/scheme_exclude_family", self.filter_family.isChecked())
-        # Invalidate cache so refresh recomputes with new filter settings
-        from .scheme_dashboard import get_recording_scheme_stats
-        stats_svc = get_recording_scheme_stats()
-        stats_svc.invalidate()
+        """A chip toggled: save the switches (everything that counts scheme records follows,
+        through the change signal -- main window, this dashboard, the Scheme tab)."""
+        from shared.species_counting import set_excluded
+        set_excluded("recording_scheme", [k for k, c in self._kind_chips.items() if c.isChecked()])
+
+    def _on_counting_changed(self, source: str):
+        """The switches changed (here or in Settings): chips follow, figures recompute."""
+        if source != "recording_scheme":
+            return
+        from shared.species_counting import excluded_kinds
+        on = excluded_kinds("recording_scheme")
+        for kind, chip in self._kind_chips.items():
+            chip.blockSignals(True)
+            chip.setChecked(kind in on)
+            chip.blockSignals(False)
+        get_recording_scheme_stats().invalidate()
         self.refresh()
-        self.data_filters_changed.emit()
 
     def _setup_vc_row(self, layout):
         """Vice County Explorer and county firsts activity feed."""
@@ -1585,19 +1572,12 @@ class SchemeDashboard(QScrollArea):
                 table.setItem(row_idx, 0, QTableWidgetItem(f"VC{vc_num}"))
                 table.setItem(row_idx, 1, QTableWidgetItem(vc_name))
                 
-                count_item = QTableWidgetItem(str(record_count))
+                # Counts and dd/mm/yyyy dates sort by value, not as text (10 Oct)
+                count_item = number_item(record_count)
                 count_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 table.setItem(row_idx, 2, count_item)
-                
-                # Format dates as dd/mm/yyyy
-                def format_date(d):
-                    if not d or len(d) < 10:
-                        return ''
-                    # Input is YYYY-MM-DD, output dd/mm/yyyy
-                    return f"{d[8:10]}/{d[5:7]}/{d[:4]}"
-                
-                table.setItem(row_idx, 3, QTableWidgetItem(format_date(first_date)))
-                table.setItem(row_idx, 4, QTableWidgetItem(format_date(last_date)))
+                table.setItem(row_idx, 3, date_item(first_date))
+                table.setItem(row_idx, 4, date_item(last_date))
             
             layout.addWidget(table, 1)
             
@@ -1623,15 +1603,15 @@ class SchemeDashboard(QScrollArea):
             export_btn.setCursor(Qt.CursorShape.PointingHandCursor)
             export_btn.setStyleSheet(f"""
                 QPushButton {{
-                    background-color: {{t.get("surface")}};
-                    color: {{t.get("primary", "#4a7c59")}};
-                    border: 1px solid {{t.get("primary", "#4a7c59")}};
+                    background-color: {t.get("surface")};
+                    color: {t.get("primary")};
+                    border: 1px solid {t.get("primary")};
                     border-radius: 4px;
                     padding: 8px 20px;
                     font-weight: bold;
                 }}
                 QPushButton:hover {{
-                    background-color: {{t.get("primary", "#4a7c59")}};
+                    background-color: {t.get("primary")};
                     color: white;
                 }}
             """)
@@ -1771,21 +1751,15 @@ class SchemeDashboard(QScrollArea):
                 record_id = row['id']
                 
                 date_raw = row['date'] or ''
-                # Format date as dd/mm/yyyy
-                def format_date(d):
-                    if not d or len(d) < 10:
-                        return ''
-                    return f"{d[8:10]}/{d[5:7]}/{d[:4]}"
-                
                 location = row['site_name'] or ''
                 grid_ref = row['grid_ref'] or ''
                 recorder = row['recorder'] or ''
                 status = row['verification_status'] or ''
                 source = row['source'] or ''
                 
-                date_item = QTableWidgetItem(format_date(date_raw))
-                date_item.setData(Qt.ItemDataRole.UserRole, record_id)
-                table.setItem(row_idx, 0, date_item)
+                d_item = date_item(date_raw)          # sorts as a date, not as text (10 Oct)
+                d_item.setData(Qt.ItemDataRole.UserRole, record_id)
+                table.setItem(row_idx, 0, d_item)
                 table.setItem(row_idx, 1, QTableWidgetItem(location))
                 table.setItem(row_idx, 2, QTableWidgetItem(grid_ref))
                 table.setItem(row_idx, 3, QTableWidgetItem(recorder))
@@ -1825,15 +1799,15 @@ class SchemeDashboard(QScrollArea):
             export_btn.setCursor(Qt.CursorShape.PointingHandCursor)
             export_btn.setStyleSheet(f"""
                 QPushButton {{
-                    background-color: {{t.get("surface")}};
-                    color: {{t.get("primary", "#4a7c59")}};
-                    border: 1px solid {{t.get("primary", "#4a7c59")}};
+                    background-color: {t.get("surface")};
+                    color: {t.get("primary")};
+                    border: 1px solid {t.get("primary")};
                     border-radius: 4px;
                     padding: 8px 20px;
                     font-weight: bold;
                 }}
                 QPushButton:hover {{
-                    background-color: {{t.get("primary", "#4a7c59")}};
+                    background-color: {t.get("primary")};
                     color: white;
                 }}
             """)
@@ -1869,8 +1843,8 @@ class SchemeDashboard(QScrollArea):
 
     def _on_record_table_double_clicked(self, index, table, species_name: str, vc_number: int):
         """Handle double-click on a record row to show full detail dialog. The record id
-        is read from the clicked row itself (column 0, UserRole), so sorting can't send
-        Edit / Delete to another record."""
+        is read from the clicked row itself (column 0, UserRole), so sorting can't open
+        another record."""
         from ...services.recording_scheme_stats_service import get_recording_scheme_stats
         from ...models.database import get_database
         from ..dialogs import SchemeRecordDetailDialog
@@ -1895,10 +1869,8 @@ class SchemeDashboard(QScrollArea):
                     record['vc'] = record.get('vc_number', '')
                     record['verification'] = record.get('verification_status', '')
                     
+                    # view only: scheme records are read-only (L15)
                     dialog = SchemeRecordDetailDialog(record, parent=self)
-                    # Edit / Delete did nothing here (OBS-04)
-                    from ..scheme.scheme_record_actions import wire_scheme_detail
-                    wire_scheme_detail(dialog, self, self.scheme_records_changed.emit)
                     dialog.exec()
                     
             except Exception as e:

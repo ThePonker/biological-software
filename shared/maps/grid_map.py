@@ -128,8 +128,9 @@ class GridMap(PanZoomMixin, QWidget):
         self._draw_overlay(p)
         p.end()
 
-    def draw(self, p: QPainter, fit: gs.MapFit, k: float = 1.0):
-        """Basemap, grid and squares through `fit`. k scales line widths (print > 1)."""
+    def draw(self, p: QPainter, fit: gs.MapFit, k: float = 1.0, selected: bool = True):
+        """Basemap, grid and squares through `fit`. k scales line widths (print > 1).
+        selected=False leaves out the clicked square's outline (the atlas page, L13/L31)."""
         land, coast = QColor(_LAND_C), QColor(_COAST_C)
         polys, vc_polys = self._polygons(fit)
         p.setPen(QPen(land, 0.8 * k))
@@ -148,7 +149,7 @@ class GridMap(PanZoomMixin, QWidget):
         for poly in polys:
             p.drawPolyline(poly)
         self._draw_grid(p, fit, k)
-        self._draw_squares(p, fit, k)
+        self._draw_squares(p, fit, k, selected)
 
     def _polygons(self, fit):
         """Basemap rings projected through `fit`; the last projection is kept (paint is hot)."""
@@ -192,7 +193,7 @@ class GridMap(PanZoomMixin, QWidget):
         x1, y1 = fit.to_px(b[2], b[1])
         return QRectF(QPointF(x0, y0), QPointF(x1, y1))
 
-    def _draw_squares(self, p, fit, k):
+    def _draw_squares(self, p, fit, k, selected: bool = True):
         edge = QColor(theme.INK)
         edge.setAlpha(110)
         edge_pen = QPen(edge, 0.4 * k)
@@ -207,7 +208,7 @@ class GridMap(PanZoomMixin, QWidget):
                     p.setPen(pen)
                     p.setBrush(QBrush(QColor(sq.get("fill") or theme.CLAY)))
                     p.drawRect(r)
-        if self._selected:
+        if self._selected and selected:
             r = self._square_rect(fit, self._selected)
             if r is not None:
                 p.setBrush(Qt.BrushStyle.NoBrush)
@@ -261,11 +262,20 @@ class GridMap(PanZoomMixin, QWidget):
                 QToolTip.hideText()
 
     # ---------------------------------------------------------------- atlas export
+    def full_extent(self):
+        """The whole extent of the view, whatever the zoom: all GB in National view, the
+        whole vice-county in County view (set_extent)."""
+        return self._extent
+
     def render_sheet(self, title: str, subtitle: str = "",
                      legend: Sequence[Tuple[str, str]] = (), footer: str = "",
                      paper: str = "A4", dpi: int = 300, extent=None) -> QImage:
-        """The current view as an atlas page: title, map, legend and credits, at `dpi`."""
-        if extent is None:   # what is on screen; unzoomed, the whole chosen extent
+        """An atlas page: title, map, legend and credits, at `dpi`. `extent`: an OSGB box,
+        "full" / None (the whole view's extent, L14/L32: the default) or "current" (what is
+        on screen after zooming and panning). The clicked square's outline is never drawn."""
+        if extent is None or extent == "full":
+            extent = self.full_extent()
+        elif extent == "current":
             extent = self.visible_extent() if self._zoom > 1.0 else self._extent
         ext = extent
         landscape = (ext[2] - ext[0]) > 1.2 * (ext[3] - ext[1])
@@ -293,7 +303,8 @@ class GridMap(PanZoomMixin, QWidget):
         p.fillRect(box, QColor(_SEA_C))
         p.save()
         p.setClipRect(box)
-        self.draw(p, gs.MapFit(ext, box.width(), box.height(), pad=0, x0=box.x(), y0=box.y()), k)
+        self.draw(p, gs.MapFit(ext, box.width(), box.height(), pad=0, x0=box.x(), y0=box.y()), k,
+                  selected=False)
         p.restore()
         p.setPen(QPen(QColor(theme.LINE), 0.8 * k))
         p.setBrush(Qt.BrushStyle.NoBrush)

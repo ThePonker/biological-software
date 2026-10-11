@@ -8,11 +8,11 @@ from .general_panel import GeneralSettingsPanel
 from .database_panel import DatabaseSettingsPanel
 from .export_panel import ExportSettingsPanel
 from .sync_panel import SyncSettingsPanel
+from .counting_panel import SpeciesCountingPanel
 
 
 class SettingsTab(QWidget):
     settings_changed = Signal()
-    database_changed = Signal()
     
     def __init__(self, parent=None, db_manager=None):
         super().__init__(parent)
@@ -122,6 +122,9 @@ class SettingsTab(QWidget):
         
         self.sync_panel = SyncSettingsPanel()
         self.panel_stack.addWidget(self.sync_panel)
+
+        self.counting_panel = SpeciesCountingPanel()      # Species counting (backlog A)
+        self.panel_stack.addWidget(self.counting_panel)
         
         content_layout.addWidget(self.panel_stack)
         layout.addWidget(content, 1)
@@ -129,24 +132,20 @@ class SettingsTab(QWidget):
     def _connect_signals(self):
         self.sidebar.section_changed.connect(self._on_panel_selected)
         self.general_panel.settings_changed.connect(self._on_settings_saved)
-        self.database_panel.database_changed.connect(self._on_database_changed)
     
     def _on_panel_selected(self, panel):
         idx = {
             'general': 0,
             'database': 1,
             'export': 2,
-            'sync': 3
+            'sync': 3,
+            'counting': 4,
         }.get(panel, 0)
         self.panel_stack.setCurrentIndex(idx)
     
     def _on_settings_saved(self):
         self.settings_changed.emit()
     
-    def _on_database_changed(self):
-        self.database_changed.emit()
-        self.database_panel.refresh()
-
     def initialize(self):
         """Initialize all panels by loading their settings."""
         try:
@@ -155,6 +154,7 @@ class SettingsTab(QWidget):
             self.database_panel.refresh()
             self.export_panel.load_settings()
             self.sync_panel.load_settings()
+            self.counting_panel.load_settings()
         except Exception as e:
             print(f"Error initializing settings: {e}")
     

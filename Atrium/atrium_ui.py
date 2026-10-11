@@ -500,6 +500,12 @@ class AtriumApp:
             else:
                 self._show_panel()
 
+    def bring_to_front(self):
+        """Another copy of Atrium was started: show this one's panel on top (L28)."""
+        self._show_panel()
+        self._panel.raise_()
+        self._panel.activateWindow()
+
     def _show_panel(self):
         geo = self._tray.geometry()
         if geo.isValid() and geo.width() > 0:

@@ -7,6 +7,7 @@ Recording Scheme tab was 13 reloads of up to 110,510 records. Now:
   * Enter applies at once;
   * text set by the program (setText / clear: navigation, saved filters, Clear All) applies
     at once, as before -- Qt sends textEdited only for the user's keys, before textChanged.
+  * the box's ✕ clear button (switched on here) reloads once, at once.
 
     debounce_text(self.species_edit, self._emit_filters)
 """
@@ -19,20 +20,36 @@ DEBOUNCE_MS = 350
 
 
 def debounce_text(edit: QLineEdit, slot: Callable[[], None], ms: int = DEBOUNCE_MS,
-                  apply_on_enter: bool = True) -> QTimer:
+                  apply_on_enter: bool = True, clear_button: bool = True) -> QTimer:
     """Call slot() once typing in `edit` pauses (see module doc). Returns the timer, which
     is also kept as edit._filter_debounce (tests and flush_pending use it).
 
     apply_on_enter=False when the box already applies on Enter itself (returnPressed is
-    connected elsewhere): Enter then only cancels the pending reload, so it runs once."""
+    connected elsewhere): Enter then only cancels the pending reload, so it runs once.
+
+    clear_button: show Qt's ✕ inside the box (every filter box has one: L10, 10 Oct)."""
+    if clear_button:
+        edit.setClearButtonEnabled(True)
     timer = QTimer(edit)
     timer.setSingleShot(True)
     timer.setInterval(ms)
     timer.timeout.connect(lambda: slot())
 
-    def on_changed(_text):
+    applied = {"text": None}   # text on_changed has just applied (see on_edited)
+
+    def on_changed(text):
         if not timer.isActive():          # set by the program: apply now
+            applied["text"] = text
             slot()
+
+    def on_edited(text):
+        # The ✕ clear button sends textChanged('') BEFORE textEdited('') (keys send
+        # textEdited first), so on_changed has already applied it: don't reload twice
+        if applied["text"] == text:
+            applied["text"] = None
+            return
+        applied["text"] = None
+        timer.start()                     # restarts on every key
 
     def on_enter():
         if timer.isActive():
@@ -40,7 +57,7 @@ def debounce_text(edit: QLineEdit, slot: Callable[[], None], ms: int = DEBOUNCE_
             if apply_on_enter:
                 slot()
 
-    edit.textEdited.connect(lambda _text: timer.start())   # restarts on every key
+    edit.textEdited.connect(on_edited)
     edit.textChanged.connect(on_changed)
     edit.returnPressed.connect(on_enter)
     edit._filter_debounce = timer

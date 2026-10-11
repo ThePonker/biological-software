@@ -114,10 +114,15 @@ class ThemeManager(QObject):
         """
     
     def button_primary_style(self) -> str:
-        """Get primary button style (Moss Green - Save/Add/Create)."""
+        """Get primary button style (Moss Green - Save/Add/Create).
+
+        The three button styles read the theme's button_primary / button_secondary /
+        button_danger. They asked for button_save / button_cancel / button_delete, which
+        no theme has, so they drew in the magenta 'missing token' colour (the Mapping
+        square dialog's Close, 10 Oct)."""
         return f"""
             QPushButton {{
-                background-color: {self.get('button_save')};
+                background-color: {self.get('button_primary')};
                 color: {self.get('primary_text')};
                 border: none;
                 border-radius: {self.get('radius_md')};
@@ -161,8 +166,8 @@ class ThemeManager(QObject):
         return f"""
             QPushButton {{
                 background-color: transparent;
-                color: {self.get('button_cancel')};
-                border: 1px solid {self.get('button_cancel')};
+                color: {self.get('button_secondary')};
+                border: 1px solid {self.get('button_secondary')};
                 border-radius: {self.get('radius_md')};
                 padding: 6px 12px;
                 font-size: {self.font_size('base')};
@@ -180,8 +185,8 @@ class ThemeManager(QObject):
         return f"""
             QPushButton {{
                 background-color: transparent;
-                color: {self.get('button_delete')};
-                border: 1px solid {self.get('button_delete')};
+                color: {self.get('button_danger')};
+                border: 1px solid {self.get('button_danger')};
                 border-radius: {self.get('radius_md')};
                 padding: 6px 12px;
                 font-size: {self.font_size('base')};

@@ -259,7 +259,7 @@ def test_scheme_tab_newer_filter_replaces_running_load_without_waiting(
         loads = []
         orig = tab._on_data_loaded
         monkeypatch.setattr(tab, "_on_data_loaded",
-                            lambda recs, n: (loads.append(len(recs)), orig(recs, n)))
+                            lambda recs, n, *rest: (loads.append(len(recs)), orig(recs, n, *rest)))
         t = time.perf_counter()
         tab._load_data(None)                             # all 110,510: still running ...
         first = tab._data_worker

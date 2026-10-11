@@ -91,7 +91,7 @@ class MapSelectionBox(QWidget):
         self.summary.setWordWrap(True)
         self.summary.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 11px;")
         foot.addWidget(self.summary, 1)
-        self.clear_btn = QPushButton("Clear all")
+        self.clear_btn = QPushButton("Clear taxa")      # the panel's Clear all clears the rest
         self.clear_btn.setStyleSheet(
             f"QPushButton {{ padding: 4px 8px; border: 1px solid {t.get('border')}; "
             f"border-radius: {t.get('radius_sm')}; font-size: 11px; }}"
@@ -209,12 +209,19 @@ class MapSelectionBox(QWidget):
             self._render_chips()
             self.selection_changed.emit(self.selection())
 
-    def clear(self):
+    def clear(self, emit: bool = True):
+        """Remove every chip (and an unfinished search); emit=False for the panel's Clear all."""
+        self.search.blockSignals(True)
+        self.search.clear()
+        self.search.blockSignals(False)
+        self._timer.stop()
+        self.results_frame.hide()
         if self._chips:
             self._chips = []
             self._counts = None
             self._render_chips()
-            self.selection_changed.emit([])
+            if emit:
+                self.selection_changed.emit([])
 
     def selection(self) -> List[dict]:
         return [dict(c) for c in self._chips]

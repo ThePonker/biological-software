@@ -120,6 +120,10 @@ class GeneralSettingsPanel(QScrollArea):
         theme_layout.addWidget(theme_note)
 
         theme_layout.addStretch()
+        # Hidden (decision 11, 10 Oct): one theme exists, so the choice saves and
+        # changes nothing. Kept, not deleted, for when a second theme exists.
+        theme_group.setVisible(False)
+        self.theme_group = theme_group
         layout.addWidget(theme_group)
 
     def _on_theme_changed(self, theme_name: str):
@@ -241,6 +245,9 @@ class GeneralSettingsPanel(QScrollArea):
         auto_layout = QVBoxLayout(auto_group)
 
         self.auto_vc = QCheckBox("Automatically calculate Vice County from Grid Reference")
+        # Hidden (decision 11, 10 Oct): saved but nothing in the suite reads it
+        # (VC handling does not consult it). Kept, not deleted.
+        self.auto_vc.setVisible(False)
         auto_layout.addWidget(self.auto_vc)
         
         # Species filtering section
@@ -257,6 +264,10 @@ class GeneralSettingsPanel(QScrollArea):
         self.exclude_incomplete = QCheckBox("Exclude genus-only and aggregate species (e.g. 'Bombus', 'Andrena agg.')")
         self.exclude_incomplete.setChecked(True)
         auto_layout.addWidget(self.exclude_incomplete)
+        # Superseded by Settings > Species counting (backlog A, 10 Oct 2026): hidden; its
+        # saved value only seeds the new Observation switches the first time
+        for w in (filter_label, filter_desc, self.exclude_incomplete):
+            w.setVisible(False)
 
         layout.addWidget(auto_group)
 
@@ -433,6 +444,10 @@ class GeneralSettingsPanel(QScrollArea):
         path_layout.addWidget(rb_browse_btn)
 
         rb_layout.addLayout(path_layout)
+        # Hidden (decision 11, 10 Oct): saved but never read -- no pending-records
+        # refresh uses this folder. Kept, not deleted.
+        rb_group.setVisible(False)
+        self.record_books_group = rb_group
         layout.addWidget(rb_group)
 
     def _browse_record_books_path(self):

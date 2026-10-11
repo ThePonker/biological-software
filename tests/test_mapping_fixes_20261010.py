@@ -148,7 +148,7 @@ def tab(qapp):
     QSettings().clear()
     from src.views.mapping.mapping_tab import MappingTab
     t = MappingTab()
-    t.toolbar.data_combo.setCurrentIndex(t.toolbar.data_combo.findData("all"))
+    t.filter_panel.source_picker.set_sources("all")  # L8: tick boxes
     yield t
     QSettings().clear()
     QCoreApplication.setOrganizationName(org)

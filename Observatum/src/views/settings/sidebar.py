@@ -21,6 +21,7 @@ class SettingsSidebar(QFrame):
         ('database', '🗄️ Databases'),
         ('sync', '🔄 iRecord Sync'),
         ('export', '📤 Export Settings'),
+        ('counting', '🔢 Species counting'),
     ]
     
     def __init__(self, parent=None):

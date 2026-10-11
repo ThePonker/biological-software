@@ -666,11 +666,13 @@ class SchemeValidationWorker(QThread):
         if not needs_lookup:
             return df
 
-        # One rule set for all three wizards (shared/species_lookup.py): exact names and
-        # synonyms; anything else is an error naming the closest UKSI names, to be confirmed
+        # One rule set for all three wizards (shared/species_lookup.py): exact names,
+        # synonyms, and a close spelling of one species of the same genus (decision 3, 10 Oct,
+        # warned "Close spelling"); anything else is an error naming the closest UKSI names, to be confirmed
         # with Resolve Species or the Match Report.
         species_lookup = entries(lookup_names(needs_lookup, self.uksi_model,
-                                              cancelled=lambda: self._cancelled))
+                                              cancelled=lambda: self._cancelled,
+                                              close_spellings=True))
 
         def apply_species(row):
             name = row["species_name"]
@@ -1056,8 +1058,9 @@ class SchemeValidationWorker(QThread):
                 warnings.append(row_data["species_warning"])
             if row_data.get("vc_warning"):
                 warnings.append(row_data["vc_warning"])
-            if validated_row.quantity == 0 and not validated_row.zero_abundance:
-                warnings.append("Count of 0 -- imported as a record with quantity 0")
+            # A count of 0 in another recorder's data is presence -- the count was most likely
+            # left blank and defaulted to 0. Stored as received, no warning (Wil, decision 8,
+            # 10 Oct 2026; own data treats 0 as an error).
 
             # Filter non-species records (genus-only, subgenus, family-level)
             if validated_row.species_name:

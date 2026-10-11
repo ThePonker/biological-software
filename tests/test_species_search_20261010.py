@@ -139,13 +139,17 @@ def test_rank_and_resolve(idx):
     assert rank_matches("x", mixed)[-1]["tvk"] == "X"
 
 
-def test_import_lookup_still_exact():
-    """Imports never take a close spelling: species_lookup is unchanged."""
+def test_import_lookup_close_spelling_only_when_asked():
+    """Decision 3 (10 Oct): the import wizards (close_spellings=True) take a close spelling of
+    one species of the same genus; the default (Examen's Import List) stays exact. Was:
+    imports never took a close spelling."""
     from shared.species_lookup import LookupFailure, lookup_names
     conn = sqlite3.connect(f"file:{paths.UKSI_DB}?mode=ro", uri=True)
     r = lookup_names(["Rhagium mordx"], conn)["Rhagium mordx"]
+    c = lookup_names(["Rhagium mordx"], conn, close_spellings=True)["Rhagium mordx"]
     conn.close()
     assert isinstance(r, LookupFailure)
+    assert c.taxon.scientific_name == "Rhagium mordax" and c.how == "close"
 
 
 # ---------------------------------------------------------------- record filters

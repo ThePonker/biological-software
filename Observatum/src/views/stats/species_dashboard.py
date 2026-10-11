@@ -261,10 +261,19 @@ class SpeciesDashboard(QScrollArea):
             cache[key] = sql_for_table(species_name, lambda q: self._db.execute_main(q), table)
         return cache[key]
 
+    def _counted(self, table: str, species_name: str) -> str:
+        """The species-counting switches on observations and scheme records (backlog A);
+        specimens are never left out. Asked for by an aggregate's name, it counts."""
+        if table not in ("observations", "recording_scheme"):
+            return ""
+        from shared.species_counting import counted_clause_for
+        return counted_clause_for(table, species_name, db=self._db)
+
     def _count(self, table: str, species_name: str, extra: str = "") -> int:
         clause, params = self._by_species(table, species_name)
         result = self._db.execute_main(
-            f"SELECT COUNT(*) FROM {table} WHERE {clause} {extra}", tuple(params))
+            f"SELECT COUNT(*) FROM {table} WHERE {clause} {extra}"
+            f"{self._counted(table, species_name)}", tuple(params))
         return result[0][0] if result else 0
 
     def _on_completer_activated(self, text: str):
@@ -367,7 +376,8 @@ class SpeciesDashboard(QScrollArea):
                     CAST(strftime('%m', date) AS INTEGER) as month,
                     COUNT(*) as count
                 FROM observations 
-                WHERE {clause} AND date IS NOT NULL
+                WHERE {clause} AND date IS NOT NULL{self._counted("observations", species_name)}
+                AND COALESCE(date_type, 'D') = 'D'  -- a day only: year/month/range dates skip month charts (decision 9)
                 GROUP BY month
             """, tuple(params))
             
@@ -385,7 +395,7 @@ class SpeciesDashboard(QScrollArea):
                     CAST(strftime('%m', date) AS INTEGER) as month,
                     COUNT(*) as count
                 FROM recording_scheme 
-                WHERE {clause} AND date IS NOT NULL
+                WHERE {clause} AND date IS NOT NULL{self._counted("recording_scheme", species_name)}
                 GROUP BY month
             """, tuple(params))
             
@@ -564,7 +574,8 @@ class SpeciesDashboard(QScrollArea):
             return
         from .month_records_dialog import MonthRecordsDialog, month_records
         try:
-            rows = month_records(self._db.execute_main, self._by_species, species_name, month)
+            rows = month_records(self._db.execute_main, self._by_species, species_name, month,
+                                 self._counted)
         except Exception as e:
             print(f"[SpeciesDashboard] Error getting records for month {month}: {e}")
             return

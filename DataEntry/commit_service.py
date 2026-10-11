@@ -97,6 +97,16 @@ def read_qty(value) -> Optional[int]:
     return n if n >= 1 else None
 
 
+def is_zero_qty(value) -> bool:
+    """True for a No. of 0 -- a mistake to fix, never stored: Wil doesn't record absence
+    (decision 8, 10 Oct 2026). read_qty() gives None for it, like an unreadable No."""
+    s = "" if value is None else str(value).strip()
+    try:
+        return s != "" and float(s) == 0
+    except ValueError:
+        return False
+
+
 VC_MAX = 113        # the Watsonian vice-counties of Britain, 1-112, and the Channel Isles
 
 
@@ -145,12 +155,12 @@ def precommit_issues(rows) -> Dict[str, list]:
     rows: staging rows in grid order (repo.fetch_rows). Only rows commit would write
     (species and date present) are checked, plus 'unreadable date' for rows with a species
     and a date that cannot be read (those stay in staging). Returns {issue: [grid row
-    numbers]} for 'unreadable date', 'unreadable No.', 'unreadable VC No.', 'future date', 'no site', 'no grid ref', 'no VC',
+    numbers]} for 'unreadable date', 'count of 0', 'unreadable No.', 'unreadable VC No.', 'future date', 'no site', 'no grid ref', 'no VC',
     'no recorder', 'no TVK', and 'double' (each later copy of a repeated entry, with the
     row it repeats), leaving out issues with no rows.
     """
     from DataEntry import date_utils
-    issues = {"unreadable date": [], "unreadable No.": [], "unreadable VC No.": [],
+    issues = {"unreadable date": [], "count of 0": [], "unreadable No.": [], "unreadable VC No.": [],
               "future date": [], "no site": [], "no grid ref": [],
               "no VC": [], "no recorder": [], "no TVK": [], "double": []}
     seen = {}
@@ -159,7 +169,7 @@ def precommit_issues(rows) -> Dict[str, list]:
         if why == "bad_date":
             issues["unreadable date"].append(n)
         if why == "bad_qty":
-            issues["unreadable No."].append(n)
+            issues["count of 0" if is_zero_qty(row.get("quantity")) else "unreadable No."].append(n)
         if why == "bad_vc":
             issues["unreadable VC No."].append(n)
         if why is not None:
@@ -207,6 +217,7 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
     skipped_date = 0
     skipped_bad_date = 0
     skipped_bad_qty = 0
+    skipped_zero_qty = 0           # a No. of 0: left in staging (decision 8)
     skipped_bad_vc = 0
     unresolved = 0
     future = 0
@@ -234,7 +245,10 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
             skipped_bad_date += 1
             continue
         if reason == "bad_qty":
-            skipped_bad_qty += 1
+            if is_zero_qty(row.get("quantity")):
+                skipped_zero_qty += 1
+            else:
+                skipped_bad_qty += 1
             continue
         if reason == "bad_vc":
             skipped_bad_vc += 1
@@ -286,6 +300,7 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
         "skipped_date": skipped_date,
         "skipped_bad_date": skipped_bad_date,
         "skipped_bad_qty": skipped_bad_qty,
+        "skipped_zero_qty": skipped_zero_qty,
         "skipped_bad_vc": skipped_bad_vc,
         "unresolved": unresolved,
         "future": future,

@@ -78,8 +78,15 @@ class GamificationCalculator:
         self._rare_calc = RareCalculator(self._get_observatum_conn, self._get_uksi_conn)
     
     def _get_observatum_conn(self) -> sqlite3.Connection:
-        """Get connection to observatum database."""
-        return connect_ro(str(self.observatum_db))   # reads only
+        """Read-only connection to observatum.db where "observations" holds only the records
+        the species-counting switches count, subspecies rolled up (backlog A)."""
+        conn = connect_ro(str(self.observatum_db))   # reads only
+        try:
+            from shared.species_counting import install_counted_view
+            install_counted_view(conn, "observations")
+        except sqlite3.Error as e:
+            print(f"[Gamification] species counting not applied: {e}")
+        return conn
     
     def _get_uksi_conn(self) -> sqlite3.Connection:
         """Get connection to UKSI database."""

@@ -47,6 +47,7 @@ class DatabaseManager:
         """
         self._main_db_path = Path(main_db)
         self._uksi_db_path = Path(uksi_db)
+        _counting_db(main_db)
         
         # Validate paths exist
         if not self._main_db_path.exists():
@@ -57,6 +58,7 @@ class DatabaseManager:
     def set_main_path(self, main_db: str) -> None:
         """Set only the main database path (useful for initial setup)."""
         self._main_db_path = Path(main_db)
+        _counting_db(main_db)
     
     def set_uksi_path(self, uksi_db: str) -> None:
         """Set only the UKSI database path."""
@@ -246,6 +248,15 @@ class DatabaseManager:
 # Singleton instance for app-wide use
 _db_manager: Optional[DatabaseManager] = None
 _db_manager_lock = threading.Lock()
+
+
+def _counting_db(path) -> None:
+    """The species-counting switches (shared/species_counting.py) count in this database."""
+    try:
+        from shared.species_counting import set_default_db
+        set_default_db(path)
+    except ImportError:
+        pass
 
 
 def get_database() -> DatabaseManager:

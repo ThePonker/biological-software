@@ -215,6 +215,18 @@ def date_bounds(text, today: Optional[_dt.date] = None) -> Optional[Tuple[str, s
 _RANGE_SEPS = (" to ", " - ", " \u2013 ", "\u2013", "\u2014", "/", "-")
 _KIND_NAMES = {"D": "", "O": "a month", "Y": "a year"}
 
+# The warning an observation import gives a date that is not one day (Wil's decision 9,
+# 10 Oct 2026: accepted, stored with its date type, warned before import; "vague date" is
+# also the cleaning report's heading for them).
+VAGUE_DATE = {"Y": "vague date: year only", "O": "vague date: month only",
+              "DD": "vague date: date range", "OO": "vague date: range of months",
+              "YY": "vague date: range of years"}
+
+
+def vague_date_warning(date_type: str) -> str:
+    """'vague date: year only' etc. for a date type other than a day ('D' or blank -> '')."""
+    return VAGUE_DATE.get((date_type or "D").upper(), "")
+
 
 def parse_record_date(text, today: Optional[_dt.date] = None) -> ParsedDate:
     """Any date an import file holds, as the suite stores it -- never guessed into a day.

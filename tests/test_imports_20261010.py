@@ -231,7 +231,8 @@ OK = {"Species": "Rutpela maculata", "Grid Ref": "SP4433", "Date": "01/06/2024"}
 def test_imp12_scheme_counts_c20_and_nought(app):
     got = _scheme("GENERIC_CSV", [dict(OK, Quantity=q) for q in ("c.20", "0", "", "3")])
     assert [(r.quantity, r.organism_quantity) for r in got] == [(20, "c.20"), (0, ""), (1, ""), (3, "")]
-    assert "Count of 0" in got[1].error_message and got[1].status.name == "WARNING"
+    # decision 8 (round 2): 0 in scheme data is presence -- stored as received, no warning
+    assert "Count of 0" not in got[1].error_message and got[1].status.name == "VALID"
 
 
 def test_imp12_nbn_year_range_month_and_recorded_by(app):
@@ -308,15 +309,18 @@ def test_imp12_13_observation_counts_dates_and_tetrads(app):
                 dict(OBS, Date="6.vi.2021"), dict(OBS, **{"Grid Ref": "SP46Q"}), dict(OBS, Date="2019")],
                vc=VC())
     assert (got[0].quantity, got[0].organism_quantity) == (20, "c.20")
-    assert got[1].quantity == 0 and got[1].status.name == "WARNING"
+    # decision 8 (round 2): own data -- a count of 0 is an error to fix (was a warning)
+    assert got[1].status.name == "ERROR" and "Count of 0 \u2014 fix the count" in got[1].error_message
     assert got[2].status.name == "ERROR" and "Date is in the future" in got[2].error_message
     assert (got[3].status.name, got[3].date) == ("VALID", "2021-06-06")
     assert (got[4].status.name, got[4].vc_number) == ("VALID", 38) and got[4].latitude
-    # your own records need the day (unchanged rule; the message now says why)
-    assert got[5].status.name == "ERROR" and "is a year, not a day" in got[5].error_message
+    # decision 9 (round 2): a year is accepted with a warning, stored with its date type
+    assert (got[5].status.name, got[5].date, got[5].date_type) == ("WARNING", "2019-01-01", "Y")
+    assert "vague date: year only" in got[5].warnings
     irec = _obs([{"ID": "1", "Taxon": "Rutpela maculata", "TaxonVersionKey": "RM", "Output map ref": "SP4433",
                   "Date interpreted": "01/06/2024 to 05/06/2024", "Date type": "DD"}], mode="IRECORD_SYNC")
-    assert (irec[0].date, irec[0].date_type, irec[0].status.name) == ("2024-06-01", "DD", "VALID")
+    assert (irec[0].date, irec[0].date_type, irec[0].status.name) == ("2024-06-01", "DD", "WARNING")
+    assert irec[0].warnings == ["vague date: date range"]           # decision 9 (round 2)
 
 
 SMAP = {"species_name": "Taxon", "date_collected": "Date", "grid_ref": "Grid Ref", "sex": "Sex",

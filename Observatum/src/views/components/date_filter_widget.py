@@ -58,20 +58,22 @@ class DateFilterWidget(QWidget):
         t = theme()
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(2)
+        layout.setSpacing(1)
         
         # Date text input - styled like other QLineEdits
         self.date_input = QLineEdit()
         self.date_input.setPlaceholderText("dd/mm/yyyy")
         self.date_input.setFixedHeight(26)
-        self.date_input.setFixedWidth(95)
+        self.date_input.setFixedWidth(110)   # room for the ✕ (L10): 110 + 1 + 22 + 1 + 16 = 150
+        self.date_input.setClearButtonEnabled(True)
         self.date_input.setStyleSheet(f"""
             QLineEdit {{
-                padding: 4px 6px;
+                padding: 4px 3px 4px 5px;
                 border: 1px solid {t.get('border')};
                 border-radius: {t.get('radius_sm')};
                 background-color: {t.get('surface')};
-                font-size: {t.font_size('base')};
+                color: {t.get('text_primary')};
+                font-size: 13px;
             }}
             QLineEdit:hover {{
                 border: 1px solid {t.get('border_hover')};
@@ -81,11 +83,13 @@ class DateFilterWidget(QWidget):
             }}
         """)
         self.date_input.editingFinished.connect(self._on_text_edited)
+        # The ✕ (or deleting every character) clears the date at once, not on leaving the box
+        self.date_input.textEdited.connect(lambda text: None if text else self._on_text_edited())
         layout.addWidget(self.date_input)
         
         # Calendar popup button
         self.cal_btn = QPushButton("📅")
-        self.cal_btn.setFixedSize(26, 26)
+        self.cal_btn.setFixedSize(22, 26)
         self.cal_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.cal_btn.setToolTip("Open calendar")
         self.cal_btn.setStyleSheet(f"""
@@ -109,14 +113,14 @@ class DateFilterWidget(QWidget):
         
         # Stacked up/down buttons container
         arrow_container = QWidget()
-        arrow_container.setFixedSize(20, 26)
+        arrow_container.setFixedSize(16, 26)
         arrow_layout = QVBoxLayout(arrow_container)
         arrow_layout.setContentsMargins(0, 0, 0, 0)
         arrow_layout.setSpacing(0)
         
         # Up button (+1 day)
         self.up_btn = QPushButton("▲")
-        self.up_btn.setFixedSize(20, 13)
+        self.up_btn.setFixedSize(16, 13)
         self.up_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.up_btn.setToolTip("+1 day")
         self.up_btn.setStyleSheet(f"""
@@ -141,7 +145,7 @@ class DateFilterWidget(QWidget):
         
         # Down button (-1 day)
         self.down_btn = QPushButton("▼")
-        self.down_btn.setFixedSize(20, 13)
+        self.down_btn.setFixedSize(16, 13)
         self.down_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.down_btn.setToolTip("-1 day")
         self.down_btn.setStyleSheet(f"""
@@ -253,6 +257,8 @@ class DateFilterWidget(QWidget):
         """Handle manual text entry."""
         text = self.date_input.text().strip()
         if not text:
+            if self._current_date is None:
+                return                    # already empty: nothing changed, no reload
             self._current_date = None
             self.dateChanged.emit(QDate())
             return
@@ -341,12 +347,12 @@ class DateFilterWidget(QWidget):
         # Update date input style
         self.date_input.setStyleSheet(f"""
             QLineEdit {{
-                padding: 4px 6px;
+                padding: 4px 3px 4px 5px;
                 border: 1px solid {t.get('border')};
                 border-radius: {t.get('radius_sm')};
                 background-color: {t.get('surface')};
                 color: {t.get('text_primary')};
-                font-size: {t.font_size('sm')};
+                font-size: 13px;
             }}
             QLineEdit:focus {{
                 border-color: {self._accent_color};

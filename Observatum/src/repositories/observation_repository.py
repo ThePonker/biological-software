@@ -466,23 +466,21 @@ class ObservationRepository(BaseRepository):
         """Count all observations."""
         return self.count()
     
-    _cached_exclusion_setting = None  # Class-level cache
-    
-    def _get_species_exclusion_clause(self, force_refresh: bool = False) -> str:
-        """Get SQL clause to exclude incomplete species based on settings."""
-        if force_refresh or ObservationRepository._cached_exclusion_setting is None:
-            from PySide6.QtCore import QSettings
-            settings = QSettings()
-            ObservationRepository._cached_exclusion_setting = settings.value("display/exclude_incomplete_species", True, type=bool)
-        
-        if ObservationRepository._cached_exclusion_setting:
-            return """ AND species_name LIKE '% %' AND species_name NOT LIKE '%agg.%' AND species_name NOT LIKE '%agg %' AND species_name NOT LIKE '% agg' AND species_name NOT LIKE '%s.l.%' AND species_name NOT LIKE '%sensu lato%'"""
-        return ""
-    
-    @classmethod
-    def refresh_exclusion_setting(cls):
-        """Call this when settings change to refresh the cached value."""
-        cls._cached_exclusion_setting = None
+    def _get_species_exclusion_clause(self) -> str:
+        """' AND id NOT IN (...)': the records the species-counting switches leave out
+        (Settings > Species counting; shared/species_counting.py)."""
+        from shared.species_counting import counted_clause
+        return counted_clause("observations", db=self._db)
+
+    def _species_key(self) -> str:
+        """species_tvk with subspecies rolled up to their species (COUNT(DISTINCT ...))."""
+        from shared.species_counting import species_key_expr
+        return species_key_expr("observations", db=self._db)
+
+    def count_counted(self, where: str = "1", params: tuple = ()) -> int:
+        """Records matching `where` that the species-counting switches count."""
+        return self._scalar(f"SELECT COUNT(*) FROM observations WHERE {where}"
+                            f"{self._get_species_exclusion_clause()}", params, default=0)
 
     def count_by_record_type(self, record_type: str) -> int:
         """Count observations by record type."""
@@ -493,55 +491,32 @@ class ObservationRepository(BaseRepository):
         return self.count("species_tvk = ?", (species_tvk,))
     
     def count_unique_species(self, record_type: str = None, exclude_incomplete: bool = None) -> int:
-        """
-        Count distinct species.
-        
-        Args:
-            record_type: Optional filter for Personal/Commercial
-            
-        Returns:
-            Number of unique species
-        """
-        # Get setting if not explicitly provided
-        if exclude_incomplete is None:
-            from PySide6.QtCore import QSettings
-            settings = QSettings()
-            exclude_incomplete = settings.value("display/exclude_incomplete_species", True, type=bool)
-        
-        # Build exclusion clause
-        exclusion = ""
-        if exclude_incomplete:
-            exclusion = """ AND species_name LIKE '% %' AND species_name NOT LIKE '%agg.%' AND species_name NOT LIKE '%agg %' AND species_name NOT LIKE '% agg' AND species_name NOT LIKE '%s.l.%' AND species_name NOT LIKE '%sensu lato%'"""
-        
+        """Distinct species (subspecies rolled up), optionally Personal/Commercial only.
+        exclude_incomplete=False counts every record; otherwise the species-counting switches."""
+        exclusion = "" if exclude_incomplete is False else self._get_species_exclusion_clause()
+        sk = self._species_key()
+        where = "species_tvk IS NOT NULL"
+        params: tuple = ()
         if record_type:
-            query = f"""
-                SELECT COUNT(DISTINCT species_tvk)
-                FROM observations
-                WHERE species_tvk IS NOT NULL AND record_type = ?
-                {exclusion}
-            """
-            return self._scalar(query, (record_type,), default=0)
-        else:
-            query = f"""
-                SELECT COUNT(DISTINCT species_tvk)
-                FROM observations
-                WHERE species_tvk IS NOT NULL
-                {exclusion}
-            """
-            return self._scalar(query, default=0)
-    
-    def count_unique_species_by_year(self, year: int) -> int:
-        """Count distinct species for a specific year."""
+            where += " AND record_type = ?"
+            params = (record_type,)
+        return self._scalar(f"SELECT COUNT(DISTINCT {sk}) FROM observations WHERE {where}{exclusion}",
+                            params, default=0)
+
+    def count_unique_species_by_year(self, year: int, record_type: str = None) -> int:
+        """Count distinct species (subspecies rolled up) for a specific year."""
         exclusion = self._get_species_exclusion_clause()
+        rt = " AND record_type = ?" if record_type else ""
         query = f"""
-            SELECT COUNT(DISTINCT species_tvk)
+            SELECT COUNT(DISTINCT {self._species_key()})
             FROM observations
             WHERE species_tvk IS NOT NULL
-              AND strftime('%Y', date) = ?
+              AND strftime('%Y', date) = ?{rt}
               {exclusion}
         """
-        return self._scalar(query, (str(year),), default=0)
-    
+        params = (str(year), record_type) if record_type else (str(year),)
+        return self._scalar(query, params, default=0)
+
     def count_for_year(self, year: int) -> int:
         """Count observations for a specific year."""
         query = """
@@ -579,9 +554,13 @@ class ObservationRepository(BaseRepository):
     # STATISTICS
     # ==========================================================================
     
-    def get_quick_stats(self) -> Dict[str, Any]:
+    def get_quick_stats(self, record_type: str = None) -> Dict[str, Any]:
         """
         Get quick stats for Home tab.
+
+        Args:
+            record_type: 'Personal' or 'Commercial' for one Home card (L16, 10 Oct);
+                None = all observations.
         
         Returns:
             Dict with total_species, total_records, this_year_species,
@@ -600,16 +579,18 @@ class ObservationRepository(BaseRepository):
         
         last_month_str = f"{last_month_year}-{last_month:02d}"
         
+        rt = " AND record_type = ?" if record_type else ""
+        rt_params = (record_type,) if record_type else ()
         return {
-            'total_species': self.count_unique_species(),
-            'total_records': self.count_all(),
-            'this_year_species': self.count_unique_species_by_year(current_year),
-            'this_year_records': self.count_by_year(current_year),
-            'last_month_records': self._scalar(
-                "SELECT COUNT(*) FROM observations WHERE strftime('%Y-%m', date) = ?",
-                (last_month_str,),
-                default=0
-            ),
+            # every figure follows the species-counting switches, so Home agrees with
+            # Observation Data's counted (undimmed) rows (OBS-18); optionally Personal/Commercial
+            'total_species': self.count_unique_species(record_type=record_type),
+            'total_records': self.count_counted("1=1" + rt, rt_params),
+            'this_year_species': self.count_unique_species_by_year(current_year, record_type),
+            'this_year_records': self.count_counted("strftime('%Y', date) = ?" + rt,
+                                                    (str(current_year),) + rt_params),
+            'last_month_records': self.count_counted("strftime('%Y-%m', date) = ?" + rt,
+                                                     (last_month_str,) + rt_params),
         }
     
     def count_species_by_order(self, record_type: str = None) -> List[Dict[str, Any]]:
@@ -707,6 +688,8 @@ class ObservationRepository(BaseRepository):
             conditions.append("record_type = ?")
             params.append(record_type)
         
+        # a day only: year/month/range dates skip month charts (decision 9)
+        conditions.append("COALESCE(date_type, 'D') = 'D'")
         where = "WHERE " + " AND ".join(conditions) if conditions else ""
         
         query = f"""
@@ -893,7 +876,7 @@ class ObservationRepository(BaseRepository):
         # Otherwise return all 12 months totals
         rows = self._execute("""
             SELECT CAST(strftime('%m', date) AS INTEGER) as month, COUNT(*) as count
-            FROM observations WHERE date IS NOT NULL
+            FROM observations WHERE date IS NOT NULL AND COALESCE(date_type, 'D') = 'D'
             GROUP BY month ORDER BY month
         """)
         monthly = [0] * 12
@@ -903,7 +886,7 @@ class ObservationRepository(BaseRepository):
                 monthly[m - 1] = row['count']
         return monthly
 
-    def count_by_year(self, year: Optional[int] = None) -> Any:
+    def count_by_year(self, year: Optional[int] = None, record_type: str = None) -> Any:
         """
         Get yearly statistics or count for a specific year.
         
@@ -917,11 +900,14 @@ class ObservationRepository(BaseRepository):
         """
         # If year is provided, return count for that specific year
         if year is not None:
-            query = """
+            # record_type (Personal / Commercial) applies to this one-year count only
+            rt = " AND record_type = ?" if record_type else ""
+            query = f"""
                 SELECT COUNT(*) FROM observations
-                WHERE strftime('%Y', date) = ?
+                WHERE strftime('%Y', date) = ?{rt}
             """
-            return self._scalar(query, (str(year),), default=0)
+            params = (str(year), record_type) if record_type else (str(year),)
+            return self._scalar(query, params, default=0)
         
         # Otherwise return full yearly stats
         rows = self._execute("""
@@ -948,7 +934,9 @@ class ObservationRepository(BaseRepository):
                 only (review OBS-24: the New Species List ignored the toggle); None = all
             
         Returns:
-            List of dicts with species info and first record details
+            One dict per species: the whole first record (every observations column,
+            id included). It held six columns, so the New Species List showed Qty,
+            Recorder, Kingdom, Taxon Group, Order, Family and Rank blank (L20, 10 Oct).
         """
         exclusion = self._get_species_exclusion_clause()
         params: list = []
@@ -956,38 +944,80 @@ class ObservationRepository(BaseRepository):
             exclusion += " AND record_type = ?"
             params.append(record_type)
         params.append(limit)
+        # The first record's id per species (narrow window), then its whole row
         query = f"""
-            SELECT species_name, common_name, species_tvk, date, site_name, grid_ref
+            SELECT o.*
             FROM (
-                SELECT 
-                    species_name,
-                    common_name,
-                    species_tvk,
-                    date,
-                    site_name,
-                    grid_ref,
-                    ROW_NUMBER() OVER (PARTITION BY species_tvk
-                        ORDER BY (date IS NULL OR date = ''), date ASC, id ASC) as rn
-                FROM observations
-                WHERE species_tvk IS NOT NULL
-                  {exclusion}
-            )
-            WHERE rn = 1
-            ORDER BY date DESC
-            LIMIT ?
+                SELECT id, date
+                FROM (
+                    SELECT 
+                        id,
+                        date,
+                        ROW_NUMBER() OVER (PARTITION BY {self._species_key()}
+                            ORDER BY (date IS NULL OR date = ''), date ASC, id ASC) as rn
+                    FROM observations
+                    WHERE species_tvk IS NOT NULL
+                      {exclusion}
+                )
+                WHERE rn = 1
+                ORDER BY date DESC
+                LIMIT ?
+            ) AS firsts
+            JOIN observations o ON o.id = firsts.id
+            ORDER BY firsts.date DESC
         """
-        results = self._execute(query, tuple(params))
-        return [
-            {
-                'species_name': row['species_name'],
-                'common_name': row['common_name'],
-                'species_tvk': row['species_tvk'],
-                'date': row['date'],
-                'site_name': row['site_name'],
-                'grid_ref': row['grid_ref']
-            }
-            for row in results
-        ]
+        out = [dict(row) for row in self._execute(query, tuple(params))]
+        self._fill_species_columns(out)
+        return out
+
+    # Properties of the species, not of the record: blank on 1,436 records (kingdom) as
+    # held on 10 Oct, e.g. the 7 Sep 2026 pitfall imports
+    _SPECIES_COLUMNS = ('kingdom', 'taxon_group', 'order_name', 'family', 'taxon_rank')
+
+    def _fill_species_columns(self, rows: List[Dict[str, Any]]) -> None:
+        """Display only: a first record's blank kingdom / taxon group / order / family /
+        rank is shown from the same species' other records (the most frequent value),
+        else from UKSI. Nothing is written."""
+        tvks = {r['species_tvk'] for r in rows
+                if r.get('species_tvk') and any(not r.get(c) for c in self._SPECIES_COLUMNS)}
+        if not tvks:
+            return
+        for col in self._SPECIES_COLUMNS:
+            want = {r['species_tvk'] for r in rows if r.get('species_tvk') in tvks and not r.get(col)}
+            if not want:
+                continue
+            best: Dict[str, Any] = {}
+            ordered = sorted(want)
+            for i in range(0, len(ordered), 500):
+                chunk = ordered[i:i + 500]
+                marks = ",".join("?" * len(chunk))
+                for row in self._execute(
+                        f"SELECT species_tvk, {col} AS v, COUNT(*) AS n FROM observations "
+                        f"WHERE species_tvk IN ({marks}) AND {col} IS NOT NULL AND {col} != '' "
+                        f"GROUP BY species_tvk, {col} ORDER BY species_tvk, n DESC, v",
+                        tuple(chunk)):
+                    best.setdefault(row['species_tvk'], row['v'])
+            for r in rows:
+                if not r.get(col) and r.get('species_tvk') in best:
+                    r[col] = best[r['species_tvk']]
+        # Species no record of which holds them (126 on 10 Oct): from UKSI by TVK, the
+        # import wizards' rule (shared.taxon_groups)
+        still = {r['species_tvk'] for r in rows
+                 if r.get('species_tvk') in tvks and any(not r.get(c) for c in self._SPECIES_COLUMNS)}
+        if not still:
+            return
+        try:
+            from shared.taxon_groups import taxonomy_for_tvks
+            uksi = taxonomy_for_tvks(still)
+        except Exception as e:
+            print(f"[ObservationRepository] UKSI lookup for the species columns failed: {e}")
+            return
+        for r in rows:
+            t = uksi.get(r.get('species_tvk') or '')
+            if t:
+                for col in self._SPECIES_COLUMNS:
+                    if not r.get(col) and t.get(col):
+                        r[col] = t[col]
 
     # ==========================================================================
     # UTILITIES

@@ -13,7 +13,7 @@ from ...services.filter_builder import SCHEME_SOURCES, date_clauses, status_matc
 class SchemeDataWorker(QThread):
     """Worker thread for loading scheme records."""
 
-    finished = Signal(list, int)  # records list, species_count
+    finished = Signal(list, int)  # (unused) records list, species_count
     error = Signal(str)
 
     def __init__(self, db_path: str, filters=None, parent=None):
@@ -22,6 +22,8 @@ class SchemeDataWorker(QThread):
         self._filters = filters
         # Thread-safe result storage (bypass Qt signal queue)
         self.results = None
+        self.dimmed = {}                 # record id -> why the switches leave it out
+        self.counted = None              # records the switches count (None = all)
         self.error_message = None        # set if run() raised; results stay None
         # Set when run() ends, success or not -- startup waits on it (OBS-02)
         self.results_ready = threading.Event()
@@ -109,33 +111,15 @@ class SchemeDataWorker(QThread):
                     query += f" AND ({sql})"
                     params.extend(p)
 
-            # Apply stats exclusion filters from QSettings
-            from PySide6.QtCore import QSettings
-            settings = QSettings()
-
-            if settings.value("stats/scheme_exclude_family", False, type=bool):
-                query += " AND species_name NOT LIKE '%idae' AND species_name NOT LIKE '%inae'"
-
-            if settings.value("stats/scheme_exclude_genus", False, type=bool):
-                query += """ AND (
-                    (species_name LIKE '%idae' OR species_name LIKE '%inae')
-                    OR (
-                        species_name LIKE '% %'
-                        AND species_name NOT GLOB '*([a-z]*)'
-                        AND species_name NOT LIKE '% sp.%'
-                        AND species_name NOT LIKE '% sp'
-                        AND species_name NOT LIKE '%indet%'
-                    )
-                )"""
-
-            if settings.value("stats/scheme_exclude_ss", False, type=bool):
-                query += " AND species_name NOT LIKE '%s.s.%' AND species_name NOT LIKE '%sensu stricto%'"
-
-            if settings.value("stats/scheme_exclude_sl", False, type=bool):
-                query += " AND species_name NOT LIKE '%s.l.%' AND species_name NOT LIKE '%sensu lato%'"
-
-            if settings.value("stats/scheme_exclude_agg", False, type=bool):
-                query += " AND species_name NOT LIKE '%agg.%' AND species_name NOT LIKE '%agg %' AND species_name NOT LIKE '% agg'"
+            # Species counting (backlog A): every record is listed and the ones the
+            # switches leave out are dimmed; "Show only excluded" lists just those. The
+            # kinds come from the tab (read in the GUI thread)
+            from shared.species_counting import excluded_reasons, only_excluded_sql
+            kinds = (filters or {}).get('_counting_kinds') or ()
+            dimmed = excluded_reasons(self._db_path, "recording_scheme", kinds) if kinds else {}
+            only_excluded = bool((filters or {}).get('only_excluded'))
+            if only_excluded:
+                query += only_excluded_sql(self._db_path, "recording_scheme", "id", kinds)
 
             query += " ORDER BY date DESC"
 
@@ -155,8 +139,14 @@ class SchemeDataWorker(QThread):
             else:
                 records = []
 
+            # Counts honour the switches: the undimmed rows (all listed rows when only
+            # the excluded ones are asked for)
             species_set = set()
+            counted = 0
             for r in records:
+                if not only_excluded and r.get("id") in dimmed:
+                    continue
+                counted += 1
                 sp = r.get("species_name")
                 if sp:
                     species_set.add(sp)
@@ -169,6 +159,7 @@ class SchemeDataWorker(QThread):
             # results_ready; nothing listens to `finished`, and emitting it converted
             # every record to a Qt map: 7 of the 9 s of a full 110,510-record load, and
             # about 0.9 GB held (speed review 10 Oct 2026) -- so it is no longer emitted.
+            self.dimmed, self.counted = dimmed, counted   # read with results by the tab
             self.results = (records, species_count)
             self.results_ready.set()
 

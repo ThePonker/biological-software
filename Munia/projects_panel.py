@@ -103,9 +103,19 @@ class ProjectsPanel(QWidget):
             self._ctr(row, 3, yr_text)
             qv = p.get("quote_value", 0)
             self._ctr(row, 4, f"\u00a3{qv:,.0f}" if qv else "\u2014")
-            ft = db.get_project_field_total(self._conn, p["id"])
-            mt = db.get_project_micro_total(self._conn, p["id"])
-            rt = db.get_project_report_total(self._conn, p["id"])
+            yv = p.get("year_value")
+            if yv is not None and sy != ey and qv:
+                # MUN-4: this business year's share of a project spanning several years
+                how = ("split by days" if p.get("value_split") == "days"
+                       else "split evenly (no days recorded)")
+                self._ctr(row, 4, f"\u00a3{yv:,.0f} of \u00a3{qv:,.0f}")
+                self.table.item(row, 4).setToolTip(
+                    f"This business year's share of the \u00a3{qv:,.0f} quote, {how}.")
+            # days in the year being viewed (all of them for a one-year project)
+            yr = year if (year and sy != ey) else None
+            ft = db.get_project_field_total(self._conn, p["id"], yr)
+            mt = db.get_project_micro_total(self._conn, p["id"], yr)
+            rt = db.get_project_report_total(self._conn, p["id"], yr)
             self._ctr(row, 5, f"{ft:g}" if ft else "\u2014")
             self._ctr(row, 6, f"{mt:g}" if mt else "\u2014")
             self._ctr(row, 7, f"{rt:g}" if rt else "\u2014")

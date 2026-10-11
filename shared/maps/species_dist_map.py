@@ -86,6 +86,18 @@ class DistributionService:
         return []
 
 
+    def _counted(self, table: str) -> str:
+        """' AND id NOT IN (...)' -- the species-counting switches (observations and
+        recording_scheme only; specimens and Data Entry staging are never left out)."""
+        if table not in ("observations", "recording_scheme"):
+            return ""
+        try:
+            from shared.species_counting import not_excluded_sql
+            return not_excluded_sql(self._conn, table, "id")
+        except Exception as e:
+            print(f"[DistributionService] species counting not applied: {e}")
+            return ""
+
     # source priority: lower rank wins when a square has more than one source
     _RANK = {"personal": 0, "commercial": 1, "collection": 2, "rs": 3, "staging": 4}
 
@@ -110,14 +122,15 @@ class DistributionService:
             if cur is None or r < cur[0]:
                 best[key] = (r, e, n, src)
 
-        # observations -> personal / commercial (by record_type)
+        # observations -> personal / commercial (by record_type); the records the
+        # species-counting switches leave out are not mapped (backlog A)
         if self._obs and (enabled.get("personal") or enabled.get("commercial")):
             tbl, tvkc, gridc, rtc = self._obs
             sel = f"{gridc}, {rtc}" if rtc else gridc
             try:
                 rows = self._conn.execute(
                     f"SELECT {sel} FROM {tbl} WHERE {tvkc}=? AND {gridc} IS NOT NULL "
-                    f"AND {gridc}!=''", (tvk,)).fetchall()
+                    f"AND {gridc}!=''{self._counted(tbl)}", (tvk,)).fetchall()
             except sqlite3.Error:
                 rows = []
             for row in rows:
@@ -137,13 +150,13 @@ class DistributionService:
                 rows = []
             for (gr,) in rows:
                 consider("collection", gr)
-        # recording scheme
+        # recording scheme (its own species-counting switches)
         if self._rs and enabled.get("rs"):
             tbl, tvkc, gridc = self._rs
             try:
                 rows = self._conn.execute(
                     f"SELECT {gridc} FROM {tbl} WHERE {tvkc}=? AND {gridc} IS NOT NULL "
-                    f"AND {gridc}!=''", (tvk,)).fetchall()
+                    f"AND {gridc}!=''{self._counted(tbl)}", (tvk,)).fetchall()
             except sqlite3.Error:
                 rows = []
             for (gr,) in rows:

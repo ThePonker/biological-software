@@ -281,8 +281,8 @@ class QuickEntryForm(QuickEntryFieldsMixin, Card):
             errors.append("Determiner is required")
         if data.get('record_type') == 'Commercial' and not data.get('project'):
             # A Commercial record with no project reached no report or embargo (OBS-16)
-            errors.append("A Commercial record needs its project (new projects are "
-                          "started in Data Entry)")
+            errors.append("A Commercial record needs its project: choose an existing one "
+                          "(new projects start in Data Entry)")
         
         return errors
     

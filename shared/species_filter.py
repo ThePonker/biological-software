@@ -28,7 +28,7 @@ from __future__ import annotations
 import re
 from typing import Dict, Iterable, List, Optional, Set
 
-from shared.species_search import fold, fold_words, get_index
+from shared.species_search import MAX_GROUPS, fold, fold_words, get_index
 
 _SAFE_TVK = re.compile(r"^[A-Za-z0-9:_.\-]+$")
 _current_cache: Dict[str, Optional[str]] = {}
@@ -39,10 +39,13 @@ def choose_taxa(text: str, db_path: Optional[str] = None) -> List[dict]:
     return _choose(text, db_path)[0]
 
 
-def _choose(text: str, db_path: Optional[str] = None) -> tuple:
-    """(the taxa, True if the text is exactly their name) -- see choose_taxa."""
+def _choose(text: str, db_path: Optional[str] = None, species_only: bool = False) -> tuple:
+    """(the taxa, True if the text is exactly their name) -- see choose_taxa.
+    species_only: leave out whole groups found by a common word ("beetle" -> Coleoptera)."""
     from shared.species_lookup import parse_qualifier
     results = get_index(db_path).search(text, limit=None)
+    if species_only:
+        results = [r for r in results if not r.get("is_group")]
     if not results:
         return [], False
     qualifier, bare = parse_qualifier(text)
@@ -216,6 +219,37 @@ def filter_names(text: str, names: Iterable[str], db_path: Optional[str] = None)
     return {n for n in names if f.matches(tvk_of[n], n)}
 
 
+def completer_choices(text: str, names: Iterable[str], db_path: Optional[str] = None) -> tuple:
+    """For a species list's completer (the Filter Wizard's What box): (the names the text
+    selects WITHOUT whole groups, [(group label, group scientific name)]) -- Wil's decision 2
+    (10 Oct 2026): "longhorn" lists the species first, then "All Cerambycidae (longhorn
+    beetles) -- group" as one choice, offered only when the list holds one of its species."""
+    names = [n for n in dict.fromkeys(names) if n]
+    try:
+        idx = get_index(db_path)
+        tvk_of = {n: idx.tvk_for_name(n) for n in names}
+        present = {t for t in tvk_of.values() if t}
+        f = SpeciesFilter(text, present, db_path)
+        if f.by_name_only:
+            return {n for n in names if f.matches(tvk_of[n], n)}, []
+        groups = [r for r in idx.search(text, limit=None) if r.get("is_group")]
+        if not groups:
+            return {n for n in names if f.matches(tvk_of[n], n)}, []
+        f.taxa, f.exact = _choose(f.text, db_path, species_only=True)
+        if f.taxa:
+            f.tvks, f.unknown = tvks_under({r["tvk"] for r in f.taxa}, present, db_path)
+        else:
+            f.by_name_only = True
+        chosen = {n for n in names if f.matches(tvk_of[n], n)}
+        offered = [(r["group_label"], r["scientific_name"]) for r in groups
+                   if tvks_under({r["tvk"]}, present, db_path)[0]]
+        return chosen, offered[:MAX_GROUPS]
+    except Exception as e:
+        print(f"[species_filter] completer by name only ({e})")
+        words = [w.lower() for w in (text or "").split()]
+        return {n for n in names if all(w in n.lower() for w in words)}, []
+
+
 def _literals(tvks: Iterable[str]) -> str:
     """TVKs as SQL string literals (a table can hold thousands -- more than the parameter
     limit of older SQLite builds); anything that isn't a plain TVK is quoted safely."""
@@ -253,4 +287,4 @@ def sql_for_table(text: str, execute, table: str, tvk_col: str = "species_tvk",
 
 
 __all__ = ["SpeciesFilter", "species_filter", "choose_taxa", "table_tvks", "sql_for_table",
-           "filter_names", "tvks_under", "current_tvk_map"]
+           "filter_names", "completer_choices", "tvks_under", "current_tvk_map"]

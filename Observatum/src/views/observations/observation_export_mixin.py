@@ -39,9 +39,25 @@ class ObservationExportMixin:
             QMessageBox.information(self, "No Data", "No observations to export.")
             return
 
-        self._export_observations(observations, "Export All Observations")
+        self._export_observations(observations, "Export All Observations", ask_counting=True)
 
-    def _export_observations(self, observations: list, dialog_title: str):
+    def _export_counting_filter(self, observations: list):
+        """Export All, "All columns": counted records only (default), include the excluded
+        ones, or only them (species-counting switches; answer 6 of note 38). None = cancel."""
+        from shared.species_counting import EXPORT_INCLUDE, EXPORT_ONLY
+        from ..components.counting_widgets import ask_export_mode
+        reasons = getattr(self, '_excluded_now', None) or {}
+        if not reasons:
+            return observations
+        mode = ask_export_mode(self, "observations")
+        if mode is None:
+            return None
+        if mode == EXPORT_INCLUDE:
+            return observations
+        keep_excluded = mode == EXPORT_ONLY
+        return [o for o in observations if (o.get('id') in reasons) == keep_excluded]
+
+    def _export_observations(self, observations: list, dialog_title: str, ask_counting=False):
         """Common export logic for observations."""
         from PySide6.QtWidgets import (
             QFileDialog, QMessageBox, QDialog, QVBoxLayout,
@@ -98,6 +114,13 @@ class ObservationExportMixin:
             return
 
         use_irecord = irecord_radio.isChecked()
+        if ask_counting and not use_irecord:     # the iRecord export always takes every record
+            observations = self._export_counting_filter(observations)
+            if observations is None:
+                return
+            if not observations:
+                QMessageBox.information(self, "No Data", "No observations to export.")
+                return
 
         # Filter records that must not go to iRecord
         if use_irecord:

@@ -1,10 +1,9 @@
 """
 Quick Stats Panel Component.
 
-Displays quick statistics from all data sources with tab-themed colors.
-- Observation Data (sage green)
-- Recording Scheme (dusty purple)
-- Insect Collection (warm gold)
+Displays quick statistics for the Recording Scheme (dusty purple) and the Insect
+Collection (warm gold). Observation Data has its own cards, one for Personal and one
+for Commercial (observation_stats_card.py, L16 10 Oct).
 """
 
 from typing import Dict, Any
@@ -18,10 +17,10 @@ from ...core.config import TabColors
 
 
 class QuickStatsPanel(Card):
-    """Panel showing quick statistics from all data sources."""
+    """Panel showing quick statistics for the Recording Scheme and Insect Collection."""
     
     def __init__(self, parent=None):
-        super().__init__("Quick Stats", parent)
+        super().__init__("Quick Stats: Scheme & Collection", parent)
         self._db = None
         self._stat_rows = []  # Track all stat rows for theme updates
         self._setup_ui()
@@ -33,27 +32,6 @@ class QuickStatsPanel(Card):
         # Main stats layout
         self.stats_layout = QVBoxLayout()
         self.stats_layout.setSpacing(4)
-        
-        # === Observation Data Section ===
-        self._add_section_header("Observation Data", TabColors.OBSERVATION)
-        self.obs_total_species = self._create_stat_row(
-            "Total Species", "0", TabColors.OBSERVATION
-        )
-        self.obs_total_records = self._create_stat_row(
-            "Total Records", "0", TabColors.OBSERVATION
-        )
-        self.obs_this_year_species = self._create_stat_row(
-            "This Year Species", "0", TabColors.OBSERVATION
-        )
-        self.obs_this_year_records = self._create_stat_row(
-            "This Year Records", "0", TabColors.OBSERVATION
-        )
-        self.obs_last_month = self._create_stat_row(
-            "Last Month Records", "0", TabColors.OBSERVATION
-        )
-        
-        # Separator
-        self._add_separator()
         
         # === Recording Scheme Section ===
         self._add_section_header("Recording Scheme", TabColors.RECORDING_SCHEME)
@@ -195,14 +173,6 @@ class QuickStatsPanel(Card):
         """Set database reference for querying stats."""
         self._db = db
     
-    def update_stats(self, obs_stats: Dict[str, Any]):
-        """Update observation statistics (called from home_tab for backwards compatibility)."""
-        self.obs_total_species['value'].setText(f"{obs_stats.get('total_species', 0):,}")
-        self.obs_total_records['value'].setText(f"{obs_stats.get('total_records', 0):,}")
-        self.obs_this_year_species['value'].setText(f"{obs_stats.get('this_year_species', 0):,}")
-        self.obs_this_year_records['value'].setText(f"{obs_stats.get('this_year_records', 0):,}")
-        self.obs_last_month['value'].setText(f"{obs_stats.get('last_month_records', 0):,}")
-    
     def update_scheme_stats(self, stats: Dict[str, Any]):
         """Update recording scheme statistics."""
         self.scheme_total_species['value'].setText(f"{stats.get('total_species', 0):,}")
@@ -248,8 +218,11 @@ class QuickStatsPanel(Card):
         
         # Refresh Recording Scheme stats
         try:
+            # the Recording Scheme species-counting switches (backlog A)
+            from shared.species_counting import counted_clause
             result = self._db.execute_main(
-                "SELECT COUNT(DISTINCT species_name) as species, COUNT(*) as records FROM recording_scheme"
+                "SELECT COUNT(DISTINCT species_name) as species, COUNT(*) as records "
+                "FROM recording_scheme WHERE 1" + counted_clause("recording_scheme", db=self._db)
             )
             if result:
                 self.update_scheme_stats({

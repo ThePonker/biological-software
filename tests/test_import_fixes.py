@@ -159,9 +159,11 @@ def test_imp3_unreadable_dates_are_errors_naming_the_text(app):
         {"Species": "Rutpela maculata", "Date": "2024", "Recorder": "W"},
         {"Species": "Rutpela maculata", "Date": "", "Recorder": "W"},
         {"Species": "Rutpela maculata", "Date": "01/06/2024", "Recorder": "W"}], PERSONAL)
-    assert [r.status.name for r in got] == ["ERROR", "ERROR", "ERROR", "VALID"]
+    # decision 9 (10 Oct, round 2): a year is accepted with a warning -- was an error
+    assert [r.status.name for r in got] == ["ERROR", "WARNING", "ERROR", "VALID"]
     assert "Unreadable date: '31/02/2024'" in got[0].error_message
-    assert "Unreadable date: '2024'" in got[1].error_message
+    assert (got[1].date, got[1].date_type, got[1].warnings) == ("2024-01-01", "Y",
+                                                                ["vague date: year only"])
     assert "Date is required" in got[2].error_message and got[3].date == "2024-06-01"
     irec = _obs("IRECORD_SYNC", [{"ID": "1", "Taxon": "Rutpela maculata", "TaxonVersionKey": "RM",
                                   "Date interpreted": "sometime"}])

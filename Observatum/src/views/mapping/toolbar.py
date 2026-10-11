@@ -4,11 +4,11 @@ Map Toolbar component for Observatum V2.
 Provides map view controls including:
 - View toggle (National/County)
 - Grid size selection
-- Data source selection (Personal / Commercial / Insect Collection / Recording Scheme /
-  Contributed / All -- the suite's split, map_selection.SOURCES)
 - Filter panel toggle
-(Style and Period sit above the map, display_bar.py.)
-- Export button
+- Export button, with the extent of the atlas page: Full extent (all GB in National view,
+  the whole county in County view; the default) or Current view (L14/L32, 10 Oct 2026)
+(Style and Period sit above the map, display_bar.py. The data sources are tick boxes in the
+filter panel, source_picker.py -- L8, 10 Oct 2026; they were a drop-down here.)
 """
 
 from PySide6.QtWidgets import (
@@ -19,7 +19,8 @@ from PySide6.QtCore import Signal
 from ...themes import theme
 from ...core.config import TabColors
 from shared.maps.grid_squares import GRID_LABELS
-from ...services.map_selection import SOURCES
+
+EXPORT_EXTENTS = [("full", "Full extent"), ("current", "Current view")]
 
 
 class MapToolbar(QFrame):
@@ -27,7 +28,6 @@ class MapToolbar(QFrame):
 
     view_changed = Signal(str)         # 'national' or 'county'
     grid_changed = Signal(str)
-    data_source_changed = Signal(str)
     filters_toggled = Signal(bool)
     export_requested = Signal()
 
@@ -93,31 +93,6 @@ class MapToolbar(QFrame):
 
         layout.addLayout(grid_group)
 
-        # Data source
-        data_group = QHBoxLayout()
-        data_group.setSpacing(8)
-
-        data_label = QLabel("Data:")
-        data_label.setStyleSheet(
-            f"color: {t.get('text_heading')}; font-size: 12px;"
-        )
-        data_group.addWidget(data_label)
-
-        self.data_combo = QComboBox()
-        for key, text in SOURCES:
-            self.data_combo.addItem(text, key)
-        self.data_combo.setToolTip(
-            "All records shows each record once: a specimen with its own observation, and a "
-            "scheme record that is one of your observations, appear as the observation.")
-        self.data_combo.currentIndexChanged.connect(
-            lambda: self.data_source_changed.emit(
-                self.data_combo.currentData()
-            )
-        )
-        data_group.addWidget(self.data_combo)
-
-        layout.addLayout(data_group)
-
         layout.addStretch()
 
         # Filter toggle
@@ -128,9 +103,17 @@ class MapToolbar(QFrame):
         self._style_filter_button()
         layout.addWidget(self.filter_btn)
 
-        # Export button
+        # Export: the page's extent, then the button
+        self.extent_combo = QComboBox()
+        for key, text in EXPORT_EXTENTS:
+            self.extent_combo.addItem(text, key)
+        self.extent_combo.setToolTip(
+            "What the atlas PNG covers. Full extent: all of GB (National view) or the whole "
+            "county (County view), whatever the zoom. Current view: what is on screen now.")
+        layout.addWidget(self.extent_combo)
+
         self.export_btn = QPushButton("Export Atlas PNG")
-        self.export_btn.setToolTip("Save the map as shown, as an A4 page at 300 dpi")
+        self.export_btn.setToolTip("Save the map as an A4 page at 300 dpi")
         self.export_btn.setStyleSheet(f"""
             QPushButton {{
                 padding: 6px 12px;
@@ -222,6 +205,10 @@ class MapToolbar(QFrame):
                     background-color: {t.get('hover')};
                 }}
             """)
+
+    def export_extent(self) -> str:
+        """'full' (the default) or 'current'."""
+        return self.extent_combo.currentData() or "full"
 
     def get_view(self) -> str:
         """Get the current view mode."""

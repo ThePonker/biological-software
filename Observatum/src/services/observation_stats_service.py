@@ -12,29 +12,11 @@ PERFORMANCE OPTIMIZATIONS:
 
 from typing import Dict, Any, Optional
 from datetime import datetime
-from PySide6.QtCore import QSettings
+from shared.species_counting import counted_clause, species_key_expr
 
 
 # Cache TTL in seconds
 CACHE_TTL_SECONDS = 300
-
-
-def get_observation_exclusion_clause(prefix: str = "") -> str:
-    """Get SQL WHERE clause for species name exclusion filters. Shared by stats service and dashboards."""
-    from PySide6.QtCore import QSettings
-    settings = QSettings()
-    exclude = settings.value("display/exclude_incomplete_species", True, type=bool)
-    col = f"{prefix}species_name" if prefix else "species_name"
-    if exclude:
-        return f"""
-            AND {col} LIKE '% %'
-            AND {col} NOT LIKE '%agg.%'
-            AND {col} NOT LIKE '%agg %'
-            AND {col} NOT LIKE '% agg'
-            AND {col} NOT LIKE '%s.l.%'
-            AND {col} NOT LIKE '%sensu lato%'
-        """
-    return ""
 
 
 class ObservationStatsService:
@@ -94,22 +76,13 @@ class ObservationStatsService:
         self._refresh()
 
     def _get_exclusion_clause(self, prefix: str = "") -> str:
-        """Get SQL clause for excluding incomplete species."""
-        settings = QSettings()
-        exclude = settings.value("display/exclude_incomplete_species", True, type=bool)
-        
-        col = f"{prefix}species_name" if prefix else "species_name"
+        """' AND id NOT IN (...)': the records the species-counting switches leave out
+        (Settings > Species counting; shared/species_counting.py)."""
+        return counted_clause("observations", prefix, self._db)
 
-        if exclude:
-            return f"""
-                AND {col} LIKE '% %'
-                AND {col} NOT LIKE '%agg.%'
-                AND {col} NOT LIKE '%agg %'
-                AND {col} NOT LIKE '% agg'
-                AND {col} NOT LIKE '%s.l.%'
-                AND {col} NOT LIKE '%sensu lato%'
-            """
-        return ""
+    def _species_key(self, prefix: str = "") -> str:
+        """species_tvk with subspecies rolled up to their species, for COUNT(DISTINCT ...)."""
+        return species_key_expr("observations", prefix, self._db)
 
     def _extract_grid_squares(self, grid_ref: str) -> Dict[str, str]:
         """Extract monad, tetrad, hectad from a grid reference."""
@@ -158,17 +131,19 @@ class ObservationStatsService:
 
         try:
             exclusion = self._get_exclusion_clause()
+            sk = self._species_key()
             current_year = datetime.now().year
 
             # =============================================
             # BASIC COUNTS
             # =============================================
-            result = self._db.execute_main("""
+            result = self._db.execute_main(f"""
                 SELECT 
                     COUNT(*) as total_records,
                     COUNT(CASE WHEN record_type = 'Personal' THEN 1 END) as personal_records,
                     COUNT(CASE WHEN record_type = 'Commercial' THEN 1 END) as commercial_records
                 FROM observations
+                WHERE 1 {exclusion}
             """)
             if result:
                 self._cache['total_records'] = result[0]['total_records'] or 0
@@ -178,9 +153,9 @@ class ObservationStatsService:
             # Species counts - combined query
             species_query = f"""
                 SELECT 
-                    COUNT(DISTINCT species_tvk) as total_species,
-                    COUNT(DISTINCT CASE WHEN record_type = 'Personal' THEN species_tvk END) as personal_species,
-                    COUNT(DISTINCT CASE WHEN record_type = 'Commercial' THEN species_tvk END) as commercial_species
+                    COUNT(DISTINCT {sk}) as total_species,
+                    COUNT(DISTINCT CASE WHEN record_type = 'Personal' THEN {sk} END) as personal_species,
+                    COUNT(DISTINCT CASE WHEN record_type = 'Commercial' THEN {sk} END) as commercial_species
                 FROM observations
                 WHERE species_tvk IS NOT NULL
                 {exclusion}
@@ -197,7 +172,7 @@ class ObservationStatsService:
             year_query = f"""
                 SELECT 
                     COUNT(*) as records,
-                    COUNT(DISTINCT species_tvk) as species
+                    COUNT(DISTINCT {sk}) as species
                 FROM observations
                 WHERE strftime('%Y', date) = ?
                 AND species_tvk IS NOT NULL
@@ -211,10 +186,11 @@ class ObservationStatsService:
             # =============================================
             # GRID SQUARE COVERAGE (combined for all + commercial)
             # =============================================
-            grid_query = """
+            grid_query = f"""
                 SELECT grid_ref, record_type
                 FROM observations
                 WHERE grid_ref IS NOT NULL AND grid_ref != ''
+                {exclusion}
             """
             result = self._db.execute_main(grid_query)
             
@@ -262,11 +238,11 @@ class ObservationStatsService:
             order_query = f"""
                 SELECT 
                     order_name as label, 
-                    COUNT(DISTINCT species_tvk) as species,
+                    COUNT(DISTINCT {sk}) as species,
                     COUNT(*) as records,
-                    COUNT(DISTINCT CASE WHEN record_type = 'Commercial' THEN species_tvk END) as commercial_species,
+                    COUNT(DISTINCT CASE WHEN record_type = 'Commercial' THEN {sk} END) as commercial_species,
                     COUNT(CASE WHEN record_type = 'Commercial' THEN 1 END) as commercial_records,
-                    COUNT(DISTINCT CASE WHEN record_type = 'Personal' THEN species_tvk END) as personal_species,
+                    COUNT(DISTINCT CASE WHEN record_type = 'Personal' THEN {sk} END) as personal_species,
                     COUNT(CASE WHEN record_type = 'Personal' THEN 1 END) as personal_records
                 FROM observations
                 WHERE order_name IS NOT NULL AND order_name != ''
@@ -313,11 +289,11 @@ class ObservationStatsService:
             family_query = f"""
                 SELECT 
                     family,
-                    COUNT(DISTINCT species_tvk) as species,
+                    COUNT(DISTINCT {sk}) as species,
                     COUNT(*) as records,
-                    COUNT(DISTINCT CASE WHEN record_type = 'Commercial' THEN species_tvk END) as commercial_species,
+                    COUNT(DISTINCT CASE WHEN record_type = 'Commercial' THEN {sk} END) as commercial_species,
                     COUNT(CASE WHEN record_type = 'Commercial' THEN 1 END) as commercial_records,
-                    COUNT(DISTINCT CASE WHEN record_type = 'Personal' THEN species_tvk END) as personal_species,
+                    COUNT(DISTINCT CASE WHEN record_type = 'Personal' THEN {sk} END) as personal_species,
                     COUNT(CASE WHEN record_type = 'Personal' THEN 1 END) as personal_records
                 FROM observations
                 WHERE family IS NOT NULL AND family != ''
@@ -361,13 +337,15 @@ class ObservationStatsService:
             # =============================================
             # MONTHLY COUNTS (all time distribution)
             # =============================================
-            monthly_query = """
+            monthly_query = f"""
                 SELECT 
                     CAST(strftime('%m', date) AS INTEGER) as month,
                     COUNT(*) as count,
                     COUNT(CASE WHEN record_type = 'Commercial' THEN 1 END) as commercial_count
                 FROM observations
                 WHERE date IS NOT NULL
+                AND COALESCE(date_type, 'D') = 'D'  -- a day only: year/month/range dates skip month charts (decision 9)
+                {exclusion}
                 GROUP BY month
                 ORDER BY month
             """
@@ -381,10 +359,11 @@ class ObservationStatsService:
             # Commercial monthly species counts
             result = self._db.execute_main(f"""
                 SELECT CAST(strftime('%m', date) AS INTEGER) as month,
-                    COUNT(DISTINCT species_tvk) as species_count
+                    COUNT(DISTINCT {sk}) as species_count
                 FROM observations
                 WHERE record_type = 'Commercial'
                 AND date IS NOT NULL AND date != ''
+                AND COALESCE(date_type, 'D') = 'D'
                 AND species_tvk IS NOT NULL AND species_tvk != ''
                 {exclusion}
                 GROUP BY month
@@ -395,9 +374,10 @@ class ObservationStatsService:
             # Personal monthly species ? need separate query
             personal_monthly_species_q = f"""
                 SELECT CAST(strftime('%m', date) AS INTEGER) as month,
-                       COUNT(DISTINCT species_tvk) as species_count
+                       COUNT(DISTINCT {sk}) as species_count
                 FROM observations
                 WHERE date IS NOT NULL AND species_tvk IS NOT NULL
+                AND COALESCE(date_type, 'D') = 'D'
                 AND record_type = 'Personal'
                 {exclusion}
                 GROUP BY month
@@ -406,11 +386,12 @@ class ObservationStatsService:
             personal_monthly_species = {r['month']: r['species_count'] for r in (result or [])}
 
             # Commercial vice counties
-            result = self._db.execute_main("""
+            result = self._db.execute_main(f"""
                 SELECT COUNT(DISTINCT vc_number) as vc_count
                 FROM observations
                 WHERE record_type = 'Commercial'
                 AND vc_number IS NOT NULL
+                {exclusion}
             """)
             self._cache['commercial_unique_vice_counties'] = result[0]['vc_count'] if result else 0
 
@@ -420,9 +401,10 @@ class ObservationStatsService:
             monthly_species_query = f"""
                 SELECT
                     CAST(strftime('%m', date) AS INTEGER) as month,
-                    COUNT(DISTINCT species_name) as species_count
+                    COUNT(DISTINCT {sk}) as species_count
                 FROM observations
                 WHERE date IS NOT NULL
+                AND COALESCE(date_type, 'D') = 'D'
                 AND species_name IS NOT NULL AND species_name != ''
                 {exclusion}
                 GROUP BY month
@@ -440,11 +422,11 @@ class ObservationStatsService:
                 SELECT 
                     strftime('%Y', date) as year,
                     COUNT(*) as records,
-                    COUNT(DISTINCT species_tvk) as species,
+                    COUNT(DISTINCT {sk}) as species,
                     COUNT(CASE WHEN record_type = 'Commercial' THEN 1 END) as commercial_records,
-                    COUNT(DISTINCT CASE WHEN record_type = 'Commercial' THEN species_tvk END) as commercial_species,
+                    COUNT(DISTINCT CASE WHEN record_type = 'Commercial' THEN {sk} END) as commercial_species,
                     COUNT(CASE WHEN record_type = 'Personal' THEN 1 END) as personal_records,
-                    COUNT(DISTINCT CASE WHEN record_type = 'Personal' THEN species_tvk END) as personal_species
+                    COUNT(DISTINCT CASE WHEN record_type = 'Personal' THEN {sk} END) as personal_species
                 FROM observations
                 WHERE date IS NOT NULL
                 AND species_tvk IS NOT NULL
@@ -456,7 +438,7 @@ class ObservationStatsService:
             
             # Calculate new species per year
             all_species_query = f"""
-                SELECT strftime('%Y', date) as year, species_tvk, record_type
+                SELECT strftime('%Y', date) as year, {sk} AS species_tvk, record_type
                 FROM observations
                 WHERE date IS NOT NULL AND species_tvk IS NOT NULL
                 {exclusion}
@@ -670,16 +652,17 @@ class ObservationStatsService:
             # =============================================
             # UNIQUE VICE COUNTIES
             # =============================================
-            vc_query = """
+            vc_query = f"""
                 SELECT COUNT(DISTINCT vc_number) as count
                 FROM observations
                 WHERE vc_number IS NOT NULL
+                {exclusion}
             """
             result = self._db.execute_main(vc_query)
             self._cache['unique_vice_counties'] = result[0]['count'] if result else 0
 
             result = self._db.execute_main(
-                "SELECT COUNT(DISTINCT vc_number) as count FROM observations WHERE vc_number IS NOT NULL AND record_type = 'Personal'"
+                f"SELECT COUNT(DISTINCT vc_number) as count FROM observations WHERE vc_number IS NOT NULL AND record_type = 'Personal'{exclusion}"
             )
             self._cache['personal_unique_vice_counties'] = result[0]['count'] if result else 0
 
@@ -692,7 +675,7 @@ class ObservationStatsService:
             from shared.taxon_groups import group_sql
             grp = group_sql()
             curve_query = f"""
-                SELECT {grp} AS taxon_group, species_name,
+                SELECT {grp} AS taxon_group, {sk} AS species_name,
                        CAST(SUBSTR(MIN(date), 1, 4) AS INTEGER) as first_year,
                        record_type
                 FROM observations
@@ -700,7 +683,7 @@ class ObservationStatsService:
                 AND species_tvk IS NOT NULL
                 AND date IS NOT NULL AND date != ''
                 {exclusion}
-                GROUP BY species_name, record_type
+                GROUP BY {sk}, record_type
             """
             curve_result = self._db.execute_main(curve_query)
 

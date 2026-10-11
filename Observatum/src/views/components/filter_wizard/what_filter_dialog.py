@@ -362,7 +362,11 @@ class WhatFilterDialog(QDialog):
     def _on_species_completer_activated(self, display_text: str):
         """Handle species autocomplete - map display to scientific name."""
         if display_text:
-            scientific_name = self._species_map.get(display_text, display_text)
+            scientific_name = self._species_map.get(display_text)
+            if scientific_name is None:   # a group choice ("All Cerambycidae (...) — group")
+                comp = self._species_input.completer()
+                scientific_name = (comp.scientific_name(display_text)
+                                   if hasattr(comp, "scientific_name") else display_text)
             self._add_chip("species", scientific_name, f"Species: {display_text}")
             QTimer.singleShot(50, self._species_input.clear)
     

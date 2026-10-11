@@ -4,7 +4,7 @@ Status Filter Dialog.
 Filter by verification status and record type with checkboxes.
 """
 
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Tuple
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QFrame, QCheckBox, QWidget
@@ -13,6 +13,7 @@ from PySide6.QtCore import Qt
 
 from ....themes import theme
 from ....core.config import ButtonColors
+from .dataset_picker import DatasetPicker
 
 
 # Verification statuses from iRecord data
@@ -42,6 +43,7 @@ class StatusFilterDialog(QDialog):
         current_values: Dict[str, Any] = None,
         status_list: List[str] = None,
         type_list: List[str] = None,
+        dataset_list: List[Tuple[str, int]] = None,
         parent=None
     ):
         super().__init__(parent)
@@ -52,6 +54,9 @@ class StatusFilterDialog(QDialog):
         # list means the tab has none (no section shown). None = the old fixed lists.
         self._status_list = VERIFICATION_STATUSES if status_list is None else list(status_list)
         self._type_list = RECORD_TYPES if type_list is None else list(type_list)
+        # [(dataset, records)] -- Recording Scheme only (decision 4); empty = no section
+        self._dataset_list = list(dataset_list or [])
+        self.dataset_picker = None
         
         self.setWindowTitle("Filter by Status")
         self.setMinimumWidth(450)
@@ -104,6 +109,12 @@ class StatusFilterDialog(QDialog):
         type_section = self._create_type_section()
         type_section.setVisible(bool(self._type_list))
         layout.addWidget(type_section)
+
+        # === DATASET / PROVIDER SECTION (Recording Scheme) ===
+        if self._dataset_list:
+            self.dataset_picker = DatasetPicker(self._dataset_list, self._accent_color, self)
+            layout.addWidget(self.dataset_picker)
+            self.setMinimumHeight(620)
         
         layout.addStretch()
         
@@ -259,6 +270,8 @@ class StatusFilterDialog(QDialog):
             cb.setChecked(False)
         for cb in self._type_checkboxes.values():
             cb.setChecked(False)
+        if self.dataset_picker is not None:
+            self.dataset_picker.clear()
     
     def _load_current_values(self):
         """Load existing filter values."""
@@ -276,6 +289,10 @@ class StatusFilterDialog(QDialog):
         for rec_type in self._current.get('record_type', []):
             if rec_type in self._type_checkboxes:
                 self._type_checkboxes[rec_type].setChecked(True)
+
+        if self.dataset_picker is not None:
+            from ....services.filter_builder import as_list
+            self.dataset_picker.set_selected(as_list(self._current.get('dataset')))
     
     def get_values(self) -> Dict[str, Any]:
         """Get the filter values."""
@@ -296,6 +313,11 @@ class StatusFilterDialog(QDialog):
                 types.append(rec_type)
         if types:
             result['record_type'] = types
+
+        if self.dataset_picker is not None:
+            datasets = self.dataset_picker.selected()
+            if datasets:
+                result['dataset'] = datasets
         
         return result
     

@@ -78,6 +78,12 @@ def apply_confirmed(row, uksi_data: dict, original: str, how: str = "confirmed b
     an error (IMP-5)."""
     e = resolution_entry(uksi_data, original)
     e["import_notes"] = e["import_notes"].replace("confirmed by you", how)
+    # what the file had, and what was chosen (L23, 10 Oct 2026): "File had 'Rutpela maculta';
+    # picked by you as Rutpela maculata" -- was "Species confirmed by you: 'Rutpela maculata'"
+    if original and original.strip() != e["species_name"]:
+        e["warning"] = f"File had '{original.strip()}'; {how} as {e['species_name']}"
+    else:
+        e["warning"] = f"Species {how}: {e['species_name']}"
     row.species_name = e["species_name"]
     row.species_tvk = e["tvk"]
     for attr in ("common_name", "order_name", "family", "kingdom"):

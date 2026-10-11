@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Signal, Qt
 
 from .stat_widgets import StatCard
+from ..components.sort_items import number_item
 from ...themes import theme
 from ...utils.date_utils import format_date_display
 from ...core.config import TabColors
@@ -132,10 +133,8 @@ class ClickableDataTable(QFrame):
             self.table.setItem(row, 0, name_item)
             
             for col, field in enumerate(value_fields, start=1):
-                val = item.get(field, 0)
-                cell = QTableWidgetItem(f"{val:,}" if isinstance(val, int) else str(val))
-                cell.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                self.table.setItem(row, col, cell)
+                # sorted as numbers, not text ("1,234" came before "987") -- 10 Oct
+                self.table.setItem(row, col, number_item(item.get(field, 0)))
         
         # Resize to fit content
         self.table.setSortingEnabled(True)
@@ -252,10 +251,7 @@ class SimpleBreakdownTable(QFrame):
             key_item = QTableWidgetItem(str(item.get(key_field, '')))
             self.table.setItem(row, 0, key_item)
             
-            val = item.get(value_field, 0)
-            val_item = QTableWidgetItem(f"{val:,}" if isinstance(val, int) else str(val))
-            val_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self.table.setItem(row, 1, val_item)
+            self.table.setItem(row, 1, number_item(item.get(value_field, 0)))   # sorts as a number
         self.table.setSortingEnabled(True)
         
         self.table.resizeRowsToContents()
@@ -362,20 +358,10 @@ class YearBreakdownTable(QFrame):
             year_item = QTableWidgetItem(str(year))
             self.table.setItem(row, 0, year_item)
             
-            specimens = item.get('specimens', 0)
-            spec_item = QTableWidgetItem(f"{specimens:,}")
-            spec_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self.table.setItem(row, 1, spec_item)
-            
-            species = item.get('species', 0)
-            species_item = QTableWidgetItem(f"{species:,}")
-            species_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self.table.setItem(row, 2, species_item)
-            
-            new_species = new_lookup.get(year, 0)
-            new_item = QTableWidgetItem(f"{new_species:,}")
-            new_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self.table.setItem(row, 3, new_item)
+            # counts sort as numbers, not text (10 Oct)
+            self.table.setItem(row, 1, number_item(item.get('specimens', 0)))
+            self.table.setItem(row, 2, number_item(item.get('species', 0)))
+            self.table.setItem(row, 3, number_item(new_lookup.get(year, 0)))
         self.table.setSortingEnabled(True)
         
         self.table.resizeRowsToContents()

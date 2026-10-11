@@ -31,6 +31,10 @@ class TaxonNode:
     # Specimens determined only to this rank (e.g. "Leiopus" sp.): counted here
     # and in every rank above, never under a species (CUR-2).
     own_specimen_count: int = 0
+    # A "<Genus> sp." row under its genus holding the genus-only specimens (L26), so
+    # the children's counts add up to the genus. Shown like a species, but it is not
+    # a species: it never adds to species or "my species" counts.
+    genus_only: bool = False
 
 
 
@@ -131,7 +135,7 @@ def load_taxonomic_tree(order_name: str, my_specimens_only: bool = True) -> Taxo
 def _set_species_counts(node):
     """species_count on every rank above species: the species shown under it."""
     if node.rank == "Species":
-        return 1
+        return 0 if node.genus_only else 1
     node.species_count = sum(_set_species_counts(c) for c in node.children)
     return node.species_count
 
@@ -242,7 +246,16 @@ def _add_genera_to_node(parent_node, genera, sp_by_gen, common_names,
                 specimen_count=sp_counts.get(sp_name, 0),
                 in_collection=sp_name in my_sp,
             ))
-        if gen_node.children or gen_node.own_specimen_count or not my_only:
+        if gen_node.own_specimen_count:
+            # L26: the genus-only specimens get their own row, after the species
+            gen_node.children.append(TaxonNode(
+                name=f"{gen_name} sp.", rank="Species",
+                sort_key=(gen_node.children[-1].sort_key if gen_node.children else gen_sort),
+                specimen_count=gen_node.own_specimen_count,
+                in_collection=True, genus_only=True,
+            ))
+            gen_node.own_specimen_count = 0      # now counted once, in that row
+        if gen_node.children or not my_only:
             parent_node.children.append(gen_node)
 
 
@@ -250,7 +263,7 @@ def _add_genera_to_node(parent_node, genera, sp_by_gen, common_names,
 def _aggregate_specimen_counts(node):
     """Sum specimens and count distinct species up through the tree."""
     if node.rank == "Species":
-        node.my_species_count = 1 if node.specimen_count > 0 else 0
+        node.my_species_count = 1 if node.specimen_count > 0 and not node.genus_only else 0
         return node.specimen_count, node.my_species_count
     total_specimens = node.own_specimen_count
     total_my_species = 0
@@ -266,7 +279,7 @@ def _aggregate_specimen_counts(node):
 def _count_species(node):
     """Count total species under a node recursively."""
     if node.rank == "Species":
-        return 1
+        return 0 if node.genus_only else 1
     return sum(_count_species(c) for c in node.children)
 
 

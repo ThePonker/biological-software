@@ -5,7 +5,7 @@ review SRCH18: "Period" used to sit with the filters although it only recolours)
 from typing import List, Tuple
 
 from PySide6.QtCore import Signal
-from PySide6.QtWidgets import QComboBox, QFrame, QHBoxLayout, QLabel, QWidget
+from PySide6.QtWidgets import QComboBox, QFrame, QHBoxLayout, QLabel, QSizePolicy, QWidget
 
 from ...services.map_square_service import BAND_PRESET_LABELS
 from ...themes import theme
@@ -67,6 +67,9 @@ class MapDisplayBar(QFrame):
         lay.addSpacing(12)
         self.legend_box = QWidget()
         self.legend_box.setStyleSheet("border: none;")
+        # L30: a long legend (many taxa) is cut at the right, with the whole of it in the
+        # tooltip; it no longer widens the map side (which made the layout jump in full screen)
+        self.legend_box.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         self.legend_layout = QHBoxLayout(self.legend_box)
         self.legend_layout.setContentsMargins(0, 0, 0, 0)
         self.legend_layout.setSpacing(10)
@@ -114,6 +117,7 @@ class MapDisplayBar(QFrame):
             tx.setStyleSheet(f"color: {t.get('text_primary')}; font-size: 11px; border: none;")
             self.legend_layout.addWidget(tx)
         self.legend_layout.addStretch()
+        self.legend_box.setToolTip("\n".join(label for _c, label in legend))
 
     def legend_labels(self) -> List[str]:
         """The legend's labels as shown (for tests)."""

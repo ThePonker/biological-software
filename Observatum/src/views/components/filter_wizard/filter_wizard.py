@@ -9,12 +9,11 @@ Supports saving and loading filter configurations.
 from typing import Dict, Any, List
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QPushButton, QComboBox, QMessageBox
+    QPushButton, QComboBox, QMessageBox, QScrollArea, QFrame, QSizePolicy
 )
 from PySide6.QtCore import Signal, Qt
 
 from ....themes import theme
-from ....core.config import ButtonColors
 from .filter_cards import FilterCardGrid
 from .what_filter_dialog import WhatFilterDialog
 from .where_filter_dialog import WhereFilterDialog
@@ -80,6 +79,7 @@ class FilterWizard(QWidget):
         self._site_list: List[str] = []
         self._status_list: List[str] = []
         self._record_type_list: List[str] = []
+        self._dataset_list: List = []        # [(dataset, records)], Recording Scheme only
 
         # The values present in this tab's own table, loaded when a dialog first opens
         # and again after the tab reloads (refresh_tab_values) -- review SRCH12
@@ -98,29 +98,53 @@ class FilterWizard(QWidget):
         self._load_saved_filter_names()
     
     def _setup_ui(self):
-        """Set up the wizard UI."""
+        """Set up the wizard UI: a title line, the cards, and one row of controls.
+
+        L29 (10 Oct): it took ~410 px when open. Now compact (about half), its own
+        background so it looks the same on every tab, and capped at MAX_HEIGHT with a
+        scroll bar should the cards ever need more room (large fonts)."""
         t = theme()
+        self.setObjectName("filterWizard")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setStyleSheet(f"""
+            QWidget#filterWizard {{
+                background-color: {t.get('surface_alt')};
+                border-bottom: 1px solid {t.get('border')};
+            }}
+        """)
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+        self._scroll = QScrollArea()
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._scroll.setStyleSheet("QScrollArea { background: transparent; }")
+        inner = QWidget()
+        inner.setObjectName("filterWizardInner")
+        inner.setStyleSheet("QWidget#filterWizardInner { background: transparent; }")
+        self._scroll.setWidget(inner)
+        outer.addWidget(self._scroll)
+
+        layout = QVBoxLayout(inner)
+        layout.setSpacing(8)
+        layout.setContentsMargins(12, 8, 12, 8)
         
-        layout = QVBoxLayout(self)
-        layout.setSpacing(20)
-        layout.setContentsMargins(20, 20, 20, 20)
-        
-        # Header row
+        # Title line: name in the tab's colour, active-filter count on the right
         header_layout = QHBoxLayout()
-        
-        header_label = QLabel("Filter Records")
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_label = QLabel("Filter Wizard")
         header_label.setStyleSheet(f"""
             QLabel {{
-                font-size: 16px;
+                font-size: 13px;
                 font-weight: 600;
-                color: white;
-                background-color: {self._accent_color};
-                padding: 10px 20px;
-                border-radius: 4px;
+                color: {self._accent_color};
+                background: transparent;
             }}
         """)
         header_layout.addWidget(header_label)
-        
         header_layout.addStretch()
         
         # Active filter count
@@ -128,11 +152,11 @@ class FilterWizard(QWidget):
         self._filter_count_label.setStyleSheet(f"""
             QLabel {{
                 color: {t.get('text_muted')};
-                font-size: 13px;
+                font-size: 12px;
+                background: transparent;
             }}
         """)
         header_layout.addWidget(self._filter_count_label)
-        
         layout.addLayout(header_layout)
         
         # Card grid
@@ -143,125 +167,82 @@ class FilterWizard(QWidget):
         self.card_grid.card_clicked.connect(self._on_card_clicked)
         layout.addWidget(self.card_grid)
         
-        # Save/Load filter row
-        if self._show_save_controls:
-            save_layout = QHBoxLayout()
-            save_layout.setSpacing(12)
-            
-            # Load saved filter dropdown
-            load_label = QLabel("Load saved:")
-            load_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 12px;")
-            save_layout.addWidget(load_label)
-            
-            self._saved_filters_combo = QComboBox()
-            self._saved_filters_combo.setMinimumWidth(150)
-            self._saved_filters_combo.setPlaceholderText("Select filter...")
-            self._saved_filters_combo.currentTextChanged.connect(self._on_load_saved_filter)
-            self._style_combo(self._saved_filters_combo)
-            save_layout.addWidget(self._saved_filters_combo)
-            
-            # Delete saved filter button
-            delete_btn = QPushButton("🗑")
-            delete_btn.setToolTip("Delete selected saved filter")
-            delete_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            delete_btn.clicked.connect(self._delete_saved_filter)
-            delete_btn.setFixedWidth(36)
-            delete_btn.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: transparent;
-                    border: 1px solid {t.get('border')};
-                    border-radius: 4px;
-                    padding: 6px;
-                    font-size: 14px;
-                }}
-                QPushButton:hover {{
-                    background-color: {t.get('hover')};
-                    border-color: #a63d40;
-                }}
-            """)
-            save_layout.addWidget(delete_btn)
-            
-            save_layout.addSpacing(20)
-            
-            # Save filter section
-            filter_label = QLabel("Save as:")
-            filter_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 12px;")
-            save_layout.addWidget(filter_label)
-            
-            self._filter_name_input = QLineEdit()
-            self._filter_name_input.setPlaceholderText("Enter filter name...")
-            self._filter_name_input.setMaximumWidth(180)
-            self._filter_name_input.returnPressed.connect(self._save_filter)
-            self._style_input(self._filter_name_input)
-            save_layout.addWidget(self._filter_name_input)
-            
-            save_btn = QPushButton("💾 Save")
-            save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            save_btn.clicked.connect(self._save_filter)
-            save_btn.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {ButtonColors.PRIMARY};
-                    color: white;
-                    border: none;
-                    border-radius: 4px;
-                    padding: 8px 16px;
-                    font-size: 12px;
-                }}
-                QPushButton:hover {{
-                    background-color: {self._darken_color(ButtonColors.PRIMARY)};
-                }}
-            """)
-            save_layout.addWidget(save_btn)
-            
-            save_layout.addStretch()
-            layout.addLayout(save_layout)
-        
-        # Button row
+        # One row: saved filters on the left, Reset / Apply on the right
         button_layout = QHBoxLayout()
-        button_layout.setSpacing(12)
-        
+        button_layout.setSpacing(8)
+        if self._show_save_controls:
+            self._add_save_controls(button_layout, t)
         button_layout.addStretch()
         
-        # Reset button
+        # Reset button (cancel style: warm grey outlined)
         reset_btn = QPushButton("Reset")
+        reset_btn.setToolTip("Clear the wizard's choices (the filter bar's stay)")
         reset_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         reset_btn.clicked.connect(self._reset_filters)
-        reset_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: transparent;
-                color: {t.get('text_secondary')};
-                border: 1px solid {t.get('border')};
-                border-radius: 4px;
-                padding: 10px 20px;
-                font-size: 13px;
-            }}
-            QPushButton:hover {{
-                background-color: {t.get('hover')};
-            }}
-        """)
+        reset_btn.setStyleSheet(t.button_cancel_style())
         button_layout.addWidget(reset_btn)
         
-        # Apply button
+        # Apply button (primary)
         apply_btn = QPushButton("Apply Filter")
         apply_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         apply_btn.clicked.connect(self._apply_filters)
-        apply_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {ButtonColors.PRIMARY};
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 10px 24px;
-                font-size: 13px;
-                font-weight: 500;
-            }}
-            QPushButton:hover {{
-                background-color: {self._darken_color(ButtonColors.PRIMARY)};
-            }}
-        """)
+        apply_btn.setStyleSheet(t.button_primary_style())
         button_layout.addWidget(apply_btn)
         
         layout.addLayout(button_layout)
+
+    MAX_HEIGHT = 300     # px; the cards scroll beyond this (L29)
+
+    def _fit_height(self):
+        """As tall as the contents (to MAX_HEIGHT), so the table keeps the rest."""
+        inner = self._scroll.widget()
+        inner.adjustSize()
+        self.setMaximumHeight(min(inner.sizeHint().height(), self.MAX_HEIGHT))
+
+    def showEvent(self, event):
+        self._fit_height()
+        super().showEvent(event)
+
+    def _add_save_controls(self, row: QHBoxLayout, t):
+        """Load saved ▾  🗑   Save as [name] Save -- the left end of the controls row."""
+        load_label = QLabel("Load saved:")
+        load_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 12px; background: transparent;")
+        row.addWidget(load_label)
+        
+        self._saved_filters_combo = QComboBox()
+        self._saved_filters_combo.setMinimumWidth(150)
+        self._saved_filters_combo.setPlaceholderText("Select filter...")
+        self._saved_filters_combo.currentTextChanged.connect(self._on_load_saved_filter)
+        self._style_combo(self._saved_filters_combo)
+        row.addWidget(self._saved_filters_combo)
+        
+        # Delete saved filter button (delete style: crimson outlined)
+        delete_btn = QPushButton("🗑")
+        delete_btn.setToolTip("Delete selected saved filter")
+        delete_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        delete_btn.clicked.connect(self._delete_saved_filter)
+        delete_btn.setFixedWidth(34)
+        delete_btn.setStyleSheet(t.button_delete_style())
+        row.addWidget(delete_btn)
+        
+        row.addSpacing(16)
+        
+        filter_label = QLabel("Save as:")
+        filter_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 12px; background: transparent;")
+        row.addWidget(filter_label)
+        
+        self._filter_name_input = QLineEdit()
+        self._filter_name_input.setPlaceholderText("Enter filter name...")
+        self._filter_name_input.setMaximumWidth(180)
+        self._filter_name_input.returnPressed.connect(self._save_filter)
+        self._style_input(self._filter_name_input)
+        row.addWidget(self._filter_name_input)
+        
+        save_btn = QPushButton("💾 Save")
+        save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        save_btn.clicked.connect(self._save_filter)
+        save_btn.setStyleSheet(t.button_primary_style())
+        row.addWidget(save_btn)
     
     def _get_saved_filters_service(self):
         """Lazy load the saved filters service."""
@@ -397,6 +378,7 @@ class FilterWizard(QWidget):
                 current_values=current_values,
                 status_list=self._status_list,
                 type_list=self._record_type_list,
+                dataset_list=self._dataset_list,
                 parent=self
             )
         
@@ -536,6 +518,7 @@ class FilterWizard(QWidget):
         self._method_list = v['methods']
         self._status_list = v['statuses']
         self._record_type_list = v['record_types']
+        self._dataset_list = v.get('datasets', [])
         self._year_list = v['years']
         self._tab_values_loaded = True
         self._taxon_data_loaded = True      # never the whole UKSI order list (SRCH12)
@@ -558,6 +541,10 @@ class FilterWizard(QWidget):
             card = self.card_grid.get_card(card_id)
             if card is not None and not any(cols.column_for(k) for k in keys):
                 card.setVisible(False)
+        status = self.card_grid.get_card('status')
+        if status is not None and cols.dataset:
+            # Recording Scheme: the Status card also chooses the dataset / provider
+            status.desc_label.setText("Verification status or dataset / provider")
 
     def set_tab_data(self, species=None, orders=None, families=None,
                      recorders=None, determiners=None, sites=None,
@@ -678,7 +665,7 @@ class FilterWizard(QWidget):
                 background-color: {t.get('surface')};
                 border: 1px solid {t.get('border')};
                 border-radius: 4px;
-                padding: 8px 12px;
+                padding: 5px 8px;
                 font-size: 12px;
                 color: {t.get('text_primary')};
             }}
@@ -695,7 +682,7 @@ class FilterWizard(QWidget):
                 background-color: {t.get('surface')};
                 border: 1px solid {t.get('border')};
                 border-radius: 4px;
-                padding: 6px 10px;
+                padding: 4px 8px;
                 font-size: 12px;
                 color: {t.get('text_primary')};
             }}

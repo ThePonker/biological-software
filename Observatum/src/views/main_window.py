@@ -141,7 +141,6 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.mapping_tab, "Mapping")
 
         self.settings_tab = SettingsTab(db_manager=get_database())
-        self.settings_tab.database_changed.connect(self._on_database_changed)
         self.settings_tab.settings_changed.connect(self._on_settings_changed)
         self.tabs.addTab(self.settings_tab, "Settings")
 
@@ -231,13 +230,11 @@ class MainWindow(QMainWindow):
             self.insect_collection_tab.data_changed.connect(self._mark_data_changed)
         except AttributeError:
             pass
-        # Deletes / edits / Mark Commercial on the data tabs and the scheme dashboard (OBS-10)
+        # Deletes / edits / Mark Commercial on Observation Data (OBS-10); scheme records are read-only (L15)
         self.observation_tab.records_changed.connect(self._mark_data_changed)
-        self.recording_scheme_tab.records_changed.connect(self._mark_data_changed)
-        _sd = getattr(self.stats_reports_tab, 'scheme_dashboard', None)
-        if _sd is not None and hasattr(_sd, 'scheme_records_changed'):
-            _sd.scheme_records_changed.connect(self._mark_data_changed)
-            _sd.scheme_records_changed.connect(self._refresh_scheme_tab_if_loaded)
+        # Settings > Species counting / the Scheme dashboard chips (backlog A)
+        from shared.species_counting import notifier as _counting
+        _counting().changed.connect(self._on_counting_changed)
 
     def _get_stats_data_type(self) -> str:
         """Get data type filter based on active stats sub-tab."""
@@ -255,26 +252,23 @@ class MainWindow(QMainWindow):
         if hasattr(self.observation_tab, 'filter_bar') and hasattr(self.observation_tab.filter_bar, '_on_data_type_clicked'):
             self.observation_tab.filter_bar._on_data_type_clicked(dt)
 
-    def _apply_exclusion_to_records(self, observations):
-        """Filter observation list by the same exclusion rules as the stats service."""
-        from PySide6.QtCore import QSettings
-        settings = QSettings()
-        exclude = settings.value("display/exclude_incomplete_species", True, type=bool)
-        if not exclude:
-            return observations
-        filtered = []
-        for obs in observations:
-            tvk = getattr(obs, 'species_tvk', '')
-            if not tvk:
-                continue
-            name = getattr(obs, 'species_name', '')
-            if ' ' not in name:
-                continue
-            name_lower = name.lower()
-            if any(x in name_lower for x in ['agg.', 'agg ', ' agg', 's.l.', 'sensu lato']):
-                continue
-            filtered.append(obs)
-        return filtered
+    def _on_counting_changed(self, source: str):
+        """The species-counting switches changed: every figure, table and list follows."""
+        try:
+            from ..services.observation_stats_service import get_observation_stats_service
+            from ..services.recording_scheme_stats_service import get_recording_scheme_stats
+            get_observation_stats_service().invalidate()
+            get_recording_scheme_stats().invalidate()
+        except Exception:
+            pass
+        for step in (lambda: self.stats_reports_tab.mark_stale(),
+                     lambda: self.home_tab.refresh_data(),
+                     lambda: source == "observations" and self.observation_tab._apply_current_filters(),
+                     lambda: source == "recording_scheme" and self._refresh_scheme_tab_if_loaded()):
+            try:
+                step()
+            except Exception as e:
+                print(f"[MainWindow] refresh after a species-counting change failed: {e}")
 
     def _set_data_type_visual(self):
         """Set the data type button visually without triggering a reload."""
@@ -327,15 +321,7 @@ class MainWindow(QMainWindow):
                         filtered.append(obs)
                 except (ValueError, IndexError):
                     continue
-            excluded = self._apply_exclusion_to_records(filtered)
-            self.observation_tab.table_model.set_observations_fast(excluded)
-            if hasattr(self.observation_tab, '_connect_proxy_after_load'):
-                self.observation_tab._connect_proxy_after_load()
-            if hasattr(self.observation_tab, '_count_species_with_exclusion'):
-                species_count = self.observation_tab._count_species_with_exclusion(filtered)
-            else:
-                species_count = len(set(getattr(obs, 'species_name', '') for obs in filtered if getattr(obs, 'species_name', '')))
-            self.observation_tab._update_stats(len(excluded), species_count)
+            self.observation_tab._show_list(filtered)   # dims and counts by the switches
             self.statusBar().showMessage(f"Showing {len(filtered):,} records for {month_name} (all years)", 5000)
 
     def _navigate_to_observation_tab_by_project(self, project: str, client: str = ""):
@@ -442,15 +428,7 @@ class MainWindow(QMainWindow):
                         continue
                     if getattr(obs, 'date', '') and str(getattr(obs, 'date', '')).startswith(year_str):
                         filtered.append(obs)
-                excluded = self._apply_exclusion_to_records(filtered)
-                if hasattr(self.observation_tab, 'table_model'):
-                    self.observation_tab.table_model.set_observations_fast(excluded)
-                    self.observation_tab._connect_proxy_after_load()
-                    if hasattr(self.observation_tab, '_count_species_with_exclusion'):
-                        species_count = self.observation_tab._count_species_with_exclusion(filtered)
-                    else:
-                        species_count = len(set(getattr(obs, 'species_name', '') for obs in filtered if getattr(obs, 'species_name', '')))
-                    self.observation_tab._update_stats(len(excluded), species_count)
+                self.observation_tab._show_list(filtered)   # dims and counts by the switches
 
     def _navigate_to_collection_tab(self, species_filter: str = ""):
         """Navigate to the Insect Collection tab and filter by species."""
@@ -977,9 +955,6 @@ class MainWindow(QMainWindow):
 
         # Refresh exclusion setting cache and invalidate stats services
         try:
-            from ..repositories.observation_repository import ObservationRepository
-            ObservationRepository.refresh_exclusion_setting()
-
             # Invalidate all stats services so they re-query with new setting
             from ..services.observation_stats_service import get_observation_stats_service
             from ..services.recording_scheme_stats_service import get_recording_scheme_stats
@@ -1034,47 +1009,6 @@ class MainWindow(QMainWindow):
             self.insect_collection_tab.refresh_display_settings()
         except Exception as e:
             print(f"Warning: Could not refresh collection display settings: {e}")
-
-    def _on_database_changed(self):
-        """Handle database path changes from Settings."""
-        db = get_database()
-
-        # Re-initialize search service
-        try:
-            search_service = get_search_service()
-
-            if db.uksi_db_path and db.uksi_db_path.exists():
-                uksi_model = UKSIModel(db)
-                search_service.set_uksi_model(uksi_model)
-
-            if db.main_db_path:
-                search_service.set_database(db)
-
-        except Exception as e:
-            print(f"Warning: Could not reinitialize search service: {e}")
-
-        # Refresh tabs that depend on database
-        try:
-            self.home_tab.refresh()
-            # Also reload default settings in case they changed
-            self.home_tab.quick_entry.reload_defaults()
-        except Exception as e:
-            print(f"Warning: Could not refresh Home tab: {e}")
-
-        try:
-            if hasattr(self.observation_tab, 'refresh'):
-                self.observation_tab.refresh()
-        except Exception as e:
-            print(f"Warning: Could not refresh Observation tab: {e}")
-
-        if getattr(self.contributed_tab, '_initialized', False):
-            try:
-                self.contributed_tab.refresh()
-            except Exception as e:
-                print(f"Warning: Could not refresh Contributed tab: {e}")
-
-        self.set_status("Database connected successfully")
-
 
     def showEvent(self, event):
         """Ensure window is maximized and apply filter settings after show."""

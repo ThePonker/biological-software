@@ -8,12 +8,12 @@ Styled consistently with RecordDetailDialog (Observation/Specimen).
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFrame,
-    QLabel, QPushButton, QWidget, QMessageBox, QScrollArea
+    QLabel, QPushButton, QWidget, QScrollArea
 )
 from PySide6.QtCore import Signal, Qt
 
 from ...themes import theme
-from ...core.config import TabColors, ButtonColors
+from ...core.config import TabColors
 
 
 class SchemeRecordDetailDialog(QDialog):
@@ -26,8 +26,6 @@ class SchemeRecordDetailDialog(QDialog):
 
     # Signals
     profile_requested = Signal(dict)
-    edit_requested = Signal(dict)
-    delete_requested = Signal(dict)
     navigate_to_observations = Signal(str)  # species name - go to Observation Data tab
     navigate_to_collection = Signal(str)    # species name - go to Insect Collection tab
 
@@ -191,7 +189,7 @@ class SchemeRecordDetailDialog(QDialog):
         body.setSizes([520, 680])
         main_layout.addWidget(body, 1)
 
-        # Action buttons (fixed at bottom)
+        # Bottom bar: scheme records are read-only (L15, 10 Oct) -- no Edit / Delete
         self._add_action_buttons(main_layout)
 
     def _add_header(self, layout):
@@ -510,7 +508,12 @@ class SchemeRecordDetailDialog(QDialog):
         self._profile_btn = None
 
     def _add_action_buttons(self, layout):
-        """Add Edit and Delete buttons."""
+        """Bottom bar: a read-only note and Close.
+
+        Recording Scheme records are other recorders' data, kept as received: they are
+        viewed here, not edited or deleted (L15 / backlog D, 10 Oct). A "cleaned data"
+        layer for the scheme is the long-term plan.
+        """
         t = theme()
         btn_frame = QFrame()
         btn_frame.setStyleSheet(f"background-color: {t.get('surface')}; border-top: 1px solid {t.get('border')};")
@@ -518,45 +521,16 @@ class SchemeRecordDetailDialog(QDialog):
         btn_layout.setContentsMargins(16, 12, 16, 12)
         btn_layout.setSpacing(12)
 
-        # Edit button (Moss Green - primary action)
-        edit_btn = QPushButton("Edit")
-        edit_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {ButtonColors.PRIMARY};
-                color: white;
-                border: none;
-                border-radius: {t.get('radius_md')};
-                padding: 10px 24px;
-                font-size: 13px;
-                font-weight: 500;
-            }}
-            QPushButton:hover {{
-                background-color: {ButtonColors.PRIMARY_HOVER};
-            }}
-        """)
-        edit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        edit_btn.clicked.connect(self._on_edit)
-        btn_layout.addWidget(edit_btn)
+        note = QLabel("Recording Scheme records are read-only.")
+        note.setStyleSheet(f"color: {t.get('text_muted')}; font-size: 12px; border: none;")
+        btn_layout.addWidget(note)
+        btn_layout.addStretch()
 
-        # Delete button (Faded Crimson outlined)
-        delete_btn = QPushButton("Delete")
-        delete_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: transparent;
-                color: {ButtonColors.DANGER};
-                border: 1px solid {ButtonColors.DANGER};
-                border-radius: {t.get('radius_md')};
-                padding: 10px 24px;
-                font-size: 13px;
-                font-weight: 500;
-            }}
-            QPushButton:hover {{
-                background-color: {t.get('danger_bg')};
-            }}
-        """)
-        delete_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        delete_btn.clicked.connect(self._on_delete)
-        btn_layout.addWidget(delete_btn)
+        close_btn = QPushButton("Close")
+        close_btn.setStyleSheet(t.button_cancel_style())
+        close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        close_btn.clicked.connect(self.accept)
+        btn_layout.addWidget(close_btn)
 
         layout.addWidget(btn_frame)
 
@@ -600,24 +574,3 @@ class SchemeRecordDetailDialog(QDialog):
         if species_name:
             self.navigate_to_collection.emit(species_name)
         self.accept()
-
-    def _on_edit(self):
-        """Handle edit click."""
-        self.edit_requested.emit(self.record)
-
-    def _on_delete(self):
-        """Handle delete click with confirmation."""
-        species_name = self.record.get('species', 'this record')
-
-        reply = QMessageBox.warning(
-            self,
-            "Confirm Delete",
-            f"Are you sure you want to delete the record of <b>{species_name}</b>?"
-            "<br><br>A backup of the database is taken first.",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
-            QMessageBox.StandardButton.Cancel
-        )
-
-        if reply == QMessageBox.StandardButton.Yes:
-            self.delete_requested.emit(self.record)
-            self.accept()

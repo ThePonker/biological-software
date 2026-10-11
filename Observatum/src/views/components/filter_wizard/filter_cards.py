@@ -49,37 +49,37 @@ class FilterCard(QFrame):
         """Set up the card UI."""
         t = theme()
         
-        # Make cards larger
-        self.setMinimumSize(200, 90)
+        # Compact (L29, 10 Oct): was 90 px tall with a 44 px icon
+        self.setMinimumSize(180, 50)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(16, 14, 16, 14)
-        layout.setSpacing(14)
+        layout.setContentsMargins(10, 6, 10, 6)
+        layout.setSpacing(10)
         
         # Icon
         self.icon_label = QLabel(self._icon)
-        self.icon_label.setFixedSize(44, 44)
+        self.icon_label.setFixedSize(32, 32)
         self.icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.icon_label.setStyleSheet(f"""
             QLabel {{
-                font-size: 24px;
+                font-size: 17px;
                 background-color: {self._lighten_color(self._accent_color, 0.85)};
-                border-radius: 8px;
+                border-radius: 6px;
             }}
         """)
         layout.addWidget(self.icon_label)
         
         # Text container
         text_layout = QVBoxLayout()
-        text_layout.setSpacing(4)
+        text_layout.setSpacing(1)
         text_layout.setContentsMargins(0, 0, 0, 0)
         
         # Title
         self.title_label = QLabel(self._title)
         self.title_label.setStyleSheet(f"""
             QLabel {{
-                font-size: 14px;
+                font-size: 13px;
                 font-weight: 600;
                 color: {self._accent_color};
                 background: transparent;
@@ -92,7 +92,7 @@ class FilterCard(QFrame):
         self.desc_label.setWordWrap(True)
         self.desc_label.setStyleSheet(f"""
             QLabel {{
-                font-size: 12px;
+                font-size: 11px;
                 color: {t.get('text_secondary')};
                 background: transparent;
             }}
@@ -105,7 +105,7 @@ class FilterCard(QFrame):
         arrow = QLabel("›")
         arrow.setStyleSheet(f"""
             QLabel {{
-                font-size: 20px;
+                font-size: 16px;
                 color: {t.get('text_muted')};
                 background: transparent;
             }}
@@ -125,7 +125,7 @@ class FilterCard(QFrame):
                 FilterCard {{
                     background-color: {t.get('surface')};
                     border: 2px solid {self._accent_color};
-                    border-radius: 8px;
+                    border-radius: 6px;
                 }}
                 FilterCard:hover {{
                     background-color: {t.get('hover')};
@@ -137,7 +137,7 @@ class FilterCard(QFrame):
                 FilterCard {{
                     background-color: {t.get('surface')};
                     border: 1px solid {t.get('border')};
-                    border-radius: 8px;
+                    border-radius: 6px;
                 }}
                 FilterCard:hover {{
                     background-color: {t.get('hover')};
@@ -212,7 +212,7 @@ class FilterCardGrid(QWidget):
     def _setup_ui(self):
         """Set up the grid layout."""
         layout = QGridLayout(self)
-        layout.setSpacing(16)
+        layout.setSpacing(8)
         layout.setContentsMargins(0, 0, 0, 0)
         
         for i, (card_id, title, desc, icon) in enumerate(self._card_defs):

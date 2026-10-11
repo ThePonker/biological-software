@@ -9,7 +9,7 @@ so the dialog's total equals the bar's height. Double-click a row for the record
 detail, as in the Stats VC records dialog.
 """
 
-from typing import Callable
+from typing import Callable, Optional
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -22,6 +22,10 @@ from ...themes import theme
 MONTH_NAMES = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July',
                'August', 'September', 'October', 'November', 'December']
 
+# Observations dated only to a year, month or range are left out of month charts (Wil's
+# decision 9, 10 Oct 2026) -- the same here as on the Species lookup phenology chart.
+DAY_ONLY = {"observations": "AND COALESCE(date_type, 'D') = 'D'"}
+
 # (table, label shown in the Source column)
 SOURCES = (("observations", "Observation"), ("recording_scheme", "Recording Scheme"))
 
@@ -29,18 +33,21 @@ COLUMNS = ["Date", "Source", "Site", "Grid Ref", "VC", "Recorder"]
 
 
 def month_records(execute: Callable, by_species: Callable, species_name: str,
-                  month: int) -> list:
+                  month: int, counted: Optional[Callable] = None) -> list:
     """Rows for `species_name` in calendar `month` from observations and
     recording_scheme. `execute(sql, params)` runs a query on observatum.db;
-    `by_species(table, name)` returns (clause, params) -- the chart's own selection."""
+    `by_species(table, name)` returns (clause, params) -- the chart's own selection;
+    `counted(table, name)` the chart's species-counting fragment (' AND id NOT IN ...'),
+    so the dialog lists the records the bar counts."""
     rows = []
     for table, label in SOURCES:
         clause, params = by_species(table, species_name)
+        keep = counted(table, species_name) if counted else ""
         result = execute(f"""
             SELECT id, date, site_name, grid_ref, vc_number, recorder
             FROM {table}
-            WHERE {clause} AND date IS NOT NULL
-              AND CAST(strftime('%m', date) AS INTEGER) = ?
+            WHERE {clause} AND date IS NOT NULL{keep}
+              AND CAST(strftime('%m', date) AS INTEGER) = ? {DAY_ONLY.get(table, '')}
         """, tuple(params) + (month,))
         for r in result or []:
             rows.append({'table': table, 'source': label, 'id': r[0], 'date': r[1] or '',
@@ -155,9 +162,7 @@ class MonthRecordsDialog(QDialog):
                 record['gridRef'] = record.get('grid_ref', '')
                 record['vc'] = record.get('vc_number', '')
                 record['verification'] = record.get('verification_status', '')
-                dlg = SchemeRecordDetailDialog(record, parent=self)
-                from ..scheme.scheme_record_actions import wire_scheme_detail
-                wire_scheme_detail(dlg, self, lambda: None)
+                dlg = SchemeRecordDetailDialog(record, parent=self)    # view only (L15)
             else:
                 from ..dialogs import RecordDetailDialog
                 dlg = RecordDetailDialog(record=record, record_type='observation', parent=self)

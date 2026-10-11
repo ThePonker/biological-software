@@ -141,6 +141,7 @@ class ObservationTableModel(CheckedByIdMixin, QAbstractTableModel):
         super().__init__(parent)
         self._observations: List[Dict] = []
         self._init_checked()
+        self._dimmed: Dict[int, str] = {}   # record id -> why it is not counted
         self._visible_columns: set = set()
         self._column_order: List[str] = []
         self._columns: List[tuple] = []
@@ -261,6 +262,14 @@ class ObservationTableModel(CheckedByIdMixin, QAbstractTableModel):
                 return Qt.AlignmentFlag.AlignCenter
             return None
 
+        # Records the species-counting switches leave out: shown, dimmed (backlog A)
+        if self._dimmed and role in (Qt.ItemDataRole.ForegroundRole, Qt.ItemDataRole.ToolTipRole):
+            why = self._dimmed.get(self._get_record_value(record, 'id'))
+            if why:
+                if role == Qt.ItemDataRole.ToolTipRole:
+                    return f"Not counted ({why}): Settings > Species counting"
+                return QColor(theme().get('text_muted'))
+
         # Get value
         value = self._get_record_value(record, col_key)
 
@@ -366,6 +375,13 @@ class ObservationTableModel(CheckedByIdMixin, QAbstractTableModel):
         return getattr(record, key, '')
 
     # ── Public API ──────────────────────────────────────────────
+
+    def set_dimmed(self, dimmed: Dict[int, str]):
+        """Rows to dim: {record id: why it is not counted}."""
+        self._dimmed = dict(dimmed or {})
+        if self._observations:
+            self.dataChanged.emit(self.index(0, 0),
+                                  self.index(len(self._observations) - 1, len(self._columns) - 1))
 
     def set_observations(self, observations: List):
         """Set observation data."""

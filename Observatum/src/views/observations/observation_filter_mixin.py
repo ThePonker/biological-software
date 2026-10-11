@@ -6,6 +6,8 @@ Handles filtering logic, data loading, and special views for ObservationTab.
 
 from typing import Optional, Dict, Any, List
 
+from shared.species_counting import default_db, excluded_kinds, excluded_reasons, species_key_map
+
 from ...services.filter_builder import same_text, status_is
 
 
@@ -113,8 +115,8 @@ class ObservationFilterMixin:
     def _project_pin(self, observations):
         """Only the pinned commercial project's records (ObservationTab.set_project_filter).
 
-        None when nothing is pinned. Species exclusion is not applied to a pinned
-        project: managing a job, every one of its records should be visible."""
+        None when nothing is pinned. Every record of the job is listed (as everywhere,
+        the ones the species-counting switches leave out are dimmed)."""
         pin = getattr(self, "_project_filter", None)
         if not pin:
             return None
@@ -124,29 +126,28 @@ class ObservationFilterMixin:
                 and self._get_attr(o, 'project_name', '').strip() == project
                 and self._get_attr(o, 'client', '').strip() == client]
 
-    def _show_list(self, observations, exclude=True):
-        rows = self._apply_record_exclusion(observations) if exclude else observations
+    def _show_list(self, observations):
+        """List these records (dimming / 'only excluded' applied) and count them."""
+        self._set_rows(self._apply_record_exclusion(observations))
+
+    def _set_rows(self, rows):
         self.table_model.set_observations_fast(rows)
         if hasattr(self, '_connect_proxy_after_load'):
             self._connect_proxy_after_load()
-        self._update_stats(len(rows), self._count_species_with_exclusion(rows))
+        counted = rows if self._only_excluded() else self._counted(rows)
+        self._update_stats(len(counted), self._count_species_with_exclusion(counted))
 
     def _apply_current_filters(self, use_cache=False):
         """Apply current filter values."""
         pinned = self._project_pin(self._all_observations)
         if pinned is not None:
-            self._show_list(pinned, exclude=False)
+            self._show_list(pinned)
             return
         filters = self.filter_bar.get_filters()
         # If cached data available and no active filters, skip re-query
         has_active = any(v for k, v in filters.items() if k != 'data_type' or v not in ('all', '', None))
         if use_cache and not has_active and self._all_observations:
-            excluded = self._apply_record_exclusion(self._wizard_keep(self._all_observations))
-            self.table_model.set_observations_fast(excluded)
-            if hasattr(self, '_connect_proxy_after_load'):
-                self._connect_proxy_after_load()
-            species_count = self._count_species_with_exclusion(excluded)
-            self._update_stats(len(excluded), species_count)
+            self._show_list(self._wizard_keep(self._all_observations))
             return
 
         # Use repository for server-side filtering if available
@@ -154,13 +155,7 @@ class ObservationFilterMixin:
             self._apply_filters_via_repository(filters)
         else:
             # Fallback to client-side filtering
-            filtered = self._apply_record_exclusion(
-                self._wizard_keep(self._apply_filters(self._all_observations, filters)))
-            self.table_model.set_observations_fast(filtered)
-            if hasattr(self, '_connect_proxy_after_load'):
-                self._connect_proxy_after_load()
-            species_count = self._count_species_with_exclusion(filtered)
-            self._update_stats(len(filtered), species_count)
+            self._show_list(self._wizard_keep(self._apply_filters(self._all_observations, filters)))
 
     def _wizard_keep(self, observations) -> list:
         """Only the records the Filter Wizard's applied filters keep (all if none)."""
@@ -210,26 +205,14 @@ class ObservationFilterMixin:
                 observations = [o for o in observations
                                 if status_is(self._get_attr(o, 'verification_status', ''), status)]
 
-            excluded = self._apply_record_exclusion(self._wizard_keep(observations))
-            self.table_model.set_observations_fast(excluded)
-            if hasattr(self, '_connect_proxy_after_load'):
-                self._connect_proxy_after_load()
-
-            # Update stats
-            species_count = self._count_species_with_exclusion(excluded)
-
-            self._update_stats(len(excluded), species_count)
+            self._show_list(self._wizard_keep(observations))
 
         except Exception as e:
             print(f"[ObservationTab] Repository search error: {e}")
             import traceback
             traceback.print_exc()
             # Fallback to client-side
-            filtered = self._apply_record_exclusion(
-                self._wizard_keep(self._apply_filters(self._all_observations, filters)))
-            self.table_model.set_observations_fast(filtered)
-            if hasattr(self, '_connect_proxy_after_load'):
-                self._connect_proxy_after_load()
+            self._show_list(self._wizard_keep(self._apply_filters(self._all_observations, filters)))
 
     def _apply_filters(self, observations: List, filters: Dict[str, Any]) -> List:
         """Apply filters to observation list (client-side fallback)."""
@@ -348,8 +331,8 @@ class ObservationFilterMixin:
 
     def _asked_for_broad(self) -> bool:
         """The species box names an aggregate or s.l. ('Oligia strigilis agg.'): its records
-        are shown even with "exclude incomplete species" on -- they were asked for by name
-        (review 10 Oct: navigating to an aggregate showed an empty table)."""
+        count (undimmed) in this view even when the switches leave aggregates out -- they
+        were asked for by name (review 10 Oct: navigating to an aggregate showed nothing)."""
         fb = getattr(self, 'filter_bar', None)
         edit = getattr(fb, 'species_edit', None)
         text = edit.text().strip() if edit is not None else ''
@@ -358,54 +341,55 @@ class ObservationFilterMixin:
         from shared.species_lookup import parse_qualifier
         return parse_qualifier(text)[0] in ('agg.', 's.l.')
 
+    # ---- species-counting switches (backlog A; shared/species_counting.py) ----------
+    def _counting_db(self):
+        return getattr(getattr(self, '_obs_repo', None), '_db', None) or default_db()
+
+    def _only_excluded(self) -> bool:
+        chk = getattr(getattr(self, 'filter_bar', None), 'only_excluded_chk', None)
+        return bool(chk is not None and chk.isChecked())
+
+    def _record_id(self, o):
+        return o.get('id') if isinstance(o, dict) else getattr(o, 'id', None)
+
     def _apply_record_exclusion(self, observations) -> list:
-        """Filter observation list by species name exclusion rules."""
-        from PySide6.QtCore import QSettings
-        settings = QSettings()
-        exclude = settings.value("display/exclude_incomplete_species", True, type=bool)
-        if not exclude:
-            return list(observations)
-        keep_broad = self._asked_for_broad()
-        filtered = []
-        for obs in observations:
-            tvk = self._get_attr(obs, 'species_tvk', '')
-            if not tvk:
-                continue
-            name = self._get_attr(obs, 'species_name', '')
-            if ' ' not in name:
-                continue
-            name_lower = name.lower()
-            if not keep_broad and any(x in name_lower for x in ['agg.', 'agg ', ' agg', 's.l.', 'sensu lato']):
-                continue
-            filtered.append(obs)
-        return filtered
+        """Every record stays listed; those the switches leave out are dimmed (answer 5 of
+        note 38). With "Show only excluded" ticked, only those are listed."""
+        kinds = set(excluded_kinds("observations"))
+        if self._asked_for_broad():                   # see kinds_for_search
+            kinds -= {"agg", "sl"}
+        try:
+            reasons = excluded_reasons(self._counting_db(), "observations", kinds)
+        except Exception as e:
+            print(f"[ObservationTab] species counting unavailable: {e}")
+            reasons = {}
+        self._excluded_now = reasons
+        if hasattr(self.table_model, 'set_dimmed'):
+            self.table_model.set_dimmed(reasons)
+        rows = list(observations or [])
+        if self._only_excluded():
+            rows = [o for o in rows if self._record_id(o) in reasons]
+        return rows
+
+    def _counted(self, observations) -> list:
+        """The records the switches count (the undimmed ones)."""
+        reasons = getattr(self, '_excluded_now', None) or {}
+        if not reasons:
+            return list(observations or [])
+        return [o for o in observations or [] if self._record_id(o) not in reasons]
 
     def _count_species_with_exclusion(self, observations) -> int:
-        """Count unique species, respecting the exclusion setting."""
-        from PySide6.QtCore import QSettings
-        settings = QSettings()
-        exclude = settings.value("display/exclude_incomplete_species", True, type=bool)
-        keep_broad = exclude and self._asked_for_broad()
-        
-        unique_species = set()
-        for obs in observations:
-            tvk = self._get_attr(obs, 'species_tvk', '')
-            if not tvk:
-                continue
-            
-            if exclude:
-                name = self._get_attr(obs, 'species_name', '')
-                # Skip genus-only (no space in name)
-                if ' ' not in name:
-                    continue
-                # Skip aggregates (unless the species box asked for one)
-                name_lower = name.lower()
-                if not keep_broad and any(x in name_lower for x in ['agg.', 'agg ', ' agg', 's.l.', 'sensu lato']):
-                    continue
-            
-            unique_species.add(tvk)
-        
-        return len(unique_species)
+        """Distinct species among these records, subspecies rolled up to their species."""
+        try:
+            rollup = species_key_map(self._counting_db(), "observations")
+        except Exception:
+            rollup = {}
+        keys = set()
+        for o in observations or []:
+            tvk = o.get('species_tvk') if isinstance(o, dict) else getattr(o, 'species_tvk', None)
+            if tvk:
+                keys.add(rollup.get(tvk, tvk))
+        return len(keys)
 
     def _update_stats(self, record_count: int, species_count: int):
         """Update the toolbar stats."""

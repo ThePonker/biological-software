@@ -186,6 +186,11 @@ def _sqi_label(s):
     return ""
 
 
+def spp(n) -> str:
+    """'sp.' for one species, 'spp.' for any other number (L25: "1 spp." read wrongly)."""
+    return "sp." if n == 1 else "spp."
+
+
 def _sqi_cell(s):
     """SQI for display: the number, or the evidence when it cannot be trusted.
     The Habitats and Assemblages tabs show this same cell (EXA15)."""
@@ -929,9 +934,9 @@ def _sheet_assemblages(wb, result, refs, thresholds):
         ptt = round(n / fct * 100) if fct else None
         if fct:
             cond = ("Favourable" if n >= fct else "Unfavourable") + \
-                   f" — {n} spp., threshold {fct}"
+                   f" — {n} {spp(n)}, threshold {fct}"
         else:
-            cond = f"{n} spp., no threshold published"
+            cond = f"{n} {spp(n)}, no threshold published"
         ws.append([sat, n, _sqi_n(s), _sqi_cell(s),
                    f"{round(n / tot * 100, 1)}%" if tot else "-",
                    fct or "-", f"{ptt}%" if ptt is not None else "-", cond])

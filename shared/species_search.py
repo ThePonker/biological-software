@@ -19,10 +19,14 @@ What it matches, over the whole of uksi.db (scientific names, synonyms, common n
 
 Order: match quality (exact name; the words in order; every word a prefix; a substring;
 then typing slips, fewest edits first), then species before infraspecific, genus, family
-and higher ranks, then species you have recorded, then name.
+and higher ranks, then species you have recorded, then name. A genus or higher taxon found
+by its COMMON name ("beetle" -> Coleoptera, "ladybird" -> Coccinellidae) goes after all the
+rest, with is_group set and group_label "All Coccinellidae (ladybirds) — group" (Wil's
+decision 2, 10 Oct 2026); search_key still carries its match quality (species_filter).
 
-This is for SEARCHING only. Imports keep shared/species_lookup.py's exact rules and never
-accept one of these matches without a person choosing it.
+This is for SEARCHING only. Imports keep shared/species_lookup.py's own rules (exact names,
+synonyms, and a close spelling of one species of the same genus) and never accept any other
+of these matches without a person choosing it.
 The index is built once per process (about a second), on first use, and rebuilt if uksi.db
 changes on disk. shared/species_filter.py turns typed text into a TVK set for record tables.
 """
@@ -50,6 +54,7 @@ _FAMILY_LEVEL = {"Family", "Subfamily", "Superfamily", "Tribe", "Subtribe", "Epi
 _KIND_NAMES = ("scientific", "common", "synonym")
 _FILLER = {"sp", "spp", "indet", "ssp"}   # "Rhagium sp." searches the genus
 FUZZY_BELOW = 10   # look for typing slips when fewer taxa than this match as typed, none exactly
+MAX_GROUPS = 3     # whole groups found by a common word, listed after the species
 
 _PUNCT = re.compile(r"[^0-9a-z]+")
 _APOS = dict.fromkeys(map(ord, "'’‘`´ʼ"), None)
@@ -71,6 +76,16 @@ def fold_words(text: str) -> List[str]:
 
 def fold(text: str) -> str:
     return " ".join(fold_words(text))
+
+
+def group_label(scientific_name: str, common_name: Optional[str]) -> str:
+    """'All Cerambycidae (longhorn beetles) — group' -- how a whole group found by a common
+    word is offered (decision 2, 10 Oct 2026)."""
+    common = (common_name or "").strip().lower()
+    common = re.sub(r"^indet\.?\s+", "", common)          # UKSI's "Indet. Ladybird"
+    if common and common[-1].isalpha() and not common.endswith("s"):
+        common += "s"
+    return f"All {scientific_name}" + (f" ({common})" if common else "") + " — group"
 
 
 def rank_group(rank: Optional[str]) -> int:
@@ -276,9 +291,25 @@ class SpeciesIndex:
             if i not in best or key < best[i]:
                 best[i] = key
         ordered = sorted(best.items(), key=lambda kv: kv[1])
-        if limit is not None:
+        # Wil's decision 2 (10 Oct): a common word that names a whole group ("beetle" ->
+        # Coleoptera, "longhorn" -> Cerambycidae) still offers the group, but after every
+        # species match, labelled as a group -- a typed species is never pushed down by one.
+        # A limited list keeps room for the best MAX_GROUPS groups; limit=None keeps them all
+        # (species_filter chooses from the full list, so filters select what they did).
+        groups = [kv for kv in ordered if self._is_group(kv[0], kv[1])]
+        if groups:
+            rest = [kv for kv in ordered if not self._is_group(kv[0], kv[1])]
+            if limit is not None:
+                groups = groups[:MAX_GROUPS]
+                rest = rest[:max(0, limit - len(groups))]
+            ordered = rest + groups
+        elif limit is not None:
             ordered = ordered[:limit]
         return [self._result(i, key, recorded) for i, key in ordered]
+
+    def _is_group(self, i: int, key: tuple) -> bool:
+        """A genus or higher taxon found by its common name (a word that names a group)."""
+        return self.e_kind[key[-1]] == 1 and rank_group(self.rank[i]) >= 2
 
     def _result(self, i: int, key: tuple, recorded: set) -> dict:
         tier, e = key[0], key[-1]
@@ -300,6 +331,8 @@ class SpeciesIndex:
             "old_name": matched if kind == "synonym" else None,
             "is_recorded": self.tvk[i] in recorded,
             "search_key": key[:-1],
+            "is_group": self._is_group(i, key),
+            "group_label": group_label(sci, matched) if self._is_group(i, key) else "",
         }
 
     # ------------------------------------------------------------ taxonomy
@@ -396,4 +429,4 @@ def search_objects(text: str, limit: Optional[int] = 50, ranks: Optional[Iterabl
 
 
 __all__ = ["SPECIES_LEVEL", "SpeciesIndex", "get_index", "search", "search_objects", "fold",
-           "fold_words", "rank_group", "is_broad", "warm_up"]
+           "fold_words", "rank_group", "group_label", "is_broad", "warm_up"]

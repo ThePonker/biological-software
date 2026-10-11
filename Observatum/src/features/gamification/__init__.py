@@ -35,7 +35,6 @@ from .window import GamificationWindow
 from .setup import ensure_gamification_db, reset_gamification_db
 from .launcher import GamificationLauncher, GamificationButton, GamificationSummaryCard
 from .renderer import AchievementRenderer
-from .notifications import NotificationCard, NotificationStack
 
 from .models import (
     Achievement,
@@ -85,8 +84,6 @@ __all__ = [
     
     # New classes
     'AchievementRenderer',
-    'NotificationCard',
-    'NotificationStack',
     
     # Models
     'Achievement',

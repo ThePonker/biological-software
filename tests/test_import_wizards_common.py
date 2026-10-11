@@ -48,7 +48,7 @@ def test_table_models_keep_their_own_columns(app):
                   vc_number=23, warnings=["a", "b"])
     spec.set_data([r])
     ix = spec.index(0, 7)
-    assert spec.columnCount() == 8 and spec.data(spec.index(0, 0)) == "[!]"
+    assert spec.columnCount() == 8 and spec.data(spec.index(0, 0)) == "\u26a0"  # L24: was "[!]"
     assert spec.data(spec.index(0, 5)) == "VC23" and spec.data(ix) == "a; b"
     assert spec.data(ix, Qt.ToolTipRole) == "a; b" and spec.data(ix, Qt.ForegroundRole) is None
     assert spec.flags(spec.index(0, 3)) & Qt.ItemIsEditable and not spec.flags(spec.index(0, 2)) & Qt.ItemIsEditable

@@ -235,6 +235,8 @@ from shared.import_core import quantity_or_default
 from shared.species_lookup import lookup_names
 from shared.species_lookup_entries import entries
 
+COUNT_ZERO = "Count of 0 \u2014 fix the count"     # own data: an error (decision 8)
+
 # The taxon group rule is shared/taxon_groups.py (10 Oct 2026); this module's own
 # ORDER_TO_GROUP / CLASS_TO_GROUP copies are gone (they sent every butterfly to 'moth').
 from shared.taxon_groups import taxon_group as _taxon_group
@@ -499,16 +501,14 @@ class ObservationValidationWorker(QThread):
             return raw.get(col, "").strip() if col and raw.get(col) else ""
 
         date_raw = g("date")
-        # Your own records need the day: a year, a month or a range is not accepted here
-        # (the scheme import keeps them with their date type). 6.vi.2021 is read; a date still
-        # to come is an error (IMP-13, 10 Oct 2026)
-        from shared.import_core import parse_record_date
+        # A year, a month or a range is accepted with a warning shown before import ("vague
+        # date: year only"), stored from its first day with its date type, as the scheme
+        # import does (Wil's decision 9, 10 Oct 2026; it was an error before). 6.vi.2021 is
+        # read; a date still to come is an error (IMP-13)
+        from shared.import_core import parse_record_date, vague_date_warning
         parsed = parse_record_date(date_raw)
-        date_val = parsed.date if parsed.exact else ""                      # IMP-3: never None
+        date_val = parsed.date or ""                                         # IMP-3: never None
         date_error = parsed.error
-        if parsed.date and not parsed.exact:
-            kind = {"O": "a month", "Y": "a year"}.get(parsed.date_type, "a date range")
-            date_error = f"Unreadable date: '{date_raw}' is {kind}, not a day -- give the day"
 
         return {
             "irecord_id": None,
@@ -526,12 +526,14 @@ class ObservationValidationWorker(QThread):
             "date": date_val,
             "date_raw": date_raw,
             "date_error": date_error,
-            "date_note": "",
-            # '24/06/01' read as 24/06/2001: a warning (stored once, with the warnings)
-            "date_warning": parsed.note if parsed.exact else "",
+            # a vague date's note ("Date 'June 2021' is a month: stored as 2021-06-01 ...")
+            "date_note": "" if parsed.exact else parsed.note,
+            # '24/06/01' read as 24/06/2001, or "vague date: month only": a warning (stored
+            # once, with the warnings)
+            "date_warning": parsed.note if parsed.exact else vague_date_warning(parsed.date_type),
             "date_from": "",
             "date_to": "",
-            "date_type": "D",
+            "date_type": (parsed.date_type or "D") if date_val else "D",
             "grid_ref": g("grid_ref").upper().replace(" ", "") if g("grid_ref") else "",
             "grid_precision": None,
             "latitude": None,
@@ -598,11 +600,13 @@ class ObservationValidationWorker(QThread):
         if not needs_lookup:
             return df
 
-        # One rule set for all three wizards (shared/species_lookup.py): exact names and
-        # synonyms only; anything else is an error naming the closest UKSI names, for the
+        # One rule set for all three wizards (shared/species_lookup.py): exact names,
+        # synonyms, and a close spelling of one species of the same genus (decision 3, 10 Oct,
+        # warned "Close spelling"); anything else is an error naming the closest UKSI names, for the
         # user to confirm with Resolve Species. Saved aliases are no longer used.
         species_lookup = entries(lookup_names(needs_lookup, self.uksi_model,
-                                              cancelled=lambda: self._cancelled))
+                                              cancelled=lambda: self._cancelled,
+                                              close_spellings=True))
 
         for idx, row in df.iterrows():
             species = row.get("species_name", "")
@@ -973,8 +977,10 @@ class ObservationValidationWorker(QThread):
             date_error = _safe_get(row_data, "date_error", "") or ""      # future, not a day
             quantity = _safe_get(row_data, "quantity")
             quantity = 1 if quantity is None else int(quantity)          # 0 stays 0 (IMP-12)
-            if quantity == 0 and not int(row_data.get("zero_abundance", 0) or 0):
-                warnings.append("Count of 0 -- imported as a record with quantity 0")
+            if quantity == 0:
+                # Own data: Wil doesn't record absence -- a count of 0 is a mistake to fix,
+                # never stored (decision 8, 10 Oct 2026). Was: a warning, imported as 0.
+                errors.append(COUNT_ZERO)
 
             # Additional validation for personal uploads
             if self.import_mode != ImportMode.IRECORD_SYNC:
@@ -1004,6 +1010,11 @@ class ObservationValidationWorker(QThread):
                                                  else "Missing date"))
                 if not row_data.get("grid_ref"):
                     warnings.append("Missing grid reference")
+                if date_ok:                         # a year, month or range (decision 9)
+                    from shared.import_core import vague_date_warning
+                    vague = vague_date_warning(_safe_get(row_data, "date_type", "D") or "D")
+                    if vague:
+                        warnings.append(vague)
 
             # Determine status
             if errors:

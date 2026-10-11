@@ -194,7 +194,9 @@ class MuniaWindow(QMainWindow):
     def _refresh(self):
         self.capacity.refresh(self._conn, self._year)
         self.form.set_year(self._year)
-        projects = db.get_projects_for_year(self._conn, self._year)
+        # MUN-4: each project carries this business year's share of its value
+        projects = db.apportion_projects(
+            self._conn, db.get_projects_for_year(self._conn, self._year), self._year)
         self.projects.load(projects, self._year)
         self._refresh_summary(projects)
 
@@ -210,13 +212,15 @@ class MuniaWindow(QMainWindow):
             row["label"].setText(f"{label} (\u00a3{values[key]:,.0f})")
         self.r_total["count"].setText(str(s["total"]))
         self.won_lbl.setText(f"\u00a3{s['confirmed']:,.0f}")
-        # MUN-4: multi-year projects are counted in full in every year they span
+        # MUN-4 (decision 12): multi-year projects count this year's share only
         if s.get("multi_year_count"):
             self.won_lbl.setText(self.won_lbl.text() + " *")
+            even = s.get("multi_year_even", 0)
             self.won_lbl.setToolTip(
                 f"* includes \u00a3{s['multi_year_confirmed']:,.0f} from "
-                f"{s['multi_year_count']} multi-year project(s), counted in full in "
-                "every business year they span (not apportioned).")
+                f"{s['multi_year_count']} project(s) spanning more than one business year: "
+                "this year's share, split by the days planned in each year"
+                + (f" ({even} with no days yet, split evenly)." if even else "."))
         else:
             self.won_lbl.setToolTip("")
         self.lost_lbl.setText(f"\u00a3{s['lost']:,.0f}")

@@ -119,6 +119,7 @@ class SchemeRecordModel(CheckedByIdMixin, QAbstractTableModel):
         super().__init__(parent)
         self._records: List[Dict] = []
         self._init_checked()          # ticks held by record id, not row (OBS-01)
+        self._dimmed: Dict[int, str] = {}   # record id -> why it is not counted (backlog A)
         self._visible_columns: set = set()
         self._column_order: List[str] = []
         self._columns: List[tuple] = []  # Cached current columns
@@ -213,6 +214,14 @@ class SchemeRecordModel(CheckedByIdMixin, QAbstractTableModel):
             if role == Qt.ItemDataRole.CheckStateRole:
                 return Qt.CheckState.Checked if self.is_row_checked(row) else Qt.CheckState.Unchecked
             return None
+
+        # Records the species-counting switches leave out: shown, dimmed (backlog A)
+        if self._dimmed and role in (Qt.ItemDataRole.ForegroundRole, Qt.ItemDataRole.ToolTipRole):
+            why = self._dimmed.get(record.get('id'))
+            if why:
+                if role == Qt.ItemDataRole.ToolTipRole:
+                    return f"Not counted ({why}): Settings > Species counting"
+                return QColor(theme().get('text_muted'))
 
         # Get value
         value = self._get_record_value(record, col_key)
@@ -321,10 +330,11 @@ class SchemeRecordModel(CheckedByIdMixin, QAbstractTableModel):
 
         return None
 
-    def set_records(self, records: List[Dict]):
-        """Set recording scheme data."""
+    def set_records(self, records: List[Dict], dimmed: Optional[Dict[int, str]] = None):
+        """Set recording scheme data; `dimmed` = {record id: why it is not counted}."""
         self.beginResetModel()
         self._records = records
+        self._dimmed = dict(dimmed or {})
         self._clear_checked()
         self.endResetModel()
 

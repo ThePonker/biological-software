@@ -20,11 +20,11 @@ class ValidationTableModel(ImportValidationTableModel):
     def _get_display_value(self, row: ImportRow, col: int) -> str:
         if col == 0:  # Status
             if row.status == RowStatus.VALID:
-                return "[OK]"
+                return "\u2713"
             elif row.status == RowStatus.WARNING:
-                return "[!]"
+                return "\u26a0"
             else:
-                return "[X]"
+                return "\u2717"
         elif col == 1:  # Row number
             return str(row.row_number)
         elif col == 2:  # Species

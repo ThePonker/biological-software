@@ -14,7 +14,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QBrush
 
 from .validation_worker import (
-    ObservationImportRow, ObservationValidationWorker, RowStatus, ImportMode
+    COUNT_ZERO, ObservationImportRow, ObservationValidationWorker, RowStatus, ImportMode
 )
 
 from src.themes import theme
@@ -548,8 +548,8 @@ class WizardValidationMixin:
         """Whether the Row handling choice lets this row in (valid only / all but errors /
         everything)."""
         handling = self._row_handling()
-        if row.status == RowStatus.ERROR:
-            return handling == "everything"
+        if row.status == RowStatus.ERROR:          # a count of 0 never goes in (decision 8)
+            return handling == "everything" and COUNT_ZERO not in (row.error_message or "")
         if row.status == RowStatus.WARNING:
             return handling != "valid_only"
         return True

@@ -21,9 +21,12 @@ For each distinct name:
   3. 'agg.' / 's.l.': the aggregate / sensu lato taxon of that name when UKSI has one;
      otherwise the species, with the warning "no aggregate in UKSI -- matched to species".
      'cf.': the species, with an uncertain-ID warning. Kingdom, rank etc. are kept.
-  4. Anything not matched exactly is searched for (scientific names, synonyms, common names)
-     but NEVER accepted: the candidates go back with the failure, for the user to confirm
-     (Resolve Species / bulk resolution). "Ab" is not Populus alba.
+  4. close_spellings=True (the three import wizards, Wil's decision 3, 10 Oct 2026): a name
+     one or two letters out from ONE species of the same genus is accepted, with a
+     "Close spelling" warning (shared/species_close_spelling.py). 'Rutpela maculta'.
+  5. Anything else not matched exactly is searched for (scientific names, synonyms, common
+     names) but NEVER accepted: the candidates go back with the failure, for the user to
+     confirm (Resolve Species / bulk resolution). "Ab" is not Populus alba.
 
 Saved aliases (the species_aliases table) are no longer read: UKSI's synonyms cover all six
 that existed (9 Oct 2026, agreed with Wil). The table is left in place.
@@ -62,7 +65,8 @@ class Taxon:
 class NameMatch:
     """How one imported name was matched.
 
-    how:       'exact' (a UKSI scientific name) | 'synonym' (a UKSI synonym)
+    how:       'exact' (a UKSI scientific name) | 'synonym' (a UKSI synonym) |
+               'close' (a close spelling of one species, import wizards only)
     qualifier: 'cf.' | 'agg.' | 's.l.' | 's.str.' | None, as the name was written
     looked_up: the name matched (without the qualifier, spaces tidied)
     notes:     for the import notes; warnings: for the row's warnings
@@ -337,8 +341,11 @@ def _typed_note(name: str, matched: str) -> str:
 
 
 def lookup_names(names: Iterable[str], uksi, cancelled: Callable[[], bool] = lambda: False,
-                 candidates: int = 5) -> Dict[str, Result]:
+                 candidates: int = 5, close_spellings: bool = False) -> Dict[str, Result]:
     """Match each distinct name (blank names are the caller's to leave out).
+
+    close_spellings: accept a close spelling of one species of the same genus (step 4) --
+    the import wizards pass True; Examen's Import List does not.
 
     Names neither matched nor failed (only when cancelled part-way) are absent."""
     names = [n for n in dict.fromkeys(names) if tidy(n)]
@@ -355,6 +362,14 @@ def lookup_names(names: Iterable[str], uksi, cancelled: Callable[[], bool] = lam
         qualifier, bare = parsed[name]
         try:
             hit = exact.get(bare.lower())
+            close = []                                # the "Close spelling" warning, if any
+            if hit is None and close_spellings and not (
+                    qualifier in ("agg.", "s.l.") and aggregate_taxa(uksi, bare, qualifier)):
+                from .species_close_spelling import close_spelling, close_spelling_warning
+                ct = close_spelling(uksi, bare)
+                if ct is not None:
+                    close = [close_spelling_warning(bare, ct.scientific_name)]
+                    bare, hit = ct.scientific_name, (ct, "exact", "")
             if qualifier in ("agg.", "s.l."):
                 aggs = aggregate_taxa(uksi, bare, qualifier)
                 if aggs and (len(aggs) == 1 or aggs[0].rank != aggs[1].rank):
@@ -363,9 +378,9 @@ def lookup_names(names: Iterable[str], uksi, cancelled: Callable[[], bool] = lam
                     typed = _typed_note(name, t.scientific_name)
                     warn = (f"{'Aggregate' if qualifier == 'agg.' else 'Sensu lato'}: matched to "
                             f"'{t.scientific_name}' ({what})") if typed else ""
-                    out[name] = NameMatch(name, "exact", qualifier, bare, t,
+                    out[name] = NameMatch(name, "close" if close else "exact", qualifier, bare, t,
                                           notes=[n for n in [typed] if n],
-                                          warnings=[w for w in [warn] if w])
+                                          warnings=close + [w for w in [warn] if w])
                     continue
                 if len(aggs) > 1:
                     out[name] = LookupFailure(name, "ambiguous", candidates=aggs)
@@ -379,7 +394,10 @@ def lookup_names(names: Iterable[str], uksi, cancelled: Callable[[], bool] = lam
                 continue
             t, how, choice_note = hit
             notes = [_typed_note(name, t.scientific_name)]
-            warnings = []
+            warnings = list(close)
+            if close:
+                how = "close"
+                notes = [f"Imported as '{name}' (close spelling of '{t.scientific_name}')"]
             if how == "synonym":
                 notes = [f"Imported as '{name}' (UKSI synonym of '{t.scientific_name}')"]
                 warnings.append(f"Synonym: matched to '{t.scientific_name}'")

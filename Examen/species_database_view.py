@@ -208,12 +208,14 @@ class SpeciesDatabaseView(QWidget):
             return
         results = self._search_uksi(q)
         self.result_count.setText(f"{len(results)} species found")
-        for name, tvk, common, family, rank, note in results:
+        for name, tvk, common, family, rank, note, group in results:
             display = f"{name}  ({common})" if common else name
             if rank and rank != "Species":
                 display += f"  [{rank}]"
             if note:
                 display += f"  \u2014 {note}"
+            if group:   # a whole group found by a common word, after the species (decision 2)
+                display = group
             item = QListWidgetItem(display)
             item.setData(Qt.ItemDataRole.UserRole, (name, tvk, common, family, rank))
             if rank and rank != "Species": item.setForeground(QColor(TEXT_MUTED))
@@ -222,7 +224,8 @@ class SpeciesDatabaseView(QWidget):
     def _search_uksi(self, query):
         """The suite's shared species search (SRCH19/EXA18, 10 Oct 2026): every word, typing
         slips, old names (-> the current taxon), common names, aggregates; all ranks.
-        [(name, tvk, common, family, rank, note)]."""
+        [(name, tvk, common, family, rank, note, group label or '')] -- a whole group found by
+        a common word ("beetle" -> Coleoptera) comes after the species (decision 2, 10 Oct)."""
         if not paths.UKSI_DB.exists(): return []
         from shared.species_search import search
         out = []
@@ -230,7 +233,8 @@ class SpeciesDatabaseView(QWidget):
             note = (f"old name: {r['old_name']}" if r.get("old_name")
                     else "close spelling" if r.get("match_type") == "fuzzy" else "")
             out.append((r["scientific_name"], r["tvk"], r.get("common_name") or "",
-                        r.get("family") or "", r.get("rank") or "", note))
+                        r.get("family") or "", r.get("rank") or "", note,
+                        r.get("group_label") or ""))
         return out
 
     # ── Profile ──────────────────────────────────────────────────

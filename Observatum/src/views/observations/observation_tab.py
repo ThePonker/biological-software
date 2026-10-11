@@ -78,7 +78,13 @@ class ObservationTab(
         self.toolbar = ObservationToolbar()
         layout.addWidget(self.toolbar)
 
-        # Filter Wizard (collapsible visual filter builder)
+        # Filter bar (collapsible) - always starts hidden, settings applied after show
+        self.filter_bar = ObservationFilterBar()
+        self.filter_bar.setVisible(False)
+        layout.addWidget(self.filter_bar)
+
+        # Filter Wizard (collapsible visual filter builder), under the bar as on the
+        # Recording Scheme and Insect Collection tabs (L29)
         self.filter_wizard = FilterWizard(
             accent_color=TabColors.OBSERVATION,
             show_save_controls=True,
@@ -86,12 +92,6 @@ class ObservationTab(
         )
         self.filter_wizard.setVisible(False)  # Hidden by default
         layout.addWidget(self.filter_wizard)
-
-        # Filter bar (collapsible) - hidden by default
-        # Filter bar (collapsible) - always starts hidden, settings applied after show
-        self.filter_bar = ObservationFilterBar()
-        self.filter_bar.setVisible(False)
-        layout.addWidget(self.filter_bar)
 
         # One commercial project pinned from Commercial Reports' "View / edit": kept
         # across reloads (an edit or delete) until cleared here (8 Oct 2026).

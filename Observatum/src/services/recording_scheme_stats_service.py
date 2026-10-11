@@ -11,7 +11,7 @@ PERFORMANCE OPTIMIZATIONS:
 
 from typing import Dict, Any, Optional
 from datetime import datetime
-from PySide6.QtCore import QSettings
+from shared.species_counting import counted_clause
 
 
 CACHE_TTL_SECONDS = 300
@@ -68,59 +68,10 @@ class RecordingSchemeStatsService:
         self._refresh()
 
     def _get_exclusion_clause(self, prefix: str = "") -> str:
-        """Get SQL clause for excluding species based on filter settings.
-        
-        Each filter works independently.
-        """
-        settings = QSettings()
-        col = f"{prefix}species_name" if prefix else "species_name"
-        clauses = []
-        
-        # Family-only: exclude names ending in -idae or -inae (e.g., "Cerambycidae")
-        if settings.value("stats/scheme_exclude_family", False, type=bool):
-            clauses.append(f"{col} NOT LIKE '%idae'")
-            clauses.append(f"{col} NOT LIKE '%inae'")
-        
-        # Genus-only: exclude single-word names (no space), "sp." entries, and subgenus-only names
-        # Subgenus-only: "Genus (subgenus)" pattern without species epithet
-        # A valid species has format "Genus epithet" or "Genus (subgenus) epithet"
-        # But preserve family names (-idae/-inae) as valid identifications
-        if settings.value("stats/scheme_exclude_genus", False, type=bool):
-            # Must have a space followed by a letter (not just parenthesis)
-            # OR be a family name (-idae/-inae)
-            # This excludes: "Rhagium", "Rhagium sp.", "Rhagium (hagrium)"
-            # But keeps: "Rhagium mordax", "Rhagium (hagrium) mordax", "Cerambycidae"
-            clauses.append(f"""(
-                ({col} LIKE '%idae' OR {col} LIKE '%inae')
-                OR (
-                    {col} LIKE '% %' 
-                    AND {col} NOT GLOB '*([a-z]*)'
-                    AND {col} NOT LIKE '% sp.%'
-                    AND {col} NOT LIKE '% sp'
-                    AND {col} NOT LIKE '%indet%'
-                )
-            )""")
-        
-        # s.s. (sensu stricto)
-        if settings.value("stats/scheme_exclude_ss", False, type=bool):
-            clauses.append(f"{col} NOT LIKE '%s.s.%'")
-            clauses.append(f"{col} NOT LIKE '%sensu stricto%'")
-        
-        # s.l. (sensu lato)
-        if settings.value("stats/scheme_exclude_sl", False, type=bool):
-            clauses.append(f"{col} NOT LIKE '%s.l.%'")
-            clauses.append(f"{col} NOT LIKE '%sensu lato%'")
-        
-        # Aggregates
-        if settings.value("stats/scheme_exclude_agg", False, type=bool):
-            clauses.append(f"{col} NOT LIKE '%agg.%'")
-            clauses.append(f"{col} NOT LIKE '%agg %'")
-            clauses.append(f"{col} NOT LIKE '% agg'")
-        
-        if clauses:
-            result = " AND " + " AND ".join(clauses)
-            return result
-        return ""
+        """' AND id NOT IN (...)': the records the Recording Scheme species-counting
+        switches leave out (Settings > Species counting, or the chips on the Scheme
+        dashboard; shared/species_counting.py)."""
+        return counted_clause("recording_scheme", prefix, self._db)
 
     def _get_family_clause(self, prefix: str = "") -> str:
         """Get SQL WHERE clause for scheme family scope from settings."""

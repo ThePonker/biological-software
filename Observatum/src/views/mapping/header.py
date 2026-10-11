@@ -9,6 +9,9 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QVBoxLayout, QLabel
 
 from ...themes import theme
 from ...core.config import TabColors
+from .source_picker import sources_label
+
+NO_TAXON_TITLE = "All records (no taxon chosen)"     # L33: was "All Species"
 
 
 class MapHeader(QFrame):
@@ -37,16 +40,16 @@ class MapHeader(QFrame):
         # Title section
         title_section = QVBoxLayout()
         
-        self.title = QLabel("All Species")
+        self.title = QLabel(NO_TAXON_TITLE)
         self.title.setStyleSheet(f"font-weight: 600; color: {self._accent_dark}; font-size: 14px;")
         title_section.addWidget(self.title)
         
         self.subtitle = QLabel("National distribution • 10km grid • Personal records")
         self.subtitle.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 11px;")
+        self.subtitle.setWordWrap(True)        # a long note wraps; it never widens the map (L30)
         title_section.addWidget(self.subtitle)
         
-        layout.addLayout(title_section)
-        layout.addStretch()
+        layout.addLayout(title_section, 1)      # the wrapped subtitle gets the room
         
         self.grid_count = QLabel("0 grid squares")
         self.grid_count.setStyleSheet(f"color: {t.get('text_heading')}; font-size: 12px;")
@@ -57,14 +60,14 @@ class MapHeader(QFrame):
         self.set_selection([species] if species else [])
 
     def set_selection(self, chips: list):
-        """The title: the chosen taxa (or 'All Species')."""
+        """The title: the chosen taxa (or 'All records (no taxon chosen)')."""
         self.title.setText(selection_title(chips, html=True, muted=theme().get('text_secondary')))
 
-    def set_config(self, view: str, grid: str, data: str, note: str = ""):
-        """Update the configuration subtitle (note: what was held back, e.g. embargoed)."""
-        from ...services.map_selection import SOURCE_LABELS
+    def set_config(self, view: str, grid: str, data, note: str = ""):
+        """Update the configuration subtitle. data: a source key or a list of them (L8);
+        note: what was held back or included, e.g. embargoed."""
         view_text = "National distribution" if view == 'national' else "County distribution"
-        data_text = SOURCE_LABELS.get(data, 'Personal records')
+        data_text = sources_label(data)
         self.subtitle.setText(f"{view_text} • {grid} grid • {data_text}" + (f" • {note}" if note else ""))
 
     def set_grid_count(self, count: int, records: int = None):
@@ -76,9 +79,10 @@ class MapHeader(QFrame):
 
 
 def selection_title(chips: list, html: bool = False, muted: str = "") -> str:
-    """'Rutpela maculata (Spotted Longhorn)', 'Rhagium + Cerambycidae', or 'All Species'."""
+    """'Rutpela maculata (Spotted Longhorn)', 'Rhagium + Cerambycidae', or (nothing chosen:
+    every record is mapped) 'All records (no taxon chosen)'."""
     if not chips:
-        return "All Species"
+        return NO_TAXON_TITLE
     names = []
     for c in chips[:3]:
         name = c.get('scientific_name') or c.get('label') or c.get('name') or '?'

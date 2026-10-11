@@ -167,6 +167,14 @@ class ObservationFilterBar(QFrame, SavedFiltersMixin):
 
         self._data_type_buttons['all'].setChecked(True)
         saved_row.addLayout(data_type_btns)
+
+        # Species counting (backlog A): every record is listed, the ones the switches leave
+        # out dimmed; this lists just those (to clean them up)
+        from ..components.counting_widgets import only_excluded_toggle
+        saved_row.addSpacing(15)
+        self.only_excluded_chk = only_excluded_toggle(self)
+        self.only_excluded_chk.toggled.connect(lambda _on: self._emit_filters())
+        saved_row.addWidget(self.only_excluded_chk)
         
         saved_row.addStretch()
         content_layout.addLayout(saved_row)
@@ -450,7 +458,7 @@ class ObservationFilterBar(QFrame, SavedFiltersMixin):
             self.date_from_edit, self.date_to_edit,
             self.order_combo, self.family_edit, self.vc_combo,
             self.method_combo, self.status_combo,
-            self.saved_combo
+            self.saved_combo, self.only_excluded_chk
         ]
         cancel_pending(self.species_edit, self.location_edit, self.recorder_edit,
                        self.family_edit)
@@ -472,6 +480,7 @@ class ObservationFilterBar(QFrame, SavedFiltersMixin):
             self.method_combo.resetToFirst()
             self.status_combo.resetToFirst()
             self.saved_combo.setCurrentIndex(0)
+            self.only_excluded_chk.setChecked(False)
             self._saved_filter_active = False
         finally:
             for w in widgets:

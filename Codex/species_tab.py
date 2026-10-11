@@ -126,15 +126,20 @@ class SpeciesTab(QWidget):
             # names (-> the current taxon), common names, typing slips, every word
             import paths
             from shared.species_search import rank_group, search
-            rows = []
+            rows, groups = [], []
             for r in search(text, limit=25, db_path=str(paths.UKSI_DB)):
                 note = (f"old name: {r['old_name']}" if r.get("old_name")
                         else "close spelling" if r.get("match_type") == "fuzzy" else "")
                 if rank_group(r.get("rank")) != 0 and r.get("rank"):
                     note = f"{r['rank']}" + (f" \u2014 {note}" if note else "")
+                if r.get("is_group"):   # a whole group found by a common word, listed after
+                    # the species and labelled as a group (decision 2, 10 Oct 2026)
+                    groups.append((r["tvk"], r["scientific_name"], "", r.get("rank") or "",
+                                   r["group_label"]))
+                    continue
                 rows.append((r["tvk"], r.get("label") or r["scientific_name"],
                              r.get("common_name") or "", note))
-            rows += self._codex_only(text, {r[0] for r in rows})
+            rows += self._codex_only(text, {r[0] for r in rows + groups}) + groups
         except Exception as e:
             self.results_frame.show()
             err = QLabel(f"Search error: {e}")
@@ -152,8 +157,10 @@ class SpeciesTab(QWidget):
             return
 
         self.results_frame.show()
-        for tvk, sci_name, common, note in rows:
-            item = self._make_result_item(tvk, sci_name, common or "", note)
+        for row in rows:
+            tvk, sci_name, common, note = row[:4]
+            item = self._make_result_item(tvk, sci_name, common or "", note,
+                                          group_label=row[4] if len(row) > 4 else "")
             self.results_layout.addWidget(item)
 
     @staticmethod
@@ -180,7 +187,7 @@ class SpeciesTab(QWidget):
         return [(t, n, "", "not a current UKSI taxon") for t, n in found
                 if t not in idx.pos and t not in shown]
 
-    def _make_result_item(self, tvk, sci_name, common, note=""):
+    def _make_result_item(self, tvk, sci_name, common, note="", group_label=""):
         item = QFrame()
         item.setStyleSheet(f"""
             QFrame {{
@@ -194,7 +201,8 @@ class SpeciesTab(QWidget):
         il = QHBoxLayout(item)
         il.setContentsMargins(10, 6, 10, 6)
 
-        name_lbl = QLabel(f"<i>{sci_name}</i>")
+        name_lbl = QLabel(group_label.replace(sci_name, f"<i>{sci_name}</i>", 1) if group_label
+                          else f"<i>{sci_name}</i>")
         name_lbl.setStyleSheet(f"font-weight: 600; color: {theme.TEXT_PRIMARY};")
         il.addWidget(name_lbl)
 

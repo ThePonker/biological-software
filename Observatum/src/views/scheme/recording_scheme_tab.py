@@ -78,7 +78,6 @@ class RecordingSchemeTab(QWidget):
     # Navigation signals from record detail dialog
     navigate_to_observations = Signal(str)  # species name
     navigate_to_collection = Signal(str)    # species name
-    records_changed = Signal()              # a record was edited or deleted here (OBS-04/10)
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -268,20 +267,9 @@ class RecordingSchemeTab(QWidget):
             dialog.profile_requested.connect(self._on_profile_requested)
             dialog.navigate_to_observations.connect(self._on_navigate_to_observations)
             dialog.navigate_to_collection.connect(self._on_navigate_to_collection)
-            self._wire_edit_delete(dialog)
             dialog.exec()
             
             self._current_detail_dialog = None
-
-    def _wire_edit_delete(self, dialog):
-        """Edit / Delete in the record detail dialog (they did nothing: OBS-04)."""
-        from .scheme_record_actions import wire_scheme_detail
-        wire_scheme_detail(dialog, self, self._after_record_change,
-                           uksi_model=getattr(self, '_uksi_model', None))
-
-    def _after_record_change(self):
-        self.refresh()
-        self.records_changed.emit()
 
     def _load_species_profile(self, record: dict) -> str:
         """Profile text for display -- via the one shared reader (TVK, else name)."""
@@ -402,7 +390,7 @@ class RecordingSchemeTab(QWidget):
             sql, params = build_where('recording_scheme', self._wizard_filters)
             if sql:
                 filters['_wizard_sql'] = (sql, params)
-        filters = filters or None
+        filters['_counting_kinds'] = self._counting_kinds(filters)
 
         # Start background worker
         self._data_worker = SchemeDataWorker(db_path, filters, self)
@@ -417,6 +405,12 @@ class RecordingSchemeTab(QWidget):
             self._poll_timer.setInterval(50)
             self._poll_timer.timeout.connect(self._check_worker_done)
         self._poll_timer.start()
+
+    def _counting_kinds(self, filters) -> frozenset:
+        """The kinds the Recording Scheme switches leave out (dimmed, not counted); a species
+        box naming an aggregate or s.l. keeps those counted (they were asked for)."""
+        from shared.species_counting import kinds_for_search
+        return kinds_for_search("recording_scheme", filters.get('species'))
 
     def _check_worker_done(self):
         """Poll timer - check if worker results are ready via threading.Event."""
@@ -433,12 +427,12 @@ class RecordingSchemeTab(QWidget):
         self._on_data_loaded(*results)
 
     def take_worker_results(self):
-        """(records, species_count) from the finished worker, once; else None."""
+        """(records, species_count, dimmed, counted) from the finished worker, once; else None."""
         w = self._data_worker
         if not w or not w.results_ready.is_set() or w.results is None:
             return None
         results, w.results = w.results, None
-        return results
+        return (*results, getattr(w, 'dimmed', None), getattr(w, 'counted', None))
 
     def worker_error(self) -> Optional[str]:
         """The error the last load raised, if it has finished with one."""
@@ -447,23 +441,24 @@ class RecordingSchemeTab(QWidget):
             return getattr(w, "error_message", None)
         return None
 
-    def _on_data_loaded(self, records, species_count):
-        """Handle data loaded from background worker."""
+    def _on_data_loaded(self, records, species_count, dimmed=None, counted=None):
+        """Handle data loaded from background worker. `dimmed` = {id: why} for the rows the
+        species-counting switches leave out; `counted` = the records they count."""
         self._loading = False
 
         # If tab hasn't been visited yet, stash the data for initialize()
         if not self._initialized:
-            self._preload_records = (records, species_count)
+            self._preload_records = (records, species_count, dimmed, counted)
             return
 
         # Tab is already visible - apply data immediately
-        self.table_model.set_records(records)
+        self.table_model.set_records(records, dimmed)
 
         self._connect_proxy_after_load()
 
         self._enable_sorting_on_first_view()
 
-        self.toolbar.set_counts(len(records), species_count)
+        self.toolbar.set_counts(len(records) if counted is None else counted, species_count)
 
         # The wizard's lists come from this table: re-read them on the next dialog
         if hasattr(self, 'filter_wizard'):
@@ -582,12 +577,12 @@ class RecordingSchemeTab(QWidget):
 
         # If pre-load already delivered data, use it immediately
         if self._preload_records is not None:
-            records, species_count = self._preload_records
+            records, species_count, dimmed, counted = self._preload_records
             self._preload_records = None
-            self.table_model.set_records(records)
+            self.table_model.set_records(records, dimmed)
             self._connect_proxy_after_load()
             self._enable_sorting_on_first_view()
-            self.toolbar.set_counts(len(records), species_count)
+            self.toolbar.set_counts(len(records) if counted is None else counted, species_count)
             if hasattr(self, 'filter_wizard'):
                 self.filter_wizard.refresh_tab_values()
             if hasattr(self, "_stack"):
@@ -672,7 +667,7 @@ class RecordingSchemeTab(QWidget):
         # Rebuild the table with new column settings
         records = self.table_model._records.copy()
         self.table_model._update_columns()
-        self.table_model.set_records(records)
+        self.table_model.set_records(records, self.table_model._dimmed)
         # Update column widths
         header = self.table_view.horizontalHeader()
         widths = self.table_model.get_column_widths()
@@ -687,8 +682,17 @@ class RecordingSchemeTab(QWidget):
         db = get_database()
         if not db:
             return
+        # Counted records, every record, or only the excluded ones (species counting)
+        from shared.species_counting import EXPORT_COUNTED, excluded_ids, export_sql
+        mode = EXPORT_COUNTED
+        if excluded_ids(db, "recording_scheme"):
+            from ..components.counting_widgets import ask_export_mode
+            mode = ask_export_mode(self, "recording scheme records")
+            if mode is None:
+                return
         rows = [dict(r) for r in db.execute_main(
-            "SELECT * FROM recording_scheme ORDER BY taxonomic_sort_key, species_name")]
+            "SELECT * FROM recording_scheme WHERE 1" + export_sql(db, "recording_scheme", mode)
+            + " ORDER BY taxonomic_sort_key, species_name")]
         if not rows:
             from PySide6.QtWidgets import QMessageBox
             QMessageBox.information(self, "No Data", "No recording scheme records to export.")
@@ -861,7 +865,6 @@ class RecordingSchemeTab(QWidget):
                 dialog.profile_requested.connect(self._on_profile_requested)
                 dialog.navigate_to_observations.connect(self._on_navigate_to_observations)
                 dialog.navigate_to_collection.connect(self._on_navigate_to_collection)
-                self._wire_edit_delete(dialog)
                 dialog.exec()
         except Exception as e:
             print(f"Error showing record {record_id}: {e}")

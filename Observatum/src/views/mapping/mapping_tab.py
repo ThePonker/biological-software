@@ -23,18 +23,25 @@ Signals flow:
 10 Oct 2026 (Wil's testing): each chosen taxon has its own colour (By taxon style, the
 default once a second taxon is chosen; a square holding several is split between their
 colours); one taxon's Presence map uses its colour.
+
+Round 2 (10 Oct evening): data sources as tick boxes, several at once (L8); a draggable,
+remembered divider between the panel and the map (L11); the clicked square's outline is
+cleared when the map is made again and never printed (L13/L31); the atlas page covers the
+full extent or the current view (L14/L32); one Clear all (L33); 2 km tetrad grid refs held
+back unless "Include 2 km (tetrad) grid refs" is ticked (decision 10); the subtitle and PNG
+say when embargoed records are included (decision 13).
 """
 
-import os
-import re
 import time
-from datetime import date
 
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QFrame, QFileDialog, QMessageBox
+from PySide6.QtCore import QSettings, Qt
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QFrame, QSplitter)
 
+from .atlas_export import AtlasExportMixin, safe_filename  # noqa: F401 (safe_filename: old import path)
 from .toolbar import MapToolbar
 from .filter_panel import MapFilterPanel
 from .header import MapHeader, selection_title
+from .map_notes import hold_tetrads, left_out_text, map_note
 from .display_bar import MapDisplayBar
 from .selection_box import MapSelectionBox
 from .square_records_dialog import SquareRecordsDialog
@@ -48,15 +55,11 @@ from shared.maps.grid_map import GridMap
 from shared.maps.grid_squares import GRID_LABELS, HECTAD
 import paths
 
-
-def safe_filename(text: str) -> str:
-    """A file name from a map title: no / \\ : * ? " < > | (MAP14), spaces as underscores."""
-    name = re.sub(r'[\\/:*?"<>|]+', "-", text or "map")
-    name = re.sub(r"\s+", "_", name.strip()).strip("._-")
-    return name[:120] or "map"
+SPLITTER_SETTING = "mapping/splitter"       # L11: the divider, remembered
+PANEL_WIDTH = 340                           # the panel's first width (was fixed at 300)
 
 
-class MappingTab(QWidget):
+class MappingTab(AtlasExportMixin, QWidget):
     """Mapping tab for distribution visualization."""
 
     def __init__(self, parent=None):
@@ -67,6 +70,8 @@ class MappingTab(QWidget):
         self._legend = []
         self._result = None
         self._mapped_selection = []
+        self._mapped_filters = None        # the filters the map on screen was made with
+        self._tetrads_held = 0             # tetrad grid refs left off (decision 10)
         self.last_timing = None            # (fetch s, squares s) of the last map, for checks
         self._setup_ui()
         self._connect_signals()
@@ -83,12 +88,16 @@ class MappingTab(QWidget):
         self.toolbar = MapToolbar()
         layout.addWidget(self.toolbar)
 
-        content = QHBoxLayout()
-        content.setContentsMargins(0, 0, 0, 0)
-        content.setSpacing(0)
+        # L11: a draggable divider between the panel and the map, remembered
+        self.splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.splitter.setChildrenCollapsible(False)
+        self.splitter.setHandleWidth(6)
+        self.splitter.setStyleSheet(
+            f"QSplitter::handle {{ background-color: {t.get('border')}; }}"
+            f"QSplitter::handle:hover {{ background-color: {TabColors.MAPPING}; }}")
 
         self.filter_panel = MapFilterPanel()
-        content.addWidget(self.filter_panel)
+        self.splitter.addWidget(self.filter_panel)
 
         map_container = QWidget()
         map_layout = QVBoxLayout(map_container)
@@ -118,18 +127,40 @@ class MappingTab(QWidget):
         card_layout.addWidget(self.map_widget, 1)
 
         map_layout.addWidget(map_card, 1)
-        content.addWidget(map_container, 1)
-        layout.addLayout(content, 1)
+        self.splitter.addWidget(map_container)
+        self.splitter.setStretchFactor(0, 0)
+        self.splitter.setStretchFactor(1, 1)
+        layout.addWidget(self.splitter, 1)
+        self._restore_splitter()
+        self.splitter.splitterMoved.connect(self._save_splitter)
+
+    def _restore_splitter(self):
+        state = None
+        try:
+            state = QSettings().value(SPLITTER_SETTING)
+        except Exception:
+            pass
+        if not (state and self.splitter.restoreState(state)):
+            self.splitter.setSizes([PANEL_WIDTH, 1600])
+
+    def _save_splitter(self, *_a):
+        try:
+            QSettings().setValue(SPLITTER_SETTING, self.splitter.saveState())
+        except Exception as e:
+            print(f"[MappingTab] divider not saved: {e}")
 
     def _connect_signals(self):
         """Connect signals between components."""
         self.toolbar.view_changed.connect(self._on_view_changed)
         self.toolbar.grid_changed.connect(self._on_grid_changed)
-        self.toolbar.data_source_changed.connect(self._on_data_changed)
         self.toolbar.filters_toggled.connect(self._on_filters_toggled)
         self.toolbar.export_requested.connect(self._on_export)
 
         self.filter_panel.selection_changed.connect(self._on_selection_changed)
+        self.filter_panel.sources_changed.connect(self._on_data_changed)
+        self.filter_panel.cleared.connect(self._on_cleared)
+        self.filter_panel.tetrads_changed.connect(self._remap)
+        self.filter_panel.embargo_check.toggled.connect(self._remap)
         self.filter_panel.generate_requested.connect(self._generate_map)
         self.filter_panel.square_clicked.connect(self._on_grid_clicked)
         self.filter_panel.selection_box.colours_changed.connect(self._restyle)
@@ -153,8 +184,9 @@ class MappingTab(QWidget):
     def _grid_size(self) -> int:
         return self.toolbar.grid_combo.currentData() or HECTAD
 
-    def _source(self) -> str:
-        return self.toolbar.data_combo.currentData() or "personal"
+    def _source(self) -> list:
+        """The ticked data sources (L8): keys of map_selection.SOURCES."""
+        return self.filter_panel.sources()
 
     def _year_to_band(self, year):
         return squares_svc.year_to_band(year, self._bands)
@@ -175,6 +207,9 @@ class MappingTab(QWidget):
     def _clear_map(self):
         self._records, self._squares, self._result = [], {}, None
         self._mapped_selection = []
+        self._mapped_filters = None
+        self._tetrads_held = 0
+        self.map_widget.set_selected(None)
         self.map_widget.clear_squares()
         self.map_widget.highlight_vcs([])
         self.map_widget.set_message("")
@@ -190,19 +225,30 @@ class MappingTab(QWidget):
         if filters is None:                         # MAP3: say so rather than ignore it
             self.map_widget.set_message(error)
             return
+        sources = self._source()
+        if not sources:
+            self._clear_map()
+            self.map_widget.set_message("Tick at least one data source.")
+            return
         selection = self.filter_panel.selection()
         size = self._grid_size()
         t0 = time.perf_counter()
-        self._result = map_selection.fetch(selection, self._source(), filters)
+        self._result = map_selection.fetch(selection, sources, filters)
         t1 = time.perf_counter()
         self._records = self._result.records
-        squares, coarse, unparsed = squares_svc.squares_for(self._records, size, self._year_to_band)
+        self._mapped_filters = filters
+        mappable, self._tetrads_held = hold_tetrads(self._records,     # decision 10
+                                                    self.filter_panel.include_tetrads())
+        squares, coarse, unparsed = squares_svc.squares_for(mappable, size, self._year_to_band)
         self.last_timing = (t1 - t0, time.perf_counter() - t1)
         self._squares = squares
         self._mapped_selection = selection
         self._name_taxa(squares, selection)
+        self.map_widget.set_selected(None)          # L13/L31: a new map, no old outline
         self._restyle()
-        self.map_widget.set_message(self._left_out_text(len(self._records), coarse, unparsed))
+        grid = GRID_LABELS[size].split(" (")[0].lower()
+        self.map_widget.set_message(left_out_text(len(self._records), coarse, unparsed,
+                                                  self._tetrads_held, grid))
         self.map_header.set_selection(selection)
         self.filter_panel.set_chip_counts(self._result.chip_counts if selection else None)
         self._update_header()
@@ -211,18 +257,6 @@ class MappingTab(QWidget):
             self._zoom_to_selected_vc()
         # MAP4: tint the VCs of the records on the map (same filters, by VC number)
         self.map_widget.highlight_vcs(sorted({r["vc"] for r in self._records if r.get("vc")}))
-
-    def _left_out_text(self, total, coarse, unparsed) -> str:
-        """Say what the map leaves out, so an empty or thin map explains itself."""
-        if not total:
-            return "No records with a grid reference match these filters."
-        grid = GRID_LABELS[self._grid_size()].split(" (")[0].lower()
-        parts = []
-        if coarse:
-            parts.append(f"{coarse:,} record{'s' if coarse != 1 else ''} too coarse for a {grid}")
-        if unparsed:
-            parts.append(f"{unparsed:,} not on the GB grid (Irish, Channel Islands or lat/long)")
-        return ("Not mapped: " + "; ".join(parts) + ".") if parts else ""
 
     @staticmethod
     def _chip_name(chip: dict) -> str:
@@ -297,11 +331,24 @@ class MappingTab(QWidget):
             self._generate_map()
         self._update_header()
 
-    def _on_data_changed(self, data: str):
-        self.filter_panel.set_source(data)
+    def _on_data_changed(self, _sources=None):
         if self._has_map():
             self._generate_map()
         self._update_header()
+
+    def _remap(self, *_a):
+        """A switch that changes what is mapped (embargo, tetrads): map again if shown."""
+        if self._has_map():
+            self._generate_map()
+
+    def _on_cleared(self):
+        """L33, Clear all: no taxa, default sources, no filters, National view, no map."""
+        if self.display_bar.style() == "taxon":
+            self.display_bar.set_style("presence", emit=False)
+        if self.toolbar.get_view() != "national":
+            self.toolbar.set_view("national")      # -> fit_to_gb
+        self._clear_map()
+        self._initial_update()
 
     def _on_filters_toggled(self, visible: bool):
         self.filter_panel.setVisible(visible)
@@ -312,43 +359,6 @@ class MappingTab(QWidget):
         for sq in self._squares.values():
             sq["band"] = self._year_to_band(sq.get("last_year"))
         self._restyle()
-
-    # -------------------------------------------------------------------------
-    # Atlas export (H5)
-    # -------------------------------------------------------------------------
-
-    def _title(self) -> str:
-        return selection_title(self._mapped_selection) if self._mapped_selection else "All records"
-
-    def _on_export(self):
-        """Save the map as shown as an A4 page at 300 dpi."""
-        if not self._squares:
-            QMessageBox.information(self, "Export Atlas PNG", "Generate a map first.")
-            return
-        grid = GRID_LABELS[self._grid_size()].split(" (")[0]
-        default = os.path.join(os.path.expanduser("~"),
-                               f"{safe_filename(self._title())}_{grid}_{date.today():%Y%m%d}.png")
-        path, _f = QFileDialog.getSaveFileName(self, "Export Atlas PNG", default, "PNG image (*.png)")
-        if not path:
-            return
-        if not path.lower().endswith(".png"):
-            path += ".png"
-        img = self.render_atlas()
-        if img.save(path, "PNG"):
-            QMessageBox.information(self, "Export Atlas PNG",
-                                    f"Saved {img.width()} × {img.height()} px (A4, 300 dpi):\n{path}")
-        else:
-            QMessageBox.warning(self, "Export Atlas PNG", f"Could not save:\n{path}")
-
-    def render_atlas(self):
-        """The atlas page for the map as shown (QImage)."""
-        grid = GRID_LABELS[self._grid_size()].split(" (")[0]
-        n_sq = len(self._squares)
-        n_rec = sum(s["count"] for s in self._squares.values())
-        n_sp = len({r["species"] for r in self._records if r.get("species") and r.get("square")})
-        return self.map_widget.render_sheet(
-            self._title(), subtitle=self.map_header.subtitle.text(), legend=self._legend,
-            footer=f"{n_sq:,} {grid.lower()}s, {n_rec:,} records, {n_sp:,} species.")
 
     # -------------------------------------------------------------------------
     # Grid click (H4)
@@ -367,25 +377,10 @@ class MappingTab(QWidget):
     # Header
     # -------------------------------------------------------------------------
 
-    def _note(self) -> str:
-        """What the map holds back or folds together, in words (the subtitle and the PNG)."""
-        r = self._result
-        if r is None:
-            return ""
-        parts = []
-        filters, _e = self.filter_panel.filters()
-        if r.embargoed:
-            if filters and filters.include_embargoed:
-                parts.append(f"includes {r.embargoed:,} embargoed")
-            else:
-                parts.append(f"{r.embargoed:,} embargoed not shown")
-        if r.merged:
-            parts.append(f"{r.merged:,} duplicate records shown once")
-        return ", ".join(parts)
-
     def _update_header(self):
         view = self.toolbar.get_view()
         grid = GRID_LABELS[self._grid_size()].split(" (")[1].rstrip(")")
-        self.map_header.set_config(view, grid, self._source(), self._note())
+        self.map_header.set_config(view, grid, self._source(),
+                                   map_note(self._result, self._mapped_filters))
         self.map_header.set_grid_count(len(self._squares),
                                        len(self._records) if self._result is not None else None)

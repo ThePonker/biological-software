@@ -25,6 +25,7 @@ class SectionToggle(QFrame):
         ('scheme', 'Recording Scheme', TabColors.RECORDING_SCHEME, TabColors.RECORDING_SCHEME_LIGHT, TabColors.RECORDING_SCHEME_DARK),
         ('collection', 'Insect Collection', TabColors.COLLECTION, TabColors.COLLECTION_LIGHT, TabColors.COLLECTION_DARK),
         ('species', 'Species', TabColors.SPECIES, TabColors.SPECIES_LIGHT, TabColors.SPECIES_DARK),
+        ('cleaning', 'Cleaning Report', TabColors.OBSERVATION, TabColors.OBSERVATION_LIGHT, TabColors.OBSERVATION_DARK),
     ]
 
     def __init__(self, parent=None):
