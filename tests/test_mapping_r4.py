@@ -211,9 +211,10 @@ def test_boundaries_switch_default_on_remembered_and_next_to_labels(settings_san
 @needs_vc
 def test_boundaries_drawn_below_the_selected_outline_and_switchable(qapp, monkeypatch):
     import shared.maps.grid_map as gm
+    import shared.maps.map_layers as ml           # R5: the base layers live there
     order = []
-    rb, ro = gm.draw_boundaries, gm.draw_outline
-    monkeypatch.setattr(gm, "draw_boundaries", lambda *a, **k: (order.append("bounds"), rb(*a, **k)))
+    rb, ro = ml.draw_boundaries, gm.draw_outline
+    monkeypatch.setattr(ml, "draw_boundaries", lambda *a, **k: (order.append("bounds"), rb(*a, **k)))
     monkeypatch.setattr(gm, "draw_outline", lambda *a, **k: (order.append("outline"), ro(*a, **k)))
     m = gm.GridMap(geojson_path=str(paths.VC_GEOJSON), maps_dir=str(paths.MAPS_DIR))
     m.resize(600, 800)

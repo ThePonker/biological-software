@@ -14,7 +14,7 @@ Display only.
 from __future__ import annotations
 
 import math
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from PySide6.QtCore import QPointF
 from PySide6.QtGui import QColor, QImage, QPainter, QPen, QPolygonF
@@ -24,11 +24,16 @@ CELL = 250.0                 # metres per pixel of the land raster
 GB_E, GB_N = 700000.0, 1300000.0
 
 
-def split_edges(rings: List[List[Point]], cell: float = CELL):
+def split_edges(rings: List[List[Point]], cell: float = CELL,
+                lines: Optional[List[List[Point]]] = None):
     """(coast, inland): runs of consecutive ring edges with sea on one side, and the rest
     (OSGB metres). An edge whose two sides, 2.4 cells out from its middle, are both land is
     an inland border. Used for the land's coast (inland: the modern districts of
-    gb_outline.json, or the VC borders again) and for the VC boundary lines (R4)."""
+    gb_outline.json, or the VC borders again) and for the VC boundary lines (R4).
+
+    lines: the polylines to split, if not the rings' own edges (R5: the rings' edges each
+    once, vc_topology.unique_chains, so a border two rings share is not split out twice);
+    the land is always the rings."""
     w, h = int(GB_E / cell) + 2, int(GB_N / cell) + 2
     img = QImage(w, h, QImage.Format.Format_Grayscale8)
     img.fill(0)
@@ -48,7 +53,7 @@ def split_edges(rings: List[List[Point]], cell: float = CELL):
 
     d = 2.4 * cell
     out: Tuple[List[List[Point]], List[List[Point]]] = ([], [])
-    for r in rings:
+    for r in (rings if lines is None else lines):
         chain: List[Point] = []
         kind = None                         # 0 coast, 1 inland: the run being built
         for i in range(len(r) - 1):
@@ -71,11 +76,12 @@ def split_edges(rings: List[List[Point]], cell: float = CELL):
 _SPLIT_CACHE: Dict[tuple, tuple] = {}
 
 
-def split_edges_cached(key, rings: List[List[Point]]):
+def split_edges_cached(key, rings: List[List[Point]], lines=None):
     """split_edges, kept per key (the source file and its simplification) for the process:
-    the Mapping tab and the batch renderer share one result."""
+    the Mapping tab and the batch renderer share one result. lines: a callable giving the
+    polylines to split (split_edges' `lines`), called only when the key is new."""
     if key not in _SPLIT_CACHE:
-        _SPLIT_CACHE[key] = split_edges(rings)
+        _SPLIT_CACHE[key] = split_edges(rings, lines=lines() if lines else None)
     return _SPLIT_CACHE[key]
 
 

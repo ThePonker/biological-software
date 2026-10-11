@@ -421,14 +421,57 @@ class SchemeFilterBar(QFrame, SavedFiltersMixin):
         self._save_filters_to_settings()
         self._populate_saved_filters_combo()
     
-    def initialize_with_database(self, db):
-        """Initialize completers and dropdowns from database."""
+    def initialize_with_database(self, db, choices=None):
+        """Initialize completers and dropdowns from database. `choices`: what read_choices()
+        returned, read beforehand in a background thread (Round 6 startup); read now if None."""
         self._db = db
-        
+        if choices is None:
+            choices = self.read_choices(db)
+        self.apply_choices(choices)
+
+    @staticmethod
+    def read_choices(db) -> dict:
+        """The filter bar's lists from the records (date range, species, sites, vice-counties,
+        subfamilies, verification statuses). Database reads only, no widget: safe in a
+        background thread (db.execute_main opens a connection per call). A part that fails
+        is left out (None) and said so, as before."""
+        out = {}
+
+        def part(name, read, what):
+            try:
+                out[name] = read()
+            except Exception as e:
+                out[name] = None
+                print(f"[SchemeFilterBar] Error loading {what}: {e}")
+
+        part("dates", lambda: db.execute_main(
+            "SELECT MIN(date) as min_date, MAX(date) as max_date FROM recording_scheme "
+            "WHERE date IS NOT NULL AND date <> ''"), "date range")
+        part("species", lambda: [row['species_name'] or row[0] for row in db.execute_main(
+            "SELECT DISTINCT species_name FROM recording_scheme WHERE species_name IS NOT NULL "
+            "ORDER BY species_name") if row[0]], "species list")
+        part("locations", lambda: [row['site_name'] or row[0] for row in db.execute_main(
+            "SELECT DISTINCT site_name FROM recording_scheme WHERE site_name IS NOT NULL "
+            "ORDER BY site_name") if row[0]], "location list")
+        part("vcs", lambda: [row['vc_number'] or row[0] for row in db.execute_main(
+            "SELECT DISTINCT vc_number FROM recording_scheme WHERE vc_number IS NOT NULL "
+            "ORDER BY vc_number")], "vice counties")
+        part("subfamilies", lambda: [r[0] for r in db.execute_main(
+            "SELECT DISTINCT subfamily FROM recording_scheme "
+            "WHERE subfamily IS NOT NULL AND TRIM(subfamily) <> '' ORDER BY subfamily")],
+            "subfamilies")
+
+        def statuses():
+            from ...services.filter_builder import tab_values
+            return tab_values(db.main_db_path, 'recording_scheme', only=('statuses',))['statuses']
+        part("statuses", statuses, "statuses")
+        return out
+
+    def apply_choices(self, choices: dict):
+        """Fill the completers and dropdowns from read_choices()."""
         # Get date range for calendar defaults
         try:
-            query = "SELECT MIN(date) as min_date, MAX(date) as max_date FROM recording_scheme WHERE date IS NOT NULL AND date <> ''"
-            results = db.execute_main(query)
+            results = choices.get("dates")
             if results:
                 if results[0]['min_date']:
                     parts = results[0]['min_date'].split('-')
@@ -442,83 +485,54 @@ class SchemeFilterBar(QFrame, SavedFiltersMixin):
                         self.date_to_edit.set_navigate_date(latest_date)
         except Exception as e:
             print(f"[SchemeFilterBar] Error getting date range: {e}")
-        
-        # Populate species completer
-        try:
-            query = "SELECT DISTINCT species_name FROM recording_scheme WHERE species_name IS NOT NULL ORDER BY species_name"
-            results = db.execute_main(query)
-            species_list = [row['species_name'] or row[0] for row in results if row[0]]
-            self._species_completer_model.setStringList(species_list)
-        except Exception as e:
-            print(f"[SchemeFilterBar] Error loading species list: {e}")
-        
-        # Populate location completer
-        try:
-            query = "SELECT DISTINCT site_name FROM recording_scheme WHERE site_name IS NOT NULL ORDER BY site_name"
-            results = db.execute_main(query)
-            location_list = [row['site_name'] or row[0] for row in results if row[0]]
-            self._location_completer_model.setStringList(location_list)
-        except Exception as e:
-            print(f"[SchemeFilterBar] Error loading location list: {e}")
-        
-        # Populate Vice Counties
-        self._populate_vice_counties_from_data(db)
+
+        # Species and location completers
+        if choices.get("species") is not None:
+            self._species_completer_model.setStringList(choices["species"])
+        if choices.get("locations") is not None:
+            self._location_completer_model.setStringList(choices["locations"])
+
+        # Vice Counties
+        self._populate_vice_counties(choices.get("vcs"))
 
         # Subfamily and Verification from the records themselves (SRCH8)
-        self._populate_choices_from_data(db)
+        self._populate_choices(choices.get("subfamilies"), choices.get("statuses"))
 
-    def _populate_choices_from_data(self, db):
+    def _populate_choices(self, subfamilies, statuses):
         """Subfamily: the values recorded (none yet: the combo is disabled and says why).
         Verification: the main statuses recorded ("Accepted" covers "Accepted - correct")."""
         # Subfamily on its own: a failure loading the statuses skipped it (it stayed
         # enabled), and a disabled combo looked enabled (Wil 10 Oct)
-        try:
-            subfamilies = [r[0] for r in db.execute_main(
-                "SELECT DISTINCT subfamily FROM recording_scheme "
-                "WHERE subfamily IS NOT NULL AND TRIM(subfamily) <> '' ORDER BY subfamily")]
-        except Exception as e:
-            print(f"[SchemeFilterBar] Error loading subfamilies: {e}")
-            subfamilies = []
+        subfamilies = subfamilies or []
         self.subfamily_combo.clear()
         self.subfamily_combo.addItem("All", None)
         for sf in subfamilies:
             self.subfamily_combo.addItem(sf, sf)
         self.subfamily_combo.set_unavailable(
             "" if subfamilies else "No subfamily data on scheme records")
-        try:
-            from ...services.filter_builder import tab_values
-            statuses = tab_values(db.main_db_path, 'recording_scheme', only=('statuses',))['statuses']
-        except Exception as e:
-            print(f"[SchemeFilterBar] Error loading statuses: {e}")
+        if statuses is None:                # could not be read (said so): left as built
             return
         self.status_combo.clear()
         self.status_combo.addItem("All", None)
         for st in statuses:
             self.status_combo.addItem(st, st)
 
-    def _populate_vice_counties_from_data(self, db):
-        """Populate vice counties dropdown from existing data."""
+    def _populate_vice_counties(self, vc_numbers):
+        """Populate vice counties dropdown from the numbers recorded."""
         # Use short names for compact display
         vc_short_names = VCLookupService.VC_SHORT_NAMES
-        
+
         self.vc_combo.clear()
         self.vc_combo.addItem("All", "")
-        
-        try:
-            query = "SELECT DISTINCT vc_number FROM recording_scheme WHERE vc_number IS NOT NULL ORDER BY vc_number"
-            results = db.execute_main(query)
-            for row in results:
-                vc_num = row['vc_number'] or row[0]
-                if vc_num:
-                    try:
-                        vc_num = int(vc_num)
-                        # Use short name for display
-                        vc_name = VCLookupService.get_short_name(vc_num) or vc_short_names.get(vc_num, f"VC {vc_num}")
-                        self.vc_combo.addItem(f"{vc_num} - {vc_name}", vc_num)
-                    except (ValueError, TypeError):
-                        pass
-        except Exception as e:
-            print(f"[SchemeFilterBar] Error loading vice counties: {e}")
+        for vc_num in vc_numbers or []:
+            if vc_num:
+                try:
+                    vc_num = int(vc_num)
+                    # Use short name for display
+                    vc_name = VCLookupService.get_short_name(vc_num) or vc_short_names.get(vc_num, f"VC {vc_num}")
+                    self.vc_combo.addItem(f"{vc_num} - {vc_name}", vc_num)
+                except (ValueError, TypeError):
+                    pass
     
     def apply_theme(self):
         """Apply the current theme."""

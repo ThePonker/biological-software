@@ -543,11 +543,38 @@ class ObservationTab(
     # Initialization and Refresh
     # =========================================================================
 
-    def initialize(self, db_path: Optional[str] = None):
-        """Initialize the tab with database connection."""
+    def initialize(self, db_path: Optional[str] = None, records: Optional[List] = None):
+        """Initialize the tab with database connection.
+
+        `records`: the observations already read (startup reads them in a background
+        thread under the splash screen, Round 5) -- shown without reading them again and
+        without the "Loading observations..." box."""
         if hasattr(self, "_obs_initialized") and self._obs_initialized:
             return
+        self.prepare()
         self._obs_initialized = True
+        if records is not None:
+            self._load_data(records=records)
+            return
+
+        # Show loading dialog during initial data load (only when the window is on
+        # screen: under the splash screen there is nothing to show it over)
+        loading = LoadingDialog("Loading observations...", self) if self.window().isVisible() else None
+        if loading is not None:
+            loading.show_and_process()
+        try:
+            self._load_data()
+        finally:
+            if loading is not None:
+                loading.close()
+
+    def prepare(self):
+        """Models, repository and the filter bar's lists: everything initialize() sets up
+        before it reads the records (once). Startup calls it, reads the records in a
+        background thread (read_all_records), then initialize(records=...)."""
+        if getattr(self, "_obs_prepared", False):
+            return
+        self._obs_prepared = True
         db = get_database()
         self._observation_model = ObservationModel(db)
         self._uksi_model = UKSIModel(db)
@@ -565,14 +592,6 @@ class ObservationTab(
 
         # Initialize filter bar with database for autocomplete
         self.filter_bar.initialize_with_database(db)
-
-        # Show loading dialog during initial data load
-        loading = LoadingDialog("Loading observations...", self)
-        loading.show_and_process()
-        try:
-            self._load_data()
-        finally:
-            loading.close()
 
     def refresh(self):
         """Refresh the display with current data."""

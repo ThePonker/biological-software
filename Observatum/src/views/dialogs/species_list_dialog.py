@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 
+from shared.fit_to_screen import fit_to_screen
 from ...themes import theme
 from ...utils.date_utils import format_date_display
 
@@ -42,6 +43,7 @@ class SpeciesListDialog(QDialog):
         self.setWindowTitle(self._title)
         self.setMinimumSize(650, 500)
         self.resize(750, 1000)
+        fit_to_screen(self)     # 1,000 px is taller than a laptop screen (R5)
 
         self.setStyleSheet(f"""
             QDialog {{

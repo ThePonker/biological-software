@@ -162,7 +162,12 @@ class SiteAnalysisView(QWidget):
         self.word_btn.setEnabled(False); toolbar.addWidget(self.word_btn)
         export_btn = QPushButton("Export CSV"); export_btn.setStyleSheet(BTN_OUTLINE)
         export_btn.clicked.connect(self._export_csv); toolbar.addWidget(export_btn)
-        layout.addLayout(toolbar)
+        # The ten controls held the window at 1,270 px: on a narrower (laptop) screen the
+        # row scrolls sideways instead (R5)
+        from src.views.components.hscroll_strip import HScrollStrip
+        toolbar_box = QWidget(); toolbar_box.setLayout(toolbar)
+        toolbar.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(HScrollStrip(toolbar_box))
 
         splitter = QSplitter(Qt.Orientation.Vertical)
         self.table = QTableWidget(); self.table.setColumnCount(10)
@@ -173,8 +178,9 @@ class SiteAnalysisView(QWidget):
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self.table.setAlternatingRowColors(True); self.table.setStyleSheet(TABLE_STYLE)
-        # A floor, not a cap: ~5 rows always visible, draggable taller.
-        self.table.setMinimumHeight(260)
+        # A floor, not a cap: ~4 rows always visible, draggable taller. (260 / 5 rows held
+        # the window taller than a laptop screen, R5.)
+        self.table.setMinimumHeight(200)
         splitter.addWidget(self.table)
 
         detail_container = QWidget()
@@ -182,6 +188,7 @@ class SiteAnalysisView(QWidget):
         self.detail_header = QLabel("Select a project or import a species list")
         self.detail_header.setFont(QFont("Georgia", 13, QFont.Weight.Bold))
         self.detail_header.setStyleSheet("color: " + ACCENT_DARK + ";"); dl.addWidget(self.detail_header)
+        self.detail_header.setWordWrap(True)      # a long survey title wraps (R5)
         self.detail_tabs = QTabWidget(); self.detail_tabs.setStyleSheet(TAB_STYLE)
         self.overview_tab = OverviewTab(); self.habitat_tab = HabitatTab()
         self.assemblage_tab = AssemblageTab(); self.species_tab = SpeciesTab()

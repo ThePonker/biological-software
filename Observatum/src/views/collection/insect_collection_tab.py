@@ -330,11 +330,22 @@ class InsectCollectionTab(ICSidebarMixin, ICDataMixin, ICExportMixin, QWidget):
 
     # ── Lifecycle ───────────────────────────────────────────────────
 
-    def initialize(self, db_path=None, uksi_path=None):
-        """Initialize with database connection."""
+    def initialize(self, db_path=None, uksi_path=None, specimens=None):
+        """Initialize with database connection. `specimens`: already read for the current
+        filters (startup reads them in a background thread, Round 5)."""
         if hasattr(self, "_ic_initialized") and self._ic_initialized:
             return
+        self.prepare(db_path, uksi_path)
         self._ic_initialized = True
+        self._load_data(prefetched=specimens)
+
+    def prepare(self, db_path=None, uksi_path=None):
+        """Models, repository and the filter lists (once): initialize() without reading
+        the specimens. Startup: prepare(), read_specimens(query_filters()) in a background
+        thread, then initialize(specimens=...)."""
+        if getattr(self, "_ic_prepared", False):
+            return
+        self._ic_prepared = True
         db = get_database()
         self._specimen_model = SpecimenModel(db)
 
@@ -351,7 +362,6 @@ class InsectCollectionTab(ICSidebarMixin, ICDataMixin, ICExportMixin, QWidget):
         self._vc_service = VCLookupService()
 
         self.filters.initialize_with_database(db)
-        self._load_data()
 
     def refresh(self):
         """Refresh the display."""

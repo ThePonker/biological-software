@@ -13,6 +13,8 @@ can count what is in view. R4: labels drawn in device pixels (no more garbled na
 zoomed), nudged off recorded squares; VC boundary lines with their own switch; the coast
 line is only the sea-facing edges (coast.py): it no longer strokes every district border of
 gb_outline.json (or every VC border without it); the districts have their own switch.
+R5: the base layers moved to map_layers.py: each VC border drawn once, the tint and the land
+filled as one shape (no seams), districts above the VCs, boundaries under the squares.
 
 No WebEngine, no tiles, no internet. Display only: it never touches a database.
 """
@@ -21,24 +23,22 @@ from __future__ import annotations
 from typing import Dict, Optional
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QBrush, QColor, QPainter, QPen, QPolygonF
+from PySide6.QtGui import QBrush, QColor, QPainter, QPen
 from PySide6.QtWidgets import QToolTip, QWidget
 
 from shared.maps import grid_squares as gs
-from shared.maps.coast import split_edges_cached
 from shared.maps.atlas_sheet import AtlasSheetMixin, draw_split  # noqa: F401 (draw_split: old import path)
 from shared.maps._theme import theme
 from shared.maps.panzoom import PanZoomMixin
-from shared.maps.species_dist_map import (_COAST_C, _GRID10_C, _GRID100_C, _LAND_C, _SEA_C,
-                                          _load_gb_outline)
-from shared.maps.vc_labels import (draw_boundaries, draw_labels, draw_outline, label_points,
-                                   point_in_ring)
+from shared.maps.map_layers import BasemapLayersMixin
+from shared.maps.species_dist_map import _SEA_C, _load_gb_outline
+from shared.maps.vc_labels import draw_labels, draw_outline, label_points, point_in_ring
 from shared.maps.vc_map import load_vc_polygons, vc_names
 
 _CLICK_SLOP = 4          # px of movement still counted as a click, not a drag
 
 
-class GridMap(AtlasSheetMixin, PanZoomMixin, QWidget):
+class GridMap(AtlasSheetMixin, BasemapLayersMixin, PanZoomMixin, QWidget):
     """GB basemap with coloured grid squares. Scroll to zoom, drag to pan, double-click resets.
 
     Signals:
@@ -72,10 +72,9 @@ class GridMap(AtlasSheetMixin, PanZoomMixin, QWidget):
         self._vc_outline: Optional[int] = None    # the selected VC, outlined (R9-5)
         self._message = ""
         self._press = None
-        self._poly_cache = None
         self._geojson = geojson_path
         self._districts_on = False                # R4: modern district lines (outline only)
-        self._line_cache: Dict[str, tuple] = {}   # name -> (fit key, projected polylines)
+        self._init_layers()
         self._init_panzoom(True)
         self.setMouseTracking(True)
         self.setMinimumSize(300, 360)
@@ -177,40 +176,14 @@ class GridMap(AtlasSheetMixin, PanZoomMixin, QWidget):
 
     def draw(self, p: QPainter, fit: gs.MapFit, k: float = 1.0, selected: bool = True,
              zoom: float = 1.0):
-        """Basemap, grid, squares, VC boundaries, the selected VC's outline and the VC labels
-        through `fit`. k scales line widths (print > 1). selected=False leaves out the clicked
+        """Basemap, grid, VC boundaries, districts, squares, the selected VC's outline and the
+        VC labels through `fit` (R5 order, map_layers.py). k scales line widths (print > 1). selected=False leaves out the clicked
         square's outline (the atlas page, L13/L31). zoom: the screen's zoom (the labels' scale
         rule). Labels are drawn in device pixels whatever the painter's zoom (vc_labels)."""
-        land, coast = QColor(_LAND_C), QColor(_COAST_C)
-        polys, vc_polys = self._polygons(fit)
-        p.setPen(QPen(land, 0.8 * k))             # same-colour edge closes county slivers
-        p.setBrush(QBrush(land))
-        for poly in polys:
-            p.drawPolygon(poly)
-        hi = QColor(theme.MOSS)
-        hi.setAlpha(40)
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QBrush(hi))
-        for vc in self._vc_highlight:             # VCs holding records: a light tint
-            for poly in vc_polys.get(vc, ()):
-                p.drawPolygon(poly)
-        # R4: the coast is the land's sea-facing edges only (coast.py). Stroking every land
-        # ring drew every district border of gb_outline.json (or, without it, every VC border
-        # again) in the coast colour: the thin lines Wil saw under the VCs.
-        if self._districts_on and self.has_districts():
-            p.setPen(QPen(QColor(theme.LINE), 0.5 * k))
-            p.setBrush(Qt.BrushStyle.NoBrush)
-            for line in self._lines("districts", fit):
-                p.drawPolyline(line)
-        p.setPen(QPen(coast, 0.7 * k))
-        p.setBrush(Qt.BrushStyle.NoBrush)
-        for line in self._lines("coast", fit):
-            p.drawPolyline(line)
-        self._draw_grid(p, fit, k)
-        self._draw_squares(p, fit, k, selected)
-        if self._vc_bounds_on and self._vc_rings:
-            draw_boundaries(p, [self._lines("vc_inland", fit)], k)  # the coast is drawn already
-        if self._vc_outline in vc_polys:
+        self.draw_base(p, fit, k)                  # land .. VC boundaries, districts (R5)
+        self._draw_squares(p, fit, k, selected)   # R5: squares over the boundaries (Wil)
+        vc_polys = self._polygons(fit)[1]
+        if self._vc_outline in vc_polys:          # the selected VC: on top of the squares
             draw_outline(p, vc_polys[self._vc_outline], k)
         if self._vc_labels_on and self._vc_rings:
             if self._label_pts is None:
@@ -251,61 +224,6 @@ class GridMap(AtlasSheetMixin, PanZoomMixin, QWidget):
             e, n = to_en(pt)
             return any(point_in_ring(e, n, r) for r in self._vc_rings.get(vc, ()))
         return occupied, inside
-
-    def _polygons(self, fit):
-        """Basemap rings projected through `fit`; the last projection is kept (paint is hot)."""
-        key = (fit.extent, fit.w, fit.h, fit.x0, fit.y0)
-        if self._poly_cache and self._poly_cache[0] == key:
-            return self._poly_cache[1], self._poly_cache[2]
-
-        def poly(ring):
-            return QPolygonF([QPointF(*fit.to_px(e, n)) for e, n in ring])
-        land = [poly(r) for r in self._land]
-        vcs = {vc: [poly(r) for r in rings] for vc, rings in self._vc_rings.items()}
-        self._poly_cache = (key, land, vcs)
-        return land, vcs
-
-    def _chains(self, name):
-        """OSGB polylines: "coast" / "districts" (the land's sea-facing / inland edges) or
-        "vc_inland" (VC borders that are not coast); split once per source (coast.py)."""
-        if name == "vc_inland":
-            return split_edges_cached(("vc", self._geojson, "300"),
-                                      [r for rs in self._vc_rings.values() for r in rs])[1]
-        if not self._land_source:
-            return []
-        coast, inland = split_edges_cached(self._land_source, self._land)
-        return coast if name == "coast" else inland
-
-    def _lines(self, name, fit):
-        """_chains(name) projected through `fit` (kept until the fit changes)."""
-        key = (fit.extent, fit.w, fit.h, fit.x0, fit.y0)
-        hit = self._line_cache.get(name)
-        if hit is None or hit[0] != key:
-            hit = (key, [QPolygonF([QPointF(*fit.to_px(e, n)) for e, n in c])
-                         for c in self._chains(name)])
-            self._line_cache[name] = hit
-        return hit[1]
-
-    def _draw_grid(self, p, fit, k):
-        minE, minN, maxE, maxN = fit.extent
-        span = max(maxE - minE, maxN - minN)
-        steps = [(100000, QColor(_GRID100_C), 0.5)]
-        if span <= 250000:
-            steps.append((10000, QColor(_GRID10_C), 0.3))
-        for step, col, w in steps:
-            p.setPen(QPen(col, w * k))
-            e = (int(minE) // step) * step
-            while e <= maxE:
-                if 0 <= e <= 700000:
-                    x0, y0 = fit.to_px(e, max(minN, 0)); x1, y1 = fit.to_px(e, min(maxN, 1300000))
-                    p.drawLine(QPointF(x0, y0), QPointF(x1, y1))
-                e += step
-            n = (int(minN) // step) * step
-            while n <= maxN:
-                if 0 <= n <= 1300000:
-                    x0, y0 = fit.to_px(max(minE, 0), n); x1, y1 = fit.to_px(min(maxE, 700000), n)
-                    p.drawLine(QPointF(x0, y0), QPointF(x1, y1))
-                n += step
 
     def _square_rect(self, fit, label) -> Optional[QRectF]:
         b = gs.square_bounds(label)

@@ -47,7 +47,9 @@ class ExamenWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Examen \u2014 Species Assessment Tool")
-        self.setMinimumSize(1200, 700)
+        # Opens maximised. 1200 x 700 was more than a laptop screen (1280 x 720 at 150 %
+        # less the taskbar is 1280 x 672): the window ran under the taskbar (R5)
+        self.setMinimumSize(1000, 560)
         self._mode = AnalysisMode.CODEX_FULL
 
         # Shared data layer

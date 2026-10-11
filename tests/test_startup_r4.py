@@ -1,9 +1,14 @@
-"""Startup speed (Round 4, 11 Oct 2026).
+"""Startup speed (Round 4, 11 Oct 2026) -- and what still holds after Round 5.
 
-- Stats/Reports, Mapping and Settings are built the first time they are opened
-  (LazyTabPage); their signals are connected when they are built.
-- Observation Data / Recording Scheme / Insect Collection read their records on first
-  opening; the window no longer waits for them.
+Round 5 (tests/test_loading_r5.py) loads every tab under the splash screen
+(MainWindow.preload) before the window is shown. Building the MainWindow on its own still
+builds Stats/Reports, Mapping and Settings lazily and reads no records -- preload does that
+-- and the Round 4 first-opening path is kept as the fallback for a tab whose startup step
+failed. So these tests still apply:
+
+- Stats/Reports, Mapping and Settings are built by LazyTabPage when first needed; their
+  signals are connected when they are built.
+- A tab not loaded at startup reads its records on first opening.
 - Cross-tab navigation ("View records" etc. from Stats) still works when the target tab
   has never been opened: it is initialised before the filter is applied.
 - pandas is not imported at startup (import wizards load it on first use).
@@ -231,6 +236,8 @@ def window(qapp, monkeypatch):
 
 
 def test_lazy_tabs_not_built_at_startup(window):
+    """The MainWindow constructor alone builds and reads nothing more (MainWindow.preload,
+    under the splash screen, does: test_loading_r5)."""
     w, f = window
     assert w.stats_reports_tab is None and w.mapping_tab is None and w.settings_tab is None
     assert f["Stats"].built == 0 and f["Mapping"].built == 0
@@ -341,17 +348,6 @@ def test_settings_changed_signal_wired_when_settings_built(window):
     w.home_tab.calls.clear()
     w.settings_tab.settings_changed.emit()
     assert "refresh" in w.home_tab.calls
-
-
-def test_load_after_show_fills_home_then_preloads_scheme(window, qapp):
-    import time
-    w, f = window
-    w.load_after_show()
-    end = time.time() + 2
-    while time.time() < end and "preload" not in w.recording_scheme_tab.calls:
-        qapp.processEvents()
-    assert "init" in w.home_tab.calls
-    assert "preload" in w.recording_scheme_tab.calls
 
 
 def test_ensure_tab_builds_on_request(window):

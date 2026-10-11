@@ -39,6 +39,8 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal
 
+from shared.fit_to_screen import fit_to_screen, scroll_body
+
 from .validation_worker import (
     SchemeImportRow, SchemeValidationWorker, RowStatus, SchemeImportMode,
     _find_vc_database
@@ -95,8 +97,11 @@ class SchemeImportWizard(
         self._init_vc_service(vc_service)
 
         self.setWindowTitle("Import Recording Scheme Data")
-        self.setMinimumSize(1100, 800)
+        # The steps scroll inside the window, so a laptop screen (1280 x 720 at 150 %)
+        # still shows Back / Next / Cancel (R5); on a big monitor it opens as before.
+        self.setMinimumSize(1100, 560)
         self.resize(1200, 850)
+        fit_to_screen(self)
         self.setModal(True)
 
         # Data state
@@ -182,7 +187,7 @@ class SchemeImportWizard(
         # Content area with stacked widget
         self.stack = QStackedWidget()
         self.stack.setStyleSheet(f"background-color: {t.get('surface')};")
-        layout.addWidget(self.stack, 1)
+        layout.addWidget(scroll_body(self.stack), 1)
 
         # Create pages
         self._create_mode_selection_page()    # 0

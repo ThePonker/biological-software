@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QScrollArea, QWidget, QMessageBox
 )
 from PySide6.QtCore import Qt, Signal
+from shared.fit_to_screen import fit_to_screen
 from ..components.species_search import SpeciesSearch
 
 from ...themes import theme
@@ -79,9 +80,13 @@ class AddSpecimenDialog(QDialog):
         else:
             self.setWindowTitle("Add Specimen")
         
-        self.setMinimumSize(520, 780)
+        # The fields scroll; 780 px tall is only the opening size, so on a laptop screen
+        # (1280 x 720 at 150 %) Save / Cancel stay on screen (R5).
+        self.setMinimumSize(520, 480)
         self.setModal(True)
         self._setup_ui()
+        self.resize(900, 780)
+        fit_to_screen(self)
         self._setup_autocomplete()
         self._connect_signals()
         

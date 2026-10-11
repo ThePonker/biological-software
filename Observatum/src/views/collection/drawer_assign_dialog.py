@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 
 import paths
 from shared import drawer_assign as da
+from shared.fit_to_screen import fit_to_screen
 
 GOLD = "#8a6609"
 GOLD_TEXT = "#7a5a08"
@@ -105,6 +106,7 @@ class DrawerAssignDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Drawer in hand — record what is in a drawer")
         self.resize(1240, 760)
+        fit_to_screen(self)    # no taller than a laptop screen (R5)
         self._db = str(db_path or paths.OBSERVATUM_DB)
         self._ticked = set()
         self._filter = None            # ("order"|"family"|"genus", value) or None
@@ -149,6 +151,7 @@ class DrawerAssignDialog(QDialog):
         b.addWidget(self.cmb_drawer)
         hint = QLabel("Tick each specimen as you find it. The list is in taxonomic order.")
         hint.setStyleSheet("color: #4b5563; border: none;")
+        hint.setWordWrap(True)          # wraps rather than widen the window (R5)
         b.addWidget(hint, 1)
         self.lbl_count = QLabel("0 ticked")
         self.lbl_count.setStyleSheet("font-weight: 600; border: none;")
@@ -183,6 +186,7 @@ class DrawerAssignDialog(QDialog):
         top = QHBoxLayout()
         self.lbl_scope = QLabel("")
         self.lbl_scope.setStyleSheet("font-weight: 600;")
+        self.lbl_scope.setWordWrap(True)
         top.addWidget(self.lbl_scope, 1)
         btn_all = QPushButton("Tick all shown")
         btn_all.clicked.connect(lambda: self._tick_shown(True))

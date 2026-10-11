@@ -54,13 +54,22 @@ class StatsReportsTab(QWidget):
     navigate_to_scheme_vc = Signal(str, int)  # Request to switch with species and VC filter
     navigate_to_scheme_record = Signal(int)  # Request to switch to Recording Scheme tab and show specific record
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, build=True):
+        """build=False: an empty tab; build_parts() then builds it a piece at a time
+        (Round 6: built in the background after the window opens, in short slices so the
+        window never freezes)."""
         super().__init__(parent)
         self._observation_model = None
         self._db = None
-        self._setup_ui()
+        if build:
+            self._setup_ui()
 
     def _setup_ui(self):
+        for _ in self.build_parts():
+            pass
+
+    def build_parts(self):
+        """Build the tab, yielding after the section bar and after each dashboard."""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -72,6 +81,7 @@ class StatsReportsTab(QWidget):
 
         # Stacked widget for sections
         self.stack = QStackedWidget()
+        yield
 
         # Personal Stats (index 0)
         self.personal_dashboard = PersonalStatsDashboard()
@@ -82,6 +92,7 @@ class StatsReportsTab(QWidget):
         self.personal_dashboard.navigate_to_year.connect(self.navigate_to_year.emit)
         self.personal_dashboard.navigate_to_species.connect(self.navigate_to_observations.emit)
         self.stack.addWidget(self.personal_dashboard)
+        yield
 
         # Commercial Stats (index 1)
         self.commercial_stats_dashboard = CommercialStatsDashboard()
@@ -92,6 +103,7 @@ class StatsReportsTab(QWidget):
         self.commercial_stats_dashboard.navigate_to_year.connect(self.navigate_to_year.emit)
         self.commercial_stats_dashboard.navigate_to_species.connect(self.navigate_to_observations.emit)
         self.stack.addWidget(self.commercial_stats_dashboard)
+        yield
 
         # All Stats (index 2)
         self.all_stats_dashboard = AllStatsDashboard()
@@ -102,10 +114,12 @@ class StatsReportsTab(QWidget):
         self.all_stats_dashboard.navigate_to_year.connect(self.navigate_to_year.emit)
         self.all_stats_dashboard.navigate_to_species.connect(self.navigate_to_observations.emit)
         self.stack.addWidget(self.all_stats_dashboard)
+        yield
 
         # Commercial Reports (index 3) - NEW placeholder
         self.commercial_reports_dashboard = CommercialReportsDashboard()
         self.stack.addWidget(self.commercial_reports_dashboard)
+        yield
 
         # Recording Scheme (index 4)
         self.scheme_dashboard = SchemeDashboard()
@@ -113,6 +127,7 @@ class StatsReportsTab(QWidget):
         self.scheme_dashboard.species_vc_selected.connect(self._on_scheme_species_vc_selected)
         self.scheme_dashboard.record_selected.connect(self._on_scheme_record_selected)
         self.stack.addWidget(self.scheme_dashboard)
+        yield
 
         # Insect Collection (index 5)
         self.collection_dashboard = CollectionStatsDashboard()
@@ -125,6 +140,7 @@ class StatsReportsTab(QWidget):
         self.collection_dashboard.filter_by_storage_requested.connect(self.filter_collection_by_storage.emit)
         self.collection_dashboard.specimen_detail_requested.connect(self.show_specimen_detail.emit)
         self.stack.addWidget(self.collection_dashboard)
+        yield
 
         # Species Lookup (index 6)
         self.species_dashboard = SpeciesDashboard()
@@ -132,6 +148,7 @@ class StatsReportsTab(QWidget):
         self.species_dashboard.navigate_to_collection.connect(self.navigate_to_collection.emit)
         self.species_dashboard.navigate_to_scheme.connect(self.navigate_to_scheme_taxon.emit)
         self.stack.addWidget(self.species_dashboard)
+        yield
 
         # Cleaning Report (index 7): records to tidy in iRecord (backlog B)
         self.cleaning_dashboard = CleaningDashboard()
@@ -249,12 +266,12 @@ class StatsReportsTab(QWidget):
 
     def apply_theme(self):
         """Apply the current theme to all components."""
-        self.section_toggle.apply_theme()
-        self.personal_dashboard.apply_theme()
-        self.commercial_stats_dashboard.apply_theme()
-        self.all_stats_dashboard.apply_theme()
-        self.commercial_reports_dashboard.apply_theme()
-        self.scheme_dashboard.apply_theme()
-        self.collection_dashboard.apply_theme()
-        self.species_dashboard.apply_theme()
-        self.cleaning_dashboard.apply_theme()
+        for part in self.theme_parts():
+            part.apply_theme()
+
+    def theme_parts(self):
+        """The components that follow the theme (each has apply_theme), in order."""
+        return [self.section_toggle, self.personal_dashboard, self.commercial_stats_dashboard,
+                self.all_stats_dashboard, self.commercial_reports_dashboard,
+                self.scheme_dashboard, self.collection_dashboard, self.species_dashboard,
+                self.cleaning_dashboard]

@@ -21,9 +21,10 @@ from .observations import ObservationTab
 from .contributed import ContributedTab
 from .scheme import RecordingSchemeTab
 from .collection import InsectCollectionTab
-# Stats/Reports, Mapping and Settings are imported and built on first opening
-# (LazyTabPage) -- startup speed, 11 Oct 2026
+# Stats/Reports, Mapping and Settings are imported when built: under the splash screen
+# (startup_preload.py, Round 5), or on first opening if that failed (LazyTabPage)
 from .lazy_tab import LazyTabPage
+from .main_window_background import BackgroundTabsMixin, waits_for
 
 from ..models.database import get_database
 from ..models.uksi import UKSIModel
@@ -37,7 +38,7 @@ from ..themes import theme
 from ..core.config import TabColors
 
 
-class MainWindow(QMainWindow):
+class MainWindow(BackgroundTabsMixin, QMainWindow):
     """
     Main application window with tab-based navigation.
 
@@ -58,34 +59,59 @@ class MainWindow(QMainWindow):
         self._main_db_path = main_db_path
         self._uksi_db_path = uksi_db_path
         self._splash = splash
+        self._bg = None                     # the background loader (start_background)
+        self.settings_generation = 0        # +1 on each Settings / counting change
 
-        self._update_splash(35, "Building interface...")
+        # The window's own style sheet BEFORE the tabs exist (Round 6): set afterwards it
+        # re-styled every widget already built (~940), a third of building the window
+        self._apply_window_style()
         self._setup_ui()
         # Tab signal connected in showEvent to prevent eager loading
 
-        self._update_splash(50, "Setting up status bar...")
         self._setup_statusbar()
 
-        self._update_splash(55, "Initializing services...")
+        self._splash_step("services")
         self._initialize_services()
 
-        self._update_splash(95, "Applying theme...")
-        self.apply_theme()
+        self._pump_splash("window: services")
+        self._theme_tabs()
+        self._pump_splash("window: themes")
 
-        self._update_splash(100, "Ready!")
-        # Reset lazy-load tracking - Qt may have fired tab events during init
+        # Tabs whose records are loaded: Home; startup_preload marks the others
+        # (mark_tab_ready). Qt may have fired tab events during init.
         self._initialized_tabs = {0}
         self._ready = True  # Guard: only process tab changes after init complete
 
     def connect_tab_signal(self):
-        """Connect tab change signal. Call after window is shown."""
-        self._initialized_tabs = {0}
+        """Connect tab change signal. Call after window is shown. (The tabs loaded under
+        the splash screen stay marked as loaded: they are not initialised again.)"""
         self.tabs.currentChanged.connect(self._on_tab_changed)
 
+    def mark_tab_ready(self, widget):
+        """`widget` (a tab page) was built and loaded at startup: opening it needs nothing
+        more (Stats/Reports is still refreshed on each visit)."""
+        i = self.tabs.indexOf(widget)
+        if i >= 0:
+            self._initialized_tabs.add(i)
+
+    def _splash_step(self, key: str):
+        """The splash screen's bar moves on to startup step `key` (splash_progress.STEPS)."""
+        if self._splash is not None and hasattr(self._splash, "begin_step"):
+            self._splash.begin_step(key)
+
+    def _pump_splash(self, built: str = ""):
+        """Let the splash screen repaint between pieces of the window being built.
+        `built`: what was just built, for run.bat --timing (where the window's build time
+        goes on Wil's PC: Round 6)."""
+        if built:
+            from ..startup_timing import timer
+            timer().mark(built)
+        if self._splash is not None and hasattr(self._splash, "pump"):
+            self._splash.pump()
+
     def _update_splash(self, progress: int, message: str):
-        """Update splash screen if available."""
-        if self._splash:
-            self._splash.set_progress(progress, message)
+        """Older progress calls: the bar now follows the startup steps, so just repaint."""
+        self._pump_splash()
 
     def _setup_ui(self):
         """Set up the main UI structure."""
@@ -104,6 +130,7 @@ class MainWindow(QMainWindow):
         # Add tabs
         self.home_tab = HomeTab()
         self.tabs.addTab(self.home_tab, "Home")
+        self._pump_splash("window: Home tab")
 
         # Data Entry tab -- PREVIEW by default (dev copy, commit disabled).
         # TO GO LIVE (commit into data\observatum.db):
@@ -121,8 +148,10 @@ class MainWindow(QMainWindow):
         except Exception as _de_err:
             print(f"[Observatum] Data Entry tab unavailable: {_de_err}")
 
+        self._pump_splash("window: Data Entry tab")
         self.observation_tab = ObservationTab()
         self.tabs.addTab(self.observation_tab, "Observation Data")
+        self._pump_splash("window: Observation Data tab")
 
         # Contributed records (other people's) -- read-only browse, backlog K1
         self.contributed_tab = ContributedTab()
@@ -130,20 +159,23 @@ class MainWindow(QMainWindow):
 
         self.recording_scheme_tab = RecordingSchemeTab()
         self.tabs.addTab(self.recording_scheme_tab, "Recording Scheme")
+        self._pump_splash("window: Contributed and Recording Scheme tabs")
 
         self.insect_collection_tab = InsectCollectionTab()
         self.tabs.addTab(self.insect_collection_tab, "Insect Collection")
+        self._pump_splash("window: Insect Collection tab")
 
-        # Built the first time they are opened (None until then): nothing needs them at
-        # startup, and the Mapping tab alone took several seconds to build
+        # Built in the background after the window opens (Round 6: start_background), a
+        # slice at a time; a LazyTabPage builds one on first opening if that failed.
+        # None until built (main_window_background.py).
         self.stats_reports_tab = None
         self.mapping_tab = None
         self.settings_tab = None
-        self._stats_page = LazyTabPage(self._build_stats_tab, "Stats/Reports")
+        self._stats_page = LazyTabPage(self._stats_tab_parts, "Stats/Reports")
         self.tabs.addTab(self._stats_page, "Stats/Reports")
-        self._mapping_page = LazyTabPage(self._build_mapping_tab, "Mapping")
+        self._mapping_page = LazyTabPage(self._mapping_tab_parts, "Mapping")
         self.tabs.addTab(self._mapping_page, "Mapping")
-        self._settings_page = LazyTabPage(self._build_settings_tab, "Settings")
+        self._settings_page = LazyTabPage(self._settings_tab_parts, "Settings")
         self.tabs.addTab(self._settings_page, "Settings")
 
         # Track initialized tabs for lazy loading
@@ -156,52 +188,6 @@ class MainWindow(QMainWindow):
 
         self._data_changed = False
         self._connect_cross_tab_signals()
-
-    # ── Tabs built on first opening ─────────────────────────────────
-
-    def _build_stats_tab(self):
-        from .stats import StatsReportsTab
-        tab = StatsReportsTab()
-        self.stats_reports_tab = tab
-        self._connect_stats_signals()
-        self._theme_tab(tab)
-        return tab
-
-    def _build_mapping_tab(self):
-        from .mapping import MappingTab
-        tab = MappingTab()
-        self.mapping_tab = tab
-        self._theme_tab(tab)
-        return tab
-
-    def _build_settings_tab(self):
-        from .settings import SettingsTab
-        tab = SettingsTab(db_manager=get_database())
-        self.settings_tab = tab
-        tab.settings_changed.connect(self._on_settings_changed)
-        self._theme_tab(tab)
-        try:
-            tab.initialize()            # database paths and figures
-        except Exception as e:
-            print(f"Warning: Could not initialize Settings tab: {e}")
-        return tab
-
-    def ensure_tab(self, name: str):
-        """The tab called `name` ('stats_reports_tab', 'mapping_tab', 'settings_tab' or any
-        tab built at startup), building it now if it has not been opened yet."""
-        page = {'stats_reports_tab': getattr(self, '_stats_page', None),
-                'mapping_tab': getattr(self, '_mapping_page', None),
-                'settings_tab': getattr(self, '_settings_page', None)}.get(name)
-        if page is not None:
-            page.ensure_built()
-        return getattr(self, name, None)
-
-    def _theme_tab(self, tab):
-        if hasattr(tab, 'apply_theme'):
-            try:
-                tab.apply_theme()
-            except Exception as e:
-                print(f"Warning: Could not apply theme to {tab.__class__.__name__}: {e}")
 
     def _observations_loaded(self) -> bool:
         """Observation Data has read its records (it loads on first opening)."""
@@ -319,6 +305,7 @@ class MainWindow(QMainWindow):
 
     def _on_counting_changed(self, source: str):
         """The species-counting switches changed: every figure, table and list follows."""
+        self.settings_generation += 1       # figures being read in the background: stale
         try:
             from ..services.observation_stats_service import get_observation_stats_service
             from ..services.recording_scheme_stats_service import get_recording_scheme_stats
@@ -517,6 +504,7 @@ class MainWindow(QMainWindow):
                 self.insect_collection_tab.filters.species_edit.setText(species_filter)
                 self.insect_collection_tab.filters._emit_filters()
 
+    @waits_for("scheme")
     def _navigate_to_scheme_tab(self, species_filter: str = ""):
         """Navigate to the Recording Scheme tab and filter by species."""
         self.tabs.setCurrentWidget(self.recording_scheme_tab)
@@ -539,6 +527,7 @@ class MainWindow(QMainWindow):
             fb = self.recording_scheme_tab.filter_bar
             fb.clear_filters()
 
+    @waits_for("scheme")
     def _navigate_to_scheme_taxon(self, species_name: str):
         """Stats > Species lookup "View N scheme records": the Recording Scheme tab showing
         that taxon as the lookup counted it (not by exact species_name, which missed
@@ -546,6 +535,7 @@ class MainWindow(QMainWindow):
         self.tabs.setCurrentWidget(self.recording_scheme_tab)
         self.recording_scheme_tab.show_species(species_name)
 
+    @waits_for("scheme")
     def _navigate_to_scheme_tab_with_vc(self, species_filter: str, vc_number: int):
         """Navigate to the Recording Scheme tab and filter by species and vice county."""
         self.tabs.setCurrentWidget(self.recording_scheme_tab)
@@ -578,6 +568,7 @@ class MainWindow(QMainWindow):
                 fb.setVisible(True)
                 self.recording_scheme_tab.toolbar.filter_btn.setChecked(True)
 
+    @waits_for("scheme")
     def _navigate_to_scheme_record(self, record_id: int):
         """Navigate to Recording Scheme tab and show a specific record."""
         self.tabs.setCurrentWidget(self.recording_scheme_tab)
@@ -738,11 +729,14 @@ class MainWindow(QMainWindow):
 
     def apply_theme(self):
         """Apply the current theme to the main window and all tabs."""
+        self._apply_window_style()
+        self._theme_tabs()
+        if self._bg is not None:
+            self._bg.apply_theme()              # the "Still loading" line
+
+    def _apply_window_style(self):
+        """The main window's background and tab bar (TabColors from the central config)."""
         t = theme()
-
-        # NEW: Use TabColors from centralised config (replaces hardcoded values)
-
-        # Apply main window background and tab styling
         self.setStyleSheet(f"""
             QMainWindow {{
                 background-color: {t.get('background')};
@@ -801,7 +795,8 @@ class MainWindow(QMainWindow):
             }}
         """)
 
-        # Notify all tabs to refresh their themes
+    def _theme_tabs(self):
+        """Every tab built so far follows the current theme."""
         tabs_with_theme = [
             self.home_tab,
             self.observation_tab,
@@ -860,39 +855,17 @@ class MainWindow(QMainWindow):
         except Exception as e:
             print(f"Warning: Could not initialize stats services: {e}")
 
-        # Startup speed (11 Oct 2026): the window opens first. Home's figures are read
-        # just after it is shown (load_after_show); Observation Data, Recording Scheme
-        # and Insect Collection read their records when first opened (_on_tab_changed),
-        # and the Recording Scheme records start loading in the background once the
-        # window is up. (Observation Data used to be read here "for the Home stats",
-        # but Home reads its own figures; Settings is built when first opened.)
-        self._update_splash(85, "Ready...")
+        # Round 5 (11 Oct 2026): Home's figures, every tab and every tab's records are
+        # then loaded under the splash screen, before the window is shown
+        # (startup_preload.StartupPreloader, run by main.py).
+        self._pump_splash()
 
-    def load_after_show(self):
-        """Work that used to hold the window back: run it once the window is on screen."""
-        from PySide6.QtCore import QTimer
-        QTimer.singleShot(0, self._fill_home)
-
-    def _fill_home(self):
-        timing = _timing()
-        try:
-            self.home_tab.initialize()
-        except Exception as e:
-            print(f"Warning: Could not initialize Home tab: {e}")
-            self.statusbar.showMessage(f"Warning: {e}")
-        timing.mark("Home figures filled")
-        # Recording Scheme records load in a background thread, ready for its first opening
-        from PySide6.QtCore import QTimer
-        QTimer.singleShot(300, self._start_scheme_preload)
-
-    def _start_scheme_preload(self):
-        rs = self.recording_scheme_tab
-        if getattr(rs, '_initialized', False) or getattr(rs, '_data_worker', None) is not None:
-            return                      # already opened (it loaded itself) or loading
-        try:
-            rs.start_preload(self._main_db_path)
-        except Exception as e:
-            print(f"Warning: Could not start loading Recording Scheme records: {e}")
+    def preload(self, timing=None):
+        """Load Home, Observation Data, Contributed and Insect Collection before the window
+        is shown (startup_preload; the rest: start_background); the result says whether the
+        splash was closed (cancelled) and what could not be loaded."""
+        from .startup_preload import StartupPreloader
+        return StartupPreloader(self, self._splash, timing).run()
 
     def set_status(self, message: str, timeout: int = 5000):
         """Show a message in the status bar."""
@@ -978,6 +951,8 @@ class MainWindow(QMainWindow):
         """Lazy load tab data on first visit. Widget-based so tab ORDER does not matter."""
         if not getattr(self, "_ready", False):
             return
+        if self._tab_pending_in_background(index):
+            return                  # "Finishing loading…": it is loaded next (Round 6)
 
         w = self.tabs.widget(index)
         if isinstance(w, LazyTabPage):          # Stats/Reports, Mapping, Settings
@@ -1049,6 +1024,7 @@ class MainWindow(QMainWindow):
 
     def _on_settings_changed(self):
         """Handle settings saved - refresh defaults, display settings, and theme."""
+        self.settings_generation += 1       # figures being read in the background: stale
         try:
             self.home_tab.quick_entry.reload_defaults()
         except Exception as e:
@@ -1131,8 +1107,9 @@ class MainWindow(QMainWindow):
             QTimer.singleShot(150, self.showMaximized)
             # build the shared species-search index (about a second) before the first
             # keystroke needs it -- in the background, once the window is up
+            # (when the background loader runs, it builds it: start_background)
             from shared.species_search import warm_up
-            QTimer.singleShot(2000, warm_up)
+            QTimer.singleShot(2000, lambda: self._bg is None and warm_up())
 
     def _apply_filter_settings_after_show(self):
         """Apply filter visibility settings after window is shown."""
@@ -1190,6 +1167,9 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         """Handle window close with optional CSV backup."""
+        # Round 6: whatever is still loading in the background stops first (its worker
+        # threads waited for)
+        self.stop_background()
         # The Recording Scheme records may still be loading in the background (they start
         # after the window opens): stop that first -- a thread left running aborted the
         # process on exit, and its open read held up the WAL checkpoint below (review R4)
@@ -1308,18 +1288,6 @@ class MainWindow(QMainWindow):
 
 class _NotBuilt(Exception):
     """A tab that is built on first opening has not been opened yet."""
-
-
-def _timing():
-    """The startup timer (src.startup_timing) -- a no-op unless --timing was given."""
-    try:
-        from src.startup_timing import timer
-        return timer()
-    except Exception:
-        class _Off:
-            def mark(self, *a, **k):
-                pass
-        return _Off()
 
 
 # Claude: deferred Observation-Data refresh worker (module-level; safe, auto-detecting)

@@ -9,8 +9,10 @@ Edit capacity budgets for a business year:
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QSpinBox,
-    QPushButton, QFormLayout, QGroupBox,
+    QPushButton, QFormLayout, QGroupBox, QWidget,
 )
+
+from shared.fit_to_screen import fit_to_screen, scroll_body
 
 from Munia.theme import (
     STONE_BORDER, HEADING_FAMILY,
@@ -28,13 +30,20 @@ class BudgetSettingsDialog(QDialog):
         self._conn = conn
         self._year = year
         self.setWindowTitle(f"Budget Settings — {year}/{year + 1}")
-        self.setFixedWidth(400)
+        self.setMinimumWidth(400)      # was fixed: wider text was cut off (R5)
         self._setup_ui()
+        fit_to_screen(self)
 
     def _setup_ui(self):
-        layout = QVBoxLayout(self)
+        # The settings scroll and Cancel / Save stay below them: the twelve months made
+        # the dialog 710 px tall, past a laptop screen's edge (R5)
+        outer = QVBoxLayout(self)
+        outer.setSpacing(16)
+        outer.setContentsMargins(20, 20, 20, 20)
+        body = QWidget()
+        layout = QVBoxLayout(body)
         layout.setSpacing(16)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setContentsMargins(0, 0, 0, 0)
 
         title = QLabel(f"Capacity Budget {self._year}/{self._year + 1}")
         title.setStyleSheet(
@@ -108,6 +117,7 @@ class BudgetSettingsDialog(QDialog):
         rl.addRow("Total budget:", self.report_spin)
 
         layout.addWidget(report_group)
+        outer.addWidget(scroll_body(body, horizontal=False), 1)
 
         # Buttons
         btn_row = QHBoxLayout()
@@ -129,7 +139,7 @@ class BudgetSettingsDialog(QDialog):
         save_btn.clicked.connect(self._save)
         btn_row.addWidget(save_btn)
 
-        layout.addLayout(btn_row)
+        outer.addLayout(btn_row)
 
     def _save(self):
         # Update field budgets per month

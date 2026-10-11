@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 
+from shared.fit_to_screen import scroll_body
 from .calculator import GamificationCalculator
 from .setup import ensure_gamification_db
 from .renderer import AchievementRenderer
@@ -42,7 +43,7 @@ class GamificationWindow(QDialog):
         super().__init__(parent)
         
         self.setWindowTitle("Observatum V2 - Achievements")
-        self.setMinimumSize(900, 700)
+        self.setMinimumSize(900, 520)     # opens maximised; 700 was over a laptop's height
         
         # Theme state
         self.dark_mode = True
@@ -92,13 +93,15 @@ class GamificationWindow(QDialog):
         main_layout.addWidget(header)
         
         # Tab widget
+        # Each tab scrolls: the Overview alone needed 950 px, more than a laptop screen,
+        # and was squashed there (R5)
         self.tabs = QTabWidget()
-        self.tabs.addTab(self.overview_tab.create(), "Overview")
-        self.tabs.addTab(self.tiers_tab.create(), "Tiers")
-        self.tabs.addTab(self.records_tab.create(), "Records")
-        self.tabs.addTab(self.vcs_tab.create(), "Vice Counties")
-        self.tabs.addTab(self.families_tab.create(), "Families")
-        self.tabs.addTab(self.rare_tab.create(), "Rare Species")
+        self.tabs.addTab(scroll_body(self.overview_tab.create()), "Overview")
+        self.tabs.addTab(scroll_body(self.tiers_tab.create()), "Tiers")
+        self.tabs.addTab(scroll_body(self.records_tab.create()), "Records")
+        self.tabs.addTab(scroll_body(self.vcs_tab.create()), "Vice Counties")
+        self.tabs.addTab(scroll_body(self.families_tab.create()), "Families")
+        self.tabs.addTab(scroll_body(self.rare_tab.create()), "Rare Species")
         
         main_layout.addWidget(self.tabs, 1)
     

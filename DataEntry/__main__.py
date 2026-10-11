@@ -63,8 +63,10 @@ def main(argv=None) -> int:
     app.setOrganizationName("Flauna")
     app.setApplicationName("Observatum")  # so QSettings resolves the same USER_INITIALS
 
+    from shared.fit_to_screen import fit_to_screen
     widget = DataEntryWidget(main_db)
     widget.resize(860, 720)
+    fit_to_screen(widget)       # 720 px is taller than a laptop's free screen (R5)
     widget.show()
     return app.exec()
 

@@ -19,6 +19,7 @@ from .planner_data import load_orders, config_problems
 from .planner_label_preview import LabelPreviewWidget
 from .planner_settings import load_settings, SettingsDialog
 from .planner_fonts import load_qt_fonts, get_available_fonts
+from shared.fit_to_screen import scroll_body
 
 
 class LabelsView(QWidget):
@@ -190,7 +191,12 @@ class LabelsView(QWidget):
         settings_btn.clicked.connect(self._open_settings)
         ll.addWidget(settings_btn)
 
-        splitter.addWidget(left)
+        # The controls scroll: their 770 px held the window taller than a laptop screen,
+        # past the taskbar, with Export PDF out of reach (R5)
+        left_scroll = scroll_body(left, horizontal=False)
+        left_scroll.setMaximumWidth(left.maximumWidth()
+                                    + left_scroll.verticalScrollBar().sizeHint().width())
+        splitter.addWidget(left_scroll)
 
         # =============================================================
         # MIDDLE PANEL — taxonomic tree

@@ -47,9 +47,6 @@ def finish_and_show(splash, window):
     window.connect_tab_signal()
     # Apply filter settings after a delay
     QTimer.singleShot(200, lambda: apply_filter_settings(window))
-    # Home's figures, then the Recording Scheme records in the background
-    if hasattr(window, "load_after_show"):
-        window.load_after_show()
 
 
 def main():
@@ -65,10 +62,15 @@ def main():
     app.setApplicationName("Observatum V2")
     app.setOrganizationName("Observatum")
 
-    # Show splash screen immediately
+    # Show splash screen immediately; its bar follows the startup steps
+    # (src/views/splash_progress.py) and keeps moving while records load in threads
     from src.views.splash_screen import ObservatumSplashScreen
+    from src.views.splash_progress import ProgressPlan, load_seconds, save_seconds
     splash = ObservatumSplashScreen()
+    kept_seconds = load_seconds()            # this computer's step durations, if known
+    plan = ProgressPlan(seconds=kept_seconds)
     splash.show()
+    splash.start_plan(plan)
     app.processEvents()
     timing.mark("splash shown")
 
@@ -76,15 +78,12 @@ def main():
     main_db_path = str(paths.OBSERVATUM_DB)
     uksi_db_path = str(paths.UKSI_DB)
 
-    splash.set_progress(10, "Loading configuration...")
-
-    # Import main window
+    splash.begin_step("imports")
     from src.views.main_window import MainWindow
     timing.mark("main window imported")
 
-    splash.set_progress(30, "Creating main window...")
-
     # Create window with splash for progress updates
+    splash.begin_step("window")
     window = MainWindow(
         main_db_path=main_db_path,
         uksi_db_path=uksi_db_path,
@@ -92,23 +91,34 @@ def main():
     )
     timing.mark("main window built")
 
-    # Startup speed (11 Oct 2026): the window no longer waits for the Recording Scheme
-    # records, nor reads the Recording Scheme / Insect Collection records while hidden.
-    # Those tabs read their records when first opened (MainWindow._on_tab_changed); the
-    # Recording Scheme records start loading in the background once the window is up,
-    # and a load that fails is reported when the tab is opened.
-    splash.set_progress(100, "Ready!")
-    app.processEvents()
+    # Round 6 (11 Oct 2026, Wil: "window early, rest behind"): Home, Observation Data,
+    # Contributed and Insect Collection are loaded now, under the splash screen; the window
+    # then opens and the Recording Scheme records, Stats/Reports, Mapping, Settings and the
+    # species search finish in the background (MainWindow.start_background), the window
+    # usable meanwhile. Closing the splash screen stops startup cleanly.
+    result = window.preload(timing)
+    if result.cancelled:
+        timing.mark("startup stopped (splash screen closed)")
+        window.deleteLater()
+        sys.exit(0)
+    splash.finish_progress("Ready")
+    timing.mark("first tabs loaded")
+    if not result.problems:
+        save_seconds(plan.measured, kept_seconds)
 
     def show():
         finish_and_show(splash, window)
         timing.mark("window shown")
-
-        def idle():
-            timing.mark("idle (startup work done)")
-        # after the post-show timers (filters 200 ms, Home fill)
-        QTimer.singleShot(250, lambda: QTimer.singleShot(0, idle))
-    QTimer.singleShot(0, show)
+        # the rest, behind the open window ("Still loading: ..." in the status bar);
+        # run.bat --timing prints each step "(background)" and "everything ready"
+        window.start_background(timing)
+        from src.views.startup_preload import problems_message
+        message = problems_message(result)
+        if message:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(window, "Observatum", message)
+    # a moment at 100% so the full bar is seen
+    QTimer.singleShot(100, show)
 
     sys.exit(app.exec())
 

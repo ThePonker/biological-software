@@ -27,6 +27,7 @@ try:
 except ImportError:
     CHARTS_AVAILABLE = False
 
+from shared.fit_to_screen import fit_to_screen, scroll_body
 from .stat_widgets import StatCard, MonthlyActivityChart
 from ..components.sort_items import date_item, number_item
 from ...themes import theme
@@ -997,8 +998,11 @@ class VCDetailsDialog(QDialog):
     def _setup_ui(self):
         """Set up the dialog UI."""
         self.setWindowTitle(f"VC{self.vc_number} - {self.vc_name}")
-        self.setMinimumSize(800, 600)
+        # The tabs scroll when the window is short: the Timeline chart's 400 px made the
+        # dialog 707 px tall, below a laptop screen's edge with Close (R5)
+        self.setMinimumSize(800, 480)
         self.resize(900, 700)
+        fit_to_screen(self)
         
         layout = QVBoxLayout(self)
         layout.setSpacing(16)
@@ -1057,7 +1061,7 @@ class VCDetailsDialog(QDialog):
         gaps_layout.addWidget(self.gaps_table)
         self.tabs.addTab(self.gaps_tab, "Recording Gaps")
         
-        layout.addWidget(self.tabs)
+        layout.addWidget(scroll_body(self.tabs), 1)
         
 
         # Export CSV button

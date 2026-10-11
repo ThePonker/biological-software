@@ -165,7 +165,7 @@ def test_scheme_record_actions_retired():
 # ── L16: Home Quick Stats cards ─────────────────────────────────────────────────
 
 def test_home_left_column_order(qapp):
-    from src.features.gamification import GamificationLauncher
+    # R5 (11 Oct): All card after Commercial; Achievements left Home (tests/test_home_r5.py)
     from src.views.home.home_tab import HomeTab
     from src.views.home.observation_stats_card import ObservationStatsCard
     from src.views.home.quick_stats import QuickStatsPanel
@@ -173,8 +173,8 @@ def test_home_left_column_order(qapp):
     lay = h.personal_stats.parentWidget().layout()   # the left column (in a scroll area since R4)
     widgets = [lay.itemAt(i).widget() for i in range(lay.count()) if lay.itemAt(i).widget()]
     assert [type(w) for w in widgets] == [ObservationStatsCard, ObservationStatsCard,
-                                         QuickStatsPanel, GamificationLauncher]
-    assert [w.record_type for w in widgets[:2]] == ["Personal", "Commercial"]
+                                         ObservationStatsCard, QuickStatsPanel]
+    assert [w.record_type for w in widgets[:3]] == ["Personal", "Commercial", "All"]
 
 
 @needs_data

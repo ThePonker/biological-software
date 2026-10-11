@@ -255,10 +255,16 @@ def test_fix_jan1_dates_dry_run_on_copy(capsys):
     mod = _fix_script()
     found = {f["dataset"]: f for f in mod.survey(
         sqlite3.connect(f"file:{paths.OBSERVATUM_DB}?mode=ro", uri=True))}
+    # Once fix_jan1_dates --apply has been run (Wil's PC, 11 Oct) these datasets no longer
+    # have 1 January dates, so survey() does not list them: a listed one must be padding,
+    # an absent one is the applied state
     for ds in ("Cerambycidae Dataset", "Invertebrate Site Register - England (1738-2005)",
                "Shropshire Ecological Data Network Database", "NBIS Records to December 2016",
                "National Trust Species Records", "Welsh Invertebrate Database (WID)"):
-        assert found[ds]["verdict"] == "padding"
-    assert found["Longhorn beetle (Cerambycidae) data from iRecord"]["verdict"] == "unclear"
+        if ds in found:
+            assert found[ds]["verdict"] == "padding", ds
+    longhorn = found.get("Longhorn beetle (Cerambycidae) data from iRecord")
+    if longhorn is not None:                     # never changed by --apply (unclear)
+        assert longhorn["verdict"] == "unclear"
     assert all(f["verdict"] in ("genuine", "too few")
                for name, f in found.items() if name.startswith("iRecord"))

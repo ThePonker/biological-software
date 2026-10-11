@@ -599,8 +599,10 @@ class RecordingSchemeTab(QWidget):
         self._preload_records = None
         self._load_data()                # replaces a load still running
 
-    def initialize(self, db_path=None, uksi_path=None):
-        """Initialize with database connection (called on first tab visit)."""
+    def initialize(self, db_path=None, uksi_path=None, choices=None):
+        """Initialize with database connection (called on first tab visit). `choices`: the
+        filter bar's lists read beforehand in a background thread (SchemeFilterBar.
+        read_choices, Round 6 startup); read now when None."""
         if self._initialized:
             return
         self._initialized = True
@@ -608,7 +610,10 @@ class RecordingSchemeTab(QWidget):
         self._main_db_path = db_path or self._main_db_path
 
         # Initialize filter bar with database for autocomplete
-        self.filter_bar.initialize_with_database(self._db)
+        if choices is None:
+            self.filter_bar.initialize_with_database(self._db)
+        else:
+            self.filter_bar.initialize_with_database(self._db, choices=choices)
 
         # If pre-load already delivered data, use it immediately
         if self._preload_records is not None:

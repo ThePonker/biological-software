@@ -301,18 +301,21 @@ class ObservationFilterMixin:
             return default
         return str(val)
 
-    def _load_data(self, filters: Optional[Dict[str, Any]] = None):
-        """Load observation data into the table."""
+    def read_all_records(self) -> list:
+        """Every observation, read from the database. Touches no widget, so startup runs it
+        in a background thread (each query opens its own connection)."""
+        if self._obs_repo:
+            return self._obs_repo.search(limit=999999)
+        return self._observation_model.get_observations({})
+
+    def _load_data(self, filters: Optional[Dict[str, Any]] = None, records=None):
+        """Load observation data into the table (`records`: already read, Round 5)."""
         if not self._observation_model and not self._obs_repo:
             return
 
         try:
-
-            # Use repository if available
-            if self._obs_repo:
-                self._all_observations = self._obs_repo.search(limit=999999)
-            else:
-                self._all_observations = self._observation_model.get_observations({})
+            self._all_observations = (list(records) if records is not None
+                                      else self.read_all_records())
 
             # The wizard's filters survive a reload (an edit, delete or import): re-query
             if hasattr(self, '_refresh_wizard_ids'):

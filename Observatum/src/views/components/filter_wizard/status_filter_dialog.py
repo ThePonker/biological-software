@@ -14,6 +14,7 @@ from PySide6.QtCore import Qt
 from ....themes import theme
 from ....core.config import ButtonColors
 from .dataset_picker import DatasetPicker
+from shared.fit_to_screen import fit_to_screen, scroll_body
 
 
 # Verification statuses from iRecord data
@@ -100,23 +101,31 @@ class StatusFilterDialog(QDialog):
         sep.setFixedHeight(1)
         layout.addWidget(sep)
         
+        # The sections scroll when the window is short (the Recording Scheme's dataset list
+        # made it 750 px tall: on a laptop the buttons were off screen -- R5)
+        body = QWidget()
+        body_layout = QVBoxLayout(body)
+        body_layout.setContentsMargins(0, 0, 0, 0)
+        body_layout.setSpacing(16)
+
         # === VERIFICATION STATUS SECTION ===
         status_section = self._create_status_section()
         status_section.setVisible(bool(self._status_list))
-        layout.addWidget(status_section)
+        body_layout.addWidget(status_section)
         
         # === RECORD TYPE SECTION ===
         type_section = self._create_type_section()
         type_section.setVisible(bool(self._type_list))
-        layout.addWidget(type_section)
+        body_layout.addWidget(type_section)
 
         # === DATASET / PROVIDER SECTION (Recording Scheme) ===
         if self._dataset_list:
             self.dataset_picker = DatasetPicker(self._dataset_list, self._accent_color, self)
-            layout.addWidget(self.dataset_picker)
-            self.setMinimumHeight(620)
+            body_layout.addWidget(self.dataset_picker)
         
-        layout.addStretch()
+        body_layout.addStretch()
+        layout.addWidget(scroll_body(body, horizontal=False), 1)
+        fit_to_screen(self)
         
         # === BUTTON ROW ===
         button_layout = QHBoxLayout()

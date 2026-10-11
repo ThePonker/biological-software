@@ -5,6 +5,10 @@ Shows loading progress while application initializes.
 Victorian naturalist aesthetic with ornamental details and smooth progress.
 Five nature silhouettes (bird, mushroom, beetle, acorn, bat) light up
 progressively from moss green to heather purple as modules load.
+
+Round 5 (11 Oct 2026): the bar follows the named startup steps (splash_progress.py) and is
+animated by a timer, so it glides at an even pace while records load in background threads
+(startup_preload.py); the label says what is being loaded, in plain words.
 """
 
 from pathlib import Path
@@ -67,6 +71,13 @@ class ObservatumSplashScreen(QSplashScreen):
         self._setup_progress_bar()
         self._setup_status_label()
 
+        # Round 5: the bar is driven by a ProgressPlan and this timer (start_plan)
+        self._plan = None
+        self.cancel_requested = False     # the splash was closed while loading
+        self._anim = QTimer(self)
+        self._anim.setInterval(16)
+        self._anim.timeout.connect(self._on_tick)
+
     # ── Silhouette Loading ───────────────────────────────
 
     def _load_silhouettes(self):
@@ -81,12 +92,19 @@ class ObservatumSplashScreen(QSplashScreen):
 
         self._silhouette_img = source
 
-        # Split into 5 equal sections
+        # Split into 5 equal sections, scaled once to the size they are drawn at (the bar's
+        # animation repaints often: scaling every paint was the slow part)
         section_w = source.width() // 5
+        target_h = 80
         for i in range(5):
             x = i * section_w
             w = section_w if i < 4 else source.width() - x
             section = source.copy(x, 0, w, source.height())
+            scale = target_h / max(1, section.height())
+            section = section.scaled(
+                max(1, int(section_w * scale)), target_h,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation)
             self._sil_sections.append(section)
 
     def _tint_section(self, section: QImage, color: QColor, opacity: float) -> QImage:
@@ -141,13 +159,8 @@ class ObservatumSplashScreen(QSplashScreen):
             return
 
         # Layout: centred between decorative rule (y=148) and progress bar (y=220)
-        # Available height: ~62px (with padding)
-        target_h = 80
-        section_w_src = self._sil_sections[0].width()
-        section_h_src = self._sil_sections[0].height()
-        scale = target_h / section_h_src
-
-        section_w_draw = int(section_w_src * scale)
+        # (the sections are already scaled to their drawn size: _load_silhouettes)
+        section_w_draw = self._sil_sections[0].width()
         total_w = section_w_draw * 5
         start_x = (self.WIDTH - total_w) // 2
         start_y = 165  # below the decorative rule
@@ -172,14 +185,7 @@ class ObservatumSplashScreen(QSplashScreen):
                 colour = QColor(self.TEXT_DIM)
                 opacity = 0.08
 
-            tinted = self._tint_section(section, colour, opacity)
-            scaled = tinted.scaled(
-                section_w_draw, target_h,
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation
-            )
-
-            p.drawImage(x, start_y, scaled)
+            p.drawImage(x, start_y, self._tint_section(section, colour, opacity))
 
     # ── Drawing ──────────────────────────────────────────
 
@@ -298,7 +304,7 @@ class ObservatumSplashScreen(QSplashScreen):
         bar_w = self.WIDTH - 2 * bar_margin
         self._progress.setGeometry(bar_margin, bar_y, bar_w, 6)
         self._progress.setTextVisible(False)
-        self._progress.setRange(0, 100)
+        self._progress.setRange(0, 1000)          # tenths of a per cent: a smooth glide
         self._progress.setValue(0)
         self._progress.setStyleSheet(f"""
             QProgressBar {{
@@ -331,13 +337,69 @@ class ObservatumSplashScreen(QSplashScreen):
     # ── Public API ───────────────────────────────────────
 
     def set_progress(self, value: int, status: str = ""):
-        """Update progress bar and status message."""
-        self._progress_value = value
-        self._progress.setValue(value)
+        """Update progress bar and status message. While a ProgressPlan drives the bar
+        (start_plan) only the message is used: the plan's bar never goes backwards."""
+        if self._plan is None:
+            self._show_value(float(value))
         if status:
             self._status.setText(status)
         self.repaint()
         QApplication.processEvents()
+
+    # ── Round 5: the bar follows the startup steps ──────
+
+    def start_plan(self, plan):
+        """Drive the bar from `plan` (splash_progress.ProgressPlan) on a timer."""
+        self._plan = plan
+        self._on_tick()
+        self._anim.start()
+
+    def begin_step(self, key: str):
+        """Startup step `key` begins: its label goes under the bar."""
+        if self._plan is None:
+            return
+        label = self._plan.begin(key)
+        if label:
+            self._status.setText(label)
+        self.pump()
+
+    def finish_progress(self, status: str = "Ready"):
+        """Everything is loaded: the bar fills (only now) and the timer stops."""
+        if self._plan is not None:
+            self._plan.finish()
+        self._anim.stop()
+        self._show_value(100.0)
+        self._status.setText(status)
+        self.repaint()
+        QApplication.processEvents()
+
+    def progress_value(self) -> float:
+        """The value the bar shows, 0-100."""
+        return self._progress_value
+
+    def pump(self):
+        """Let the splash repaint (and its timer move the bar) between pieces of work."""
+        QApplication.processEvents()
+
+    def _on_tick(self):
+        if self._plan is not None:
+            self._show_value(self._plan.tick())
+
+    def _show_value(self, value: float):
+        value = max(0.0, min(100.0, value))
+        self._progress.setValue(int(round(value * 10)))
+        # the silhouettes change slowly: repaint them only when they would look different
+        if abs(value - self._progress_value) >= 0.25 or value >= 100.0:
+            self._progress_value = value
+            self.update()
+
+    def closeEvent(self, event):
+        """Closing the splash screen while loading: startup stops cleanly (startup_preload
+        checks cancel_requested between steps and while it waits for a thread)."""
+        if self._plan is not None and not self._plan.done:
+            self.cancel_requested = True
+        self._anim.stop()
+        super().closeEvent(event)
 
     def finish_with_delay(self, window, delay_ms: int = 500):
         """Finish splash with a small delay for smoothness."""

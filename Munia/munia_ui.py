@@ -15,6 +15,7 @@ from Munia.capacity_dashboard import CapacityDashboard
 from Munia.project_form import ProjectForm
 from Munia.projects_panel import ProjectsPanel
 from Munia.budget_settings import BudgetSettingsDialog
+from shared.fit_to_screen import scroll_body
 
 
 class MuniaWindow(QMainWindow):
@@ -80,7 +81,11 @@ class MuniaWindow(QMainWindow):
         outer.addWidget(sep)
         body = QHBoxLayout()
         body.setSpacing(16)
-        left = QVBoxLayout()
+        # The left column (capacity, project form, summary) scrolls: it needed 960 px,
+        # so on a laptop screen the maximised window ran under the taskbar (R5)
+        left_box = QWidget()
+        left = QVBoxLayout(left_box)
+        left.setContentsMargins(0, 0, 0, 0)
         left.setSpacing(8)
         self.capacity = CapacityDashboard()
         left.addWidget(self.capacity)
@@ -145,7 +150,7 @@ class MuniaWindow(QMainWindow):
         left.addWidget(self.summary_card)
         left.addStretch()
         self.projects = ProjectsPanel(self._conn)
-        body.addLayout(left, 2)
+        body.addWidget(scroll_body(left_box), 2)
         body.addWidget(self.projects, 3)
         outer.addLayout(body, 1)
 

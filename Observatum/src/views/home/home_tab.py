@@ -3,7 +3,7 @@ from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QMessageBox
 from PySide6.QtCore import Qt, Signal
 from .quick_entry import QuickEntryForm
 from .quick_stats import QuickStatsPanel
-from .observation_stats_card import ObservationStatsCard
+from .observation_stats_card import ALL, ObservationStatsCard
 from .recent_species import RecentSpeciesPanel
 from .species_info import SpeciesInfoPanel
 from .species_profile_dialog import SpeciesProfileDialog
@@ -12,6 +12,7 @@ from ...models.observation import ObservationModel
 from ...models.uksi import UKSIModel
 from ...services.search_service import get_search_service
 from ...themes import theme
+from ...core.config import TabColors
 from ..components.hscroll_strip import PageScroll
 
 # Repository for stats (preferred over model)
@@ -20,9 +21,6 @@ try:
     HAS_REPOSITORY = True
 except ImportError:
     HAS_REPOSITORY = False
-
-# Gamification integration
-from src.features.gamification import GamificationLauncher
 
 
 class HomeTab(QWidget):
@@ -53,8 +51,9 @@ class HomeTab(QWidget):
         layout.setSpacing(16)
         layout.setAlignment(Qt.AlignmentFlag.AlignTop)  # Align all panels to top
 
-        # Panel 1 - Quick Stats cards, then Achievements below them (L16, 10 Oct):
-        # Personal, Commercial, Recording Scheme + Insect Collection, Achievements
+        # Panel 1 - Quick Stats cards (L16 10 Oct; R5 11 Oct): Personal, Commercial,
+        # All (the two together), Recording Scheme + Insect Collection. The Achievements
+        # card left Home in R5 (the gamification feature itself is untouched).
         left_column = QVBoxLayout()
         left_column.setSpacing(12)
         left_column.setContentsMargins(0, 0, 0, 0)
@@ -63,14 +62,13 @@ class HomeTab(QWidget):
         left_column.addWidget(self.personal_stats)
         self.commercial_stats = ObservationStatsCard("Commercial")
         left_column.addWidget(self.commercial_stats)
+        self.all_stats = ObservationStatsCard(
+            ALL, accent=theme().get('accent_observation_dark', TabColors.OBSERVATION_DARK))
+        left_column.addWidget(self.all_stats)
 
         self.stats_panel = QuickStatsPanel()
         left_column.addWidget(self.stats_panel)
 
-        # Gamification launcher card (Achievements), below the figures
-        self.gamification_card = GamificationLauncher(parent=self)
-        left_column.addWidget(self.gamification_card)
-        
         left_column.addStretch()  # Push content to top
 
         left_widget = QWidget()
@@ -254,11 +252,12 @@ class HomeTab(QWidget):
         if not self._observation_model and not self._obs_repo:
             return
         try:
-            # Observation figures, one card per record type (L16). Only the repository
-            # splits by record type; without it the cards keep their last figures.
+            # Observation figures, one card per record type (L16) plus All (R5). Only the
+            # repository splits by record type; without it the cards keep their last figures.
             if self._obs_repo:
-                for card in (self.personal_stats, self.commercial_stats):
-                    card.update_stats(self._obs_repo.get_quick_stats(record_type=card.record_type))
+                for card in self._observation_cards():
+                    card.update_stats(self._obs_repo.get_quick_stats(
+                        record_type=card.query_record_type))
             
             # Refresh Recording Scheme and Insect Collection stats
             self.stats_panel.refresh_all_stats()
@@ -269,6 +268,10 @@ class HomeTab(QWidget):
                 self.recent_panel.update_species(recent)
         except Exception as e:
             print(f"Error refreshing: {e}")
+
+    def _observation_cards(self):
+        """The observation Quick Stats cards: Personal, Commercial, All."""
+        return (self.personal_stats, self.commercial_stats, self.all_stats)
 
     def refresh(self):
         self.refresh_data()
@@ -300,7 +303,7 @@ class HomeTab(QWidget):
         self.setStyleSheet(f"background-color: {t.get('background')};")
         
         # Propagate to children
-        for card in (self.personal_stats, self.commercial_stats, self.stats_panel):
+        for card in (*self._observation_cards(), self.stats_panel):
             card.apply_theme()
         if hasattr(self.recent_panel, 'apply_theme'):
             self.recent_panel.apply_theme()

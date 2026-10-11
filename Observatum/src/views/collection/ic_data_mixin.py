@@ -57,30 +57,55 @@ class ICDataMixin:
 
     # ── Data loading ────────────────────────────────────────────────
 
-    def _load_data(self):
-        """Load specimen data into the table."""
+    def query_filters(self, consume: bool = False) -> dict:
+        """The filters the next load uses: the filter bar's, the extra ones (from Stats
+        navigation; used once when `consume`) and the taxonomic sidebar's."""
+        filters = self.filters.get_filters()
+
+        # Merge extra filters (from stats navigation)
+        if self._extra_filters:
+            filters = {**filters, **self._extra_filters}
+            if consume:
+                self._extra_filters = {}  # Clear after use
+
+        # Merge taxonomic sidebar filter
+        if hasattr(self, '_taxonomic_filter'):
+            ft, fv = self._taxonomic_filter
+            if ft != 'all' and fv:
+                col_map = {
+                    'order': 'order', 'family': 'family',
+                    'superfamily': 'superfamily', 'species': 'species',
+                }
+                col = col_map.get(ft)
+                if col:
+                    filters[col] = fv
+        return filters
+
+    def read_specimens(self, filters: dict) -> list:
+        """The specimens these filters keep, read from the database. Touches no widget, so
+        startup runs it in a background thread (each query opens its own connection)."""
+        # Use repository for filtered queries if it has the method
+        if self._specimen_repo and hasattr(self._specimen_repo, 'get_filtered'):
+            return self._specimen_repo.get_filtered(filters)
+        # Fallback to model or repository.get_all()
+        if self._specimen_repo and hasattr(self._specimen_repo, 'get_all'):
+            specimens = self._specimen_repo.get_all(limit=999999)
+        elif self._specimen_model:
+            specimens = self._specimen_model.get_all_specimens()
+        else:
+            specimens = []
+        if filters:
+            specimens = self._apply_filters(specimens, filters)
+        return specimens
+
+    def _load_data(self, prefetched=None):
+        """Load specimen data into the table. `prefetched`: the specimens already read for
+        query_filters() (startup, Round 5)."""
         if not self._specimen_model and not self._specimen_repo:
             return
 
         try:
-            filters = self.filters.get_filters()
-
-            # Merge extra filters (from stats navigation)
-            if self._extra_filters:
-                filters = {**filters, **self._extra_filters}
-                self._extra_filters = {}  # Clear after use
-
-            # Merge taxonomic sidebar filter
-            if hasattr(self, '_taxonomic_filter'):
-                ft, fv = self._taxonomic_filter
-                if ft != 'all' and fv:
-                    col_map = {
-                        'order': 'order', 'family': 'family',
-                        'superfamily': 'superfamily', 'species': 'species',
-                    }
-                    col = col_map.get(ft)
-                    if col:
-                        filters[col] = fv
+            filters = self.query_filters(consume=True)
 
             # The Filter Wizard's filters, re-queried on every load (they used to be
             # one-off "extra" filters, lost on the next reload -- SRCH9)
@@ -88,20 +113,8 @@ class ICDataMixin:
             if getattr(self, '_wizard_filters', None):
                 wizard_ids = self.filter_wizard.matching_ids(self._wizard_filters)
 
-            # Use repository for filtered queries if it has the method
-            if self._specimen_repo and hasattr(self._specimen_repo, 'get_filtered'):
-                specimens = self._specimen_repo.get_filtered(filters)
-            else:
-                # Fallback to model or repository.get_all()
-                if self._specimen_repo and hasattr(self._specimen_repo, 'get_all'):
-                    specimens = self._specimen_repo.get_all(limit=999999)
-                elif self._specimen_model:
-                    specimens = self._specimen_model.get_all_specimens()
-                else:
-                    specimens = []
-
-                if filters:
-                    specimens = self._apply_filters(specimens, filters)
+            specimens = (list(prefetched) if prefetched is not None
+                         else self.read_specimens(filters))
 
             if wizard_ids is not None:
                 specimens = [s for s in specimens if _get_attr(s, 'id') in wizard_ids]

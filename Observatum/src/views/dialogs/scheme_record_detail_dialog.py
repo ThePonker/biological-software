@@ -12,6 +12,8 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Signal, Qt
 
+from shared.fit_to_screen import fit_to_screen
+
 from ...themes import theme
 from ...core.config import TabColors
 
@@ -67,6 +69,7 @@ class SchemeRecordDetailDialog(QDialog):
 
         self.setMinimumHeight(600)
         self.resize(1200, 760)
+        fit_to_screen(self)     # no taller than a laptop screen (R5)
 
     def _load_counts(self):
         """Load observation and specimen counts for this species."""

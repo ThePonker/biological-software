@@ -13,7 +13,7 @@ bars and toolbars held Observatum at 1,730 px or more).
 The held widget keeps its own show/hide: `filter_bar.setVisible(False)` hides the strip.
 """
 
-from PySide6.QtCore import QEvent, QSize, Qt
+from PySide6.QtCore import QEvent, QSize, Qt, QTimer
 from PySide6.QtWidgets import QFrame, QScrollArea, QSizePolicy, QWidget
 
 
@@ -95,7 +95,19 @@ class HScrollStrip(QScrollArea):
             elif et == QEvent.Type.LayoutRequest:
                 self._refit()
                 self.updateGeometry()
+            elif et == QEvent.Type.Resize:
+                # The strip changes its own height inside its resizeEvent (scroll bar shown
+                # or not). On a page first shown narrow, the held widget then got one resize
+                # event with the old, taller size and its layout kept it: the buttons sat
+                # 7 px low and were cut off (Examen, R5). Re-check once things settle.
+                QTimer.singleShot(0, self, self._sync_child_layout)
         return super().eventFilter(obj, event)
+
+    def _sync_child_layout(self):
+        c = self.widget()
+        lay = c.layout() if c is not None else None
+        if lay is not None and lay.geometry() != c.rect():
+            lay.setGeometry(c.rect())
 
 
 class PageScroll(QScrollArea):
