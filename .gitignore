@@ -35,3 +35,11 @@ _dump/
 
 # One-off data-changing scripts -- kept locally, archived later
 scripts/_oneoff/
+
+# Published checklists (copyright, all rights reserved) -- built on the PC by
+# scripts/build_checklists.py from the PDFs in data/checklists/ (already ignored above)
+shared/checklists/*.csv
+/*.pdf
+
+# pytest --basetemp folder
+.pytest_tmp/
