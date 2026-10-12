@@ -22,6 +22,7 @@ from Lector.ui.workers import TaskRunner
 from shared.fit_to_screen import fit_to_screen
 
 WINDOW_TITLE = config.GUI_TITLE
+CLOSE_QUESTION = "A run is still going. Stop it and close? Downloaded text is kept."
 NAV = (("searches", "Saved searches"), ("review", "Reading list"),
        ("records", "Extracted records"), ("export", "Exports"))
 
@@ -34,6 +35,8 @@ class LectorWindow(QMainWindow):
         self.messages, self.answers = [], []
         self.tasks = TaskRunner(self)
         self._close_after_task = False
+        self._here = None                 # (screen key, open() keywords) shown now
+        self._trail = []                  # where "← Back" goes: earlier (key, kw), newest last
         self.setWindowTitle(WINDOW_TITLE)
         self.setStyleSheet(S.app_qss())
         self._build()
@@ -87,14 +90,16 @@ class LectorWindow(QMainWindow):
         v.addSpacing(18)
         self.nav_group = QButtonGroup(self)
         self.nav_buttons = {}
-        for key, text in NAV:
+        for i, (key, text) in enumerate(NAV):
             b = S.button(text, "link")
             b.setStyleSheet("")                     # the nav stylesheet styles these
             b.setCheckable(True)
-            b.clicked.connect(lambda _=False, k=key: self.go(k))
-            self.nav_group.addButton(b)
+            self.nav_group.addButton(b, i)
             self.nav_buttons[key] = b
             v.addWidget(b)
+        # a click always navigates, also on the item already highlighted (Saved searches
+        # while inside a search): the group reports every click, checked or not
+        self.nav_group.idClicked.connect(self.nav_clicked)
         for b in self.nav_buttons.values():
             polish(b)
         widest = max(b.sizeHint().width() for b in self.nav_buttons.values())
@@ -143,9 +148,33 @@ class LectorWindow(QMainWindow):
         return bar
 
     # --- navigation ---------------------------------------------------------
-    def go(self, key, **kw):
+    def nav_clicked(self, index):
+        """A left-menu item: always opens its screen (refreshed)."""
+        self.go(NAV[index][0])
+
+    def go(self, key, replace=False, **kw):
         """Show a screen (refreshing it). key: searches, builder, history, review,
-        records, export; kw go to the screen's open()."""
+        records, export; kw go to the screen's open(). The screen shown before is
+        remembered for "← Back" (replace=True: not, e.g. the builder after Save)."""
+        if key == "searches":
+            self._trail = []                        # home: Back has nowhere further to go
+        elif self._here is not None and not replace and self._here[0] != key:
+            self._trail = (self._trail + [self._here])[-20:]
+        if self._trail and self._trail[-1][0] == key:
+            self._trail.pop()                       # back on a screen already in the trail
+        # never re-run on the way back
+        self._here = (key, {k: v for k, v in kw.items() if k not in ("run", "refresh")})
+        return self._show(key, **kw)
+
+    def back(self):
+        """"← Back": the screen you came from, or Saved searches."""
+        if not self._trail:
+            return self.go("searches")
+        key, kw = self._trail.pop()
+        self._here = (key, kw)
+        return self._show(key, **kw)
+
+    def _show(self, key, **kw):
         screen = self.screens[key]
         self.stack.setCurrentWidget(screen)
         nav_key = {"builder": "searches", "history": "searches"}.get(key, key)
@@ -211,6 +240,25 @@ class LectorWindow(QMainWindow):
             return self.answers.pop(0) if self.answers else False
         return QMessageBox.question(self, title, text) == QMessageBox.StandardButton.Yes
 
+    def choose(self, text, yes, no, title="Lector"):
+        """A question with two named buttons: yes (primary) and no (warm grey, the
+        default). True when yes is pressed; when quiet the next queued answer (default no)."""
+        self.messages.append(text)
+        if self.quiet:
+            return self.answers.pop(0) if self.answers else False
+        box = QMessageBox(self)
+        box.setWindowTitle(title)
+        box.setText(text)
+        box.setIcon(QMessageBox.Icon.Question)
+        yes_btn = box.addButton(yes, QMessageBox.ButtonRole.AcceptRole)
+        no_btn = box.addButton(no, QMessageBox.ButtonRole.RejectRole)
+        yes_btn.setStyleSheet(S.button_qss("primary"))
+        no_btn.setStyleSheet(S.button_qss("cancel"))
+        box.setDefaultButton(no_btn)
+        box.setEscapeButton(no_btn)
+        box.exec()
+        return box.clickedButton() is yes_btn
+
     def call(self, fn, *args, **kw):
         """Run a quick service call; a LectorError is shown and None returned."""
         try:
@@ -254,12 +302,18 @@ class LectorWindow(QMainWindow):
             QTimer.singleShot(0, self.close)
 
     def closeEvent(self, event):
-        """A running task is cancelled first; the window closes when it has stopped."""
+        """While a run (or a text download) is going, ask first: "Stop and close" cancels
+        it and the window closes once it has stopped; "Keep running" leaves it going."""
         if self.tasks.busy:
-            self._close_after_task = True
-            self.cancel_task()
-            event.ignore()
-            return
+            if not self._close_after_task:
+                if not self.choose(CLOSE_QUESTION, "Stop and close", "Keep running"):
+                    event.ignore()
+                    return
+                self._close_after_task = True
+                self.cancel_task()
+            if self.tasks.busy:              # it finished while the question was open: close
+                event.ignore()
+                return
         screen = self.screens.get("review")
         if screen is not None:
             screen.save_notes()

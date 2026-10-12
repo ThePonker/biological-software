@@ -163,9 +163,8 @@ def diff(conn, run_a, run_b):
     ids = a | b
     meta = {r["page_id"]: dict(r) for r in conn.execute(
         f"SELECT * FROM pages WHERE page_id IN ({_marks(len(ids))})", list(ids))} if ids else {}
-    cached = {r[0] for r in conn.execute(
-        "SELECT page_id FROM name_hits WHERE query_name IN"
-        " (SELECT name FROM search_names WHERE search_id=? AND included=1)", (ra["search_id"],))}
+    sb_settings = json.loads(rb["settings"] or "{}")
+    reasons = withdrawn_reasons(conn, sb_settings, a - b, b)
 
     def item(pid, why=None):
         row = meta.get(pid, {"page_id": pid})
@@ -175,15 +174,68 @@ def diff(conn, run_a, run_b):
             d["reason"] = why
         return d
 
-    sa, sb = json.loads(ra["settings"] or "{}"), json.loads(rb["settings"] or "{}")
+    sa, sb = json.loads(ra["settings"] or "{}"), sb_settings
     return {
         "run_a": run_a, "run_b": run_b,
         "new": [item(p) for p in sorted(b - a)],
-        "withdrawn": [item(p, "Now filtered out" if p in cached else "No longer found on BHL")
-                      for p in sorted(a - b)],
+        "withdrawn": [item(p, reasons[p]) for p in sorted(a - b)],
         "unchanged": [item(p) for p in sorted(a & b)],
         "settings_changed": settings_changes(sa, sb),
     }
+
+
+REASON_GONE = "No longer found on BHL for the names searched"
+REASON_FILTERED = "Now filtered out (years, journals or index pages)"
+REASON_DUPLICATE = "Duplicate scan: the same printed page is kept from another copy"
+REASON_CAP = "Over the page limit per name"
+
+
+def withdrawn_reasons(conn, settings, withdrawn, kept):
+    """page_id -> why a page left the search in a run, worked out from BHL's last
+    answers for the run's names and the run's own filters (settings snapshot).
+    A run with no filters still drops duplicate scans ("Skip duplicate scans", on
+    by default), which is the usual reason when nothing else changed."""
+    from .harvest import apply_filters, scan_key
+    names = settings.get("names") or []
+    f = settings.get("filters") or {}
+    records = {}
+    if names and withdrawn:
+        marks = _marks(len(names))
+        for _q, pid, rec in conn.execute(
+                f"SELECT query_name, page_id, record FROM name_hits WHERE query_name IN ({marks})",
+                list(names)):
+            records.setdefault(pid, json.loads(rec))
+    kept_keys = set()
+    if kept and f.get("skip_duplicates", True):
+        for pid in kept:
+            if pid in records:
+                k = scan_key(records[pid])
+                if k is not None:
+                    kept_keys.add(k)
+        missing = [p for p in kept if p not in records]
+        for i in range(0, len(missing), 500):
+            chunk = missing[i:i + 500]
+            for r in conn.execute(f"SELECT page_id, title, volume, year, page_label FROM pages"
+                                  f" WHERE page_id IN ({_marks(len(chunk))})", chunk):
+                k = scan_key(dict(r))
+                if k is not None:
+                    kept_keys.add(k)
+    loose = saved.options_from_filters({**saved.DEFAULT_FILTERS, **f, "skip_duplicates": False,
+                                        "max_pages": 0}) if f else None
+    out = {}
+    for pid in withdrawn:
+        rec = records.get(pid)
+        if rec is None:
+            out[pid] = REASON_GONE
+        elif loose is not None and not apply_filters([rec], loose):
+            out[pid] = REASON_FILTERED
+        elif scan_key(rec) is not None and scan_key(rec) in kept_keys:
+            out[pid] = REASON_DUPLICATE
+        elif f.get("max_pages"):
+            out[pid] = REASON_CAP
+        else:
+            out[pid] = REASON_FILTERED
+    return out
 
 
 def settings_changes(sa, sb):

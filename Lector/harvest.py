@@ -211,8 +211,10 @@ def apply_filters(pages, opts):
     return kept[:opts.max_pages] if opts.max_pages else kept
 
 
-def harvest_species(client, store, entry, opts, log=print, keep_filters=False):
+def harvest_species(client, store, entry, opts, log=print, keep_filters=False, replace=False):
     """Search all names for one species, store hits, fetch missing OCR.
-    Kept for older callers: runs the species' saved search (Lector.engine)."""
+    Kept for older callers: runs the species' saved search (Lector.engine.harvest_entry:
+    an existing saved search keeps its names and filters unless replace)."""
     from .engine import harvest_entry
-    return harvest_entry(client, store, entry, opts, log=log, keep_filters=keep_filters)
+    return harvest_entry(client, store, entry, opts, log=log, keep_filters=keep_filters,
+                         replace=replace)

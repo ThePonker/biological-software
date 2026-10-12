@@ -35,8 +35,8 @@ BHL client; tests pass a fake), `export_dir` (default `data/lector_exports`),
 | Method | Returns |
 |---|---|
 | `settings_info()` | `{api_key_set, api_key_source, api_key_url, db_path, db_exists, db_needs_update, uksi_db_path, uksi_found, export_dir, synonym_file, docx_available, xlsx_available, pdf_method ('word'/'libreoffice'/None), request_interval}` |
-| `needs_update()` | `None`, or a dry-run report `{before: {table: n}, after: {table: n}, searches_made: [{search_id, name, names, pages}], backup: None, applied: False}`. Changes nothing. |
-| `update_database()` | Backs lector.db up with `conn.backup()` to `data/_backups/lector_pre_v2_<time>.db`, then updates in place. Same report with `backup` path and `applied: True`. |
+| `needs_update()` | `None`, or a dry-run report `{before: {table: n}, after: {table: n}, searches_made: [{search_id, name, names, pages, held_back: [[name, reason]]}], backup: None, applied: False}`. Changes nothing. |
+| `update_database()` | Backs lector.db up with `conn.backup()` to `data/_backups/lector_pre_v3_<time>.db`, then updates in place. Same report with `backup` path and `applied: True`. The names of old command-line fetches are checked as a new search's are (UKSI + synonym lists): held-back ones are stored unticked with the reason, never as your choice. |
 
 ## Taxa and names (UKSI, read-only, no network)
 
@@ -66,9 +66,10 @@ status ('draft'/'active'), created, updated, notes`, plus
 
 | Method | Returns |
 |---|---|
-| `list_searches()` | `[search fields + {names_total, names_included, names_held_back: [str], journal_preset, years ('All years'/'1800-1950'/'Before 1950'/'From 1800'), filters_recorded, pages_held, pages_with_text, reviewed, records_extracted, runs, last_run: {run_id, started, finished, mode, status, found, kept, requests, failed} or None, found_last}]` |
-| `dashboard()` | `{searches, pages_harvested, awaiting_review, records_extracted, activity: [{when, kind ('run'/'export'), text}], attention: [str]}` |
-| `get_search(search_id)` | the search dict with `names` and `filters` |
+| `list_searches()` | `[search fields + {names_total, names_included, names_held_back: [str], journal_preset, years ('All years'/'1800–1950'/'To 1950'/'From 1800'), scope, filters_recorded, pages_held, pages_with_text, pages_without_text, reviewed, records_extracted, runs, last_run: {run_id, number, label, started, finished, mode, status, found, kept, requests, name_requests, text_requests, requests_text, failed} or None, found_last}]` |
+| `dashboard()` | `{searches, pages_harvested, awaiting_review, records_extracted, activity: [{when, kind ('run'/'export'/'fetch_text'), text}], attention: [str], attention_items: [{text, search_id, action ('fetch_text'/'set_filters'/None), pages}]}` |
+| `get_search(search_id)` | the search dict with `names` and `filters`, plus `scope` and `years` |
+| `edit_names(search_id)` | the names to show when editing: the stored names, then the names the UKSI checks hold back that the search does not list (unticked, with reasons), as a new search shows them. A stored name the checks hold back gets `held_back_reason`, and `ticked_by_update=True` if only the 12 Oct lector.db update ticked it. |
 | `create_search(target, name=None, kind='species', names=None, filters=None, status='draft', with_synonyms=True)` | new `search_id`. `target` = name, TVK or a `resolve_taxon()` result. Species: names default to `candidate_names()` (held-back ones stored unticked). Family: every UKSI species of the family (`target='Cerambycidae'`). List: `names=[...]` names/TVKs, each resolved. |
 | `update_search(search_id, name=None, status=None, notes=None, filters=None, names=None)` | the updated search. `filters` = dict of keys to change; `names` = the full list (strings or dicts as above). |
 | `duplicate_search(search_id, new_name=None)` | new `search_id` (a draft copy) |
@@ -76,6 +77,11 @@ status ('draft'/'active'), created, updated, notes`, plus
 | `family_names(family)` | the names a family search uses: every UKSI species, accepted names, ticked |
 | `journal_presets()` | `[{name, description, include_words, exclude_words, builtin}]` - "British periodicals", "Scottish titles", plus your own |
 | `save_preset(name, include_words, exclude_words, description=None)` | - |
+
+`scope` is THE description of a search's journals (`summary.scope_text`), the same on
+every screen: the preset's name; "Your title words (3)"; "Any journal" (no title
+words), with ", 2 words left out" for exclusions without a preset; or "Filters not
+recorded".
 
 Choosing a preset in the UI: copy its words into the search's `include_words`/`exclude_words`
 and set `journal_preset` to its name (later edits to a preset never change earlier runs).
@@ -94,7 +100,18 @@ svc.update_search(sid, filters={"to_year": 1950})
 | `name_counts(names, refresh=False, progress=None, cancel=None)` | `{name: {found, source ('BHL'/'cache'), error}}` - pages BHL indexes for each name, before filters (one request per name not yet asked). |
 | `preview(search_id, use_network=False, refresh=False, progress=None, cancel=None)` | `{found, within_filters, already_held, to_download, requests, est_seconds, requests_without_refresh, not_counted: [names], names, name_found}`. Without `use_network` it uses BHL's last answers only; names never asked are listed in `not_counted` (show "Refresh count"). |
 | `preview_draft(names, filters=None, use_network=False, refresh=False, progress=None, cancel=None, count_all=True)` | as `preview()`, for names and filters not saved yet (the search builder): `names` = strings or `{name, included}`, `filters` = any filter keys (the rest default). Adds `name_found: {name: pages or None}` for every name, ticked or not (`count_all`), so a held-back name can be judged; only ticked names make the totals. NETWORK only with `use_network`. |
-| `run_search(search_id, mode='fetch', refresh=True, progress=None, cancel=None)` | `{run_id, search_id, mode, status ('done'/'cancelled'/'failed'), message, found, kept, new, unchanged, withdrawn, text_fetched, failed, requests, names: [{name, found, kept, capped, source} or {name, error}]}` |
+| `run_search(search_id, mode='fetch', refresh=True, progress=None, cancel=None)` | `{run_id, number, label, search_id, mode, status ('done'/'cancelled'/'failed'), message, found, kept, new, unchanged, withdrawn, text_fetched, failed, requests, name_requests, text_requests, requests_text, names: [{name, found, kept, capped, source} or {name, error}]}` |
+| `fetch_missing_text(search_id, progress=None, cancel=None)` | Downloads the text of the pages the search holds (current or kept) that have none, and nothing else: no name searches, no filters applied, nothing withdrawn; works when the filters were never recorded. Recorded under Recent activity. `{search_id, status ('done'/'cancelled'), missing, text_fetched, failed, still_missing, requests, message}` |
+
+Runs are numbered **within their search**: `number` 1, 2, 3 for its fetch runs in order
+(`None` for a count-only run), `label` 'Run 2' or 'Count'. `run_id` stays the internal
+key (it is shared by every search); show `label`/`number`, never `run_id`.
+`requests_text` is the run's BHL requests in words: '19 BHL requests (3 name searches,
+16 page texts)' (runs before Round 8 kept only the total: '8 BHL requests').
+
+A cancelled run marks pages withdrawn only after every ticked name was looked up (a
+cancel during the name searches withdraws nothing; a name BHL failed for keeps its
+pages).
 
 `mode='count'` asks BHL and records a count-only run; no pages are stored. `mode='fetch'`
 stores the pages within the filters and downloads their text. A run **always applies the
@@ -114,8 +131,8 @@ result = svc.run_search(sid, progress=progress, cancel=stop)   # in the worker t
 
 | Method | Returns |
 |---|---|
-| `list_runs(search_id)` | newest first: `[{run_id, search_id, started, finished, mode, settings: {names, held_back, filters, refresh}, found, kept, requests, failed, status ('done'/'cancelled'/'failed'/'migrated'), message, new, unchanged, withdrawn}]` |
-| `run_diff(search_id, run_a=None, run_b=None)` | default: the last two fetch runs; `None` if fewer than two. `{run_a, run_b, new: [page], withdrawn: [page + reason ('Now filtered out'/'No longer found on BHL')], unchanged: [page], settings_changed: [str]}`; page = `{page_id, citation, bhl_url, year, title, matched_names}` |
+| `list_runs(search_id)` | newest first: `[{run_id, number, label, search_id, started, finished, mode, settings: {names, held_back, filters, refresh}, found, kept, requests, name_requests, text_requests, requests_text, failed, status ('done'/'cancelled'/'failed'/'migrated'), message, new, unchanged, withdrawn}]` |
+| `run_diff(search_id, run_a=None, run_b=None)` | default: the last two fetch runs; `None` if fewer than two. `{run_a, run_b, number_a, number_b, new: [page], withdrawn: [page + reason], unchanged: [page], settings_changed: [str]}`; page = `{page_id, citation, bhl_url, year, title, matched_names}`; reason: 'Now filtered out (years, journals or index pages)', 'Duplicate scan: the same printed page is kept from another copy', 'Over the page limit per name' or 'No longer found on BHL for the names searched' |
 | `keep_page(search_id, page_id)` | keeps a withdrawn page in the search ("Keep anyway") |
 
 ## Review
@@ -159,3 +176,11 @@ os.startfile(out["files"]["docx"])
 preview (Lector/previewing.py holds the preview for both `preview` and `preview_draft`,
 so the builder and a saved search always agree). The window itself is `Lector/ui`
 (`python -m Lector gui`); it calls nothing but the methods above.
+
+## Round 8 (12 Oct 2026)
+
+`fetch_missing_text()`, `edit_names()`; runs numbered per search (`number`, `label`),
+requests split (`name_requests`, `text_requests`, `requests_text`); `scope`/`years` on
+`get_search()` as on `list_searches()`; `dashboard()['attention_items']`; withdrawn
+reasons name duplicate scans. lector.db version 3 (adds two run columns and the
+`activity` table; the window offers the update with a backup, as before).

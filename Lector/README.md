@@ -24,9 +24,18 @@ says so and the Word file is still written.
 Lector now keeps saved searches, runs and review notes (see `SERVICE_API.md`).
 The first time the new version opens an older `lector.db` it shows what the
 update would do and asks you to type YES; it backs the file up to
-`data\_backups\lector_pre_v2_<time>.db` first. Nothing stored is changed or
-removed. Or run `py -3.14 scripts\migrate_lector_v2.py` (dry run) and then
-`--apply`. Each species already fetched becomes a saved search with one run.
+`data\_backups\lector_pre_v3_<time>.db` first (`lector_pre_v2_...` for the first
+update). Nothing stored is changed or removed. Or run
+`py -3.14 scripts\migrate_lector_v2.py` (dry run) and then `--apply`. Each species
+already fetched becomes a saved search with one run; the names the old fetch used are
+checked as a new search's are (held-back names are stored unticked, with the reason).
+
+Version 3 (Round 8, 12 Oct) only adds: request counts split into name searches and
+page texts, and an activity table ("Fetch missing text" under Recent activity).
+
+If your lector.db was updated before Round 8, `scripts\fix_lector_name_choices.py`
+(dry run, then `--apply`; backup first) unticks the names that update ticked although
+the UKSI checks hold them back (Lamia textor: L. rosenmulleri, sartor, sutor, titillator).
 
 Lector can sit anywhere (e.g. the desktop) - it finds the suite's `paths.py` by
 itself. If it can't, put the full path of the `Biological Software` folder on
@@ -43,8 +52,8 @@ From the folder containing `Lector` (or replace `python -m Lector` with `run_lec
 | `python -m Lector probe "Lamia textor"` | Raw BHL response for one name → `data\lector_exports\probe_*.json`. Run this first to confirm parsing. |
 | `python -m Lector fetch species.txt --count-only` | Hit counts per name; downloads no pages. Use before big runs. |
 | `python -m Lector fetch species.txt --synonyms` | Search names (+ UKSI synonyms), store pages, fetch text. |
-| `python -m Lector status` | Pages and fetched text per species, year range. |
-| `python -m Lector export --all` | One readable `.txt` per species (citation header per page) + index CSV. |
+| `python -m Lector status` | Pages and fetched text per species, year range: every page ever found for the species, withdrawn ones too (the window shows each saved search's own pages). |
+| `python -m Lector export --all` | One readable `<Species>_all_pages.txt` per species (citation header per page) + `<Species>_all_pages_index.csv`: every page ever found for the species, withdrawn ones too. Named apart from the window's exports (`<Search>.txt`), so neither overwrites the other. |
 | `python -m Lector export --name "Lamia textor" --docx` | Word dossier + Excel index (see below). Add `--by-journal` to order by journal. |
 | `python -m Lector export --name "Lamia textor" --pdf` | As `--docx`, plus a PDF copy (Word + docx2pdf, or LibreOffice). |
 | `python -m Lector synonyms "Lamia textor"` | Which older names a `--synonyms` search would use, and which are held back and why. `--add NAME` / `--exclude NAME` change your list. |
@@ -67,9 +76,15 @@ From the folder containing `Lector` (or replace `python -m Lector` with `run_lec
 | `--skip-index` | Leave out pages BHL types as index or contents |
 | `--count-only` | Report counts only |
 | `--refresh` | Ask BHL again for names already searched (finds pages scanned since) |
+| `--replace-search` | A species that already has a saved search: replace its names and filters with this command's |
 
-Each species you fetch is a saved search named after it; the command's names
-and filters become its settings. Every run applies the **current** filters:
+Each species you fetch is a saved search named after it. The first fetch of a
+species makes it, with the command's names and filters. After that the saved
+search keeps its own names and filters (ticks and filters set in the window are
+never overwritten from the console); the run prints the names and filters it used.
+Add `--replace-search` to replace them with the command's. The interactive console
+(`python -m Lector` with no command) works the same, without the option.
+Every run applies the **current** filters:
 BHL's answer for each name is kept, so changing a filter and fetching again
 costs no name requests, and pages that no longer pass are marked withdrawn
 (kept in the database with any notes, not deleted). Pages whose text failed to
@@ -93,8 +108,9 @@ result and can add lines for you.
 
 ## Word dossier
 
-`export --docx` writes `<species>_dossier.docx` and `<species>_dossier_index.xlsx`
-to `data\lector_exports`:
+`export --docx` writes `<species>_all_pages_dossier.docx` and
+`<species>_all_pages_dossier_index.xlsx` to `data\lector_exports` (the window's
+Exports screen writes `<search>_dossier.docx`, from the search's own pages):
 
 - Front page: TVK, names searched, counts, and a reminder that excerpts are raw OCR.
 - Summary table in date order (or by journal). Entry numbers link to the entries.

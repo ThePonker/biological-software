@@ -14,7 +14,6 @@ from datetime import date
 from . import config
 from .entries import Entry, build_entries, citation, prepare_row, source as _source  # noqa: F401
 from .excerpts import copyright_flag, index_reason, name_pattern, split_marked
-from .export import _safe_filename
 
 LINK_COLOUR = "34437A"
 HEAD_COLOUR = "1E2226"
@@ -274,36 +273,46 @@ def write_docx(species, rows, path, by_journal=False, include_appendices=True,
     return main, index, no_match
 
 
-def write_xlsx(path, main, index, no_match):
-    """Companion index for sorting and checking. Returns None if no openpyxl."""
+NO_AUTHORS_NOTE = "Authors and article titles: none given by BHL for these pages"
+OPTIONAL_COLUMNS = {"Authors": "authors", "Article title": "article_title"}
+XLSX_WIDTHS = {"Entry": 7, "Year": 7, "Title": 48, "Volume": 10, "Page": 12, "Page type": 14,
+               "Section": 12, "Same text as entry": 10, "Matched names": 24, "Rights check": 10,
+               "BHL link": 44, "Page ID": 11, "Excerpt": 80, "Authors": 24,
+               "Article title": 40, "Review": 14, "Notes": 40, "Citation": 60}
+
+
+def present_columns(rows, columns=OPTIONAL_COLUMNS):
+    """{header: True/False}: does any row give this optional column a value? BHL gives
+    authors and article titles only for article 'parts' (few, mostly modern papers),
+    so on most searches every row is empty and the column is left out."""
+    return {h: any(str(r.get(k) or "").strip() for r in rows) for h, k in columns.items()}
+
+
+def write_xlsx(path, main, index, no_match, about=()):
+    """Companion index for sorting and checking. Returns None if no openpyxl.
+    Authors / Article title appear only when some row has one (see present_columns);
+    the About sheet says so when they are left out."""
     try:
         from openpyxl import Workbook
         from openpyxl.styles import Font, PatternFill
     except ImportError:
         return None
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Index"
-    head = ["Entry", "Year", "Title", "Volume", "Page", "Page type", "Section",
-            "Same text as entry", "Matched names", "Rights check", "BHL link",
-            "Page ID", "Excerpt", "Authors", "Article title", "Review", "Notes", "Citation"]
-    ws.append(head)
-    for cell in ws[1]:
-        cell.font = Font(bold=True, color="FFFFFF")
-        cell.fill = PatternFill("solid", fgColor="4A7C59")
     section_names = {"main": "Entries", "index": "Appendix A", "no_match": "Appendix B"}
+    records = []
 
     def add(r, entry_no, section, same_as, excerpts):
         r = prepare_row(r)
-        ws.append([entry_no, r["year"], r["title"], r["volume"], r["page_label"],
-                   r["page_type"], section_names[section], same_as, r["matched_names"],
-                   "check" if copyright_flag(r) else "", r["page_url"], r["page_id"],
-                   " / ".join(" ".join(x) for x in excerpts)[:2000], r["authors"],
-                   r["article_title"], r["review_status"] or r["statuses"], r["notes"],
-                   citation(r)])
-        link = ws.cell(row=ws.max_row, column=11)
-        link.hyperlink = r["page_url"]
-        link.font = Font(color=LINK_COLOUR, underline="single")
+        records.append({
+            "Entry": entry_no, "Year": r["year"], "Title": r["title"], "Volume": r["volume"],
+            "Page": r["page_label"], "Page type": r["page_type"],
+            "Section": section_names[section], "Same text as entry": same_as,
+            "Matched names": r["matched_names"],
+            "Rights check": "check" if copyright_flag(r) else "", "BHL link": r["page_url"],
+            "Page ID": r["page_id"],
+            "Excerpt": " / ".join(" ".join(x) for x in excerpts)[:2000],
+            "Authors": r["authors"], "Article title": r["article_title"],
+            "Review": r["review_status"] or r["statuses"], "Notes": r["notes"],
+            "Citation": citation(r)})
 
     for e in main:
         add(e.row, e.number, "main", None, e.excerpts)
@@ -311,11 +320,39 @@ def write_xlsx(path, main, index, no_match):
             add(c, None, "main", e.number, e.excerpts)
     for e in index + no_match:
         add(e.row, None, e.section, None, e.excerpts)
-    for col, w in zip("ABCDEFGHIJKLMNOPQR",
-                      (7, 7, 48, 10, 12, 14, 12, 10, 24, 10, 44, 11, 80, 24, 40, 14, 40, 60)):
-        ws.column_dimensions[col].width = w
+    present = present_columns(records, {h: h for h in OPTIONAL_COLUMNS})
+    head = [h for h in XLSX_WIDTHS if present.get(h, True)]
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Index"
+    ws.append(head)
+    for cell in ws[1]:
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill("solid", fgColor="4A7C59")
+    link_col = head.index("BHL link") + 1
+    for rec in records:
+        ws.append([rec[h] for h in head])
+        link = ws.cell(row=ws.max_row, column=link_col)
+        link.hyperlink = rec["BHL link"]
+        link.font = Font(color=LINK_COLOUR, underline="single")
+    from openpyxl.utils import get_column_letter
+    for i, h in enumerate(head, 1):
+        ws.column_dimensions[get_column_letter(i)].width = XLSX_WIDTHS[h]
     ws.freeze_panes = "A2"
     ws.auto_filter.ref = ws.dimensions
+    notes = wb.create_sheet("About")
+    notes.column_dimensions["A"].width = 22
+    notes.column_dimensions["B"].width = 90
+    for label, value in list(about) + [("Rows", f"{len(records)} pages")]:
+        notes.append([label, value])
+    if not all(present.values()):
+        notes.append(["Note", NO_AUTHORS_NOTE if not any(present.values()) else
+                      " and ".join(h for h, on in present.items() if not on)
+                      + ": none given by BHL for these pages"])
+    notes.append(["Note", "Excerpts are uncorrected OCR text: check them against the page "
+                          "image before citing."])
+    for row in notes.iter_rows(min_col=1, max_col=1):
+        row[0].font = Font(bold=True)
     wb.save(str(path))
     return path
 
@@ -328,8 +365,8 @@ def write_dossier(title, rows, out_dir, stem, by_journal=False, include_appendic
     docx_path = out_dir / f"{stem}_dossier.docx"
     main, index, no_match = write_docx(title, rows, docx_path, by_journal, include_appendices,
                                        include_notes, extra_names, about, keep=keep)
-    xlsx_path = write_xlsx(out_dir / f"{stem}_dossier_index.xlsx", main, index, no_match) \
-        if xlsx else None
+    xlsx_path = write_xlsx(out_dir / f"{stem}_dossier_index.xlsx", main, index, no_match,
+                           about=[("Search", title)] + list(about or [])) if xlsx else None
     counts = (len(main), sum(len(e.copies) for e in main), len(index), len(no_match))
     return docx_path, xlsx_path, counts
 
@@ -339,6 +376,7 @@ def export_dossier(store, species, out_dir=config.EXPORT_DIR, by_journal=False):
     rows = store.dossier_rows(species)
     if not rows:
         return None, None, None
-    return write_dossier(species, rows, out_dir, _safe_filename(species), by_journal,
+    from .export import console_stem                 # <Species>_all_pages_dossier.docx
+    return write_dossier(species, rows, out_dir, console_stem(species), by_journal,
                          extra_names=[species],
                          keep=lambda r: combined_status(r["statuses"]) != "not_relevant")

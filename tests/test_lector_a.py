@@ -291,7 +291,7 @@ def test_run_fetch_then_filters_changed_rerun_withdraws_without_asking_bhl(env):
     assert p109["state"] == "withdrawn" and p109["notes"] == "Aviemore 1934"
     diff = svc.run_diff(sid)
     assert [p["page_id"] for p in diff["withdrawn"]] == [109]
-    assert diff["withdrawn"][0]["reason"] == "Now filtered out"
+    assert diff["withdrawn"][0]["reason"].startswith("Now filtered out")
     assert any("to year" in x for x in diff["settings_changed"])
     svc.keep_page(sid, 109)
     assert 109 in {i["page_id"] for i in svc.review_queue(sid)}
@@ -496,13 +496,13 @@ def test_cli_fetch_status_export_forget_synonyms(cli, capsys):
     out = capsys.readouterr().out
     assert "Lamia sutor: Held back" in out and "✓ Cerambyx textor (synonym)" in out
     m.main(["fetch", str(tmp / "sp.txt"), "--synonyms", "--include-title", "Annals",
-            "--max-pages", "0"])
+            "--max-pages", "0", "--replace-search"])   # the saved search takes these filters
     out = capsys.readouterr().out
     assert "--refresh asks BHL again" in out and "no longer within the filters" in out
     m.main(["status"])
     assert "Lamia textor" in capsys.readouterr().out
     m.main(["export", "--name", "Lamia textor"])
-    assert (tmp / "exports" / "Lamia_textor.txt").exists()
+    assert (tmp / "exports" / "Lamia_textor_all_pages.txt").exists()   # not the window's name
     if pytest.importorskip("docx"):
         m.main(["export", "--name", "Lamia textor", "--docx", "--by-journal"])
         assert "duplicate scans merged" in capsys.readouterr().out
@@ -572,6 +572,12 @@ def test_migration_of_a_copy_of_the_real_lector_db(tmp_path):
     report = upgrade.apply(tmp_path / "lector.db", tmp_path / "_backups")
     for k in ("searches", "pages", "page_hits", "pages with text", "reviewed hits"):
         assert report["after"][k] == before[k]
+    if before["saved_searches"] is not None:
+        # Already has saved searches (e.g. Wil's PC after the 12 Oct update, with later
+        # runs): a later update only adds; every existing row is kept as it was.
+        for k in ("saved_searches", "search_names", "runs", "run_pages", "search_pages"):
+            assert report["after"][k] == before[k]
+        return
     hits = sqlite3.connect(tmp_path / "lector.db").execute(
         "SELECT COUNT(DISTINCT accepted_name) FROM page_hits").fetchone()[0]
     assert report["after"]["saved_searches"] == hits

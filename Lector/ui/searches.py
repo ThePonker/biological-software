@@ -3,8 +3,8 @@ from html import escape
 
 from PySide6.QtCore import QEvent, Qt, QTimer
 from PySide6.QtWidgets import (QAbstractItemView, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
-                               QMenu, QProgressBar, QTableWidget, QToolButton, QVBoxLayout,
-                               QWidget)
+                               QMenu, QProgressBar, QPushButton, QTableWidget, QToolButton,
+                               QVBoxLayout, QWidget)
 from src.views.stats.stat_widgets import StatCard
 
 from Lector.ui import style as S
@@ -36,7 +36,9 @@ class SearchesScreen(Screen):
                          "Each search keeps its names, filters and every run, so it can be "
                          "repeated exactly or updated as BHL adds new scans.")
         self.filter_box = QLineEdit()
-        self.filter_box.setPlaceholderText("Filter: species, journal or name")
+        self.filter_box.setPlaceholderText("Filter your searches\u2026")
+        self.filter_box.setToolTip("Shows only the searches whose name, species, TVK, "
+                                   "journals or years contain every word typed")
         self.filter_box.setClearButtonEnabled(True)
         self.filter_box.setMinimumWidth(200)
         self.filter_box.textChanged.connect(self._apply_filter)
@@ -66,7 +68,7 @@ class SearchesScreen(Screen):
         self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         hh = self.table.horizontalHeader()
         hh.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)   # fills the rest (_fit_height)
-        for col, w in ((1, 140), (2, 116), (3, 96), (4, 116)):
+        for col, w in ((1, 132), (2, 104), (3, 84), (4, 104)):     # fits 1280 x 720
             hh.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
             self.table.setColumnWidth(col, w)
         hh.setSectionResizeMode(5, QHeaderView.ResizeMode.Fixed)
@@ -112,9 +114,9 @@ class SearchesScreen(Screen):
             row = S.label(f"{S.fmt_when(a['when'])}   {a['text']}".strip(), "body", wrap=True)
             self.activity_rows.addWidget(row)
         clear_layout(self.attention_rows)
-        notes = dash["attention"] or ["Nothing needs attention."]
-        for text in notes[:8]:
-            self.attention_rows.addWidget(S.label(text, "warn", wrap=True))
+        items = dash["attention_items"] or [{"text": "Nothing needs attention.", "action": None}]
+        for item in items[:8]:
+            self.attention_rows.addLayout(self._attention_row(item))
 
     def _fill_table(self, searches):
         self.rows = searches
@@ -131,9 +133,9 @@ class SearchesScreen(Screen):
             cell.linkActivated.connect(lambda _l, sid=s["search_id"]:
                                        self.win.go("history", search_id=sid))
             self.table.setCellWidget(r, 0, cell)
-            scope = escape(s["journal_preset"] or ("Your title words" if s.get("filters_recorded")
-                                                   else "Filters not recorded"))
-            self.table.setCellWidget(r, 1, _cell(f"{scope}<br>{escape(s['years'])}"))
+            # the service's words for the filters, as the search's own page shows them
+            self.table.setCellWidget(r, 1, _cell(f"{escape(s['scope'])}<br>"
+                                                 f"{escape(s['years'])}"))
             last = s["last_run"]
             if last:
                 when = S.fmt_when(last["started"]).split(",")[0]
@@ -208,6 +210,8 @@ class SearchesScreen(Screen):
                 h.addWidget(S.button("Run again", "outline", "Run the search again with its "
                                      "filters",
                                      lambda: self.win.go("history", search_id=sid, run="fetch")))
+            h.addWidget(S.button("Edit", "outline", "Change the names and filters",
+                                 lambda: self.win.go("builder", search_id=sid)))
             if s["pages_held"]:
                 h.addWidget(S.button("Review", "view", "Read and mark the pages",
                                      lambda: self.win.go("review", search_id=sid)))
@@ -225,11 +229,41 @@ class SearchesScreen(Screen):
         menu.addAction("Edit names and filters", lambda: self.win.go("builder", search_id=sid))
         menu.addAction("Count only (no pages downloaded)",
                        lambda: self.win.go("history", search_id=sid, run="count"))
+        missing = s.get("pages_without_text") or 0
+        if missing:
+            menu.addAction(f"Fetch missing text ({missing:,} page{'s' if missing != 1 else ''})",
+                           lambda: self.fetch_text(sid))
         menu.addAction("Duplicate as a new draft", lambda: self._duplicate(sid))
         menu.addAction("Export a dossier", lambda: self.win.go("export", search_id=sid))
         more.setMenu(menu)
         h.addWidget(more)
+        for b in w.findChildren(QPushButton):          # compact, so the row fits 1280 px
+            b.setStyleSheet(b.styleSheet() + " QPushButton { padding: 5px 9px; }")
+        more.setStyleSheet(more.styleSheet() + " QToolButton { padding: 5px 9px; }")
         return w
+
+    def _attention_row(self, item):
+        row = QHBoxLayout()
+        row.setSpacing(6)
+        row.addWidget(S.label(item["text"], "warn", wrap=True), 1)
+        if item.get("action") == "fetch_text":
+            sid = item["search_id"]
+            row.addWidget(S.button("Fetch now", "link", "Download the text of these pages "
+                                   "only: no BHL name searches, nothing filtered or withdrawn",
+                                   lambda: self.fetch_text(sid)), 0, Qt.AlignmentFlag.AlignTop)
+        return row
+
+    def fetch_text(self, sid):
+        """Download the text of the pages a search holds that have none (in the
+        background, with the progress line and its Cancel)."""
+        name = next((s["name"] for s in self.rows if s["search_id"] == sid), "search")
+        return self.win.run_task(f"Fetching missing text for “{name}”",
+                                 self.svc.fetch_missing_text, sid, on_done=self._fetched)
+
+    def _fetched(self, result):
+        self.win.statusBar().showMessage(result["message"], 15000)
+        if self.win.current() is self:
+            self.refresh()
 
     # --- actions ------------------------------------------------------------
     def _open_row(self, row, _col):
@@ -245,6 +279,6 @@ class SearchesScreen(Screen):
         words = text.lower().split()
         for r, s in enumerate(self.rows):
             hay = " ".join(str(s.get(k) or "") for k in
-                           ("name", "target_name", "target_tvk", "journal_preset", "years")).lower()
+                           ("name", "target_name", "target_tvk", "scope", "years")).lower()
             self.table.setRowHidden(r, not all(w in hay for w in words))
         self._fit_height()

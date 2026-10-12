@@ -13,9 +13,11 @@ The models still hold the state (CheckStateRole); the delegate only draws and to
 
     tick_column.install(self.table_view, "accent_observations")
 """
-from PySide6.QtCore import QEvent, QPointF, QRectF, Qt
-from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen
+from PySide6.QtCore import QEvent, QRectF, Qt
+from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import QApplication, QStyle, QStyledItemDelegate, QStyleOptionViewItem
+
+from shared.tick_mark import paint_tick
 
 from ...themes import theme
 
@@ -65,15 +67,7 @@ class TickDelegate(QStyledItemDelegate):
             painter.setBrush(QColor(t.get("surface")))
         painter.drawRoundedRect(box, 3, 3)
         if ticked:
-            mark = QPainterPath(QPointF(box.left() + 3.2, box.center().y() + 0.2))
-            mark.lineTo(box.left() + 6, box.bottom() - 3.6)
-            mark.lineTo(box.right() - 3, box.top() + 3.8)
-            pen = QPen(QColor(t.get("button_primary_text")), 2)
-            pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-            pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
-            painter.setPen(pen)
-            painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.drawPath(mark)
+            paint_tick(painter, box, QColor(t.get("button_primary_text")))
         painter.restore()
 
     # ------------------------------------------------------------------ clicking

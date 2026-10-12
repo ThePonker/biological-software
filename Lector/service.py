@@ -112,11 +112,15 @@ class LectorService:
         """None, or the dry-run report of the update lector.db needs. Changes nothing."""
         if not upgrade.status(self.db_path)["needs_update"]:
             return None
-        return upgrade.dry_run(self.db_path)
+        return upgrade.dry_run(self.db_path, self._name_checker())
 
     def update_database(self):
         """Back up lector.db (conn.backup) then update it in place. Returns the report."""
-        return upgrade.apply(self.db_path, self.backup_dir)
+        return upgrade.apply(self.db_path, self.backup_dir, self._name_checker())
+
+    def _name_checker(self):
+        """Old fetches' names are checked as a new search's are (UKSI + synonym lists)."""
+        return upgrade.name_checker(self.uksi_db, self.synonym_file)
 
     # --- taxa and names (UKSI, read-only) --------------------------------
     def resolve_taxon(self, text):
@@ -171,12 +175,45 @@ class LectorService:
             return summary.dashboard(st.conn)
 
     def get_search(self, search_id):
-        """Search dict with 'names' (list) and 'filters' (dict)."""
+        """Search dict with 'names' (list) and 'filters' (dict), plus 'scope' and
+        'years': the filters in words, exactly as list_searches() gives them."""
         with self._store() as st:
             try:
-                return saved.get_search(st.conn, search_id)
+                s = saved.get_search(st.conn, search_id)
             except KeyError as exc:
                 raise LectorError(str(exc)) from None
+        s["scope"], s["years"] = summary.scope_text(s["filters"]), summary.years_text(s["filters"])
+        return s
+
+    def edit_names(self, search_id):
+        """The names to show when editing a search: its stored names, then the names
+        the UKSI checks hold back for its species that it does not list (unticked, with
+        the reason), as a new search shows them. A stored name the checks would hold
+        back gets the reason too (held_back_reason), and ticked_by_update=True when it
+        is ticked only because the 12 Oct lector.db update ticked it. No network."""
+        s = self.get_search(search_id)
+        names = [dict(n) for n in s["names"]]
+        if s["kind"] != "species" or not s["target_tvk"]:
+            return names
+        try:
+            cands = self.candidate_names(s["target_tvk"], s["target_name"])
+        except LectorError:
+            return names
+        held = {c["name"].lower(): c for c in cands if not c["included"]}
+        have = {n["name"].lower() for n in names}
+        for n in names:
+            c = held.get(n["name"].lower())
+            if c and not n.get("held_back_reason"):
+                n["held_back_reason"] = c["held_back_reason"]
+                # ticked with no reason stored: the lector.db update ticked it, not you
+                n["ticked_by_update"] = bool(n["included"]) and n["origin"] != "user_added"
+        for key, c in held.items():
+            if key not in have:
+                names.append({"name": c["name"], "origin": c["origin"], "included": False,
+                              "held_back_reason": c["held_back_reason"],
+                              "accepted_name": s["target_name"],
+                              "accepted_tvk": s["target_tvk"]})
+        return names
 
     def create_search(self, target, name=None, kind="species", names=None, filters=None,
                       status="draft", with_synonyms=True):
@@ -302,6 +339,18 @@ class LectorService:
             saved.update_search(st.conn, search_id, status="active")
             return result
 
+    def fetch_missing_text(self, search_id, progress=None, cancel=None):
+        """NETWORK. Download the text of the pages this search holds that have none,
+        and nothing else: no name searches, no filters, nothing withdrawn (works when
+        the search's filters were never recorded). Shown under Recent activity.
+        {'status' ('done'/'cancelled'), 'missing', 'text_fetched', 'failed',
+        'still_missing', 'requests', 'message'}."""
+        with self._store() as st:
+            try:
+                return engine.fetch_missing_text(st, search_id, self.client(), progress, cancel)
+            except KeyError as exc:
+                raise LectorError(str(exc)) from None
+
     # --- history -------------------------------------------------------------
     def list_runs(self, search_id):
         """Runs newest first, each with its settings snapshot and page counts."""
@@ -324,9 +373,12 @@ class LectorService:
                     return None
                 run_b, run_a = fetches[0], fetches[1]
             try:
-                return review.diff(st.conn, run_a, run_b)
+                d = review.diff(st.conn, run_a, run_b)
             except (KeyError, ValueError) as exc:
                 raise LectorError(str(exc)) from None
+            numbers = saved.run_numbers(st.conn, search_id)
+            d["number_a"], d["number_b"] = numbers.get(d["run_a"]), numbers.get(d["run_b"])
+            return d
 
     def keep_page(self, search_id, page_id):
         """Keep a withdrawn page in the search anyway."""

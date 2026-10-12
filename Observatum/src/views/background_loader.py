@@ -42,7 +42,10 @@ POLL_MS = 15            # how often a step waiting for a thread or a condition i
 MAX_JOBS = 1            # worker threads at once: they are Python work and share one GIL,
                         # so more at once only slows each, and the window, down
 HEARTBEAT_MS = 5
-SWITCH_INTERVAL_S = 0.001   # while loading: the GUI thread gets the GIL back sooner
+SWITCH_INTERVAL_S = 0.0005  # while loading: the GUI thread gets the GIL back sooner. Under
+                            # 1 ms on purpose (R8): on Windows Python waits whole
+                            # milliseconds for the GIL (us // 1000), and a 1 ms wait can
+                            # last up to a timer tick (~15.6 ms); 0.5 ms makes it 0 ms there
 
 
 class InThread:
@@ -109,6 +112,8 @@ class BackgroundLoader(QObject):
         self._beat.setTimerType(Qt.TimerType.PreciseTimer)
         self._beat.setInterval(HEARTBEAT_MS)
         self._beat.timeout.connect(self._on_beat)
+        self._watch = None                # pause_watch.PauseWatch, only with --timing
+        self.pauses: list = []            # pause_watch.Pause, kept with --timing
         self.label = None
         if status_bar is not None:
             self.label = QLabel()
@@ -123,12 +128,27 @@ class BackgroundLoader(QObject):
         import sys
         self._switch = sys.getswitchinterval()
         sys.setswitchinterval(min(self._switch, SWITCH_INTERVAL_S))
-        # The records already loaded (hundreds of thousands of objects) are left out of the
-        # garbage collector's full passes while this runs: each pass over them paused every
-        # thread, the window too, for 0.1-0.2 s. Undone when it ends (_restore_switch);
-        # nothing is kept that would otherwise be freed (reference counting still frees).
+        # Garbage collection (Round 8, 12 Oct 2026). A collection holds Python's lock for its
+        # whole run, so it pauses every thread, the window too, whichever thread starts it;
+        # the loading threads make hundreds of thousands of objects, which set off full
+        # passes of 0.1-0.3 s each, a dozen of them (1.2-1.4 s in all, Python 3.14). So:
+        # - the records already loaded are moved out of the collector's sight (freeze) and
+        #   the automatic collector is off while this runs (reference counting still frees
+        #   everything that is not in a reference cycle; the few cycles made in these
+        #   seconds wait for the next pass);
+        # - when everything is ready (_restore_switch) all that was loaded is frozen as well
+        #   and the collector switched back on: later passes then skip the ~600,000 objects
+        #   loaded at startup (a full pass over them took about 0.5 s) instead of pausing
+        #   the window for that every so often while Wil works.
         gc.freeze()
         self._frozen = True
+        self._gc_was_on = gc.isenabled()
+        gc.disable()
+        if getattr(self._timing, "on", False):
+            from .pause_watch import PauseWatch
+            from .. import startup_timing
+            self._watch = PauseWatch(startup_timing._START)
+            self._watch.start()
         self._last_beat = time.perf_counter()
         self._beat.start()
         self._schedule(0)
@@ -181,6 +201,7 @@ class BackgroundLoader(QObject):
             return
         self._stopped = True
         self._beat.stop()
+        self._end_watch(report=False)
         self._restore_switch()
         for step in list(self._queue):
             if step.on_stop is not None:
@@ -269,10 +290,18 @@ class BackgroundLoader(QObject):
         return (bool(self._queue) and step is self._queue[0]
                 and not any(s.thread is not None for s in self._queue))
 
-    def _restore_switch(self):
+    def _restore_switch(self, keep_frozen: bool = False):
+        """The collector and the thread switch interval back on. keep_frozen: everything
+        loaded so far stays out of later collections (the loading finished); otherwise it is
+        handed back to the collector (the window is closing)."""
         if getattr(self, "_frozen", False):
             self._frozen = False
-            gc.unfreeze()
+            if keep_frozen:
+                gc.freeze()
+            else:
+                gc.unfreeze()
+            if getattr(self, "_gc_was_on", True):
+                gc.enable()
         if self._switch is not None:
             import sys
             sys.setswitchinterval(self._switch)
@@ -327,6 +356,8 @@ class BackgroundLoader(QObject):
             self._in_slice = False
             dt = time.perf_counter() - t0
             self.slices.append((step.key, dt))
+            if self._watch is not None:
+                self._watch.slice_done(step.key, t0, t0 + dt)
             if dt > self.slowest_slice[0]:
                 self.slowest_slice = (dt, step.key)
 
@@ -349,11 +380,12 @@ class BackgroundLoader(QObject):
                 traceback.print_exc()
         if not self._queue and not self._stopped:
             self._beat.stop()
-            self._restore_switch()
+            self._restore_switch(keep_frozen=True)
             self._on_beat()
             self._mark(f"everything ready (longest GUI pause {self.max_pause * 1000:.0f} ms; "
                        f"longest slice {self.slowest_slice[0] * 1000:.0f} ms, "
                        f"{self.slowest_slice[1]})")
+            self._end_watch(report=True)
             self.finished.emit()
 
     def _update_label(self):
@@ -369,8 +401,22 @@ class BackgroundLoader(QObject):
     def _on_beat(self):
         now = time.perf_counter()
         if self._last_beat is not None:
-            self.max_pause = max(self.max_pause, now - self._last_beat - HEARTBEAT_MS / 1000)
+            gap = now - self._last_beat - HEARTBEAT_MS / 1000
+            self.max_pause = max(self.max_pause, gap)
+            if self._watch is not None:
+                self._watch.beat(now, gap)
         self._last_beat = now
+
+    def _end_watch(self, report: bool):
+        """--timing: stop the pause watchdog and print where the pauses were."""
+        watch, self._watch = self._watch, None
+        if watch is None:
+            return
+        watch.stop()
+        self.pauses = watch.pauses
+        if report:
+            for line in watch.report():
+                self._mark(line)
 
     def _mark(self, label: str):
         if self._timing is not None:

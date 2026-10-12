@@ -86,8 +86,13 @@ class BasemapLayersMixin:
         inland edges) or "vc_inland" (VC borders that are not coast); worked out once per
         source (coast.py, vc_topology.py)."""
         if name == "vc_inland":
+            # R8 review: its own key. ("vc", geojson, "r5") was also the land's key below when
+            # the land is drawn from the VC rings (no gb_outline.json), so whichever was worked
+            # out first was used for both: after a first paint (coast first) the VC boundary
+            # layer was the land's unsnapped borders, each shared border twice (32,165 km
+            # instead of 19,136 km).
             topo = [r for rs in self._topo().values() for r in rs]
-            return split_edges_cached(("vc", self._geojson, "r5"), topo,
+            return split_edges_cached(("vc_topo", self._geojson, _SIMPLIFY_TOL, "r5"), topo,
                                       lambda: unique_chains(topo))[1]
         if not self._land_source:
             return []

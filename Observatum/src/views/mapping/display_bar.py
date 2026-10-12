@@ -6,12 +6,16 @@ R9-5 (11 Oct 2026): a "VC labels" tick box (on by default, remembered) for the v
 numbers (national scale) / names (zoomed in) drawn on the map and on its atlas page.
 R4: a "VC boundaries" tick box beside it (on by default, remembered) for the boundary lines,
 and "Districts (modern)" (off by default, remembered) for gb_outline.json's district borders.
+R8 (12 Oct 2026, Wil: "make the presence squares with a toggle to change the transparency"):
+a "Square opacity" slider beside them, 0-100 % (default 100 %: the squares as before),
+remembered, so the borders and labels under the squares can be seen. The atlas PNG made
+from the tab follows it (the same map draws the page); batch maps are always solid.
 """
 from typing import List, Tuple
 
-from PySide6.QtCore import QSettings, Signal
+from PySide6.QtCore import QSettings, Qt, Signal
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QFrame, QHBoxLayout, QLabel, QSizePolicy,
-                               QWidget)
+                               QSlider, QWidget)
 
 from ...services.map_square_service import BAND_PRESET_LABELS
 from ...themes import theme
@@ -20,6 +24,7 @@ from .square_style import STYLES
 VC_LABELS_SETTING = "mapping/vc_labels"      # R9-5: VC numbers / names on the map (default on)
 VC_BOUNDS_SETTING = "mapping/vc_boundaries"  # R4: VC boundary lines on the map (default on)
 DISTRICTS_SETTING = "mapping/districts"      # R4: modern district lines (default off)
+OPACITY_SETTING = "mapping/square_opacity"   # R8: recorded squares' opacity, % (default 100)
 
 
 def _saved(key: str, default: bool = True) -> bool:
@@ -39,6 +44,14 @@ def saved_vc_boundaries() -> bool:
 
 def saved_districts() -> bool:
     return _saved(DISTRICTS_SETTING, False)
+
+
+def saved_square_opacity() -> int:
+    try:
+        value = int(float(QSettings().value(OPACITY_SETTING, 100)))
+    except Exception:             # missing or unreadable: the squares as before (solid)
+        return 100
+    return max(0, min(100, value))
 
 
 def _save(key: str, on: bool):
@@ -69,6 +82,7 @@ class MapDisplayBar(QFrame):
     vc_labels_changed = Signal(bool)
     vc_boundaries_changed = Signal(bool)
     districts_changed = Signal(bool)
+    square_opacity_changed = Signal(int)      # percent
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -128,6 +142,13 @@ class MapDisplayBar(QFrame):
         self.districts_check.toggled.connect(self._on_districts)
         lay.addWidget(self.districts_check)
 
+        self._add_opacity_slider(lay, lab_style)
+        # R8: the slider made the bar wider; on a narrow (laptop, 1280 px) window the two
+        # lists may now give up some width (their text cut short) rather than make the
+        # Mapping page scroll sideways. With room to spare they look as before.
+        for combo in (self.style_combo, self.period_combo):
+            combo.setMinimumWidth(min(110, combo.sizeHint().width()))
+
         lay.addSpacing(12)
         self.legend_box = QWidget()
         self.legend_box.setStyleSheet("border: none;")
@@ -167,8 +188,56 @@ class MapDisplayBar(QFrame):
         _save(VC_BOUNDS_SETTING, on)
         self.vc_boundaries_changed.emit(bool(on))
 
+    def _add_opacity_slider(self, lay, lab_style: str):
+        """"Square opacity" 0-100 % (R8), remembered."""
+        t = theme()
+        tip = ("How solid the recorded squares are: lower it to see the VC boundaries, "
+               "districts and labels under them. The atlas PNG follows it. Remembered.")
+        self.opacity_label = QLabel("Square opacity")
+        self.opacity_label.setStyleSheet(lab_style)
+        self.opacity_label.setToolTip(tip)
+        lay.addWidget(self.opacity_label)
+        self.opacity_slider = QSlider(Qt.Orientation.Horizontal)
+        self.opacity_slider.setRange(0, 100)
+        self.opacity_slider.setSingleStep(5)
+        self.opacity_slider.setPageStep(10)
+        # wide when there is room, down to 56 px on a narrow (laptop) window
+        self.opacity_slider.setMinimumWidth(56)
+        self.opacity_slider.setMaximumWidth(110)
+        self.opacity_slider.setToolTip(tip)
+        self.opacity_slider.setAccessibleName("Square opacity")
+        self.opacity_slider.setStyleSheet(
+            f"QSlider::groove:horizontal {{ height: 4px; background: {t.get('border')}; "
+            f"border-radius: 2px; }}"
+            f"QSlider::sub-page:horizontal {{ background: {t.get('primary')}; border-radius: 2px; }}"
+            f"QSlider::handle:horizontal {{ width: 12px; margin: -5px 0; border-radius: 6px; "
+            f"background: {t.get('primary')}; }}")
+        self.opacity_slider.setValue(saved_square_opacity())
+        self.opacity_value = QLabel()
+        self.opacity_value.setStyleSheet(lab_style)
+        self.opacity_value.setMinimumWidth(32)
+        self._show_opacity(self.opacity_slider.value())
+        self.opacity_slider.valueChanged.connect(self._on_opacity)
+        lay.addWidget(self.opacity_slider)
+        lay.addWidget(self.opacity_value)
+
+    def square_opacity(self) -> int:
+        return self.opacity_slider.value()
+
+    def _show_opacity(self, value: int):
+        self.opacity_value.setText(f"{value}%")
+
+    def _on_opacity(self, value: int):
+        self._show_opacity(value)
+        try:
+            QSettings().setValue(OPACITY_SETTING, int(value))
+        except Exception as e:
+            print(f"[MapDisplayBar] {OPACITY_SETTING} not saved: {e}")
+        self.square_opacity_changed.emit(int(value))
+
     def attach_map(self, m):
-        """Wire the three map switches to the map (GridMap) and give it their saved state."""
+        """Wire the map switches and the square opacity to the map (GridMap) and give it
+        their saved state."""
         self.vc_labels_changed.connect(m.set_vc_labels)
         m.set_vc_labels(self.vc_labels())
         self.vc_boundaries_changed.connect(m.set_vc_boundaries)
@@ -176,6 +245,9 @@ class MapDisplayBar(QFrame):
         self.districts_changed.connect(m.set_districts)
         m.set_districts(self.districts())
         self.set_districts_available(m.has_districts())
+        if hasattr(m, "set_square_opacity"):
+            self.square_opacity_changed.connect(m.set_square_opacity)
+            m.set_square_opacity(self.square_opacity())
 
     def districts(self) -> bool:
         return self.districts_check.isChecked()

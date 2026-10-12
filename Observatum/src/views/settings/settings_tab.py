@@ -14,13 +14,22 @@ from .counting_panel import SpeciesCountingPanel
 class SettingsTab(QWidget):
     settings_changed = Signal()
     
-    def __init__(self, parent=None, db_manager=None):
+    def __init__(self, parent=None, db_manager=None, build: bool = True):
+        """build=False: the caller builds it a piece at a time with build_parts() (the
+        background loader, Round 8: the whole build at once paused the window ~0.15 s)."""
         super().__init__(parent)
         self._db_manager = db_manager
-        self._setup_ui()
+        if build:
+            for _ in self.build_parts():
+                pass
+
+    def build_parts(self):
+        """Build the tab, yielding after the frame and after each panel."""
+        yield from self._setup_ui()
         self._connect_signals()
-    
+
     def _setup_ui(self):
+        """A generator: yields between the panels (see build_parts)."""
         t = theme()
 
         self.setStyleSheet(f"""
@@ -110,24 +119,28 @@ class SettingsTab(QWidget):
         content_layout.setContentsMargins(16, 16, 16, 16)
         
         self.panel_stack = QStackedWidget()
-        
+        content_layout.addWidget(self.panel_stack)
+        layout.addWidget(content, 1)
+        yield
+
         self.general_panel = GeneralSettingsPanel()
         self.panel_stack.addWidget(self.general_panel)
-        
+        yield
+
         self.database_panel = DatabaseSettingsPanel(self._db_manager)
         self.panel_stack.addWidget(self.database_panel)
-        
+        yield
+
         self.export_panel = ExportSettingsPanel()
         self.panel_stack.addWidget(self.export_panel)
-        
+        yield
+
         self.sync_panel = SyncSettingsPanel()
         self.panel_stack.addWidget(self.sync_panel)
+        yield
 
         self.counting_panel = SpeciesCountingPanel()      # Species counting (backlog A)
         self.panel_stack.addWidget(self.counting_panel)
-        
-        content_layout.addWidget(self.panel_stack)
-        layout.addWidget(content, 1)
     
     def _connect_signals(self):
         self.sidebar.section_changed.connect(self._on_panel_selected)

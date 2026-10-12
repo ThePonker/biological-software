@@ -27,6 +27,7 @@ class ExportScreen(Screen):
         super().__init__(win, "Export a literature dossier",
                          "A Word document for reading and citing, with an Excel index "
                          "alongside for sorting and checking.")
+        self.show_back()
         self.search_id = None
         cols = QHBoxLayout()
         cols.setSpacing(12)
@@ -111,8 +112,8 @@ class ExportScreen(Screen):
         row = QHBoxLayout()
         self.create_btn = S.button("Create dossier", "primary", "Write the files", self.export)
         row.addWidget(self.create_btn)
-        row.addWidget(S.button("Cancel", "cancel", "Back to Saved searches",
-                               lambda: self.win.go("searches")))
+        row.addWidget(S.button("Cancel", "cancel", "Back to where you came from",
+                               lambda: self.win.back()))
         row.addStretch(1)
         card.body.addLayout(row)
         self.result = QLabel("")

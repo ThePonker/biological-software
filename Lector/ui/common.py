@@ -1,6 +1,6 @@
-"""The frame every Lector screen shares: breadcrumb, title, actions, scrolling body."""
+"""The frame every Lector screen shares: back button, title, actions, scrolling body."""
 from PySide6.QtCore import QPoint, QRect, QSize, Qt
-from PySide6.QtWidgets import QHBoxLayout, QLayout, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLayout, QStyledItemDelegate, QVBoxLayout, QWidget
 
 from src.views.components.hscroll_strip import HScrollStrip
 
@@ -9,7 +9,7 @@ from shared.fit_to_screen import scroll_body
 
 
 class Screen(QWidget):
-    """header (crumb / title / subtitle on the left, action buttons on the right) and a
+    """header (back button / title / subtitle on the left, action buttons on the right) and a
     body that scrolls when the window is too small for it."""
 
     def __init__(self, win, title="", subtitle=""):
@@ -23,10 +23,12 @@ class Screen(QWidget):
         head.setSpacing(12)
         left = QVBoxLayout()
         left.setSpacing(2)
-        self.crumb = S.button("Saved searches", "link", slot=lambda: win.go("searches"))
-        self.crumb.hide()
+        # "← Back": to the screen you came from (Saved searches when unknown)
+        self.back_btn = S.button("\u2190 Back", "outline", "Back to where you came from",
+                                 lambda: win.back())
+        self.back_btn.hide()
         crumb_row = QHBoxLayout()
-        crumb_row.addWidget(self.crumb)
+        crumb_row.addWidget(self.back_btn)
         crumb_row.addStretch(1)
         left.addLayout(crumb_row)
         self.title = S.label(title, "h1", wrap=True)
@@ -50,9 +52,8 @@ class Screen(QWidget):
         # scrolls rather than hold the window wider or taller than the screen
         outer.addWidget(scroll_body(self.body_widget), 1)
 
-    def show_crumb(self, text="Saved searches"):
-        self.crumb.setText(text)
-        self.crumb.show()
+    def show_back(self):
+        self.back_btn.show()
 
 
 def clear_layout(layout):
@@ -163,3 +164,16 @@ def fit_rows(table, minimum=40):
 def left_headers(table):
     table.horizontalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignLeft
                                                  | Qt.AlignmentFlag.AlignVCenter)
+
+
+class WrapDelegate(QStyledItemDelegate):
+    """List rows tall enough for their wrapped text (Qt's own measure cut some last
+    lines, or elided them)."""
+
+    def sizeHint(self, option, index):
+        size = super().sizeHint(option, index)
+        text = index.data() or ""
+        width = max(80, self.parent().viewport().width() - 44)   # icon, padding, border
+        r = option.fontMetrics.boundingRect(QRect(0, 0, width, 100000),
+                                            int(Qt.TextFlag.TextWordWrap), text)
+        return QSize(size.width(), max(size.height(), r.height() + 16))

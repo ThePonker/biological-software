@@ -11,6 +11,8 @@ from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QFrame, QLabel, QPushButton, QVBoxLayout
 from src.themes import theme
 
+from shared.tick_mark import checkbox_qss
+
 T = theme()
 ACCENT, ACCENT_LIGHT, ACCENT_DARK = (T.get("accent_stats"), T.get("accent_stats_light"),
                                      T.get("accent_stats_dark"))
@@ -50,7 +52,7 @@ def app_qss():
         QListWidget::item:selected {{ background: {ACCENT_LIGHT}; color: {c('text_primary')};
             border-left: 3px solid {ACCENT}; }}
         {T.scrollbar_style()}
-        {T.checkbox_style()}
+        {checkbox_style()}
         QRadioButton {{ color: {c('text_primary')}; spacing: 8px; }}
         {T.tooltip_style()}
         {T.status_bar_style()}
@@ -65,6 +67,14 @@ def app_qss():
         QTabWidget::pane {{ border: none; }}
         QSplitter::handle {{ background: {c('background')}; }}
     """
+
+
+def checkbox_style():
+    """Check boxes: an empty box, or the accent fill with a white tick (the suite's tick,
+    shared/tick_mark.py, as Observatum's record tables draw it)."""
+    return (f"QCheckBox {{ color: {c('text_primary')}; spacing: 8px; }}"
+            + checkbox_qss(fill=ACCENT, mark=c("button_primary_text"),
+                           border=c("border_strong"), background=c("surface")))
 
 
 def nav_qss():

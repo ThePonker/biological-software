@@ -5,28 +5,31 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QGridLayout, QHBoxL
                                QTableWidgetItem, QTabWidget)
 
 from Lector.ui import style as S
-from Lector.ui.common import Screen, fit_widget_column, left_headers
+from Lector.ui.common import Screen, WrapDelegate, fit_widget_column, left_headers
 
 TABS = (("new", "New"), ("withdrawn", "No longer matched"), ("unchanged", "Unchanged"))
 
 
 def _run_text(r):
+    """A run in the list: numbered within its search (run["label"]: 'Run 2' / 'Count')."""
     when = S.fmt_when(r["started"])
     if r["mode"] == "count":
-        return f"Count only · {when}\n{r['found'] or 0:,} found · no pages downloaded"
+        return (f"Count only · {when}\n{r['found'] or 0:,} found · no pages downloaded"
+                f" · {r['requests_text']}")
     status = {"cancelled": " (cancelled)", "failed": " (failed)",
               "migrated": " (from an earlier Lector)"}.get(r["status"], "")
-    lines = [f"Run {r['run_id']} · {when}{status}",
+    lines = [f"{r['label']} · {when}{status}",
              f"{r['kept'] or 0:,} pages kept of {r['found'] or 0:,} found · "
              f"{r['new']} new, {r['withdrawn']} withdrawn",
-             f"{r['requests'] or 0:,} requests · {r['failed'] or 0} failed"]
+             r["requests_text"] + (f" · {r['failed']} failed" if r["failed"] else "")]
     return "\n".join(lines)
 
 
-def years_text(a, b):
-    if a and b:
-        return f"{a}\u2013{b}"
-    return f"From {a}" if a else (f"To {b}" if b else "All")
+def skips_text(f):
+    """The two skips, which drop pages even when no years or journals are set."""
+    bits = [t for on, t in ((f.get("skip_duplicates"), "duplicate scans"),
+                            (f.get("skip_index"), "index pages")) if on]
+    return " and ".join(bits).capitalize() if bits else "Nothing"
 
 
 def plain_change(text):
@@ -37,7 +40,7 @@ def plain_change(text):
 class HistoryScreen(Screen):
     def __init__(self, win):
         super().__init__(win, "Saved search")
-        self.show_crumb()
+        self.show_back()
         self.search_id, self.search, self.runs, self.diff = None, None, [], None
         self.edit_btn = S.button("Edit search", "outline", "Change the names and filters",
                                  lambda: win.go("builder", search_id=self.search_id))
@@ -73,6 +76,11 @@ class HistoryScreen(Screen):
                                          "compare it with the one before.", "small", wrap=True))
         self.run_list = QListWidget()
         self.run_list.setWordWrap(True)
+        self.run_list.setTextElideMode(Qt.TextElideMode.ElideNone)
+        self.run_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.run_list.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        self.run_list.setResizeMode(QListWidget.ResizeMode.Adjust)
+        self.run_list.setItemDelegate(WrapDelegate(self.run_list))
         self.run_list.setMinimumHeight(260)
         self.run_list.currentRowChanged.connect(self._run_picked)
         runs_card.body.addWidget(self.run_list, 1)
@@ -166,18 +174,14 @@ class HistoryScreen(Screen):
         f = s["filters"]
         names = [n["name"] for n in s["names"] if n["included"]]
         held = len(s["names"]) - len(names)
-        years = years_text(f["from_year"], f["to_year"])
-        journals = f["journal_preset"] or ("Any journal" if not f["include_words"]
-                                           else "Your own words")
-        if f["include_words"]:
-            journals += f" ({len(f['include_words'])} words)"
-        if f["exclude_words"]:
-            journals += f", {len(f['exclude_words'])} left out"
+        # the service's words for the filters: the same as Saved searches' Scope column
+        years, journals = s["years"], s["scope"]
         held_pages = next((x["pages_held"] for x in self.win.call(self.svc.list_searches) or []
                            if x["search_id"] == s["search_id"]), 0)
         cells = (("Names", ", ".join(names) + (f" ({held} held back)" if held else "")),
                  ("Years", years), ("Journals", journals),
                  ("Page limit", f"{f['max_pages']:,} per name" if f["max_pages"] else "None"),
+                 ("Left out", skips_text(f)),
                  ("Pages held", f"{held_pages:,}"))
         for col, (head, value) in enumerate(cells):
             grid.addWidget(S.label(head, "caps"), 0, col)
@@ -197,9 +201,9 @@ class HistoryScreen(Screen):
         fetches = [x for x in self.runs if x["mode"] == "fetch"]
         i = fetches.index(r)
         if i + 1 >= len(fetches):
-            self._show_diff(None, f"Run {r['run_id']} is the first run of this search: "
+            self._show_diff(None, f"{r['label']} is the first run of this search: "
                                   f"{r['kept'] or 0:,} pages kept. Later runs are compared "
-                                  "with it.", title=f"Run {r['run_id']}")
+                                  "with it.", title=r["label"])
             return
         d = self.win.call(self.svc.run_diff, self.search_id, fetches[i + 1]["run_id"], r["run_id"])
         self._show_diff(d)
@@ -216,8 +220,8 @@ class HistoryScreen(Screen):
             self.diff_against.setText("")
             self.settings_changed.setText(message)
         else:
-            self.diff_title.setText(f"What changed in run {d['run_b']}")
-            self.diff_against.setText(f"Compared with run {d['run_a']}")
+            self.diff_title.setText(f"What changed in run {d['number_b']}")
+            self.diff_against.setText(f"Compared with run {d['number_a']}")
             sc = d["settings_changed"]
             self.settings_changed.setText("Settings changed: " + "; ".join(map(plain_change, sc))
                                           if sc
@@ -302,17 +306,18 @@ class HistoryScreen(Screen):
 
     def _ran(self, sid, r):
         if r["status"] == "cancelled":
-            msg = ("Run cancelled. Whatever was downloaded is kept; running again carries on "
-                   "from there.")
+            msg = f"{r['label']} cancelled. Whatever was downloaded is kept; running again " \
+                  "carries on from there."
         elif r["mode"] == "count":
-            msg = f"Counted: {r['found']:,} pages found on BHL, {r['kept']:,} within the filters."
+            msg = (f"Counted: {r['found']:,} pages found on BHL, {r['kept']:,} within the "
+                   f"filters; {r['requests_text']}.")
         else:
-            msg = (f"Run {r['run_id']} finished: {r['kept']:,} pages kept of {r['found']:,} "
+            msg = (f"{r['label']} finished: {r['kept']:,} pages kept of {r['found']:,} "
                    f"found — {r['new']:,} new, {r['withdrawn']:,} no longer matched, "
-                   f"{r['requests']:,} requests.")
+                   f"{r['requests_text']}.")
             if r["failed"]:
                 msg += f" {r['failed']} pages could not be downloaded: run again to retry them."
-        if r.get("message") and r["status"] != "done":
+        if r.get("message") and r["status"] == "failed":
             msg += f" ({r['message']})"
         self.win.statusBar().showMessage(msg, 15000)
         if self.search_id == sid:

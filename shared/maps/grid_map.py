@@ -74,6 +74,7 @@ class GridMap(AtlasSheetMixin, BasemapLayersMixin, PanZoomMixin, QWidget):
         self._press = None
         self._geojson = geojson_path
         self._districts_on = False                # R4: modern district lines (outline only)
+        self._square_opacity = 1.0                # R8: the recorded squares' opacity (a slider)
         self._init_layers()
         self._init_panzoom(True)
         self.setMouseTracking(True)
@@ -125,6 +126,15 @@ class GridMap(AtlasSheetMixin, BasemapLayersMixin, PanZoomMixin, QWidget):
         """Vice-county boundary lines on the map (and its atlas page), or none (R4)."""
         self._vc_bounds_on = bool(on)
         self.update()
+
+    def set_square_opacity(self, percent: int):
+        """How solid the recorded squares are drawn, 0-100 % (R8, Wil: to see the borders and
+        labels under them). 100 is the look before R8. On the map and its atlas page."""
+        self._square_opacity = max(0, min(100, int(percent))) / 100.0
+        self.update()
+
+    def square_opacity(self) -> int:
+        return round(self._square_opacity * 100)
 
     def set_outlined_vc(self, vc: Optional[int]):
         """Outline this VC (the one chosen in County view / as a filter); None: no outline."""
@@ -237,6 +247,8 @@ class GridMap(AtlasSheetMixin, BasemapLayersMixin, PanZoomMixin, QWidget):
         edge = QColor(theme.INK)
         edge.setAlpha(110)
         edge_pen = QPen(edge, 0.4 * k)
+        p.save()
+        p.setOpacity(p.opacity() * self._square_opacity)   # R8: the squares only
         for label, sq in self._squares.items():
             r = self._square_rect(fit, label)
             if r is not None:
@@ -248,6 +260,7 @@ class GridMap(AtlasSheetMixin, BasemapLayersMixin, PanZoomMixin, QWidget):
                     p.setPen(pen)
                     p.setBrush(QBrush(QColor(sq.get("fill") or theme.CLAY)))
                     p.drawRect(r)
+        p.restore()
         if self._selected and selected:
             r = self._square_rect(fit, self._selected)
             if r is not None:

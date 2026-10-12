@@ -134,6 +134,12 @@ def parse_line(line):
     return Rule(m.group(1), m.group(2), m.group(3) or None, (m.group(4) or "").strip())
 
 
+def on_list(source):
+    """Where a rule came from, in words: 'on your own list' (data\\lector_synonyms.txt) or
+    'on the suite corrections list'. (Round 8 review: it said "on the your list".)"""
+    return "on your own list" if source == "your list" else f"on the {source}"
+
+
 def _held_back(uksi, name, accepted_name, tvk, family):
     """(reason, conflict_name, conflict_tvk) or None when the name looks right."""
     ep, acc_ep = epithet(name), epithet(accepted_name)
@@ -180,7 +186,7 @@ def candidate_names(uksi, accepted_name, tvk, rules=None):
             c.update(included=False, held_back_reason=held[0], conflict_name=held[1],
                      conflict_tvk=held[2])
         elif held:
-            c["source"] += " (confirmed on your list)"
+            c["source"] += f" (confirmed {on_list(adds[key].source)})"
         out.append(c)
     for key, r in adds.items():
         if key in seen:
@@ -192,8 +198,8 @@ def candidate_names(uksi, accepted_name, tvk, rules=None):
     for c in out[1:]:
         rule = rules.excluded(c["name"], accepted_name, tvk)
         if rule and c["held_back_reason"]:
-            c["held_back_reason"] += f"; also on the {rule.source}"
+            c["held_back_reason"] += f"; also {on_list(rule.source)}"
         elif rule:
-            c.update(included=False, held_back_reason=f"Held back: on the {rule.source}"
+            c.update(included=False, held_back_reason=f"Held back: {on_list(rule.source)}"
                      + (f" ({rule.reason})" if rule.reason else ""))
     return out

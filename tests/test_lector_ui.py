@@ -250,7 +250,9 @@ def test_review_status_tag_notes_persist(qapp, window, env):
     r = window.go("review", search_id=sid, status="all")
     first = r.current_item()["page_id"]
     keys = {sc.key().toString(): sc for sc in r.shortcuts}
-    keys["2"].activated.emit()                                      # not relevant
+    keys["2"].activated.emit()                          # not relevant, and on to the next page
+    assert r.current_item()["page_id"] != first
+    keys["K"].activated.emit()
     r.panel.tag_buttons["mention"].click()
     r.panel.notes.setPlainText("Probably a misidentification")
     keys["J"].activated.emit()                                      # next page saves the notes
@@ -266,9 +268,10 @@ def test_review_status_tag_notes_persist(qapp, window, env):
     r.panel.notes.setPlainText("Second thoughts")
     assert notes_of(first) == "Probably a misidentification"       # not yet: a pause first
     assert pump(qapp, lambda: notes_of(first) == "Second thoughts", timeout=3)
-    keys["3"].activated.emit()
+    keys["3"].activated.emit()                          # record extracted, and on (Round 8)
     assert {i["page_id"]: i for i in svc.review_queue(sid)}[first]["review_status"] == \
         "record_extracted"
+    assert r.current_item()["page_id"] != first
     assert f"1 of {len(r.items)} reviewed" in r.subtitle.text()
     # filter list: Show = Record extracted
     r.show_box.setCurrentIndex(r.show_box.findData("record_extracted"))
@@ -390,7 +393,9 @@ def test_closing_during_a_run_cancels_and_closes(qapp, tmp_path):
     sid = svc.create_search("Lamia textor", filters=BRITISH)
     win.go("history", search_id=sid, run="fetch")
     assert pump(qapp, lambda: fake.request_count >= 2)
+    win.answers = [True]                                           # "Stop and close" (Round 8)
     assert win.close() is False                                    # waits for the run to stop
+    assert "A run is still going" in win.messages[-1]
     assert pump(qapp, lambda: not win.isVisible() and not win.tasks.busy)
     assert svc.list_runs(sid)[0]["status"] == "cancelled"
     n = fake.request_count

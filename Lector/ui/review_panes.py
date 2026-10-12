@@ -104,8 +104,9 @@ class PageView(S.Card):
     def _show_excerpts(self):
         item = self.item
         if not item["has_text"]:
-            self.text.setHtml("<p><i>The page text has not been downloaded yet: run the "
-                              "search again to fetch it.</i></p>")
+            self.text.setHtml("<p><i>The page text has not been downloaded yet: use "
+                              "“Fetch missing text” (the search's More menu on Saved "
+                              "searches, or Fetch now under Needs attention).</i></p>")
             return
         parts = [f"<p>… {runs_html(runs)} …</p>" for runs in item["excerpt_runs"]]
         self.text.setHtml("".join(parts) or "<p><i>The searched name was not found in the "
@@ -162,16 +163,29 @@ class ReviewPanel(S.Card):
             self.tag_buttons[tag] = b
             tags.addWidget(b, i // 2, i % 2)
         self.body.addLayout(tags)
-        self.body.addWidget(S.label("Notes", "caps"))
+        notes_label = S.label("Notes", "body")
+        notes_label.setStyleSheet(notes_label.styleSheet() + " font-weight: 600;")
+        self.body.addWidget(notes_label)
         self.notes = QPlainTextEdit()
+        self.notes.setObjectName("reviewNotes")
         self.notes.setPlaceholderText("Locality as printed, date, recorder, doubts…")
+        # an outlined box, as every text box of the theme (the plain one hardly showed)
+        self.notes.setStyleSheet(
+            f"QPlainTextEdit#reviewNotes {{ background: {S.c('input_bg')};"
+            f" color: {S.c('text_primary')}; border: 1px solid {S.c('border_strong')};"
+            f" border-radius: {S.c('radius_sm')}; padding: 4px 6px; }}"
+            f"QPlainTextEdit#reviewNotes:focus {{ border: 2px solid {S.c('focus_border')}; }}"
+            f"QPlainTextEdit#reviewNotes:disabled {{ background: {S.c('disabled_bg')};"
+            f" border-color: {S.c('disabled_border')}; }}")
+        notes_label.setBuddy(self.notes)
         self.notes.setMinimumHeight(90)
         self.notes.textChanged.connect(self._typed)
         self.notes.setMaximumHeight(220)
         self.body.addWidget(self.notes)
         self.saved = S.label("", "small")
         self.body.addWidget(self.saved)
-        self.body.addWidget(S.label("Keys: J next, K previous, 1–4 status.", "small", wrap=True))
+        self.body.addWidget(S.label("Keys: J next, K previous, 1–4 status and next page.",
+                                    "small", wrap=True))
         self.body.addWidget(S.label(COPYRIGHT_GENERAL, "small", wrap=True))
         self.body.addWidget(S.label("Taking records into Observatum comes later: mark a page "
                                     "“Record extracted” once you have entered it by "

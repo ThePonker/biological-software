@@ -1,15 +1,17 @@
 """Reading list: page list, the page, review marks (mock-up screen 4).
 
-Keys (when not typing in a box): J next page, K previous, 1-4 status
-(relevant, not relevant, record extracted, unreviewed). Notes save as you type.
+Keys (when not typing in a box): J next page, K previous, 1-4 set the status
+(relevant, not relevant, record extracted, unreviewed) and move to the next page.
+Notes save as you type.
 """
-from PySide6.QtCore import QRect, QSize, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor, QFont, QKeySequence, QShortcut
-from PySide6.QtWidgets import (QComboBox, QLineEdit, QListWidget, QListWidgetItem, QSplitter,
-                               QStyledItemDelegate, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QApplication, QComboBox, QLineEdit, QListWidget,
+                               QListWidgetItem, QPlainTextEdit, QSplitter, QTextEdit,
+                               QVBoxLayout, QWidget)
 
 from Lector.ui import style as S
-from Lector.ui.common import Screen
+from Lector.ui.common import Screen, WrapDelegate
 from Lector.ui.review_panes import PageView, ReviewPanel
 from shared.fit_to_screen import scroll_body
 
@@ -17,6 +19,16 @@ SHOW = (("Unreviewed", "unreviewed"), ("All pages", "all"), ("Relevant", "releva
         ("Record extracted", "record_extracted"), ("Not relevant", "not_relevant"),
         ("No longer matched", "withdrawn"))
 ROLE = Qt.ItemDataRole.UserRole
+
+
+def entries_text(items):
+    """'79 entries (87 pages, duplicates merged)': an entry is a page with the other
+    scans of the same text inside it."""
+    pages = sum(1 + len(i.get("copies") or []) for i in items)
+    head = f"{len(items):,} entr{'ies' if len(items) != 1 else 'y'}"
+    if pages == len(items):
+        return head
+    return f"{head} ({pages:,} pages, duplicates merged)"
 
 
 def _label(item, show_new=True):
@@ -39,21 +51,10 @@ def _label(item, show_new=True):
     return f"{src}\n{' · '.join(marks)}"
 
 
-class _WrapDelegate(QStyledItemDelegate):
-    """Rows tall enough for their wrapped text (Qt's own measure cut some last lines)."""
-
-    def sizeHint(self, option, index):
-        size = super().sizeHint(option, index)
-        text = index.data() or ""
-        width = max(80, self.parent().viewport().width() - 44)   # icon, padding, border
-        r = option.fontMetrics.boundingRect(QRect(0, 0, width, 100000),
-                                            int(Qt.TextFlag.TextWordWrap), text)
-        return QSize(size.width(), max(size.height(), r.height() + 16))
-
-
 class ReviewScreen(Screen):
     def __init__(self, win):
         super().__init__(win, "Reading list")
+        self.show_back()
         self.search_id, self.items, self.shown, self._show_new = None, [], [], True
         self.search_box = QComboBox()
         self.search_box.setMinimumWidth(200)
@@ -91,7 +92,7 @@ class ReviewScreen(Screen):
         # a scroll bar appearing after the rows were measured cut their last line off
         self.list.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
         self.list.setResizeMode(QListWidget.ResizeMode.Adjust)
-        self.list.setItemDelegate(_WrapDelegate(self.list))
+        self.list.setItemDelegate(WrapDelegate(self.list))
         self.list.currentItemChanged.connect(self._picked)
         lv.addWidget(self.list, 1)
         left.setMinimumWidth(220)
@@ -116,7 +117,7 @@ class ReviewScreen(Screen):
         self.empty = S.label("", "muted", wrap=True)
         self.body.addWidget(self.empty)
         keys = (("J", lambda: self.step(1)), ("K", lambda: self.step(-1)))
-        keys += tuple((str(i + 1), lambda st=st: self.set_status(st))
+        keys += tuple((str(i + 1), lambda st=st: self.mark_and_next(st))
                       for i, st in enumerate(ReviewPanel.STATUS_ORDER))
         self.shortcuts = []
         for key, fn in keys:
@@ -165,8 +166,8 @@ class ReviewScreen(Screen):
         name = self.search_box.currentText()
         current = [i for i in self.items if i["state"] != "withdrawn"]
         done = sum(1 for i in current if i["review_status"] != "unreviewed")
-        self.subtitle.setText(f"{name} · {done:,} of {len(current):,} reviewed"
-                              if name else "")
+        self.subtitle.setText(f"{name} · {entries_text(current)} · {done:,} of "
+                              f"{len(current):,} reviewed" if name else "")
 
     def _wanted(self, item, show, words):
         if show == "withdrawn":
@@ -249,8 +250,23 @@ class ReviewScreen(Screen):
         self.list.setCurrentRow(target)
 
     def _key(self, fn):
-        if self.win.current() is self and self.isVisible():
-            fn()
+        """A J/K/1-4 key: only on this screen, and never while typing in a box (the
+        notes, the find box), where the key is text."""
+        if self.win.current() is not self or not self.isVisible():
+            return
+        w = QApplication.focusWidget()
+        # the page's own text (a read-only QTextBrowser, clicked to scroll or copy) is not
+        # typing: the keys still work there (R8 review)
+        if isinstance(w, (QPlainTextEdit, QLineEdit, QTextEdit)) and not w.isReadOnly():
+            return
+        fn()
+
+    def mark_and_next(self, status):
+        """Keys 1-4: set the page's status, then go to the next page."""
+        if self.current_item() is None:
+            return
+        self.set_status(status)
+        self.step(1)
 
     # --- review marks ---------------------------------------------------------
     def _refresh_row(self, item):

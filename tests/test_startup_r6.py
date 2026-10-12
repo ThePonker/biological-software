@@ -195,7 +195,8 @@ def test_loader_status_line_and_timing(qapp):
     _run(qapp, lambda: not bg.running)
     assert not bg.label.isVisible()
     import gc
-    assert gc.get_freeze_count() == 0                 # the collector back to normal
+    # the collector back on; what was loaded stays out of its passes (Round 8)
+    assert gc.isenabled() and gc.get_freeze_count() > 0
     assert marks[:2] == ["loaded: scheme (background)", "loaded: stats (background)"]
     assert marks[-1].startswith("everything ready (longest GUI pause ")
     win.close()

@@ -115,7 +115,10 @@ class NamesPanel(S.Card):
         text.addWidget(title)
         if held:
             reason = S.label(n["held_back_reason"], "warn", wrap=True)
-            if n.get("included", True):
+            if n.get("included", True) and n.get("ticked_by_update"):
+                reason.setText(n["held_back_reason"] + " — ticked when lector.db was "
+                               "updated, not by you: untick it unless you want it searched")
+            elif n.get("included", True):
                 reason.setText(n["held_back_reason"] + " — ticked by you")
             text.addWidget(reason)
         grid.addLayout(text, 1)
@@ -133,6 +136,7 @@ class NamesPanel(S.Card):
         for n in self._names:
             if n["name"] == name:
                 n["included"] = on
+                n.pop("ticked_by_update", None)          # your choice from now on
         self._rebuild()
         self.changed.emit()
 

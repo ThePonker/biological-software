@@ -6,7 +6,8 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QGridLayout, QHBoxLayout, Q
 from Lector.ui import style as S
 from Lector.ui.common import FlowLayout
 
-OWN_WORDS = "No preset (your own words)"
+ANY_JOURNAL = "Any journal"
+OWN_WORDS = "Your own title words"
 
 
 class WordChips(QWidget):
@@ -137,7 +138,12 @@ class FiltersPanel(S.Card):
         self._presets = self.svc.journal_presets()
         self.preset.blockSignals(True)
         self.preset.clear()
+        self.preset.addItem(ANY_JOURNAL)
+        self.preset.setItemData(0, "No title words: pages from every journal",
+                                Qt.ItemDataRole.ToolTipRole)
         self.preset.addItem(OWN_WORDS)
+        self.preset.setItemData(1, "The title words below, not a preset",
+                                Qt.ItemDataRole.ToolTipRole)
         for p in self._presets:
             self.preset.addItem(p["name"])
             self.preset.setItemData(self.preset.count() - 1, p.get("description") or "",
@@ -145,6 +151,11 @@ class FiltersPanel(S.Card):
         i = self.preset.findText(current) if current else 0
         self.preset.setCurrentIndex(max(i, 0))
         self.preset.blockSignals(False)
+
+    def _show_words_choice(self):
+        """Any journal / Your own title words, when no preset holds these words."""
+        if self._preset_by_name(self.preset.currentText()) is None:
+            self.preset.setCurrentIndex(1 if self.include.words() else 0)
 
     def set_filters(self, f):
         self.load_presets(f.get("journal_preset"))
@@ -161,11 +172,12 @@ class FiltersPanel(S.Card):
             w.blockSignals(False)
         self.include.set_words(f.get("include_words"))
         self.exclude.set_words(f.get("exclude_words"))
+        self._show_words_choice()
 
     def filters(self):
-        preset = self.preset.currentText()
+        preset = self._preset_by_name(self.preset.currentText())
         return {"from_year": self.from_year.value() or None, "to_year": self.to_year.value() or None,
-                "journal_preset": None if preset == OWN_WORDS else preset,
+                "journal_preset": preset["name"] if preset else None,
                 "include_words": self.include.words(), "exclude_words": self.exclude.words(),
                 "max_pages": self.max_pages.value(), "skip_index": self.skip_index.isChecked(),
                 "skip_duplicates": self.skip_dupes.isChecked()}
@@ -176,17 +188,22 @@ class FiltersPanel(S.Card):
     def _preset_chosen(self, _index):
         """A preset's words are copied into the search (editing a preset later never
         changes an earlier search)."""
-        p = self._preset_by_name(self.preset.currentText())
+        name = self.preset.currentText()
+        p = self._preset_by_name(name)
         if p:
             self.include.set_words(p["include_words"])
             self.exclude.set_words(p["exclude_words"])
+        elif name == ANY_JOURNAL:
+            self.include.set_words([])                # every journal: no title words
         self.changed.emit()
 
     def _words_changed(self):
         p = self._preset_by_name(self.preset.currentText())
         if p and (p["include_words"] != self.include.words()
                   or p["exclude_words"] != self.exclude.words()):
-            self.preset.setCurrentIndex(0)            # the words are now your own
+            self.preset.setCurrentIndex(1)            # the words are now your own
+        if not p or self.preset.currentIndex() == 1:
+            self._show_words_choice()
         self.changed.emit()
 
     def _save_preset(self):

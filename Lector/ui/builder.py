@@ -19,7 +19,7 @@ PREVIEW_ROWS = (("found", "Found on BHL"), ("within_filters", "Within filters"),
 class BuilderScreen(Screen):
     def __init__(self, win):
         super().__init__(win, "New search")
-        self.show_crumb()
+        self.show_back()
         self.search_id, self.target = None, None
         cols = QHBoxLayout()
         cols.setSpacing(12)
@@ -97,8 +97,8 @@ class BuilderScreen(Screen):
                                 lambda: self.save(run=True))
         self.draft_btn = S.button("Save as draft", "outline", "Save without running",
                                   lambda: self.save(run=False))
-        self.cancel_btn = S.button("Cancel", "cancel", "Back to Saved searches (nothing saved)",
-                                   lambda: self.win.go("searches"))
+        self.cancel_btn = S.button("Cancel", "cancel", "Back to where you came from "
+                                   "(nothing saved)", lambda: self.win.back())
         for b in (self.run_btn, self.draft_btn, self.cancel_btn):
             b.setFixedWidth(290)
             col.addWidget(b)
@@ -135,7 +135,9 @@ class BuilderScreen(Screen):
             if s["kind"] == "species" and s["target_tvk"]:
                 defaults = {c["name"]: c["included"] for c in
                             self.win.call(self.svc.candidate_names, s["target_tvk"]) or []}
-            self.names.set_names(s["names"], defaults)
+            # stored names, plus the names the UKSI checks hold back (with the reasons)
+            self.names.set_names(self.win.call(self.svc.edit_names, search_id) or s["names"],
+                                 defaults)
             self.filters.set_filters(s["filters"])
         self.update_preview()
 
@@ -240,8 +242,8 @@ class BuilderScreen(Screen):
                 self.svc.remember_name_choice(n, include, species=self.target["name"],
                                               reason="chosen in Lector")
         self.search_id = sid
-        if run:
-            self.win.go("history", search_id=sid, run="fetch")
+        if run:                    # Back from there skips this editor
+            self.win.go("history", replace=True, search_id=sid, run="fetch")
         else:
             self.win.go("searches")
         return sid

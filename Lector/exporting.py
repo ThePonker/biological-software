@@ -60,7 +60,7 @@ def export_search(store, sid, formats=("docx", "xlsx"), order="year", include_ap
         last = saved.last_run(conn, sid, "fetch")
         about = [("Saved search", s["name"])]
         if last:
-            about.append(("Run", f"{last['run_id']}, {(last['finished'] or last['started'])[:10]}"))
+            about.append(("Run", f"{last['number']}, {(last['finished'] or last['started'])[:10]}"))
         about.append(("Included", ", ".join(x.replace("_", " ") for x in include_statuses)))
         want_xlsx = "xlsx" in formats
         if want_xlsx and not _has("openpyxl"):

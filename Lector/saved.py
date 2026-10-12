@@ -203,13 +203,53 @@ def save_preset(conn, name, include_words, exclude_words, description=None):
 
 
 # --- runs and membership --------------------------------------------------
-def runs(conn, sid):
-    out = []
-    for r in conn.execute("SELECT * FROM runs WHERE search_id=? ORDER BY run_id DESC", (sid,)):
-        d = dict(r)
-        d["settings"] = json.loads(d["settings"] or "{}")
-        out.append(d)
+def run_numbers(conn, sid):
+    """run_id -> the run's number within its search (1, 2, 3 for its fetch runs, in
+    order), or None for a count-only run. run_id itself is shared by every search."""
+    out, n = {}, 0
+    for run_id, mode in conn.execute("SELECT run_id, mode FROM runs WHERE search_id=?"
+                                     " ORDER BY run_id", (sid,)):
+        if mode == "count":
+            out[run_id] = None
+        else:
+            n += 1
+            out[run_id] = n
     return out
+
+
+def run_label(number):
+    """'Run 2', or 'Count' for a count-only run (number None)."""
+    return "Count" if number is None else f"Run {number}"
+
+
+def requests_text(r):
+    """'19 BHL requests (3 name searches, 16 page texts)'; runs made before 12 Oct
+    (Round 8) kept only the total."""
+    total = r.get("requests")
+    if total is None:
+        return "requests not recorded"
+    head = f"{total:,} BHL request{'s' if total != 1 else ''}"
+    names, texts = r.get("name_requests"), r.get("text_requests")
+    if names is None or texts is None:
+        return head
+    bits = [f"{names:,} name search{'es' if names != 1 else ''}",
+            f"{texts:,} page text{'s' if texts != 1 else ''}"]
+    return f"{head} ({', '.join(bits)})"
+
+
+def _run_dict(r, numbers):
+    d = dict(r)
+    d["settings"] = json.loads(d["settings"] or "{}")
+    d["number"] = numbers.get(d["run_id"])
+    d["label"] = run_label(d["number"])
+    d["requests_text"] = requests_text(d)
+    return d
+
+
+def runs(conn, sid):
+    numbers = run_numbers(conn, sid)
+    return [_run_dict(r, numbers) for r in
+            conn.execute("SELECT * FROM runs WHERE search_id=? ORDER BY run_id DESC", (sid,))]
 
 
 def last_run(conn, sid, mode=None):
@@ -217,9 +257,7 @@ def last_run(conn, sid, mode=None):
     r = conn.execute(q + " ORDER BY run_id DESC LIMIT 1", (sid, mode) if mode else (sid,)).fetchone()
     if r is None:
         return None
-    d = dict(r)
-    d["settings"] = json.loads(d["settings"] or "{}")
-    return d
+    return _run_dict(r, run_numbers(conn, sid))
 
 
 def held_pages(conn, sid):

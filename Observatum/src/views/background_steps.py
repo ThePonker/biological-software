@@ -38,6 +38,30 @@ LABELS = {
 }
 
 
+def settle_headers(page) -> int:
+    """Size the table columns set to fit their contents now, on this turn (Round 8).
+
+    A table header set to "resize to contents" sizes its columns a moment after its rows
+    are filled, from the event loop. Each cell it measures calls back into Python (every
+    widget made in PySide is a Python object), and from the event loop every such call has
+    to wait its turn for Python's lock (GIL) while a loading thread is running Python: on
+    Wil's PC the Personal Stats species table (500 rows) froze the window for 1.2 s that
+    way. Done here, from Python, the same sizing holds the lock throughout: 5-20 ms.
+    Returns how many headers were sized."""
+    if page is None:
+        return 0
+    from PySide6.QtWidgets import QHeaderView
+    fit = QHeaderView.ResizeMode.ResizeToContents
+    n = 0
+    for h in page.findChildren(QHeaderView):
+        if h.model() is None or not h.count():
+            continue
+        if any(h.sectionResizeMode(i) == fit for i in range(h.count())):
+            h.resizeSections()
+            n += 1
+    return n
+
+
 def background_steps(w) -> List[Step]:
     """The steps for MainWindow `w`, in Wil's order."""
     return [
@@ -90,6 +114,8 @@ def scheme_step(w):
         # not marked ready: the tab's first opening reports it (MainWindow._on_tab_changed)
         print(f"[startup] Recording Scheme records could not be loaded: {err}")
         return False
+    yield
+    settle_headers(rs)
     w.mark_tab_ready(rs)
     return True
 
@@ -117,6 +143,8 @@ def stats_step(w):
         # a setting changed while they were read: they may be the old ones
         get_observation_stats_service().invalidate()
     tab.initialize(w._main_db_path, w._uksi_db_path)
+    yield
+    settle_headers(tab)
     w.mark_tab_ready(w._stats_page)
     return True
 
@@ -200,6 +228,8 @@ def mapping_step(w):
         w._map_lists = {}
     tab = yield from w._mapping_page.build_steps()
     w._map_lists = None
+    yield
+    settle_headers(tab)
     w.mark_tab_ready(w._mapping_page)
     mw = getattr(tab, "map_widget", None)
     if mw is None or not hasattr(mw, "_chains"):
@@ -213,8 +243,10 @@ def mapping_step(w):
     except Exception as e:
         print(f"[startup] coast lines not prepared: {e}")
         return True
-    # the map drawn once at the window's size: the outlines projected for that size in a
-    # thread, then one off-screen paint, so the first opening of Mapping is instant
+    # the outlines projected for the window's size and the VC label positions worked out,
+    # in a thread, so the first opening of Mapping is only its paint. (Round 8: no longer an
+    # off-screen paint here as well -- it held the window 0.15-0.25 s, and the map has no
+    # picture cache, so its first opening painted again anyway.)
     page, shown = w._mapping_page, w.tabs.currentWidget()
     if shown is None or shown is page or not w.isVisible():
         return True
@@ -224,20 +256,28 @@ def mapping_step(w):
     fit = mw.fit()
     try:
         yield InThread(lambda: (mw._polygons(fit),
-                                [mw._lines(name, fit) for name in ("coast", "vc_inland")]))
+                                [mw._lines(name, fit) for name in ("coast", "vc_inland")],
+                                _label_points_ahead(mw)))
     except Exception as e:
         print(f"[startup] map not projected ahead: {e}")
-        return True
-    if w.tabs.currentWidget() is not page and mw.width() >= 50:
-        mw.grab()
     return True
+
+
+def _label_points_ahead(mw):
+    """The VC label positions (GridMap works them out on its first paint otherwise; data
+    only, ~50 ms of Python)."""
+    if getattr(mw, "_label_pts", True) is None and getattr(mw, "_vc_rings", None):
+        from shared.maps.vc_labels import label_points
+        mw._label_pts = label_points(mw._vc_rings)
 
 
 # ── Settings, species search ────────────────────────────────────────
 
 def settings_step(w):
     yield InThread(lambda: _import(".settings"))
-    yield from w._settings_page.build_steps()
+    tab = yield from w._settings_page.build_steps()
+    yield
+    settle_headers(tab)
     w.mark_tab_ready(w._settings_page)
     return True
 

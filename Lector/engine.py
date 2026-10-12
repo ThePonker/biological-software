@@ -21,6 +21,9 @@ from .species_source import SpeciesEntry
 from .store import now
 
 
+CANCELLED_MESSAGE = "Cancelled. Whatever was downloaded is kept; running again carries on from there."
+
+
 class Cancelled(Exception):
     """Raised inside run_search when cancel is set; the run is saved as cancelled."""
 
@@ -89,7 +92,15 @@ def run_search(store, search_id, client, mode="fetch", refresh=False, progress=N
     conn.commit()
     summary = {"run_id": run_id, "search_id": search_id, "mode": mode, "found": 0, "kept": 0,
                "new": 0, "unchanged": 0, "withdrawn": 0, "text_fetched": 0, "failed": 0,
-               "requests": 0, "status": "running", "message": "", "names": []}
+               "requests": 0, "name_requests": 0, "text_requests": 0, "status": "running",
+               "message": "", "names": []}
+    r_names = [None]                           # request count when the name searches ended
+
+    def counts():
+        """requests, name_requests, text_requests of this run so far."""
+        total = client.request_count - r0
+        names = total if r_names[0] is None else r_names[0] - r0
+        return {"requests": total, "name_requests": names, "text_requests": total - names}
     try:
         per_name, failed_names = {}, []
         for i, n in enumerate(names):
@@ -116,6 +127,7 @@ def run_search(store, search_id, client, mode="fetch", refresh=False, progress=N
                 store.record_search(SpeciesEntry(n["accepted_name"], n["accepted_tvk"]),
                                     n["name"], role, len(pages), len(kept))
         progress("search", len(names), len(names), "Searched")
+        r_names[0] = client.request_count
         if names and not per_name:
             raise BHLError("every name search failed")
         found = {p["page_id"] for _n, pages, _k in per_name.values() for p in pages}
@@ -132,37 +144,90 @@ def run_search(store, search_id, client, mode="fetch", refresh=False, progress=N
         summary.update(found=len(found), kept=len(kept_ids))
         if mode == "count":
             summary["status"] = "done"
+            summary.update(counts())
             _finish(conn, run_id, found=len(found), kept=len(kept_ids), status="done",
-                    requests=client.request_count - r0, failed=len(failed_names))
-            summary["requests"] = client.request_count - r0
-            return summary
+                    failed=len(failed_names), **counts())
+            return _numbered(conn, summary)
 
         _record_pages(store, search_id, run_id, kept_list, matched, failed_names, summary)
         _fetch_texts(store, client, kept_ids, summary, progress, cancel, log)
         summary["status"] = "done"
         _finish(conn, run_id, found=len(found), kept=len(kept_ids), status="done",
-                requests=client.request_count - r0,
                 failed=summary["failed"] + len(failed_names),
-                message=_message(summary, failed_names))
+                message=_message(summary, failed_names), **counts())
     except (Cancelled, KeyboardInterrupt) as exc:
         summary["status"] = "cancelled"
         _finish(conn, run_id, found=summary["found"], kept=summary["kept"], status="cancelled",
-                requests=client.request_count - r0, failed=summary["failed"],
-                message="Stopped by you. What was fetched is kept; run again to carry on.")
+                failed=summary["failed"], message=CANCELLED_MESSAGE, **counts())
         if isinstance(exc, KeyboardInterrupt):
             raise
     except BHLError as exc:
         summary.update(status="failed", message=str(exc))
-        _finish(conn, run_id, status="failed", requests=client.request_count - r0,
-                message=str(exc))
+        _finish(conn, run_id, status="failed", message=str(exc), **counts())
     except Exception as exc:                       # record, then let the caller see it
-        _finish(conn, run_id, status="failed", requests=client.request_count - r0,
-                message=f"{type(exc).__name__}: {exc}")
+        _finish(conn, run_id, status="failed", message=f"{type(exc).__name__}: {exc}",
+                **counts())
         raise
-    summary["requests"] = client.request_count - r0
+    summary.update(counts())
     if summary["status"] != "done":
         summary["message"] = summary["message"] or conn.execute(
             "SELECT message FROM runs WHERE run_id=?", (run_id,)).fetchone()[0]
+    return _numbered(conn, summary)
+
+
+def _numbered(conn, summary):
+    """The run's number within its search, its label and its requests in words."""
+    summary["number"] = saved.run_numbers(conn, summary["search_id"]).get(summary["run_id"])
+    summary["label"] = saved.run_label(summary["number"])
+    summary["requests_text"] = saved.requests_text(summary)
+    return summary
+
+
+def fetch_missing_text(store, search_id, client, progress=None, cancel=None):
+    """Download the OCR text of the pages this search holds (current or kept) that
+    have none yet. Nothing else: no BHL name searches, no filters applied, nothing
+    withdrawn, so it works on a search whose filters were never recorded.
+    Recorded in the activity table (Recent activity)."""
+    progress = progress or _quiet
+    conn = store.conn
+    s = saved.get_search(conn, search_id)
+    held = [pid for pid, (state, _m) in saved.held_pages(conn, search_id).items()
+            if state in ("current", "kept")]
+    todo = store.pages_missing_text(page_ids=held)
+    r0, started = client.request_count, now()
+    summary = {"search_id": search_id, "status": "running", "missing": len(todo),
+               "text_fetched": 0, "failed": 0, "requests": 0, "message": ""}
+    try:
+        _fetch_texts(store, client, held, summary, progress, cancel, _quiet)
+        summary["status"] = "done"
+    except (Cancelled, KeyboardInterrupt) as exc:
+        summary["status"] = "cancelled"
+        if isinstance(exc, KeyboardInterrupt):
+            raise
+    finally:
+        summary["requests"] = client.request_count - r0
+        left = len(store.pages_missing_text(page_ids=held))
+        summary["still_missing"] = left
+        n, f = summary["text_fetched"], summary["failed"]
+        text = (f"Fetched missing text, “{s['name']}”: {n:,} page{'s' if n != 1 else ''}"
+                + (f", {f} failed" if f else "")
+                + f", {summary['requests']:,} BHL requests"
+                + ("" if summary["status"] == "done" else f" ({summary['status']})"))
+        if summary["status"] == "cancelled":
+            summary["message"] = (f"Cancelled. Text kept for the {n:,} pages downloaded; "
+                                  f"{left:,} still without text.")
+        elif not todo:
+            summary["message"] = "Every page of this search already has its text."
+        else:
+            summary["message"] = (f"Text downloaded for {n:,} of {len(todo):,} pages"
+                                  + (f"; {f} failed: fetch again to retry them" if f else "")
+                                  + ".")
+        if summary["status"] != "running":
+            conn.execute("INSERT INTO activity (search_id, started, finished, kind, status, text,"
+                         " requests) VALUES (?,?,?,?,?,?,?)",
+                         (search_id, started, now(), "fetch_text", summary["status"], text,
+                          summary["requests"]))
+            conn.commit()
     return summary
 
 
@@ -244,14 +309,16 @@ def _fetch_texts(store, client, page_ids, summary, progress, cancel, log):
 
 
 def harvest_entry(client, store, entry, opts, log=print, progress=None, cancel=None,
-                  keep_filters=False):
-    """Command-line fetch of one species: its saved search (named after the
-    species, made on first use) takes this command's names and filters, then
-    runs. keep_filters (interactive mode): an existing search keeps its own."""
+                  keep_filters=False, replace=False):
+    """Command-line fetch of one species (`fetch`, the interactive console).
+
+    A species with no saved search yet gets one (named after it) with this command's names
+    and filters. An existing saved search keeps its own names and filters - your ticks and
+    filters from the window are never overwritten from the console (Round 8 review) - unless
+    replace=True (`fetch --replace-search`), when it takes this command's names and filters
+    (keep_filters=True: the names only). What the run uses is printed either way."""
     conn = store.conn
     log(f"\n■ {entry.name}" + (f"  [{entry.tvk}]" if entry.tvk else "  [no TVK]"))
-    for name, reason in entry.held_back:
-        log(f"  - {name}: {reason}")
     names = [{"name": entry.name, "origin": "accepted"}]
     names += [{"name": n, "origin": "user_added" if n in entry.added else "uksi_synonym"}
               for n in entry.synonyms]
@@ -262,14 +329,24 @@ def harvest_entry(client, store, entry, opts, log=print, progress=None, cancel=N
     if sid is None:
         sid = saved.create_search(conn, entry.name, entry.name, entry.tvk, "species", "active",
                                   names, filters)
-    else:
+        log(f"  New saved search \u201c{entry.name}\u201d, with this command's names and filters.")
+    elif replace:
         saved.set_names(conn, sid, names, default_accepted=(entry.name, entry.tvk))
         if not keep_filters:
             saved.set_filters(conn, sid, filters)
         saved.update_search(conn, sid, status="active")
+        log(f"  Saved search \u201c{entry.name}\u201d: its names"
+            + ("" if keep_filters else " and filters") + " replaced by this command's"
+            " (--replace-search).")
+    else:
+        saved.update_search(conn, sid, status="active")
+        log(f"  Saved search \u201c{entry.name}\u201d kept as it is: its own names and filters"
+            " are used, not this command's (--replace-search would replace them).")
+    _log_search_used(conn, sid, log)
     if not saved.get_filters(conn, sid)["recorded"]:
         log(f"  ! {entry.name} was fetched before Lector kept filters, so it is not re-run here."
-            "\n    Use `fetch` with your filters (e.g. --include-title ...) to update it.")
+            "\n    Set its filters in the Lector window (Edit), or run `fetch` again with your"
+            " filters (e.g. --include-title ...) and --replace-search.")
         return None
     result = run_search(store, sid, client, "count" if opts.count_only else "fetch",
                         refresh=opts.refresh, progress=progress, cancel=cancel, log=log)
@@ -277,3 +354,19 @@ def harvest_entry(client, store, entry, opts, log=print, progress=None, cancel=N
         log(f"  {result['new']} new pages, {result['withdrawn']} no longer within the filters"
             " (withdrawn; your notes on them are kept)")
     return result
+
+
+def _log_search_used(conn, sid, log):
+    """The names and filters a console run uses, as the window shows them."""
+    from .summary import scope_text, years_text
+    s = saved.get_search(conn, sid)
+    f = s["filters"]
+    used = [n["name"] for n in s["names"] if n["included"]]
+    log("  Names: " + ", ".join(used))
+    for n in s["names"]:
+        if not n["included"]:
+            log(f"  - {n['name']}: {n['held_back_reason'] or 'not ticked'}")
+    if f["recorded"]:
+        log(f"  Filters: {scope_text(f)}; {years_text(f)}; page limit "
+            + (f"{f['max_pages']:,} per name" if f["max_pages"] else "none")
+            + ("; index pages left out" if f["skip_index"] else ""))

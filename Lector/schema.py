@@ -1,4 +1,4 @@
-"""lector.db schema, version 2 (12 Oct 2026), and the in-place migration to it.
+"""lector.db schema, version 3 (12 Oct 2026), and the in-place migration to it.
 
 Version 2 adds, without changing or removing anything already stored:
   pages            + page_type (fix2), part_id, article_title, authors
@@ -15,13 +15,17 @@ Version 2 adds, without changing or removing anything already stored:
   exports          files written, for the Exports screen
 The old per-name `searches` table keeps its name and rows. Each species already
 fetched becomes a saved search with one run (migrate_legacy below).
+
+Version 3 (12 Oct 2026, Round 8) adds, again without changing stored rows:
+  runs             + name_requests, text_requests (BHL requests split by kind)
+  activity         other work shown under Recent activity ("Fetch missing text")
 """
 import json
 import sqlite3
 
 from .presets import BUILTIN_PRESETS
 
-VERSION = 2
+VERSION = 3
 
 
 class NeedsMigration(RuntimeError):
@@ -72,6 +76,7 @@ NEW_COLUMNS = {
               ("authors", "TEXT")],
     "page_hits": [("notes", "TEXT"), ("review_tag", "TEXT"), ("reviewed_at", "TEXT")],
 }
+V3_COLUMNS = {"runs": [("name_requests", "INTEGER"), ("text_requests", "INTEGER")]}
 
 V2 = """
 CREATE TABLE IF NOT EXISTS saved_searches (
@@ -120,7 +125,9 @@ CREATE TABLE IF NOT EXISTS runs (
     requests  INTEGER,
     failed    INTEGER,
     status    TEXT NOT NULL DEFAULT 'running',  -- running/done/cancelled/failed/migrated
-    message   TEXT
+    message   TEXT,
+    name_requests INTEGER,            -- v3: BHL name searches in this run
+    text_requests INTEGER             -- v3: BHL page-text downloads in this run
 );
 CREATE TABLE IF NOT EXISTS run_pages (
     run_id        INTEGER NOT NULL REFERENCES runs(run_id),
@@ -164,6 +171,16 @@ CREATE TABLE IF NOT EXISTS exports (
     path      TEXT NOT NULL,
     pages     INTEGER
 );
+CREATE TABLE IF NOT EXISTS activity (
+    activity_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    search_id   INTEGER,
+    started     TEXT NOT NULL,
+    finished    TEXT,
+    kind        TEXT NOT NULL,        -- 'fetch_text'
+    status      TEXT,                 -- done / cancelled / failed
+    text        TEXT,                 -- plain English, as Recent activity shows it
+    requests    INTEGER
+);
 CREATE INDEX IF NOT EXISTS idx_run_pages_page ON run_pages(page_id);
 CREATE INDEX IF NOT EXISTS idx_search_pages_page ON search_pages(page_id);
 CREATE INDEX IF NOT EXISTS idx_runs_search ON runs(search_id);
@@ -194,14 +211,19 @@ def create_or_check(conn):
         conn.commit()
 
 
-def _apply(conn):
-    conn.executescript(LEGACY)
-    for table, cols in NEW_COLUMNS.items():
+def _add_columns(conn, columns):
+    for table, cols in columns.items():
         have = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
         for col, typ in cols:
             if col not in have:
                 conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {typ}")
+
+
+def _apply(conn):
+    conn.executescript(LEGACY)
+    _add_columns(conn, NEW_COLUMNS)
     conn.executescript(V2)
+    _add_columns(conn, V3_COLUMNS)              # runs made by version 2
     for p in BUILTIN_PRESETS:
         conn.execute(
             "INSERT OR IGNORE INTO journal_presets (name, description, include_words,"
@@ -214,7 +236,7 @@ def counts(conn):
     t = _tables(conn)
     out = {}
     for table in ("searches", "pages", "page_hits", "saved_searches", "search_names",
-                  "runs", "run_pages", "search_pages", "journal_presets"):
+                  "runs", "run_pages", "search_pages", "journal_presets", "activity"):
         out[table] = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] \
             if table in t else None
     if "pages" in t:
@@ -226,20 +248,51 @@ def counts(conn):
     return out
 
 
-def migrate(conn):
-    """Bring an older lector.db to VERSION in place. Returns the saved searches made."""
+def migrate(conn, check=None):
+    """Bring an older lector.db to VERSION in place. Returns the saved searches made
+    (only a database from before saved searches, version 0/1, gets them).
+    check(name, tvk) -> candidate_names() list, used to check the old names (see
+    migrate_legacy); None when UKSI is not at hand."""
     conn.row_factory = sqlite3.Row
+    start = version(conn)
     with conn:
         _apply(conn)
-        made = migrate_legacy(conn)
+        made = migrate_legacy(conn, check) if start < 2 else []
         conn.execute(f"PRAGMA user_version = {VERSION}")
     return made
 
 
-def migrate_legacy(conn):
+def checked_names(name, tvk, old_names, check, accepted=()):
+    """The names a migrated search starts with: [(name, origin, included, reason)].
+
+    The old fetches' names are history, not your choices (L5, Round 8): each is
+    checked as a new search's names are (candidate_names: UKSI synonym checks and
+    your synonym list). A name the checks hold back is stored unticked with the
+    reason; the held-back names the old fetch never used are listed too, unticked.
+    Without check (no UKSI) the names are stored as fetched."""
+    cands = {}
+    if check is not None and tvk:
+        try:
+            cands = {c["name"].lower(): c for c in check(name, tvk)}
+        except Exception:  # noqa: BLE001 - UKSI unreadable: keep the names as fetched
+            cands = {}
+    out = []
+    for n in old_names:
+        c = cands.get(n.lower())
+        origin = "accepted" if n == name or n in accepted else "uksi_synonym"
+        held = c is not None and not c["included"]
+        out.append((n, origin, 0 if held else 1, c["held_back_reason"] if held else None))
+    have = {n.lower() for n in old_names}
+    for key, c in cands.items():
+        if key not in have and not c["included"]:
+            out.append((c["name"], "uksi_synonym", 0, c["held_back_reason"]))
+    return out
+
+
+def migrate_legacy(conn, check=None):
     """Each species fetched before saved searches existed becomes a saved search
-    named after it, with its names and one run holding the pages it has.
-    The filters of those fetches were never stored: recorded=0 says so."""
+    named after it, with its names (checked: see checked_names) and one run holding
+    the pages it has. The filters of those fetches were never stored: recorded=0."""
     rows = conn.execute(
         "SELECT accepted_name, MAX(tvk) AS tvk FROM ("
         " SELECT accepted_name, tvk FROM searches UNION ALL"
@@ -265,11 +318,14 @@ def migrate_legacy(conn):
             (name, tvk, name, "species", "active", started,
              "Made from the command-line fetches before saved searches (12 Oct 2026).")
         ).lastrowid
-        for i, n in enumerate(sorted(names, key=lambda x: (x != name, x))):
-            origin = "accepted" if n == name or roles.get(n) == "accepted" else "uksi_synonym"
+        ordered = sorted(names, key=lambda x: (x != name, x))
+        checked = checked_names(name, tvk, ordered, check,
+                                {k for k, v in roles.items() if v == "accepted"})
+        for i, (n, origin, inc, reason) in enumerate(checked):
             conn.execute(
-                "INSERT INTO search_names (search_id, name, origin, included, accepted_name,"
-                " accepted_tvk, position) VALUES (?,?,?,1,?,?,?)", (sid, n, origin, name, tvk, i))
+                "INSERT INTO search_names (search_id, name, origin, included, held_back_reason,"
+                " accepted_name, accepted_tvk, position) VALUES (?,?,?,?,?,?,?,?)",
+                (sid, n, origin, inc, reason, name, tvk, i))
         conn.execute("INSERT INTO search_filters (search_id, max_pages, recorded)"
                      " VALUES (?, NULL, 0)", (sid,))
         pages = conn.execute(
@@ -293,5 +349,6 @@ def migrate_legacy(conn):
             "INSERT INTO search_pages (search_id, page_id, state, matched_names, first_run,"
             " last_run) VALUES (?,?,'current',?,?,?)",
             [(sid, p["page_id"], p["m"], rid, rid) for p in pages])
-        made.append({"search_id": sid, "name": name, "names": names, "pages": len(pages)})
+        made.append({"search_id": sid, "name": name, "names": names, "pages": len(pages),
+                     "held_back": [[n, r] for n, _o, inc, r in checked if not inc]})
     return made

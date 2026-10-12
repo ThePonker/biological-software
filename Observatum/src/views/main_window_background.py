@@ -83,7 +83,13 @@ class BackgroundTabsMixin:
     def _settings_tab_parts(self):
         from .settings import SettingsTab
         yield
-        tab = SettingsTab(db_manager=get_database())
+        import inspect
+        if "build" in inspect.signature(SettingsTab).parameters:
+            tab = SettingsTab(db_manager=get_database(), build=False)
+            for _ in tab.build_parts():      # a panel at a time (R8)
+                yield
+        else:
+            tab = SettingsTab(db_manager=get_database())
         yield
         tab.settings_changed.connect(self._on_settings_changed)
         self._theme_tab(tab)

@@ -45,19 +45,34 @@ def write_text_bundle(title, rows, out_dir, stem):
             fh.write(f"{RULE}\n")
             fh.write((row["ocr_text"] or "[no text fetched]").strip() + "\n")
 
+    # authors / article_title only when BHL gave one for some page (L15, Round 8)
+    optional = [k for k in ("authors", "article_title")
+                if any((row[k] or "").strip() for row in rows)]
+    cols = ["page_id", "year", "title", "volume", "page_label", "matched_names", "page_url",
+            "has_text"] + optional + ["citation"]
+    head = {"page_label": "page"}
     with csv_path.open("w", encoding="utf-8-sig", newline="") as fh:
         writer = csv.writer(fh)
-        writer.writerow(["page_id", "year", "title", "volume", "page",
-                         "matched_names", "page_url", "has_text", "authors",
-                         "article_title", "citation"])
+        writer.writerow([head.get(c, c) for c in cols])
         for row in rows:
-            writer.writerow([row["page_id"], row["year"], row["title"], row["volume"],
-                             row["page_label"], row["matched_names"], row["page_url"],
-                             "yes" if row["ocr_text"] else "no", row["authors"],
-                             row["article_title"], _citation(row)])
+            vals = dict(row, has_text="yes" if row["ocr_text"] else "no",
+                        citation=_citation(row))
+            writer.writerow([vals[c] for c in cols])
     return txt_path, len(rows)
 
 
+CONSOLE_SUFFIX = "_all_pages"
+
+
+def console_stem(accepted_name):
+    """File names of the console's exports: '<Species>_all_pages' (Round 8 review). The
+    console exports every page ever linked to the species, withdrawn ones too; the window
+    exports a saved search's own pages as '<Search>'. Different names, so neither
+    overwrites the other."""
+    return _safe_filename(accepted_name) + CONSOLE_SUFFIX
+
+
 def export_species(store, accepted_name, out_dir=config.EXPORT_DIR):
+    """Console export: <Species>_all_pages.txt and <Species>_all_pages_index.csv."""
     return write_text_bundle(accepted_name, store.pages_for_species(accepted_name),
-                             out_dir, _safe_filename(accepted_name))
+                             out_dir, console_stem(accepted_name))

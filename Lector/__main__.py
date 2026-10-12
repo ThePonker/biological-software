@@ -2,6 +2,8 @@
 
     python -m Lector fetch species.txt [--synonyms] [--from-year 1800 --to-year 1950]
     python -m Lector fetch species.csv --count-only     # see hit counts first
+    python -m Lector fetch species.txt --replace-search --include-title Annals
+                        # a species with a saved search: use these names/filters instead
     python -m Lector probe "Lamia textor"               # dump raw BHL JSON
     python -m Lector status
     python -m Lector export --all          (or --name "Lamia textor")
@@ -18,7 +20,7 @@ import sqlite3
 import sys
 from pathlib import Path
 
-from . import config, upgrade
+from . import config, saved, upgrade
 from .bhl_client import BHLClient, BHLError
 from .export import export_species
 from .harvest import HarvestOptions, extract_pages, harvest_species
@@ -34,13 +36,18 @@ def _utf8_console():
             pass
 
 
+def _checker():
+    """Names of old fetches are checked as a new search's are (UKSI + synonym lists)."""
+    return upgrade.name_checker(config.UKSI_DB, config.SYNONYM_FILE)
+
+
 def open_store():
     """LectorStore; an older lector.db is updated only after you type YES."""
     try:
         return LectorStore()
     except NeedsMigration as exc:
         print(f"! {exc}\n  What the update would do (dry run, nothing changed yet):")
-        print(upgrade.format_report(upgrade.dry_run(config.LECTOR_DB)))
+        print(upgrade.format_report(upgrade.dry_run(config.LECTOR_DB, _checker())))
         try:
             ok = input(f"\nType YES to update {config.LECTOR_DB.name} "
                        "(a backup copy is made first): ").strip() == "YES"
@@ -48,7 +55,8 @@ def open_store():
             ok = False
         if not ok:
             raise SystemExit("Nothing has been changed.")
-        print(upgrade.format_report(upgrade.apply(config.LECTOR_DB, config.BACKUP_DIR)))
+        print(upgrade.format_report(upgrade.apply(config.LECTOR_DB, config.BACKUP_DIR,
+                                                  _checker())))
         print("✓ lector.db updated.\n")
         return LectorStore()
 
@@ -85,7 +93,7 @@ def cmd_fetch(args):
     store = open_store()
     try:
         for entry in entries:
-            harvest_species(client, store, entry, opts)
+            harvest_species(client, store, entry, opts, replace=args.replace_search)
     except KeyboardInterrupt:
         print("\n! Interrupted - progress so far is saved; re-run to resume.")
     finally:
@@ -120,6 +128,8 @@ def cmd_status(args):
     if not rows:
         print("Nothing harvested yet.")
         return
+    print("Every page ever found per species, withdrawn ones too (the window shows each saved"
+          " search's own pages).")
     print(f"{'Species':38} {'TVK':17} {'Pages':>6} {'Text':>6}  Years")
     for r in rows:
         years = f"{r['first_year'] or '?'}-{r['last_year'] or '?'}"
@@ -255,10 +265,11 @@ def cmd_interactive(args):
                 continue
             plain = lambda n: " ".join(w for w in n.split() if not w.startswith("("))
             entry.synonyms = [n for n in entry.synonyms if plain(n) != entry.name]  # subgenus only
-            if entry.synonyms:
+            # a species with a saved search: its own names and filters are used (printed)
+            if entry.synonyms and saved.find_search(store.conn, entry.name) is None:
                 print("  Names to search: " + ", ".join([entry.name] + entry.synonyms))
             try:
-                harvest_species(client, store, entry, HarvestOptions(), keep_filters=True)
+                harvest_species(client, store, entry, HarvestOptions())
             except KeyboardInterrupt:
                 print("\n! Stopped - what was fetched is saved; search again to carry on.")
             path, n = export_species(store, entry.name, config.EXPORT_DIR)
@@ -296,6 +307,10 @@ def build_parser():
                         " the last answer is re-used and only the filters are applied again")
     f.add_argument("--skip-index", action="store_true",
                    help="leave out pages BHL types as index or contents")
+    f.add_argument("--replace-search", action="store_true",
+                   help="a species that already has a saved search: replace its names and "
+                        "filters with this command's (without it the saved search's own are "
+                        "used, so ticks made in the window are kept)")
     f.add_argument("--key", help="BHL API key (otherwise env var or data/bhl_api_key.txt)")
     f.set_defaults(func=cmd_fetch)
 
@@ -307,7 +322,8 @@ def build_parser():
     s = sub.add_parser("status", help="summary of what has been harvested")
     s.set_defaults(func=cmd_status)
 
-    e = sub.add_parser("export", help="write readable text bundles per species")
+    e = sub.add_parser("export", help="write readable text bundles per species: every page "
+                                      "ever found, withdrawn too, as <Species>_all_pages.txt")
     g = e.add_mutually_exclusive_group(required=True)
     g.add_argument("--name", help="accepted species name")
     g.add_argument("--all", action="store_true")
