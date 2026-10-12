@@ -245,17 +245,19 @@ def test_wizard_species_completer(app):
 
 
 def test_codex_species_tab(app):
-    from PySide6.QtWidgets import QLabel
     from Codex.species_tab import SpeciesTab
+    from shared.species_list_delegate import HIT_ROLE, row_text
     tab = SpeciesTab()
+
+    def texts():
+        lst = tab.results_list
+        return [row_text(lst.item(i).data(HIT_ROLE)) for i in range(lst.count())]
     tab.search_input.setText("Strangalia maculata")
     tab._do_search()
-    texts = [lbl.text() for lbl in tab.results_frame.findChildren(QLabel)]
-    assert any("Rutpela maculata" in t for t in texts)
+    assert any("Rutpela maculata" in t and "old name: Strangalia maculata" in t for t in texts())
     tab.search_input.setText("Cerambycidae")      # CDX-2: ranks above species are found
     tab._do_search()
-    texts = [lbl.text() for lbl in tab.results_frame.findChildren(QLabel)]
-    assert any("Cerambycidae" in t for t in texts)
+    assert texts()[0].startswith("Cerambycidae") and texts()[0].endswith("Family")
 
 
 def test_examen_species_database_search():

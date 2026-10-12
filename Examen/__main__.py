@@ -15,6 +15,9 @@ from .examen_ui import ExamenWindow
 def main():
     app = QApplication(sys.argv)
     app.setApplicationName("Examen")
+    from shared.opaque_popups import install as solid_popups
+    from .examen_ui import SURFACE, TEXT_PRIMARY
+    solid_popups(app, lambda: (SURFACE, TEXT_PRIMARY))           # F50: solid drop-down lists
     window = ExamenWindow()
     window.showMaximized()
     sys.exit(app.exec())

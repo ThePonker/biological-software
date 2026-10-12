@@ -27,12 +27,21 @@ NOTVK: twin). For a current species, EVERY bridge row is a candidate:
     taxon with a TVK in its class, so an empty twin never shadows a populated
     taxon.
 
+Local corrections (Q67, 12 Oct 2026): shared/pantheon_bridge_corrections.csv lists
+bridge links that are wrong for this suite ("unlink": the Pantheon taxon is not
+the species, e.g. Pantheon's Sympetrum nigrescens on S. striolatum, F54). They
+are applied when the bridge is loaded -- pantheon.db and codex.db are never
+edited -- and every species they touch carries a "local correction" note
+(Bridge.notes), which Pantheon Only results show (SpeciesStatus.status_note).
+
 CodexRepository's Pantheon Only mode and the Species Database read through
 this module, so the rule exists once. scripts/build_codex_db.py applies the
 same rule when it stores Codex's SQS (it cannot import this module at build
 time; keep the two in step).
 """
 
+import csv
+import io
 import os
 import sqlite3
 import paths
@@ -42,6 +51,8 @@ from shared.db_open import connect_ro  # D9: reference data, read-only
 
 
 DB_PATH = paths.PANTHEON_DB
+CORRECTIONS_CSV = Path(__file__).resolve().parent.parent / "pantheon_bridge_corrections.csv"
+LOCAL_CORRECTION = "local correction"
 
 # Key prefix for species Pantheon published without a TVK (build_pantheon_db.py).
 NOTVK_PREFIX = "NOTVK:"
@@ -110,6 +121,11 @@ def j2_first(candidates, values, accept=bool):
 class Bridge:
     to_pan: dict = field(default_factory=dict)     # {uksi_tvk: [pantheon_tvk, ...] J2 order}
     to_uksi: dict = field(default_factory=dict)    # {pantheon_tvk: uksi_tvk}
+    notes: dict = field(default_factory=dict)      # {uksi_tvk: "local correction: ..."}
+
+    def note(self, uksi_tvk):
+        """The local-correction note for a species, or ''."""
+        return self.notes.get(uksi_tvk, "")
 
     def candidates(self, uksi_tvk):
         """Pantheon TVKs to query for a current TVK. A TVK not in the bridge is
@@ -118,6 +134,31 @@ class Bridge:
 
 
 _BRIDGE_CACHE = {}
+
+
+def load_corrections(path=None):
+    """[(action, pantheon_tvk, uksi_tvk, note)] from the corrections CSV; [] if absent.
+    Only "unlink" is understood: the bridge row pantheon_tvk -> uksi_tvk is dropped."""
+    path = Path(path or CORRECTIONS_CSV)
+    if not path.exists():
+        return []
+    out = []
+    try:
+        try:
+            text = path.read_text(encoding="utf-8-sig")
+        except UnicodeDecodeError:           # saved from Excel on Windows (ANSI)
+            text = path.read_text(encoding="cp1252")
+        for r in csv.DictReader(io.StringIO(text)):
+            action = (r.get("action") or "").strip().lower()
+            pan, uk = (r.get("pantheon_tvk") or "").strip(), (r.get("uksi_tvk") or "").strip()
+            if action != "unlink" or not pan or not uk:
+                continue
+            name = (r.get("pantheon_name") or pan).strip()
+            out.append((action, pan, uk,
+                        f"{LOCAL_CORRECTION}: Pantheon's {name} not linked to this species"))
+    except (OSError, csv.Error) as e:
+        print(f"[pantheon_repository] bridge corrections unreadable: {e}")
+    return out
 
 
 def _mtime(p):
@@ -135,7 +176,8 @@ def load_bridge(codex_path=None, uksi_path=None):
     """
     codex_path = str(codex_path or paths.CODEX_DB)
     uksi_path = str(uksi_path or paths.UKSI_DB)
-    key = (codex_path, _mtime(codex_path), uksi_path, _mtime(uksi_path))
+    key = (codex_path, _mtime(codex_path), uksi_path, _mtime(uksi_path),
+           str(CORRECTIONS_CSV), _mtime(CORRECTIONS_CSV))
     if key in _BRIDGE_CACHE:
         return _BRIDGE_CACHE[key]
     bridge = Bridge()
@@ -152,8 +194,13 @@ def load_bridge(codex_path=None, uksi_path=None):
         print(f"[pantheon_repository] bridge unavailable: {e}")
         return bridge
 
+    unlink = {(p, u): note for _a, p, u, note in load_corrections()}
     groups = {}
     for pan_tvk, uksi_tvk, name in rows:
+        note = unlink.get((pan_tvk, uksi_tvk))
+        if note:                                 # a local correction (Q67): not this species
+            bridge.notes[uksi_tvk] = note
+            continue
         groups.setdefault(uksi_tvk, []).append((pan_tvk, name))
         bridge.to_uksi[pan_tvk] = uksi_tvk
 

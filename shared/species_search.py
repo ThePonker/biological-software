@@ -20,9 +20,11 @@ What it matches, over the whole of uksi.db (scientific names, synonyms, common n
 Order: match quality (exact name; the words in order; every word a prefix; a substring;
 then typing slips, fewest edits first), then species before infraspecific, genus, family
 and higher ranks, then species you have recorded, then name. A genus or higher taxon found
-by its COMMON name ("beetle" -> Coleoptera, "ladybird" -> Coccinellidae) goes after all the
-rest, with is_group set and group_label "All Coccinellidae (ladybirds) — group" (Wil's
-decision 2, 10 Oct 2026); search_key still carries its match quality (species_filter).
+by its COMMON name ("beetle" -> Coleoptera, "ladybird" -> Coccinellidae) is a group choice,
+with is_group set and group_label "All Coccinellidae (ladybirds) — group" (Wil's decision 2,
+10 Oct 2026): listed FIRST when the text is the group's name ("beetle", "longhorn"; F49,
+12 Oct, group_first set), otherwise after the species; search_key still carries its match
+quality (species_filter). The drop-down lists offer groups of LIST_GROUP_KINGDOMS only.
 
 This is for SEARCHING only. Imports keep shared/species_lookup.py's own rules (exact names,
 synonyms, and a close spelling of one species of the same genus) and never accept any other
@@ -54,7 +56,11 @@ _FAMILY_LEVEL = {"Family", "Subfamily", "Superfamily", "Tribe", "Subtribe", "Epi
 _KIND_NAMES = ("scientific", "common", "synonym")
 _FILLER = {"sp", "spp", "indet", "ssp"}   # "Rhagium sp." searches the genus
 FUZZY_BELOW = 10   # look for typing slips when fewer taxa than this match as typed, none exactly
-MAX_GROUPS = 3     # whole groups found by a common word, listed after the species
+MAX_GROUPS = 3     # whole groups found by a common word offered in a limited list
+# The kingdoms whose groups the species drop-down lists offer for a common word (F49, 12 Oct
+# 2026: "beetle" offered the grass genus Leptochloa, "beetle-grass"). The lists are for
+# invertebrates; a plant or fungus is still found as a species, or by its scientific name.
+LIST_GROUP_KINGDOMS = ("Animalia",)
 
 _PUNCT = re.compile(r"[^0-9a-z]+")
 _APOS = dict.fromkeys(map(ord, "'’‘`´ʼ"), None)
@@ -78,13 +84,45 @@ def fold(text: str) -> str:
     return " ".join(fold_words(text))
 
 
+# A UKSI common name "Heading (Group)" whose heading is only a broad label: the group is the
+# part in brackets ("Invertebrates (Beetles)", "Beetles (Weevils)", "Lower plants (Mosses)").
+_BROAD_HEADINGS = {"invertebrates", "beetles", "lower plants"}
+_BRACKETED = re.compile(r"^(.*?)\s*\(([^()]*)\)\s*$")
+
+
+def _plural(name: str) -> str:
+    """'longhorn beetle' -> 'longhorn beetles', 'fly' -> 'flies' (last word only)."""
+    if not name or not name[-1].isalpha() or name.endswith("s"):
+        return name
+    if name.endswith("y") and len(name) > 1 and name[-2] not in "aeiou":
+        return name[:-1] + "ies"
+    return name + "s"
+
+
+def _group_common(scientific_name: str, common_name: Optional[str]) -> str:
+    """The common name of a group as shown in its label: lower case, plural, at most one
+    level of brackets (F49, 12 Oct 2026: "beetles (weevils)" was shown inside brackets)."""
+    common = (common_name or "").strip().lower()
+    common = re.sub(r"^indet\.?\s+", "", common)          # UKSI's "Indet. Ladybird"
+    m = _BRACKETED.match(common)
+    if m:
+        head, inner = m.group(1).strip(), m.group(2).strip()
+        if not inner or fold(inner) in (fold(scientific_name), "s l", "sl"):
+            parts = [head]                                  # "Mayfly (Ephemeridae)"
+        elif not head or head in _BROAD_HEADINGS:
+            parts = [inner]                                 # "Beetles (Weevils)"
+        else:
+            parts = [head, inner]                           # "Mayflies (Greendrakes)"
+        common = ", ".join(_plural(p) for p in parts if p)
+    else:
+        common = _plural(common)
+    return common.replace("(", "").replace(")", "")
+
+
 def group_label(scientific_name: str, common_name: Optional[str]) -> str:
     """'All Cerambycidae (longhorn beetles) — group' -- how a whole group found by a common
     word is offered (decision 2, 10 Oct 2026)."""
-    common = (common_name or "").strip().lower()
-    common = re.sub(r"^indet\.?\s+", "", common)          # UKSI's "Indet. Ladybird"
-    if common and common[-1].isalpha() and not common.endswith("s"):
-        common += "s"
+    common = _group_common(scientific_name, common_name)
     return f"All {scientific_name}" + (f" ({common})" if common else "") + " — group"
 
 
@@ -258,11 +296,15 @@ class SpeciesIndex:
     # ------------------------------------------------------------ search
 
     def search(self, text: str, limit: Optional[int] = 50, ranks: Optional[Iterable[str]] = None,
-               recorded: Optional[set] = None, fuzzy: str = "auto") -> List[dict]:
+               recorded: Optional[set] = None, fuzzy: str = "auto",
+               group_kingdoms: Optional[Iterable[str]] = None) -> List[dict]:
         """Taxa matching text, best first (see the module docstring). limit=None for all.
         ranks: only taxa of these ranks (SPECIES_LEVEL for the record-entry boxes).
         fuzzy: 'auto' (look for typing slips when fewer than FUZZY_BELOW taxa match as
-        typed and none exactly), 'always' or 'never'."""
+        typed and none exactly), 'always' or 'never'.
+        group_kingdoms: offer whole groups found by a common word only from these kingdoms
+        (the drop-down lists pass LIST_GROUP_KINGDOMS); groups of other kingdoms are left
+        out. None (the filters): every kingdom."""
         qualifier, bare = parse_qualifier(text or "")
         tokens = fold_words(bare)
         if len(tokens) > 1:
@@ -292,26 +334,54 @@ class SpeciesIndex:
                 best[i] = key
         ordered = sorted(best.items(), key=lambda kv: kv[1])
         # Wil's decision 2 (10 Oct): a common word that names a whole group ("beetle" ->
-        # Coleoptera, "longhorn" -> Cerambycidae) still offers the group, but after every
-        # species match, labelled as a group -- a typed species is never pushed down by one.
+        # Coleoptera, "longhorn" -> Cerambycidae) offers the group as one labelled choice.
+        # F49 (12 Oct): when the typed text IS a group's name -- the whole name, or its words
+        # in order from the start ("beetle", "ladybird", "longhorn") -- those groups come
+        # FIRST, then the species; other groups (a word inside the name: "carpet beetle"
+        # for "beetle") stay after the species. A species whose name is exactly the text
+        # ("Dor Beetle", also the genus Geotrupes) keeps the top: it is never pushed down.
         # A limited list keeps room for the best MAX_GROUPS groups; limit=None keeps them all
         # (species_filter chooses from the full list, so filters select what they did).
         groups = [kv for kv in ordered if self._is_group(kv[0], kv[1])]
+        top = set()
         if groups:
+            if group_kingdoms is not None:
+                keep = frozenset(group_kingdoms)
+                groups = [kv for kv in groups if self.kingdom[kv[0]] in keep]
             rest = [kv for kv in ordered if not self._is_group(kv[0], kv[1])]
+            first = ([] if any(kv[1][0] == 0 for kv in rest)
+                     else [kv for kv in groups if self._names_group(tokens, kv[1])])
+            later = [kv for kv in groups if kv not in first]
             if limit is not None:
-                groups = groups[:MAX_GROUPS]
-                rest = rest[:max(0, limit - len(groups))]
-            ordered = rest + groups
+                first = first[:MAX_GROUPS]
+                later = later[:max(0, MAX_GROUPS - len(first))]
+                rest = rest[:max(0, limit - len(first) - len(later))]
+            top = {i for i, _ in first}
+            ordered = first + rest + later
         elif limit is not None:
             ordered = ordered[:limit]
-        return [self._result(i, key, recorded) for i, key in ordered]
+        return [self._result(i, key, recorded, i in top) for i, key in ordered]
+
+    def _names_group(self, tokens: List[str], key: tuple) -> bool:
+        """The typed words ARE this group's common name, or its first words, each a whole
+        word (a plural counts): "moth" -> "Moths", "longhorn" -> "Longhorn Beetle"; not
+        "fly" -> "Flyingfishes" (a word begun) nor "beetle" -> "Carpet Beetle" (not first)."""
+        if key[0] > 1:
+            return False
+        words = self.e_words[key[-1]]
+        if len(tokens) > len(words):
+            return False
+        for t, w in zip(tokens, words):
+            if w != t and w not in (t + "s", t + "es") and not (
+                    t.endswith("y") and w == t[:-1] + "ies"):
+                return False
+        return True
 
     def _is_group(self, i: int, key: tuple) -> bool:
         """A genus or higher taxon found by its common name (a word that names a group)."""
         return self.e_kind[key[-1]] == 1 and rank_group(self.rank[i]) >= 2
 
-    def _result(self, i: int, key: tuple, recorded: set) -> dict:
+    def _result(self, i: int, key: tuple, recorded: set, group_first: bool = False) -> dict:
         tier, e = key[0], key[-1]
         kind = _KIND_NAMES[self.e_kind[e]]
         matched = self.e_name[e]
@@ -333,6 +403,7 @@ class SpeciesIndex:
             "search_key": key[:-1],
             "is_group": self._is_group(i, key),
             "group_label": group_label(sci, matched) if self._is_group(i, key) else "",
+            "group_first": group_first,       # a group listed before the species (F49)
         }
 
     # ------------------------------------------------------------ taxonomy
@@ -413,10 +484,11 @@ def _safe_index(db_path):
 
 def search(text: str, limit: Optional[int] = 50, ranks: Optional[Iterable[str]] = None,
            recorded: Optional[set] = None, fuzzy: str = "auto",
-           db_path: Optional[str] = None) -> List[dict]:
+           db_path: Optional[str] = None,
+           group_kingdoms: Optional[Iterable[str]] = None) -> List[dict]:
     """SpeciesIndex.search on the suite's uksi.db (see the module docstring)."""
     return get_index(db_path).search(text, limit=limit, ranks=ranks, recorded=recorded,
-                                     fuzzy=fuzzy)
+                                     fuzzy=fuzzy, group_kingdoms=group_kingdoms)
 
 
 def search_objects(text: str, limit: Optional[int] = 50, ranks: Optional[Iterable[str]] = None,
@@ -428,5 +500,5 @@ def search_objects(text: str, limit: Optional[int] = 50, ranks: Optional[Iterabl
     return [SimpleNamespace(**r) for r in search(text, limit=limit, ranks=ranks, db_path=db_path)]
 
 
-__all__ = ["SPECIES_LEVEL", "SpeciesIndex", "get_index", "search", "search_objects", "fold",
+__all__ = ["SPECIES_LEVEL", "LIST_GROUP_KINGDOMS", "MAX_GROUPS", "SpeciesIndex", "get_index", "search", "search_objects", "fold",
            "fold_words", "rank_group", "group_label", "is_broad", "warm_up"]

@@ -61,6 +61,10 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("Observatum V2")
     app.setOrganizationName("Observatum")
+    # drop-down lists always solid, whatever the panel round them clears (F50, 12 Oct 2026)
+    from shared.opaque_popups import install as solid_popups
+    from src.themes import theme
+    solid_popups(app, lambda: (theme().get('surface'), theme().get('text_primary')))
 
     # Show splash screen immediately; its bar follows the startup steps
     # (src/views/splash_progress.py) and keeps moving while records load in threads

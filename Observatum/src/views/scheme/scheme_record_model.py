@@ -108,6 +108,9 @@ class SchemeRecordModel(CheckedByIdMixin, QAbstractTableModel):
         ('never_upload_to_irecord', 'No Upload', 70, False),
         ('created_at', 'Created', 90, False),
         ('updated_at', 'Updated', 90, False),
+        # an NBN copy of an iRecord record (shared/scheme_duplicates.py, Q59): shown
+        # whenever the listed records include one ("Show duplicates" on)
+        ('duplicate_of', 'Duplicate of', 100, False),
     ]
 
     DEFAULT_VISIBLE = [
@@ -120,6 +123,7 @@ class SchemeRecordModel(CheckedByIdMixin, QAbstractTableModel):
         self._records: List[Dict] = []
         self._init_checked()          # ticks held by record id, not row (OBS-01)
         self._dimmed: Dict[int, str] = {}   # record id -> why it is not counted (backlog A)
+        self._show_duplicate_col = False    # listed records include marked copies (Q59)
         self._visible_columns: set = set()
         self._column_order: List[str] = []
         self._columns: List[tuple] = []  # Cached current columns
@@ -172,12 +176,14 @@ class SchemeRecordModel(CheckedByIdMixin, QAbstractTableModel):
             if col_key in col_lookup:
                 col = col_lookup[col_key]
                 mandatory = len(col) > 3 and col[3]
-                if mandatory or col_key in self._visible_columns:
+                if mandatory or col_key in self._visible_columns or (
+                        col_key == 'duplicate_of' and self._show_duplicate_col):
                     result.append(col)
         for col in self.ALL_COLUMNS:
             if col[0] != 'checkbox' and col[0] not in self._column_order:
                 mandatory = len(col) > 3 and col[3]
-                if mandatory or col[0] in self._visible_columns:
+                if mandatory or col[0] in self._visible_columns or (
+                        col[0] == 'duplicate_of' and self._show_duplicate_col):
                     result.append(col)
         self._columns = result
 
@@ -220,11 +226,17 @@ class SchemeRecordModel(CheckedByIdMixin, QAbstractTableModel):
             why = self._dimmed.get(record.get('id'))
             if why:
                 if role == Qt.ItemDataRole.ToolTipRole:
+                    if record.get('duplicate_of'):
+                        return (f"Not counted: the NBN Atlas copy of iRecord record "
+                                f"#{record['duplicate_of']}, which is counted instead")
                     return f"Not counted ({why}): Settings > Species counting"
                 return QColor(theme().get('text_muted'))
 
         # Get value
         value = self._get_record_value(record, col_key)
+
+        if col_key == 'duplicate_of' and value:
+            value = f"#{value}"
 
         # Format date
         if col_key == 'date' and value:
@@ -335,6 +347,10 @@ class SchemeRecordModel(CheckedByIdMixin, QAbstractTableModel):
         self.beginResetModel()
         self._records = records
         self._dimmed = dict(dimmed or {})
+        shown = any(r.get('duplicate_of') for r in records)
+        if shown != self._show_duplicate_col:      # the "Duplicate of" column comes and goes
+            self._show_duplicate_col = shown
+            self._update_columns()
         self._clear_checked()
         self.endResetModel()
 

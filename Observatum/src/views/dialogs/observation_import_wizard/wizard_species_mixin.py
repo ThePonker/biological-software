@@ -57,8 +57,12 @@ class WizardSpeciesResolutionMixin:
         """Apply species resolutions to validated rows (only the species error goes)."""
         for row in self.validated_rows:
             if row.species_name in resolutions:
-                apply_confirmed(row, resolutions[row.species_name], row.species_name,
-                                "resolved by you")
+                original = row.species_name
+                apply_confirmed(row, resolutions[original], original,
+                                "picked by you")   # one wording for both ways (F51)
+                if not hasattr(self, "_species_picks"):
+                    self._species_picks = {}
+                self._species_picks[row.row_number] = (original, dict(resolutions[original]))
                 self._update_table_row_display_resolved(row)
 
     def _update_table_row_display_resolved(self, row: ObservationImportRow):

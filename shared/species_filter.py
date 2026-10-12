@@ -28,7 +28,7 @@ from __future__ import annotations
 import re
 from typing import Dict, Iterable, List, Optional, Set
 
-from shared.species_search import MAX_GROUPS, fold, fold_words, get_index
+from shared.species_search import LIST_GROUP_KINGDOMS, MAX_GROUPS, fold, fold_words, get_index
 
 _SAFE_TVK = re.compile(r"^[A-Za-z0-9:_.\-]+$")
 _current_cache: Dict[str, Optional[str]] = {}
@@ -221,9 +221,11 @@ def filter_names(text: str, names: Iterable[str], db_path: Optional[str] = None)
 
 def completer_choices(text: str, names: Iterable[str], db_path: Optional[str] = None) -> tuple:
     """For a species list's completer (the Filter Wizard's What box): (the names the text
-    selects WITHOUT whole groups, [(group label, group scientific name)]) -- Wil's decision 2
-    (10 Oct 2026): "longhorn" lists the species first, then "All Cerambycidae (longhorn
-    beetles) -- group" as one choice, offered only when the list holds one of its species."""
+    selects WITHOUT whole groups, [(group label, group scientific name, first)]) -- Wil's
+    decision 2 (10 Oct 2026): "longhorn" offers "All Cerambycidae (longhorn beetles) --
+    group" as one choice, only when the list holds one of its species and only for animals;
+    first is True when the text is the group's name, and the group goes at the top of the
+    list (F49, 12 Oct 2026), else after the species."""
     names = [n for n in dict.fromkeys(names) if n]
     try:
         idx = get_index(db_path)
@@ -232,7 +234,8 @@ def completer_choices(text: str, names: Iterable[str], db_path: Optional[str] = 
         f = SpeciesFilter(text, present, db_path)
         if f.by_name_only:
             return {n for n in names if f.matches(tvk_of[n], n)}, []
-        groups = [r for r in idx.search(text, limit=None) if r.get("is_group")]
+        groups = [r for r in idx.search(text, limit=None, group_kingdoms=LIST_GROUP_KINGDOMS)
+                  if r.get("is_group")]
         if not groups:
             return {n for n in names if f.matches(tvk_of[n], n)}, []
         f.taxa, f.exact = _choose(f.text, db_path, species_only=True)
@@ -241,8 +244,8 @@ def completer_choices(text: str, names: Iterable[str], db_path: Optional[str] = 
         else:
             f.by_name_only = True
         chosen = {n for n in names if f.matches(tvk_of[n], n)}
-        offered = [(r["group_label"], r["scientific_name"]) for r in groups
-                   if tvks_under({r["tvk"]}, present, db_path)[0]]
+        offered = [(r["group_label"], r["scientific_name"], bool(r.get("group_first")))
+                   for r in groups if tvks_under({r["tvk"]}, present, db_path)[0]]
         return chosen, offered[:MAX_GROUPS]
     except Exception as e:
         print(f"[species_filter] completer by name only ({e})")

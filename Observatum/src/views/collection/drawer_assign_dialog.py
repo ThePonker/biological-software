@@ -5,6 +5,11 @@ Take a drawer out, pick it at the top, tick each specimen as you find it -- the 
 in taxonomic order under genus headings, so it reads in the order the drawer is laid
 out -- then Save drawer: a preview of every change, a backup, and one write.
 
+Round 9 C (12 Oct): specimens already recorded in the drawer being edited show ticked;
+unticking one and saving takes it out of the drawer. A specimen recorded in another
+drawer can be ticked after "Move here" (one at a time, or "Move all here").
+"Drawers…" lists every drawer with its count, to open one or empty it.
+
 Records where specimens ARE. Planning a layout is Curator's job; this does not plan.
 Rules and the write live in shared/drawer_assign.py (pure, tested).
 """
@@ -16,14 +21,16 @@ import sqlite3
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QFont
 from PySide6.QtWidgets import (
-    QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout,
-    QFrame, QHBoxLayout, QHeaderView, QLabel, QMessageBox, QPushButton, QSplitter,
-    QTableWidget, QTableWidgetItem, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
+    QCheckBox, QComboBox, QDialog, QFormLayout, QFrame, QHBoxLayout, QHeaderView, QLabel,
+    QMessageBox, QPushButton, QSplitter, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
 import paths
 from shared import drawer_assign as da
 from shared.fit_to_screen import fit_to_screen
+
+from ...themes import theme
+from .drawer_assign_save import DrawerSaveMixin
 
 GOLD = "#8a6609"
 GOLD_TEXT = "#7a5a08"
@@ -50,55 +57,7 @@ def next_drawer_name(name: str) -> str:
     return name[:m.start(1)] + str(int(m.group(1)) + 1) + m.group(2)
 
 
-class PreviewDialog(QDialog):
-    """Every change, before anything is written."""
-
-    def __init__(self, changes, specs_by_id, storage, drawer, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Preview — drawer in hand")
-        self.resize(820, 560)
-        v = QVBoxLayout(self)
-        n_spec = len({c[0] for c in changes})
-        head = QLabel(f"<b>{len(changes)} changes to {n_spec} specimens</b> — "
-                      f"{storage}{' · ' if storage and drawer else ''}{drawer}")
-        head.setStyleSheet("font-size: 15px;")
-        v.addWidget(head)
-        names = {"storage_location": "Storage location", "drawer_number": "Drawer",
-                 "condition": "Condition", "preparation_type": "Preparation"}
-        summ = da.summary(changes)
-        v.addWidget(QLabel("   ".join(f"{names[f]}: {n}" for f, n in summ.items())))
-        t = QTableWidget(len(changes), 5)
-        t.setHorizontalHeaderLabels(["Specimen", "Field", "Before", "", "After"])
-        t.verticalHeader().setVisible(False)
-        t.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        for i, (sid, field, before, after) in enumerate(changes):
-            s = specs_by_id.get(sid, {})
-            who = QTableWidgetItem(f"{s.get('species_name', '')}  {s.get('date_collected') or ''}")
-            f = who.font(); f.setItalic(True); who.setFont(f)
-            t.setItem(i, 0, who)
-            t.setItem(i, 1, QTableWidgetItem(names.get(field, field)))
-            b = QTableWidgetItem(before or "empty"); b.setForeground(QBrush(QColor(GREY)))
-            t.setItem(i, 2, b)
-            t.setItem(i, 3, QTableWidgetItem("→"))
-            a = QTableWidgetItem(after); fa = a.font(); fa.setBold(True); a.setFont(fa)
-            t.setItem(i, 4, a)
-        t.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        t.resizeColumnsToContents()
-        t.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        v.addWidget(t, 1)
-        note = QLabel("Observatum is backed up first. All changes are written together, or none.")
-        note.setStyleSheet("color: #4b5563;")
-        v.addWidget(note)
-        bb = QDialogButtonBox()
-        self.apply_btn = bb.addButton(f"Apply {len(changes)} changes", QDialogButtonBox.ButtonRole.AcceptRole)
-        bb.addButton("Back", QDialogButtonBox.ButtonRole.RejectRole)
-        self.apply_btn.setStyleSheet(f"background: {GOLD}; color: white; font-weight: 600; padding: 6px 14px;")
-        bb.accepted.connect(self.accept)
-        bb.rejected.connect(self.reject)
-        v.addWidget(bb)
-
-
-class DrawerAssignDialog(QDialog):
+class DrawerAssignDialog(DrawerSaveMixin, QDialog):
     """Pick the drawer in hand; tick what is in it; save."""
     saved = Signal(int)   # number of changes written
 
@@ -108,7 +67,9 @@ class DrawerAssignDialog(QDialog):
         self.resize(1240, 760)
         fit_to_screen(self)    # no taller than a laptop screen (R5)
         self._db = str(db_path or paths.OBSERVATUM_DB)
-        self._ticked = set()
+        self._ticked = set()           # ticked INTO this drawer (not yet recorded here)
+        self._unticked = set()         # recorded here, unticked: to be removed on save
+        self._move_ok = set()          # recorded in another drawer, "Move here" confirmed
         self._filter = None            # ("order"|"family"|"genus", value) or None
         self._building = False
         self._load()
@@ -149,13 +110,18 @@ class DrawerAssignDialog(QDialog):
         self.cmb_drawer = _combo(self._distinct("drawer_number"))
         self.cmb_drawer.setMinimumWidth(150)
         b.addWidget(self.cmb_drawer)
-        hint = QLabel("Tick each specimen as you find it. The list is in taxonomic order.")
+        hint = QLabel("Tick each specimen as you find it; untick one to take it out. "
+                      "The list is in taxonomic order.")
         hint.setStyleSheet("color: #4b5563; border: none;")
         hint.setWordWrap(True)          # wraps rather than widen the window (R5)
         b.addWidget(hint, 1)
         self.lbl_count = QLabel("0 ticked")
         self.lbl_count.setStyleSheet("font-weight: 600; border: none;")
         b.addWidget(self.lbl_count)
+        self.btn_drawers = QPushButton("Drawers…")
+        self.btn_drawers.setToolTip("Every drawer in use, with its count: open one, or empty it")
+        self.btn_drawers.clicked.connect(self._open_drawers)
+        b.addWidget(self.btn_drawers)
         v.addWidget(bar)
         for c in (self.cmb_storage, self.cmb_drawer):
             c.currentTextChanged.connect(lambda *_: self._fill_list())
@@ -187,13 +153,21 @@ class DrawerAssignDialog(QDialog):
         self.lbl_scope = QLabel("")
         self.lbl_scope.setStyleSheet("font-weight: 600;")
         self.lbl_scope.setWordWrap(True)
-        top.addWidget(self.lbl_scope, 1)
-        btn_all = QPushButton("Tick all shown")
+        mv.addWidget(self.lbl_scope)        # own row: the buttons below fit a laptop (R9 fix)
+        top.addStretch(0)
+        btn_all = QPushButton("Tick all")
+        btn_all.setToolTip("Tick every specimen shown in the list")
         btn_all.clicked.connect(lambda: self._tick_shown(True))
-        btn_none = QPushButton("Untick all shown")
+        btn_none = QPushButton("Untick all")
+        btn_none.setToolTip("Untick every specimen shown in the list")
         btn_none.clicked.connect(lambda: self._tick_shown(False))
+        self.btn_move_all = QPushButton("Move all here…")
+        self.btn_move_all.setToolTip("Tick the shown specimens recorded in other drawers, "
+                                     "to move them into this one")
+        self.btn_move_all.clicked.connect(self._move_all_shown)
         top.addWidget(btn_all)
         top.addWidget(btn_none)
+        top.addWidget(self.btn_move_all)
         mv.addLayout(top)
         self.list = QTreeWidget()
         self.list.setColumnCount(5)
@@ -215,7 +189,9 @@ class DrawerAssignDialog(QDialog):
         self.lbl_summary.setTextFormat(Qt.TextFormat.RichText)
         rv.addWidget(self.lbl_summary)
         rv.addSpacing(8)
-        rv.addWidget(QLabel("<b>Also set on the ticked specimens</b>"))
+        also = QLabel("<b>Also set on the ticked specimens</b>")
+        also.setWordWrap(True)
+        rv.addWidget(also)
         form = QFormLayout()
         self.cmb_condition = _combo(self._distinct("condition"))
         self.cmb_prep = _combo(sorted(set(self._distinct("preparation_type")) |
@@ -267,24 +243,39 @@ class DrawerAssignDialog(QDialog):
         self._fill_list()
 
     # ---------------------------------------------------------------- list
+    def _drawer(self):
+        return self.cmb_storage.currentText().strip(), self.cmb_drawer.currentText().strip()
+
+    def _is_ticked(self, s):
+        st, dr = self._drawer()
+        if da.here(s, st, dr):
+            return s["id"] not in self._unticked
+        return s["id"] in self._ticked
+
+    def _prune(self):
+        """After the drawer changes: keep only the ticks that still mean something."""
+        st, dr = self._drawer()
+        self._unticked = {i for i in self._unticked if da.here(self._by_id[i], st, dr)}
+        self._ticked = {i for i in self._ticked if not da.here(self._by_id[i], st, dr)}
+
     def _in_scope(self, s):
         if self._filter:
             kind, val = self._filter
             key = {"order": "order_name", "family": "family", "genus": "genus"}[kind]
             if (s.get(key) or "") != val and not (val.startswith("(no ") and not s.get(key)):
                 return False
-        placed = bool((s.get("storage_location") or "").strip() or (s.get("drawer_number") or "").strip())
-        here = placed and not da.elsewhere(s, self.cmb_storage.currentText(), self.cmb_drawer.currentText())
-        if s["id"] in self._ticked or here:
+        st, dr = self._drawer()
+        if s["id"] in self._ticked or s["id"] in self._unticked or da.here(s, st, dr):
             return True
-        return self.chk_placed.isChecked() if placed else self.chk_free.isChecked()
+        return self.chk_placed.isChecked() if da.placed(s) else self.chk_free.isChecked()
 
     def _fill_list(self):
         if not hasattr(self, "list"):
             return
+        self._prune()
         self._building = True
         self.list.clear()
-        storage, drawer = self.cmb_storage.currentText(), self.cmb_drawer.currentText()
+        storage, drawer = self._drawer()
         shown = [s for s in self._specs if self._in_scope(s)]
         genus = None
         head_font = QFont(); head_font.setBold(True); head_font.setItalic(True)
@@ -298,32 +289,73 @@ class DrawerAssignDialog(QDialog):
                 for c in range(5):
                     h.setBackground(c, QBrush(QColor("#f3efe4")))
                 self.list.addTopLevelItem(h)
-            away = da.elsewhere(s, storage, drawer)
-            now = " · ".join(x for x in ((s.get("storage_location") or "").strip(),
-                                         (s.get("drawer_number") or "").strip()) if x) or "—"
             it = QTreeWidgetItem([s["species_name"] or "", s.get("date_collected") or "",
-                                  s.get("site_name") or "", s.get("sex") or "", now])
+                                  s.get("site_name") or "", s.get("sex") or "", ""])
             f = it.font(0); f.setItalic(True); it.setFont(0, f)
             it.setData(0, ROLE_ID, s["id"])
-            flags = Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
-            if not away:
-                flags |= Qt.ItemFlag.ItemIsUserCheckable
-                it.setCheckState(0, Qt.CheckState.Checked if s["id"] in self._ticked
-                                 else Qt.CheckState.Unchecked)
-            else:
-                for c in range(5):
-                    it.setForeground(c, QBrush(QColor(GREY)))
-                it.setToolTip(0, f"Recorded in {now}")
-            it.setFlags(flags)
+            it.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
+                        | Qt.ItemFlag.ItemIsUserCheckable)
+            self._style(it, s)
             self.list.addTopLevelItem(it)
         for c in range(1, 5):
             self.list.resizeColumnToContents(c)
         self.list.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         scope = self._filter[1] if self._filter else "All specimens"
-        free = sum(1 for s in shown if not (s.get("drawer_number") or s.get("storage_location")))
+        free = sum(1 for s in shown if not da.placed(s))
         self.lbl_scope.setText(f"{scope} — {len(shown):,} shown, {free:,} not yet in a drawer")
         self._building = False
         self._update_summary()
+
+    def _style(self, it, s):
+        """Tick box, 'Drawer now' text and greying for one row."""
+        storage, drawer = self._drawer()
+        away = da.elsewhere(s, storage, drawer)
+        now = da.where(s.get("storage_location"), s.get("drawer_number")) or "—"
+        ticked = self._is_ticked(s)
+        if away and ticked:
+            now = f"{now} → moving here"
+        elif s["id"] in self._unticked:
+            now = f"{now} → to be removed"
+        it.setText(4, now)
+        it.setCheckState(0, Qt.CheckState.Checked if ticked else Qt.CheckState.Unchecked)
+        grey = away and not ticked
+        for c in range(5):
+            it.setForeground(c, QBrush(QColor(GREY)) if grey else QBrush())
+        it.setToolTip(0, f"Recorded in {now}. Tick it to move it to this drawer." if grey else "")
+
+    # ---------------------------------------------------------------- ticking
+    def _ask(self, title, text, yes="Move here"):
+        """Yes/No question (tests replace this)."""
+        box = QMessageBox(QMessageBox.Icon.Question, title, text, parent=self)
+        ok = box.addButton(yes, QMessageBox.ButtonRole.AcceptRole)
+        box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
+        box.exec()
+        return box.clickedButton() is ok
+
+    def _set_tick(self, sid, on, confirm=True):
+        """Record one tick; returns whether it took (a move can be declined)."""
+        s = self._by_id[sid]
+        st, dr = self._drawer()
+        if da.here(s, st, dr):
+            (self._unticked.discard if on else self._unticked.add)(sid)
+            return True
+        if not on:
+            self._ticked.discard(sid)
+            self._move_ok.discard(sid)
+            return True
+        if da.elsewhere(s, st, dr) and sid not in self._move_ok:
+            if not (st or dr):
+                QMessageBox.information(self, "Drawer in hand", "Pick the drawer at the top first.")
+                return False
+            if confirm and not self._ask(
+                    "Move here?",
+                    f"{s.get('species_name') or 'This specimen'} is recorded in "
+                    f"{da.where(s.get('storage_location'), s.get('drawer_number'))}.\n\n"
+                    f"Move it to {da.where(st, dr)}?"):
+                return False
+            self._move_ok.add(sid)
+        self._ticked.add(sid)
+        return True
 
     def _on_item_changed(self, item, col):
         if self._building or col != 0:
@@ -331,86 +363,88 @@ class DrawerAssignDialog(QDialog):
         sid = item.data(0, ROLE_ID)
         if sid is None:
             return
-        if item.checkState(0) == Qt.CheckState.Checked:
-            self._ticked.add(sid)
-        else:
-            self._ticked.discard(sid)
+        on = item.checkState(0) == Qt.CheckState.Checked
+        self._set_tick(sid, on)
+        self._building = True            # restyle in place (a declined move is unticked again)
+        self._style(item, self._by_id[sid])
+        self._building = False
+        self.list.resizeColumnToContents(4)
         self._update_summary()
+
+    def _shown_ids(self):
+        out = []
+        for i in range(self.list.topLevelItemCount()):
+            sid = self.list.topLevelItem(i).data(0, ROLE_ID)
+            if sid is not None:
+                out.append(sid)
+        return out
 
     def _tick_shown(self, on):
-        self._building = True
-        for i in range(self.list.topLevelItemCount()):
-            it = self.list.topLevelItem(i)
-            sid = it.data(0, ROLE_ID)
-            if sid is None or not (it.flags() & Qt.ItemFlag.ItemIsUserCheckable):
+        """Tick (or untick) every shown specimen; ticking leaves those in other drawers alone
+        (use Move all here). Unticking one recorded here takes it out on save."""
+        st, dr = self._drawer()
+        for sid in self._shown_ids():
+            if on and da.elsewhere(self._by_id[sid], st, dr) and sid not in self._move_ok:
                 continue
-            it.setCheckState(0, Qt.CheckState.Checked if on else Qt.CheckState.Unchecked)
-            (self._ticked.add if on else self._ticked.discard)(sid)
-        self._building = False
-        self._update_summary()
+            self._set_tick(sid, on)
+        self._fill_list()
+
+    def _move_all_shown(self):
+        st, dr = self._drawer()
+        ids = [i for i in self._shown_ids()
+               if da.elsewhere(self._by_id[i], st, dr) and i not in self._ticked]
+        if not ids:
+            QMessageBox.information(self, "Drawer in hand",
+                                    "None of the shown specimens is recorded in another drawer.")
+            return
+        if not (st or dr):
+            QMessageBox.information(self, "Drawer in hand", "Pick the drawer at the top first.")
+            return
+        froms = {}
+        for i in ids:
+            s = self._by_id[i]
+            k = da.where(s.get("storage_location"), s.get("drawer_number"))
+            froms[k] = froms.get(k, 0) + 1
+        detail = "\n".join(f"  from {k}: {n}" for k, n in sorted(froms.items()))
+        if not self._ask("Move all shown specimens here?",
+                         f"Move {len(ids)} specimens to {da.where(st, dr)}?\n{detail}\n\n"
+                         "Nothing is written until you save the drawer.", yes="Move all here"):
+            return
+        self._move_ok.update(ids)
+        self._ticked.update(ids)
+        self._fill_list()
+
+    def _contents(self):
+        """Ids that will be in this drawer after saving (ticked, in list order)."""
+        return [s["id"] for s in self._specs if self._is_ticked(s)]
 
     def _update_summary(self):
-        storage, drawer = self.cmb_storage.currentText().strip(), self.cmb_drawer.currentText().strip()
-        self.lbl_drawer.setText(" · ".join(x for x in (storage, drawer) if x) or "Pick a drawer above")
-        n = len(self._ticked)
-        self.lbl_count.setText(f"{n} ticked into this drawer")
+        storage, drawer = self._drawer()
+        self.lbl_drawer.setText(da.where(storage, drawer) or "Pick a drawer above")
+        ids = self._contents()
+        n = len(ids)
+        moves = sum(1 for i in self._ticked if da.elsewhere(self._by_id[i], storage, drawer))
+        adds = len(self._ticked) - moves
+        rem = len(self._unticked)
+        extra = ", ".join(x for x in (f"{adds} new" if adds else "", f"{moves} to move" if moves else "",
+                                      f"{rem} to remove" if rem else "") if x)
+        self.lbl_count.setText(f"{n} in this drawer" + (f" ({extra})" if extra else ""))
         if not n:
-            self.lbl_summary.setText("Nothing ticked yet.")
+            self.lbl_summary.setText("Nothing ticked yet." if not rem else
+                                     f"<span style='color:{theme().get('danger')}'>{rem} to remove</span>")
         else:
             by = {}
-            for sid in self._ticked:
+            for sid in ids:
                 g = self._by_id[sid]["genus"]
                 by[g] = by.get(g, 0) + 1
-            order = [s["genus"] for s in self._specs]
-            parts = sorted(by.items(), key=lambda kv: order.index(kv[0]))
-            self.lbl_summary.setText(" · ".join(f"<i>{g}</i> {c}" for g, c in parts)
-                                     + f"<br><span style='color:#6b7280'>{n} specimens</span>")
-        self.btn_save.setEnabled(bool(n) and bool(storage or drawer))
+            self.lbl_summary.setText(" · ".join(f"<i>{g}</i> {c}" for g, c in by.items())
+                                     + f"<br><span style='color:{theme().get('text_secondary')}'>{n} specimens"
+                                     + (f"; {extra}" if extra else "") + "</span>")
+        self.btn_save.setEnabled(bool(n or rem) and bool(storage or drawer))
         self.btn_save.setText(f"Save drawer ({n}) — preview…")
 
-    # ---------------------------------------------------------------- save
-    def _save(self):
-        storage, drawer = self.cmb_storage.currentText().strip(), self.cmb_drawer.currentText().strip()
-        try:
-            changes = da.plan(self._specs, sorted(self._ticked), storage, drawer,
-                              self.cmb_condition.currentText(), self.cmb_prep.currentText())
-        except ValueError as e:
-            QMessageBox.warning(self, "Drawer in hand", str(e))
-            return
-        if not changes:
-            QMessageBox.information(self, "Drawer in hand",
-                                    "Nothing to change: the ticked specimens already carry these values.")
-            return
-        pv = PreviewDialog(changes, self._by_id, storage, drawer, self)
-        if pv.exec() != QDialog.DialogCode.Accepted:
-            return
-        try:
-            from shared.backup_service import backup_main_only
-            if not backup_main_only("pre-drawer-assign"):
-                QMessageBox.warning(self, "Drawer in hand", "The backup failed, so nothing was written.")
-                return
-        except Exception as e:  # noqa: BLE001
-            QMessageBox.warning(self, "Drawer in hand", f"Backup unavailable, so nothing was written.\n{e}")
-            return
-        try:
-            conn = sqlite3.connect(self._db)
-            n = da.apply(conn, changes)
-            conn.close()
-        except (sqlite3.Error, ValueError, RuntimeError) as e:
-            QMessageBox.warning(self, "Drawer in hand", f"Nothing was written.\n\n{e}")
-            return
-        self._ticked.clear()
-        self._load()
-        self._fill_list()
-        self.saved.emit(n)
-        QMessageBox.information(self, "Drawer saved",
-                                f"{n} changes written for {storage}{' · ' if storage and drawer else ''}{drawer}.")
-
     def _next_drawer(self):
-        if self._ticked and QMessageBox.question(
-                self, "Next drawer", f"{len(self._ticked)} ticked specimens are not saved yet. "
-                "Move on and drop those ticks?") != QMessageBox.StandardButton.Yes:
+        if not self._drop_pending("Next drawer"):
             return
-        self._ticked.clear()
         self.cmb_drawer.setCurrentText(next_drawer_name(self.cmb_drawer.currentText()))
         self._fill_list()

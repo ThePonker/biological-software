@@ -6,8 +6,10 @@ v2: aligned to Codex v5 / 11-track scheme.
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QFrame,
     QScrollArea, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
-    QPushButton
+    QPushButton, QListWidget, QListWidgetItem
 )
+
+from shared.species_list_delegate import HIT_ROLE, SpeciesListDelegate, hit_from_result
 from PySide6.QtCore import Qt, QTimer
 
 from . import theme
@@ -84,10 +86,14 @@ class SpeciesTab(QWidget):
         search_row.addWidget(self.search_input, 1)
         layout.addLayout(search_row)
 
-        # Search results (clickable list)
+        # Search results: one list, one plain line per taxon (F49, 12 Oct 2026). Each result
+        # was a row of labels inside a styled frame: the frame's "QFrame { border }" rule
+        # reached every label (a QLabel is a QFrame), boxing each name, and 25 rows of
+        # labels were squeezed into the space left above the profile, cutting their tails.
         self.results_frame = QFrame()
+        self.results_frame.setObjectName("codexResults")
         self.results_frame.setStyleSheet(f"""
-            QFrame {{
+            QFrame#codexResults {{
                 background-color: {theme.SURFACE};
                 border: 1px solid {theme.BORDER};
                 border-radius: {theme.RADIUS_SM};
@@ -97,6 +103,21 @@ class SpeciesTab(QWidget):
         self.results_layout = QVBoxLayout(self.results_frame)
         self.results_layout.setContentsMargins(0, 0, 0, 0)
         self.results_layout.setSpacing(0)
+        self.results_list = QListWidget()
+        self.results_list.setFrameShape(QFrame.Shape.NoFrame)
+        self.results_list.setMouseTracking(True)
+        self.results_list.setItemDelegate(
+            SpeciesListDelegate(self.results_list, secondary=theme.TEXT_SECONDARY,
+                                selected_text=theme.TEXT_PRIMARY))
+        self.results_list.setStyleSheet(f"""
+            QListWidget {{ background: {theme.SURFACE}; border: none; outline: none; }}
+            QListWidget::item {{ border-bottom: 1px solid {theme.SEPARATOR}; }}
+            QListWidget::item:hover {{ background-color: {theme.ACCENT_LIGHT}; }}
+            QListWidget::item:selected {{ background-color: {theme.ACCENT_LIGHT};
+                                          color: {theme.TEXT_PRIMARY}; }}
+        """)
+        self.results_list.itemClicked.connect(self._on_result_clicked)
+        self.results_layout.addWidget(self.results_list)
         layout.addWidget(self.results_frame)
 
         # Species profile (scrollable)
@@ -125,23 +146,23 @@ class SpeciesTab(QWidget):
         try:   # the suite's shared species search (CDX-2, 10 Oct 2026): all ranks, old
             # names (-> the current taxon), common names, typing slips, every word
             import paths
-            from shared.species_search import rank_group, search
-            rows, groups = [], []
-            for r in search(text, limit=25, db_path=str(paths.UKSI_DB)):
-                note = (f"old name: {r['old_name']}" if r.get("old_name")
-                        else "close spelling" if r.get("match_type") == "fuzzy" else "")
-                if rank_group(r.get("rank")) != 0 and r.get("rank"):
-                    note = f"{r['rank']}" + (f" \u2014 {note}" if note else "")
-                if r.get("is_group"):   # a whole group found by a common word, listed after
-                    # the species and labelled as a group (decision 2, 10 Oct 2026)
-                    groups.append((r["tvk"], r["scientific_name"], "", r.get("rank") or "",
-                                   r["group_label"]))
+            from shared.species_search import LIST_GROUP_KINGDOMS, rank_group, search
+            first, rows, groups = [], [], []
+            for r in search(text, limit=25, db_path=str(paths.UKSI_DB),
+                            group_kingdoms=LIST_GROUP_KINGDOMS):
+                if r.get("is_group"):   # a whole group found by a common word, labelled as
+                    # a group (decision 2, 10 Oct 2026): first when the text is its name
+                    (first if r.get("group_first") else groups).append(r)
                     continue
-                rows.append((r["tvk"], r.get("label") or r["scientific_name"],
-                             r.get("common_name") or "", note))
-            rows += self._codex_only(text, {r[0] for r in rows + groups}) + groups
+                if rank_group(r.get("rank")) == 0:
+                    r = dict(r, rank="")          # the rank is shown above species only
+                rows.append(r)
+            shown = {r["tvk"] for r in first + rows + groups}
+            rows = first + rows + [{"tvk": t, "scientific_name": n, "note": note}
+                                   for t, n, _c, note in self._codex_only(text, shown)] + groups
         except Exception as e:
             self.results_frame.show()
+            self.results_list.hide()
             err = QLabel(f"Search error: {e}")
             err.setStyleSheet("color: red; padding: 8px;")
             self.results_layout.addWidget(err)
@@ -149,6 +170,7 @@ class SpeciesTab(QWidget):
 
         if not rows:
             self.results_frame.show()
+            self.results_list.hide()
             no_results = QLabel("No matching species found")
             no_results.setStyleSheet(
                 f"color: {theme.TEXT_SECONDARY}; padding: 10px; font-style: italic;"
@@ -157,11 +179,13 @@ class SpeciesTab(QWidget):
             return
 
         self.results_frame.show()
-        for row in rows:
-            tvk, sci_name, common, note = row[:4]
-            item = self._make_result_item(tvk, sci_name, common or "", note,
-                                          group_label=row[4] if len(row) > 4 else "")
-            self.results_layout.addWidget(item)
+        self.results_list.show()
+        for r in rows:
+            self.results_list.addItem(self._make_result_item(r))
+        # as tall as its rows (the font's own height), up to 12 rows, then it scrolls
+        n = min(self.results_list.count(), 12)
+        h = sum(self.results_list.sizeHintForRow(i) for i in range(n))
+        self.results_list.setFixedHeight(h + 2 * self.results_list.frameWidth() + 2)
 
     @staticmethod
     def _codex_only(text, shown):
@@ -187,38 +211,19 @@ class SpeciesTab(QWidget):
         return [(t, n, "", "not a current UKSI taxon") for t, n in found
                 if t not in idx.pos and t not in shown]
 
-    def _make_result_item(self, tvk, sci_name, common, note="", group_label=""):
-        item = QFrame()
-        item.setStyleSheet(f"""
-            QFrame {{
-                border-bottom: 1px solid {theme.SEPARATOR};
-            }}
-            QFrame:hover {{
-                background-color: {theme.ACCENT_LIGHT};
-            }}
-        """)
-        item.setCursor(Qt.CursorShape.PointingHandCursor)
-        il = QHBoxLayout(item)
-        il.setContentsMargins(10, 6, 10, 6)
-
-        name_lbl = QLabel(group_label.replace(sci_name, f"<i>{sci_name}</i>", 1) if group_label
-                          else f"<i>{sci_name}</i>")
-        name_lbl.setStyleSheet(f"font-weight: 600; color: {theme.TEXT_PRIMARY};")
-        il.addWidget(name_lbl)
-
-        if common:
-            common_lbl = QLabel(common)
-            common_lbl.setStyleSheet(f"color: {theme.TEXT_SECONDARY}; font-size: 11px;")
-            il.addWidget(common_lbl)
-
-        if note:   # rank above species, an old name, or a close spelling
-            note_lbl = QLabel(note)
-            note_lbl.setStyleSheet(f"color: {theme.TEXT_SECONDARY}; font-size: 11px; font-style: italic;")
-            il.addWidget(note_lbl)
-
-        il.addStretch()
-        item.mousePressEvent = lambda e, t=tvk, s=sci_name: self._select_species(t, s)
+    @staticmethod
+    def _make_result_item(r: dict) -> QListWidgetItem:
+        """One result line (drawn by the shared SpeciesListDelegate): the scientific name in
+        italics, the common name, any note and the rank above species in grey."""
+        hit = hit_from_result(r, note=r.get("note", ""))
+        item = QListWidgetItem(hit.get("group_label") or hit["scientific"])
+        item.setData(HIT_ROLE, hit)
+        item.setData(Qt.ItemDataRole.UserRole, (r["tvk"], r.get("scientific_name") or ""))
         return item
+
+    def _on_result_clicked(self, item):
+        tvk, sci_name = item.data(Qt.ItemDataRole.UserRole)
+        self._select_species(tvk, sci_name)
 
     def _select_species(self, tvk, sci_name, from_group=None):
         self._from_group = from_group
@@ -620,10 +625,13 @@ class SpeciesTab(QWidget):
     # Cleanup
     # ============================================================
     def _clear_results(self):
-        while self.results_layout.count():
-            item = self.results_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+        """Empty the list and remove any message label (the list itself stays)."""
+        self.results_list.clear()
+        for i in reversed(range(self.results_layout.count())):
+            w = self.results_layout.itemAt(i).widget()
+            if w is not None and w is not self.results_list:
+                self.results_layout.takeAt(i)
+                w.deleteLater()
 
     def _clear_profile(self):
         while self.profile_layout.count():

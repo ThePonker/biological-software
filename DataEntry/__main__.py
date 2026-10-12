@@ -62,6 +62,9 @@ def main(argv=None) -> int:
     app = QApplication.instance() or QApplication(sys.argv)
     app.setOrganizationName("Flauna")
     app.setApplicationName("Observatum")  # so QSettings resolves the same USER_INITIALS
+    from DataEntry import theme as de_theme
+    from shared.opaque_popups import install as solid_popups
+    solid_popups(app, lambda: (de_theme.CARD, de_theme.INK))      # F50: solid drop-down lists
 
     from shared.fit_to_screen import fit_to_screen
     widget = DataEntryWidget(main_db)

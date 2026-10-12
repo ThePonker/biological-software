@@ -6,6 +6,11 @@ review SRCH14 / MAP10 / OBS-11, 10 Oct 2026).
     py -3.14 scripts\\backfill_taxon_groups.py --apply         # fill blanks, after a backup
     py -3.14 scripts\\backfill_taxon_groups.py --apply --relabel   # also correct OUR old labels
 
+    Only correct our wrong labels, fill nothing (Q63, 12 Oct: the 42 butterflies filed as
+    "insect - moth"; --tables observations keeps it to those):
+    py -3.14 scripts\\backfill_taxon_groups.py --relabel-only --tables observations
+    py -3.14 scripts\\backfill_taxon_groups.py --relabel-only --tables observations --apply
+
     Only some tables / columns (decision 8, 11 Oct: kingdom and taxon group on observations):
     py -3.14 scripts\\backfill_taxon_groups.py --tables observations --columns kingdom,taxon_group
     py -3.14 scripts\\backfill_taxon_groups.py --tables observations --columns kingdom,taxon_group --apply
@@ -245,6 +250,8 @@ def main(argv=None) -> int:
     ap.add_argument("--apply", action="store_true", help="write (after a backup)")
     ap.add_argument("--relabel", action="store_true",
                     help="with --apply: also correct labels this suite wrote that disagree")
+    ap.add_argument("--relabel-only", action="store_true",
+                    help="correct labels this suite wrote that disagree; fill no blanks")
     ap.add_argument("--tables", default=",".join(TABLES),
                     help=f"comma-separated, from {', '.join(TABLES)} (default all)")
     ap.add_argument("--columns", default=",".join(FILL_COLUMNS),
@@ -258,6 +265,8 @@ def main(argv=None) -> int:
     bad = [t for t in tables if t not in TABLES] + [c for c in columns if c not in FILL_COLUMNS]
     if bad or not tables or not columns:
         ap.error(f"unknown or missing table / column: {', '.join(bad) or '(none given)'}")
+    if a.relabel_only:
+        a.relabel = True
     if a.relabel and "taxon_group" not in columns:
         ap.error("--relabel needs taxon_group among --columns")
 
@@ -274,6 +283,12 @@ def main(argv=None) -> int:
         found = plan(ro, a.uksi, tables, columns)
     finally:
         ro.close()
+    if a.relabel_only:                       # labels only: no blank is filled
+        for t in found.values():
+            t["fill"] = {c: [] for c in t["fill"]}
+            t["samples"] = {c: [] for c in t["samples"]}
+            t["kg"] = {"rows": 0, "fills": Counter(), "unresolved": Counter()}
+        print("  --relabel-only: our own wrong labels are corrected; no blank is filled")
     report(found)
     total = sum(len(v) for t in found.values() for v in t["fill"].values())
     relabels = sum(len(t["relabel"]) for t in found.values())

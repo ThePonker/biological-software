@@ -21,6 +21,16 @@ pick storage + drawer, tick specimens in taxonomic order under genus headings
 (order › family › genus tree), optional condition/preparation (empty fields only),
 preview, backup, one guarded write; "Next drawer" steps the number. Specimens recorded
 in another drawer are greyed. Records where specimens are; Curator plans layouts.
+*12 Oct (Round 9 C) -- remove and move* (Wil: "there isn't an option to remove or move
+already committed specimens"): specimens already recorded in the drawer being edited show
+ticked; unticking one and saving takes it out (storage and drawer cleared, condition and
+preparation untouched). A specimen recorded in another drawer can be ticked after "Move
+here" (one at a time, or "Move all shown here…"). The preview says what happens in words
+("Add to …: n", "Move from … to …: n", "Remove from …: n"). "Drawers…" lists storage ›
+drawer › count, with "Open this drawer" and "Empty this drawer…" (preview, backup, write).
+Edit Specimen remains the one-at-a-time fallback and now keeps the four fields (F67).
+Code: `drawer_assign_dialog.py`, `drawer_assign_save.py`, `drawer_preview.py`; tests
+`tests/test_r9c.py`.
 Mock-ups (incl. tidy values, from a spreadsheet: not built) on the "Bulk Curatorial
 Editor" canvas. **Open question:** "taxonomic order" is the collection's sort key, i.e.
 UKSI's sort code -- alphabetical by genus within a family (Carabidae: *Abax*,

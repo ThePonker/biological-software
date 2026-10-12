@@ -1484,7 +1484,8 @@ class SchemeDashboard(QScrollArea):
             stats_service = get_recording_scheme_stats()
             stats_service.initialize(get_database())
             
-            query = """
+            from shared.scheme_duplicates import live_sql   # marked copies once (Q59)
+            query = f"""
                 SELECT 
                     vc_number,
                     COUNT(*) as record_count,
@@ -1492,7 +1493,7 @@ class SchemeDashboard(QScrollArea):
                     MAX(date) as last_date
                 FROM recording_scheme
                 WHERE species_name = ?
-                AND vc_number IS NOT NULL
+                AND vc_number IS NOT NULL{live_sql(stats_service._db)}
                 GROUP BY vc_number
                 ORDER BY vc_number
             """
@@ -1670,13 +1671,14 @@ class SchemeDashboard(QScrollArea):
             stats_service = get_recording_scheme_stats()
             stats_service.initialize(get_database())
             
-            query = """
+            from shared.scheme_duplicates import live_sql   # marked copies once (Q59)
+            query = f"""
                 SELECT 
                     id, date, site_name, grid_ref, recorder, 
                     determiner, verification_status, source
                 FROM recording_scheme
                 WHERE species_name = ?
-                AND vc_number = ?
+                AND vc_number = ?{live_sql(stats_service._db)}
                 ORDER BY date DESC
             """
             results = stats_service._db.execute_main(query, (species_name, vc_number))

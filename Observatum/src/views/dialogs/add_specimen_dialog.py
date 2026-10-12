@@ -275,6 +275,10 @@ class AddSpecimenDialog(QDialog):
             grp.addWidget(lbl)
             cb = QComboBox()
             cb.addItems(items)
+            # editable: Drawer in hand names storage freely ("Cabinet 1"); a fixed list
+            # could not show, keep or change such a value (R9 C4)
+            cb.setEditable(True)
+            cb.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
             cb.setMinimumHeight(36)
             cb.setStyleSheet(
                 f"QComboBox {{ border: 1px solid {t.get('border')};"
@@ -768,6 +772,14 @@ class AddSpecimenDialog(QDialog):
             self.species_info_label.setText(display)
             self.species_info_label.show()
         
+        # Curatorial fields (R9 C4, 12 Oct 2026): these were never filled in when editing,
+        # so saving an edit wrote them back blank -- preparation, condition, storage and
+        # drawer were lost from any specimen opened in Edit Specimen and saved.
+        for combo, key in ((self.prep_combo, 'preparation_type'), (self.condition_combo, 'condition'),
+                           (self.storage_combo, 'storage_location')):
+            combo.setCurrentText(str(specimen.get(key) or ''))
+        self.drawer_edit.setText(str(specimen.get('drawer_number') or ''))
+
         # Load species profile for this specimen's species
         species_name = specimen.get('species_name', specimen.get('species', ''))
         species_tvk = specimen.get('species_tvk')

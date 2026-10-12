@@ -448,7 +448,7 @@ class WizardFileMixin:
         rows = []
         for i, raw in enumerate(self.raw_rows):
             row = SchemeImportRow(
-                row_number=i + 1,
+                row_number=i + 2,    # the file's line, heading = 1 (as all three wizards, F51)
                 raw_data=raw
             )
             rows.append(row)

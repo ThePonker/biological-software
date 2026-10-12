@@ -1,5 +1,6 @@
 """report_scheme_duplicates.py -- Recording Scheme records held twice (item L12 / backlog E,
-10 Oct 2026). READ ONLY: lists the pairs, changes nothing; removing copies is a later decision.
+10 Oct 2026). READ ONLY: lists the pairs, changes nothing. The "same iRecord id" copies are flagged
+(not removed) by mark_scheme_irecord_duplicates.py (Q59, 12 Oct); the other tiers wait for M1.
 
     py -3.14 scripts\\report_scheme_duplicates.py
     py -3.14 scripts\\report_scheme_duplicates.py --csv D:\\somewhere\\dupes.csv
@@ -37,6 +38,7 @@ except ImportError:                       # run as py scripts\<name>.py
     import report_common as rc
 
 import paths  # noqa: E402  (report_common has set sys.path)
+from shared.scheme_duplicates import match_pairs  # noqa: E402
 
 TIERS = ("same iRecord id", "exact", "likely", "possible")
 SAMPLES = 20
@@ -50,13 +52,7 @@ HEADER = ["tier", "species_name", "species_tvk",
 _ROUTE_ORDER = {"iRecord": 0, "NBN Atlas": 1, "Other": 2}
 
 
-def route(r: dict) -> str:
-    """The import route, as the Scheme filter bar's Source (filter_builder.SCHEME_SOURCES)."""
-    if not rc.blank(r["irecord_id"]):
-        return "iRecord"
-    if not rc.blank(r["nbn_atlas_id"]):
-        return "NBN Atlas"
-    return "Other"
+from shared.scheme_duplicates import route  # noqa: E402,F401  (the import route; was here)
 
 
 def dataset(r: dict) -> str:
@@ -93,16 +89,10 @@ def find_pairs(rows: list) -> dict:
         if key not in pairs or TIERS.index(tier) < TIERS.index(pairs[key][0]):
             pairs[key] = (tier, a, b)
 
-    by_irecord = {}
-    for r in rows:
-        if route(r) == "iRecord":
-            by_irecord.setdefault(str(r["irecord_id"]).strip(), []).append(r)
-    for r in rows:
-        if route(r) != "NBN Atlas" or rc.blank(r["occurrence_id"]):
-            continue
-        for i in by_irecord.get(str(r["occurrence_id"]).strip(), ()):
-            if i["species_tvk"] == r["species_tvk"] and i["date"] == r["date"]:
-                put(i, r, "same iRecord id")
+    # the "same iRecord id" rule is shared/scheme_duplicates.match_pairs -- the one the
+    # marking script (mark_scheme_irecord_duplicates.py, Q59) uses
+    for i, r in match_pairs(rows):
+        put(i, r, "same iRecord id")
 
     groups = defaultdict(list)
     for r in rows:

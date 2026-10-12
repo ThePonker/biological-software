@@ -1,0 +1,3 @@
+action,pantheon_tvk,pantheon_name,uksi_tvk,uksi_name,reason
+unlink,NBNSYS0000005646,Sympetrum nigrescens,NBNSYS0000005645,Sympetrum striolatum,"Pantheon's Highland Darter (Nationally Scarce, SQS 4) is not the common S. striolatum it was linked to by name (UKSI holds nigrescens as a synonym); gave S. striolatum a Nationally Scarce status in Pantheon Only mode (F54, Q67, Sundon 11 Oct)"
+unlink,NBNSYS0000167746,Sympetrum nigrescens,NBNSYS0000005645,Sympetrum striolatum,"the same Pantheon taxon held under its English name (Highland Darter): the same NS and SQS 4 (F54, Q67)"

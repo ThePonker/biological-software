@@ -100,11 +100,16 @@ class SchemeFilterBar(QFrame, SavedFiltersMixin):
         
         # Species counting (backlog A): every record is listed, the ones the switches
         # leave out dimmed; this lists just those
-        from ..components.counting_widgets import only_excluded_toggle
+        from ..components.counting_widgets import only_excluded_toggle, show_duplicates_toggle
         saved_row.addSpacing(15)
         self.only_excluded_chk = only_excluded_toggle(self)
         self.only_excluded_chk.toggled.connect(lambda _on: self._emit_filters())
         saved_row.addWidget(self.only_excluded_chk)
+        # NBN copies of iRecord records (Q59): left out unless this is ticked
+        saved_row.addSpacing(10)
+        self.show_dupes_chk = show_duplicates_toggle(self)
+        self.show_dupes_chk.toggled.connect(lambda _on: self._emit_filters())
+        saved_row.addWidget(self.show_dupes_chk)
         saved_row.addStretch()
         layout.addLayout(saved_row)
     
@@ -328,12 +333,14 @@ class SchemeFilterBar(QFrame, SavedFiltersMixin):
             'source': self.source_combo.currentData(),
             'status': self.status_combo.currentData(),
             'only_excluded': self.only_excluded_chk.isChecked(),
+            'show_duplicates': self.show_dupes_chk.isChecked(),
         }
     
     def _filter_widgets(self):
         return [self.species_edit, self.location_edit, self.date_from_edit,
                 self.date_to_edit, self.subfamily_combo, self.vc_combo, self.recorder_edit,
-                self.source_combo, self.status_combo, self.only_excluded_chk]     # not saved_combo: its index 0
+                self.source_combo, self.status_combo, self.only_excluded_chk,
+                self.show_dupes_chk]     # not saved_combo: its index 0
                                                              # only disables Delete
 
     def _set_quietly(self, change):
@@ -370,6 +377,7 @@ class SchemeFilterBar(QFrame, SavedFiltersMixin):
             self.status_combo.resetToFirst()
             self.saved_combo.setCurrentIndex(0)
             self.only_excluded_chk.setChecked(False)
+            self.show_dupes_chk.setChecked(False)
         self._set_quietly(change)
         self._emit_filters()
     
@@ -389,6 +397,7 @@ class SchemeFilterBar(QFrame, SavedFiltersMixin):
             self.status_combo.resetToFirst()
             self.saved_combo.setCurrentIndex(0)
             self.only_excluded_chk.setChecked(False)
+            self.show_dupes_chk.setChecked(False)
         self._set_quietly(change)
         self._emit_filters()
 

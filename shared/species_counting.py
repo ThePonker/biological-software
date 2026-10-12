@@ -13,6 +13,11 @@ the same settings):
                       Hybrids count as their own taxon.
     recording_scheme  all seven kinds (family_plus, genus, ss, sl, agg, hybrid, subsp)
 
+Recording Scheme copies (F53 / Q59, 12 Oct): rows marked as an NBN copy of an iRecord record
+(recording_scheme.duplicate_of, shared/scheme_duplicates.py) are left out by not_excluded_sql,
+only_excluded_sql and export_sql ALWAYS -- not a switch: a copy is not a second record.
+The Scheme tab's "Show duplicates" toggle lists them (dimmed, never counted).
+
 Untouched by the switches: Insect Collection, Contributed, Examen, Codex, iRecord export,
 the Data Entry grid and imports.
 
@@ -309,27 +314,53 @@ def _id_list(ids) -> str:
     return ",".join(str(int(i)) for i in sorted(ids))
 
 
-def not_excluded_sql(db, source: str, col: str = "id",
-                     kinds: Optional[Iterable[str]] = None) -> str:
-    """' AND <col> NOT IN (...)' leaving out the excluded records, or '' when none are."""
+def copies_sql(db, source: str, col: str = "id") -> str:
+    """' AND <prefix>duplicate_of IS NULL' for recording_scheme -- the marked NBN copies of
+    iRecord records are never counted (shared/scheme_duplicates.py, Q59) -- else ''."""
+    if source != "recording_scheme":
+        return ""
+    from shared.scheme_duplicates import live_sql, prefix_of
+    return live_sql(db, prefix_of(col))
+
+
+def _not_excluded(db, source, col, kinds) -> str:
     ids = excluded_ids(db, source, kinds)
     return f" AND {col} NOT IN ({_id_list(ids)})" if ids else ""
 
 
-def only_excluded_sql(db, source: str, col: str = "id",
-                      kinds: Optional[Iterable[str]] = None) -> str:
-    """' AND <col> IN (...)' keeping only the excluded records (' AND 0' when none are)."""
+def _only_excluded(db, source, col, kinds) -> str:
     ids = excluded_ids(db, source, kinds)
     return f" AND {col} IN ({_id_list(ids)})" if ids else " AND 0"
 
 
-def export_sql(db, source: str, mode: str, col: str = "id") -> str:
-    """The SQL fragment for an export choice (EXPORT_COUNTED / _INCLUDE / _ONLY)."""
+def not_excluded_sql(db, source: str, col: str = "id",
+                     kinds: Optional[Iterable[str]] = None) -> str:
+    """' AND <col> NOT IN (...)' leaving out the excluded records (and, for the scheme, the
+    marked copies), or '' when there are none."""
+    return _not_excluded(db, source, col, kinds) + copies_sql(db, source, col)
+
+
+def only_excluded_sql(db, source: str, col: str = "id",
+                      kinds: Optional[Iterable[str]] = None,
+                      include_copies: bool = False) -> str:
+    """' AND <col> IN (...)' keeping only the excluded records (' AND 0' when none are);
+    the scheme's marked copies stay out unless include_copies."""
+    return _only_excluded(db, source, col, kinds) + (
+        "" if include_copies else copies_sql(db, source, col))
+
+
+def export_sql(db, source: str, mode: str, col: str = "id",
+               include_copies: bool = False) -> str:
+    """The SQL fragment for an export choice (EXPORT_COUNTED / _INCLUDE / _ONLY). The
+    scheme's marked copies are left out unless include_copies (the Scheme tab with
+    "Show duplicates" on)."""
     if mode == EXPORT_INCLUDE:
-        return ""
-    if mode == EXPORT_ONLY:
-        return only_excluded_sql(db, source, col)
-    return not_excluded_sql(db, source, col)
+        out = ""
+    elif mode == EXPORT_ONLY:
+        out = _only_excluded(db, source, col, None)
+    else:
+        out = _not_excluded(db, source, col, None)
+    return out + ("" if include_copies else copies_sql(db, source, col))
 
 
 def species_key_sql(db, source: str, tvk_col: str = "species_tvk") -> str:

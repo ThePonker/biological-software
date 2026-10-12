@@ -4,11 +4,14 @@ Uses QListWidget popup for full keyboard control.
 """
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QLineEdit, QListWidget, QListWidgetItem,
-    QStyledItemDelegate, QStyle, QSizePolicy,
+    QWidget, QVBoxLayout, QLineEdit, QListWidget, QListWidgetItem, QSizePolicy,
 )
 from PySide6.QtCore import Signal, Qt, QTimer, QPoint
-from PySide6.QtGui import QFont, QFontMetrics
+
+from shared.species_list_delegate import HIT_ROLE, SpeciesListDelegate, hit_from_result
+from ...themes import theme
+
+MAX_ROWS = 15      # rows shown before the list scrolls
 
 
 def species_note(r):
@@ -18,65 +21,6 @@ def species_note(r):
     if r.get('match_type') == 'fuzzy':
         return "\u2014 close spelling"
     return ""
-
-
-class SpeciesItemDelegate(QStyledItemDelegate):
-    def paint(self, painter, option, index):
-        species_data = index.data(Qt.ItemDataRole.UserRole)
-        if not species_data or not isinstance(species_data, dict):
-            super().paint(painter, option, index)
-            return
-        painter.save()
-        if option.state & QStyle.StateFlag.State_Selected:
-            painter.fillRect(option.rect, option.palette.highlight())
-            text_color = option.palette.highlightedText().color()
-        elif option.state & QStyle.StateFlag.State_MouseOver:
-            painter.fillRect(option.rect, option.palette.midlight())
-            text_color = option.palette.text().color()
-        else:
-            text_color = option.palette.text().color()
-        painter.setPen(text_color)
-        scientific = species_data.get('label') or species_data.get('scientific_name', '')
-        common = species_data.get('common_name', '')
-        family = species_data.get('family', '')
-        is_recorded = species_data.get('is_recorded', False)
-        normal_font = painter.font()
-        italic_font = QFont(normal_font)
-        italic_font.setItalic(True)
-        x = option.rect.left() + 8
-        y = option.rect.center().y()
-        painter.setFont(italic_font)
-        fm = QFontMetrics(italic_font)
-        painter.drawText(x, y + fm.ascent() // 2, scientific)
-        x += fm.horizontalAdvance(scientific + " ")
-        painter.setFont(normal_font)
-        fm2 = QFontMetrics(normal_font)
-        if common:
-            t = "(" + common + ")"
-            painter.drawText(x, y + fm2.ascent() // 2, t)
-            x += fm2.horizontalAdvance(t + " ")
-        if family:
-            c = option.palette.placeholderText().color()
-            if option.state & QStyle.StateFlag.State_Selected:
-                c = text_color
-            painter.setPen(c)
-            t = "- " + family
-            painter.drawText(x, y + fm2.ascent() // 2, t)
-            x += fm2.horizontalAdvance(t + " ")
-        if is_recorded:
-            painter.setPen(text_color)
-            painter.drawText(x, y + fm2.ascent() // 2, "\u2605")
-            x += fm2.horizontalAdvance("\u2605 ")
-        note = species_note(species_data)
-        if note:
-            painter.setPen(text_color)
-            painter.drawText(x, y + fm2.ascent() // 2, note)
-        painter.restore()
-
-    def sizeHint(self, option, index):
-        s = super().sizeHint(option, index)
-        s.setHeight(max(s.height(), 32))
-        return s
 
 
 class SpeciesSearch(QWidget):
@@ -106,14 +50,19 @@ class SpeciesSearch(QWidget):
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self._popup = QListWidget()
         self._popup.setWindowFlags(Qt.WindowType.ToolTip | Qt.WindowType.FramelessWindowHint)
-        self._popup.setItemDelegate(SpeciesItemDelegate(self))
+        t = theme()
+        # one plain line per species, its height from the font (F49, 12 Oct 2026: a fixed
+        # 32 px row cut the tails of g, p and y on Windows)
+        self._popup.setItemDelegate(SpeciesListDelegate(
+            self._popup, secondary=t.get('text_secondary'), selected_text=t.get('text_primary')))
         self._popup.setMouseTracking(True)
         self._popup.itemClicked.connect(self._on_popup_clicked)
         self._popup.setStyleSheet(
-            "QListWidget { border: 1px solid #d1d5db; border-radius: 4px; background: white; }"
-            "QListWidget::item { padding: 4px; }"
-            "QListWidget::item:hover { background: #f3f4f6; }"
-            "QListWidget::item:selected { background: #e5e7eb; }"
+            f"QListWidget {{ border: 1px solid {t.get('border')}; border-radius: 4px; "
+            f"background: {t.get('surface')}; color: {t.get('text_primary')}; }}"
+            f"QListWidget::item:hover {{ background: {t.get('hover')}; }}"
+            f"QListWidget::item:selected {{ background: {t.get('surface_alt')}; "
+            f"color: {t.get('text_primary')}; }}"
         )
 
     def _setup_timer(self):
@@ -206,14 +155,20 @@ class SpeciesSearch(QWidget):
                 parts.append(species_note(r))
             item = QListWidgetItem(" ".join(parts))
             item.setData(Qt.ItemDataRole.UserRole, r)
+            item.setData(HIT_ROLE, hit_from_result(r, family=True))
             self._popup.addItem(item)
         pos = self.search_input.mapToGlobal(QPoint(0, self.search_input.height()))
         self._popup.setFixedWidth(self.search_input.width())
-        h = min(len(results) * 32 + 4, 15 * 32)
-        self._popup.setFixedHeight(h)
+        self._popup.setFixedHeight(self.popup_height())
         self._popup.move(pos)
         self._popup.setCurrentRow(0)
         self._popup.show()
+
+    def popup_height(self) -> int:
+        """The list's height: its rows as the font draws them (up to MAX_ROWS), plus frame."""
+        n = min(self._popup.count(), MAX_ROWS)
+        rows = sum(self._popup.sizeHintForRow(i) for i in range(n))
+        return rows + 2 * self._popup.frameWidth() + 2
 
     def _on_popup_clicked(self, item):
         self._select_item(item)

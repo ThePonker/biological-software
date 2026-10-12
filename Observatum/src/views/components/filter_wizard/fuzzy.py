@@ -101,12 +101,13 @@ class SpeciesFilterProxyModel(FuzzyFilterProxyModel):
         super().__init__(parent)
         self.names: Dict[str, str] = {}      # display text -> scientific name
         self._allowed = set()
-        self.groups: List[tuple] = []        # [(group label, scientific name)] for the text
+        self.groups: List[tuple] = []        # [(group label, scientific name, first)]
 
     def setFilterText(self, text: str):
         # Wil's decision 2 (10 Oct): a common word naming a whole group ("longhorn") lists
-        # the species it names, then the group as ONE labelled choice (SpeciesCompleter adds
-        # it at the end) -- not every species of the group mixed in with them.
+        # the species it names and the group as ONE labelled choice (SpeciesCompleter adds
+        # it: at the top when the text is the group's name, F49) -- not every species of
+        # the group mixed in with them.
         self._allowed = set()
         self.groups = []
         if text and text.strip():
@@ -120,7 +121,7 @@ class SpeciesFilterProxyModel(FuzzyFilterProxyModel):
     def filterAcceptsRow(self, source_row: int, source_parent) -> bool:
         index = self.sourceModel().index(source_row, 0, source_parent)
         text = self.sourceModel().data(index, Qt.ItemDataRole.DisplayRole) or ""
-        if any(text == label for label, _ in self.groups):
+        if any(text == g[0] for g in self.groups):
             return True
         if super().filterAcceptsRow(source_row, source_parent):
             return True
@@ -183,21 +184,30 @@ class SpeciesCompleter(FuzzyCompleter):
     def __init__(self, items: List[str], parent=None, names: Optional[Dict[str, str]] = None):
         super().__init__(items, parent)
         self._proxy_model.names = dict(names or {i: i for i in items})
-        self._group_rows = 0                 # group choices at the end of the list
+        self._group_rows = (0, 0)            # group choices added (at the top, at the end)
         self._group_names: Dict[str, str] = {}   # every group label offered -> its taxon
 
     def splitPath(self, path: str) -> List[str]:
-        """As FuzzyCompleter, and the whole groups the text names go at the END of the list,
-        labelled "All Cerambycidae (longhorn beetles) \u2014 group" (decision 2)."""
-        if self._group_rows:
-            self._source_model.removeRows(self._source_model.rowCount() - self._group_rows,
-                                          self._group_rows)
-            self._group_rows = 0
+        """As FuzzyCompleter, and the whole groups the text names are added, labelled
+        "All Cerambycidae (longhorn beetles) \u2014 group" (decision 2): at the TOP of the
+        list when the text is the group's name ("longhorn"), else at the end (F49)."""
+        top, end = self._group_rows
+        if end:
+            self._source_model.removeRows(self._source_model.rowCount() - end, end)
+        if top:
+            self._source_model.removeRows(0, top)
+        self._group_rows = (0, 0)
         out = super().splitPath(path)
-        for label, sci in self._proxy_model.groups:
-            self._source_model.appendRow(QStandardItem(label))
-            self._group_rows += 1
-            self._group_names[label] = sci
+        groups = self._proxy_model.groups
+        first = [g for g in groups if len(g) > 2 and g[2]]
+        later = [g for g in groups if g not in first]
+        for k, g in enumerate(first):
+            self._source_model.insertRow(k, QStandardItem(g[0]))
+        for g in later:
+            self._source_model.appendRow(QStandardItem(g[0]))
+        for g in groups:
+            self._group_names[g[0]] = g[1]
+        self._group_rows = (len(first), len(later))
         return out
 
     def scientific_name(self, display: str) -> str:

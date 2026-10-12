@@ -367,7 +367,8 @@ Contributed tab (K1) was built 9 Oct.
 
 **Sundon (11 Oct).** Jon Moore's 256 records (150 species; pitfall traps; one name fixed in
 the file) joined Wil's 198: **231 species (54 shared), 19 key, SQI 125**, 5 visits. Wil
-accepted the identifications as recorded (Q66), so the reference figures are to be updated.
+accepted the identifications as recorded (Q66); the reference figures were updated 12 Oct.
 `scripts/combined_species_list.py --project Sundon` lists both sides, Wil's from committed
-records. In Pantheon Only mode *Sympetrum nigrescens* is linked to *S. striolatum* (fault
-F54; local correction agreed, Q67).
+records. In Pantheon Only mode *Sympetrum nigrescens* was linked to *S. striolatum* (fault
+F54); since 12 Oct a local correction (`shared/pantheon_bridge_corrections.csv`, read by
+`load_bridge`) drops the link and the species is flagged "local correction" (Q67).

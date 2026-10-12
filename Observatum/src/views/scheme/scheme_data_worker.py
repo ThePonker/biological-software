@@ -118,8 +118,15 @@ class SchemeDataWorker(QThread):
             kinds = (filters or {}).get('_counting_kinds') or ()
             dimmed = excluded_reasons(self._db_path, "recording_scheme", kinds) if kinds else {}
             only_excluded = bool((filters or {}).get('only_excluded'))
+            # NBN copies of iRecord records (shared/scheme_duplicates.py, Q59): left out,
+            # or with "Show duplicates" listed dimmed and never counted
+            show_copies = bool((filters or {}).get('show_duplicates'))
             if only_excluded:
-                query += only_excluded_sql(self._db_path, "recording_scheme", "id", kinds)
+                query += only_excluded_sql(self._db_path, "recording_scheme", "id", kinds,
+                                           include_copies=show_copies)
+            elif not show_copies:
+                from shared.scheme_duplicates import live_sql
+                query += live_sql(conn)
 
             query += " ORDER BY date DESC"
 
@@ -138,6 +145,14 @@ class SchemeDataWorker(QThread):
                 records = [dict(zip(col_names, row)) for row in rows]
             else:
                 records = []
+
+            if show_copies:
+                from shared.scheme_duplicates import reason
+                for r in records:
+                    if r.get("duplicate_of"):
+                        why = reason(r["duplicate_of"])
+                        rid = r.get("id")
+                        dimmed[rid] = f"{dimmed[rid]}, {why}" if rid in dimmed else why
 
             # Counts honour the switches: the undimmed rows (all listed rows when only
             # the excluded ones are asked for)

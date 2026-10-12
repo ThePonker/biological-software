@@ -52,13 +52,14 @@ def create_sql(name, table, cols) -> str:
 
 
 def county_firsts_query() -> str:
-    """The county-firsts query exactly as the stats service runs it (no exclusions set)."""
+    """The county-firsts query exactly as the stats service runs it (no exclusions set, no
+    scheme copies marked: every {...} fragment of the f-string left out)."""
     with open(STATS_SERVICE, encoding="utf-8") as f:
         src = f.read()
     m = re.search(r'county_firsts_query = f"""(.*?)"""', src, re.S)
     if not m:
         raise RuntimeError("county firsts query not found in recording_scheme_stats_service.py")
-    return m.group(1).replace("{exclusion}{family_clause}", "")
+    return re.sub(r"\{[^{}]*\}", "", m.group(1))
 
 
 def existing_indexes(conn) -> dict:

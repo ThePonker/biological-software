@@ -341,6 +341,8 @@ def update_question(report):
 
 def main(argv=None):
     app = QApplication.instance() or QApplication(sys.argv[:1])
+    from shared.opaque_popups import install as solid_popups
+    solid_popups(app, lambda: (S.c('surface'), S.c('text_primary')))   # F50: solid lists
     win = LectorWindow()
     win.show()
     ok = win.start()

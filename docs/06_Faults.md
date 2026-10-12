@@ -4,7 +4,7 @@
 ## Open faults carry an action. Closed ones are kept in brief, because knowing
 ## what has already gone wrong is how the rules in `05` were earned. Older closed
 ## faults are in `06b_Faults_Closed.md` (split out 12 Oct). New faults take the
-## next free number (F67 next).
+## next free number (F68 next).
 
 ---
 
@@ -16,41 +16,68 @@ discipline exists precisely so `stable` can be the field-season tool.
 **Action:** merge once the staging jobs are committed and proven — backlog D3.
 *12 Oct:* Rounds 2–8 are committed and pushed on `main`; Wil decided to merge into `stable` now (Q88).
 
-### F49. Species search lists: clipped rows, boxed names, odd group choices
+### F49. Species search lists: clipped rows, boxed names, odd group choices -- FIXED 12 Oct (Round 9 A, to test)
 *Found 12 Oct (outstanding Test 2, search "beetle").* The list's rows are cut at the bottom
 (descenders of *Aclypea opaca*, *Agabus brunneus*); each name and common name is drawn in a
 bordered box; a plant genus is offered as a group ("All Leptochloa (beetle-grass) — group");
 brackets are doubled ("All Curculionidae (beetles (weevils)) — group"). Wil also wants the
 group choices at the top when the typed word is a group word. **Action:** small-fixes round,
 item 1.
+**Fixed (Round 9 A):** Codex's list was a column of labels in a frame whose `QFrame { border }`
+rule reached every label (a QLabel is a QFrame) -- the boxes -- and 25 rows were squeezed
+into the space above the profile -- the cut tails. One shared row painter
+(`shared/species_list_delegate.py`: italic name, grey common name, small grey rank; row
+height from the font) now draws Codex, Examen's Species Database and Observatum's species
+box (its fixed 32 px rows gone). Group labels have one level of brackets ("All Curculionidae
+(weevils) — group"; "flies", not "flys"). The lists offer groups of animals only
+(`LIST_GROUP_KINGDOMS`); the filter boxes still see every kingdom, so what they select is
+unchanged. A typed group name ("beetle", "ladybird", "longhorn", "moth") lists its group(s)
+first; a species named exactly as typed ("Dor Beetle") still comes first.
 
-### F50. Drop-down popups are see-through
+### F50. Drop-down popups are see-through -- FIXED 12 Oct (Round 9 A, to test)
 *Found 12 Oct (Test 3, Quick Entry).* The Project list's popup has no solid background: its
 items draw over the form behind (the hint, the iRecord tick, the Dropdown Options box) with a
 text shadow. Probably every styled combo popup. **Action:** small-fixes round, item 2.
+**Fixed (Round 9 A):** the cause was a panel style sheet with no selector
+(`background: transparent; border: none;` round the Project box) -- it reaches the combo's
+pop-up list too. 30 such sheets in the suite, 58 combo boxes. `shared/opaque_popups.install()`
+(called once at start-up in Observatum, Data Entry, Examen, Codex, Curator and Lector) gives
+any pop-up list that comes out see-through a solid theme background; lists already solid
+are left alone.
 
-### F51. Observation import: a species picked by double-click loses what the file had
+### F51. Observation import: a species picked by double-click loses what the file had -- FIXED 12 Oct (Round 9 A, to test)
 *Found 12 Oct (import test files).* In the observation wizard a double-click pick keeps no
 "File had …" note and the original name is lost; the pick list says "resolved by you as",
 the double-click (scheme and specimen) "picked by you as"; the scheme wizard numbers rows
 from 1, the others from 2. **Action:** small-fixes round, item 3.
+**Fixed (Round 9 A):** the observation wizard's double-click applies the pick as the other two
+do (⚠ "File had 'Ab'; picked by you as …", note "Imported as 'Ab'; picked by you as …"), and
+a later revalidation of the row keeps the pick; the Species cell is no longer typed in.
+"picked by you" in all three wizards and the stored note. All three number rows as a
+spreadsheet does (heading = row 1, first record = row 2); the Row column's tooltip says so.
 
 ### F52. Butterflies labelled "insect – moth"
-The importer's order → group map sends every Lepidoptera record to "insect – moth"; 42
-butterfly records carry it. **Action:** small-fixes round, item 4 (fix the map, then
-`backfill_taxon_groups.py --relabel`, dry run first; Q63).
+The importer's order → group map sent every Lepidoptera record to "insect – moth"; 42
+butterfly records carry it. The map has been the one in `shared/taxon_groups.py` since 10 Oct
+(butterfly families first). **Action (12 Oct, R9 B1):** Wil runs
+`backfill_taxon_groups.py --relabel-only --tables observations` (dry run: 42
+'insect - moth' → 'insect - butterfly', nothing else), then `--apply`.
 
 ### F53. Scheme records held twice (iRecord and NBN copies)
 34,121 pairs share an iRecord ID: NBN's "Longhorn beetle data from iRecord" is iRecord again
 (`report_scheme_duplicates.py`, read only; also 910 exact, 11,269 likely, 7,694 possible).
 Scheme counts and maps count such a record twice. **Action:** small-fixes round, item 6:
 flag the NBN copy so it counts once (Q59; flag, not delete, reversible); the other tiers in
-the final dataset (M1).
+the final dataset (M1). *Built 12 Oct (R9 B3):* `recording_scheme.duplicate_of` (added and
+filled by `scripts/mark_scheme_irecord_duplicates.py`, `--undo` clears it), one rule in
+`shared/scheme_duplicates.py` used through `shared/species_counting.py`; the Scheme tab's
+"Show duplicates" lists them. Wil to run the script (dry run 34,121 on the 10 Oct copy).
 
 ### F54. Pantheon links *Sympetrum nigrescens* to *S. striolatum*
 *Found 11 Oct (Sundon).* A fault in Pantheon's link table, seen in Pantheon Only mode; Codex
 Full is unaffected. **Action:** a flagged local correction to the bridge (Q67), small-fixes
-round, item 8.
+round, item 8. *Built 12 Oct (R9 B4b):* `shared/pantheon_bridge_corrections.csv` (two Pantheon
+taxa: the Latin and the English-named nigrescens); strict key species −1 at six surveys (`02`).
 
 ### F55. *Philanthus triangulum* carries an outdated RDB2 in Codex
 *Found 12 Oct (Betteshanger analysis).* An old status still shows for a now common wasp.
@@ -67,7 +94,8 @@ flagged in the final dataset (Q57, Q58).
 ### F57. Dates before 1700 in the scheme
 *Alosterna tabacicolor* 1500; *Acanthocinus aedilis* and *Agapanthia villosoviridescens* 1675.
 They put squares in the earliest date class. **Action:** a cleaning-report check (Q65),
-small-fixes round, item 5.
+small-fixes round, item 5. *Built 12 Oct (R9 B2):* "Date before 1700" tile, list and sheet;
+132 scheme records on the 10 Oct copy (121 Cerambycidae Dataset 1675, 7 ISR 1500, …).
 
 ### F58. A test-order flake
 `test_window_width_r4` fails when run before `test_small_fixes_20261010` (note 43). Not the
@@ -127,6 +155,8 @@ Of 2,745 specimens: preparation 204, condition 8, storage 2, drawer 0. Curator
 does not write them; the Add Specimen dialog captures four, but only for new
 specimens. **Action:** bulk editor — backlog A1.
 *12 Oct:* the bulk editor (A1, "Drawer in hand…") is built; filling is ongoing, drawer by drawer.
+Wil reset all drawers on 12 Oct (428 specimens) because nothing could be removed or moved;
+Round 9 C added remove, move and "Empty this drawer…" (03b, A1), and fixed F67.
 
 ### F6. Two parallel enrichment paths in Examen
 `site_analysis_view` imports `load_all_projects` from `examen_data` **and** takes
@@ -255,6 +285,16 @@ Edit and saves (`03_Backlog.md`, Lector).
 filters (losing ticks made in the window), and console exports overwrote the window's files.
 Now they leave a saved search alone unless `--replace-search`, and console exports are named
 `<Species>_all_pages…` (Round 8 review).
+
+### F67. Edit Specimen blanked preparation, condition, storage and drawer -- FIXED 12 Oct
+Found in Round 9 C (checking Edit Specimen as the fallback for moving one specimen). The
+dialog never filled these four boxes from the specimen being edited, but saved them, so
+saving ANY edit wrote them back blank (or the order's default preparation): a specimen put in
+a drawer by Drawer in hand lost its drawer the moment it was edited. Storage was also a fixed
+list ("Cabinet", "Useful Box", "Storage box"), so "Cabinet 1" could not be shown or typed.
+Now the four are filled from the specimen and the three lists accept any value. Specimens
+already edited cannot be told apart in the data: any drawer, storage, condition or
+preparation lost that way has to be set again.
 
 ### F45. Records and species counted differently from screen to screen -- FIXED 10 Oct
 Backlog A (Round 2): one counting rule per source (`shared/record_kinds.py`,

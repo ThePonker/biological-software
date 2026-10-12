@@ -12,6 +12,9 @@ from .codex_manager import CodexManager
 def main():
     app = QApplication(sys.argv)
     app.setApplicationName("Codex Manager")
+    from shared.opaque_popups import install as solid_popups
+    from . import theme
+    solid_popups(app, lambda: (theme.SURFACE, theme.TEXT_PRIMARY))   # F50: solid drop-down lists
     window = CodexManager()
     window.show()
     sys.exit(app.exec())

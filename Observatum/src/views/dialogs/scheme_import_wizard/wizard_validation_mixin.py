@@ -164,7 +164,7 @@ class WizardValidationMixin:
             for row in self.validated_rows:
                 if row.species_name in resolutions:
                     apply_confirmed(row, resolutions[row.species_name], row.species_name,
-                                    "resolved by you")
+                                    "picked by you")   # one wording for both ways (F51)
             self._refresh_after_species_change()
 
     def _refresh_after_species_change(self):

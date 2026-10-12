@@ -355,10 +355,16 @@ class SpeciesStatus:
     # and the TVK that holds them. Empty for a species' own statuses.
     status_held_at: str = ""
     status_from_tvk: str = ""
+    # Pantheon Only: a local correction to the bridge touched this species
+    # ("local correction: Pantheon's Sympetrum nigrescens not linked ...", Q67).
+    local_correction: str = ""
 
     @property
     def status_note(self) -> str:
-        return f"status held at {self.status_held_at}" if self.status_held_at else ""
+        parts = [f"status held at {self.status_held_at}"] if self.status_held_at else []
+        if self.local_correction:
+            parts.append(self.local_correction)
+        return "; ".join(parts)
 
     # ------------------------------------------------------------
     # Display helpers -- used by Observatum / Tabella / web Examen UI
@@ -389,7 +395,7 @@ class SpeciesStatus:
         # appendix cell is narrow, and "Legal" is accurate whichever it is.
         if self.legal_protection:
             parts.append(f"Legal ({len(self.legal_protection)})")
-        if parts and self.status_held_at:
+        if parts and (self.status_held_at or self.local_correction):
             parts.append(self.status_note)
         return ", ".join(parts) if parts else ""
 
@@ -921,6 +927,7 @@ class CodexRepository:
         for tvk in tvks:
             status = SpeciesStatus(tvk=tvk, sqs=sqs_map.get(tvk, 0))
             status.is_invertebrate = tvk in invert_set
+            status.local_correction = pan.bridge().note(tvk)    # flagged (Q67)
             for cat, abbr in con_data.get(tvk, []):     # incumbent's rows first
                 self._apply_pantheon_row(status, cat, abbr)
             status.tier = _classify(status, jurisdiction) if status.is_invertebrate else KeySpeciesTier.NONE

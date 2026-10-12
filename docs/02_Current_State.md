@@ -206,7 +206,7 @@ likely a score differing between Pantheon 3.7.4 here and 3.7.6 on the website.
 **Until 2 October Examen gave Glory Park 134.** The September "validation" matched
 key species and never compared the SQI. See `06_Faults.md`.
 
-### Every survey, 9 October (frozen in `scripts/reference_figures.json`; `check_reference_figures.py` ALL MATCH on 10 Oct; Sundon to be updated, below)
+### Every survey, 9 October (frozen in `scripts/reference_figures.json`; Sundon and the strict key counts updated 12 Oct, below)
 
 Current scoring and Pantheon's published scores alone; key species after the jurisdiction and research-only rules. *Strict* = Examen's Pantheon Only mode.
 
@@ -215,28 +215,37 @@ Current scoring and Pantheon's published scores alone; key species after the jur
 | Alsager 2026 | 191 | 5 | 109 | 109 | 5 |
 | BAM Glory Park 2024 | 128 | 8 | 117 | 117 | 9 |
 | Badshot Lea 2023 | 167 | 8 | 111 | 111 | 9 |
-| Bicester Graven Hill 2023 | 367 | 18 | 107 | 107 | 20 |
+| Bicester Graven Hill 2023 | 367 | 18 | 107 | 107 | 19 |
 | Bicester Graven Hill 2025 | 254 | 19 | 126 | 125 | 21 |
-| Birmingham - Wheels Park 2026 | 195 | 7 | 116 | 105 | 9 |
-| Bristol 2026 | 122 | 4 | 106 | 105 | 6 |
+| Birmingham - Wheels Park 2026 | 195 | 7 | 116 | 105 | 8 |
+| Bristol 2026 | 122 | 4 | 106 | 105 | 5 |
 | Derby 2025 | 230 | 4 | 100 | 99 | 6 |
 | Elmley 2026 | 44 | 7 | 182 | 184 | 7 |
 | Fermyn Hall Wood Deadwood 2024 | 49 | 7 | 157 | 153 | 8 |
 | Kent Deadwood 2024 | 393 | 75 | 181 | 175 | 82 |
 | Long Hanborough 2025 | 118 | 10 | 112 | 111 | 12 |
-| Machen 2024 | 321 | 16 | 120 | 114 | 20 |
-| Slade Green 2026 | 344 | 44 | 153 | 147 | 45 |
-| Sundon 2026 (Wil's records only; see below) | 135 | 12 | 132 | 114 | 12 |
+| Machen 2024 | 321 | 16 | 120 | 114 | 19 |
+| Slade Green 2026 | 344 | 44 | 153 | 147 | 44 |
+| Sundon 2026 (with Jon Moore's records; see below) | 231 | 19 | 125 | 114 | 19 |
 | Tilbury 2025 | 238 | 4 | 100 | 99 | 5 |
 
 **Sundon with Jon Moore's records (11 Oct).** 256 contributed records (150 species) joined
 Wil's 198: Examen gives **231 species (54 shared), 19 key species, SQI 125** over 5 visits
-(1 May – 5 Aug). Wil accepted Jon's identifications as recorded (Q66, 12 Oct), so
-`reference_figures.json` is to be updated to these figures (small fix 7); until then
-`check_reference_figures.py` reports Sundon as moved. Read the Pantheon-only and strict figures
-from Examen when updating (note 42 gives "Pantheon only 114", which may be Wil's records alone).
-In Pantheon Only mode *Sympetrum nigrescens* is linked to *S. striolatum* (a Pantheon
-link-table fault; a flagged local correction is agreed, Q67).
+(1 May – 5 Aug). Wil accepted Jon's identifications as recorded (Q66, 12 Oct);
+`reference_figures.json` was updated 12 Oct (small fix 7) from Examen's own calculation on a
+copy with Jon's file imported: Codex Full 231 / 19 / 125; SQI on Pantheon's scores 114 (also
+114 for Wil's records alone -- the same figure, not a stale one); Pantheon Only SQI 114, key 20
+before the bridge correction and 19 after. (Wil's records alone were 135 / 12 / 132 / 114 / 12.)
+
+**Local bridge correction (Q67, 12 Oct).** Pantheon's *Sympetrum nigrescens* (Highland Darter,
+Nationally Scarce, SQS 4; two Pantheon taxa, NBNSYS0000005646 and NBNSYS0000167746) was linked
+by name to *S. striolatum* (UKSI holds nigrescens as its synonym), so in Pantheon Only mode
+every *S. striolatum* record took NS and became a key species. The links are dropped by
+`shared/pantheon_bridge_corrections.csv` (pantheon.db and codex.db unchanged) and the species
+carries "local correction: …" in its status note. Pantheon Only key species fall by one at
+every survey with *S. striolatum*: Bicester 2023 20→19, Birmingham 9→8, Bristol 6→5, Machen
+20→19, Slade Green 45→44, Sundon 20→19. No SQI moved (striolatum keeps its own SQS 1); Codex
+Full is unaffected.
 
 **Ad hoc lists (not stored).** Betteshanger Park (M.G. Telfer, 437 records, 27–28 Apr 2026),
 analysed 12 Oct outside the databases: 296 taxa; Codex Full 29 Key (9.8 %), 5 Rare Key (1.7 %),

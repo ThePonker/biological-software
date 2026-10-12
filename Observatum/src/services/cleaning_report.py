@@ -2,7 +2,9 @@
 iRecord, one list per problem. Read-only; no Qt (the screen is views/stats/cleaning_dashboard.py,
 the spreadsheet is services/cleaning_export.py).
 
-Sources: Observation (observations) and Recording Scheme (recording_scheme). Every matching
+Sources: Observation (observations), Recording Scheme (recording_scheme) and Contributed
+(contributed_observations: records other people sent; no iRecord ID, so double-click opens the
+record in Observatum). Every matching
 record is listed, whatever the species-counting switches say: this is the list of the
 excluded / problem records. A record with several problems is listed under each.
 
@@ -19,6 +21,9 @@ Problems:
                 s.l., sp. and bracketed notes ignored), resolve to the SAME current TVK.
     date        no date, or a vague one: date_type other than D (single day) -- DD day range,
                 O month, OO month range, Y year, YY year range, ... (decision 9).
+    early       dated before 1700 (Q65, 12 Oct): almost certainly a placeholder or a typing
+                slip (e.g. Alosterna tabacicolor 1500, the Cerambycidae Dataset's 1675), and
+                such a record lands in the earliest date class of a map. Listed only.
     grid        no grid ref, or 10 km or coarser (hectad, 100 km square). Tetrads (2 km) and
                 quadrants (5 km) are not coarse.
     latlon      the grid ref field holds latitude/longitude text ("49.4557N2.5591W"), not a
@@ -44,13 +49,15 @@ from shared.species_filter import current_tvk_map
 from shared.irecord_links import IRECORD_URL, irecord_url  # noqa: F401
 
 SOURCES: List[Tuple[str, str]] = [("observations", "Observation"),
-                                  ("recording_scheme", "Recording Scheme")]
+                                  ("recording_scheme", "Recording Scheme"),
+                                  ("contributed_observations", "Contributed")]
 
 NAME_KINDS = ("genus", "family_plus", "agg", "sl", "subsp", "hybrid")
 PROBLEMS: List[Tuple[str, str]] = [(k, KIND_LABELS[k]) for k in NAME_KINDS] + [
     ("no_tvk", "No TVK / TVK not in UKSI"),
     ("synonym", "Synonyms counted twice"),
     ("date", "No date or vague date"),
+    ("early", "Date before 1700"),
     ("grid", "No grid ref or coarse (10 km+)"),
     ("latlon", "Not a grid ref (looks like latitude/longitude)"),
 ]
@@ -64,8 +71,11 @@ DATE_TYPE_LABELS = {
 
 _COLUMNS = ("id", "irecord_id", "species_name", "species_tvk", "taxon_rank", "date",
             "date_type", "grid_ref", "site_name", "recorder", "latitude", "longitude")
-# where the record came from (scheme: the dataset / iRecord survey), first column present
-_SOURCE_COLUMNS = ("source", "dataset_name")
+# where the record came from (scheme: the dataset / iRecord survey; contributed: who sent it),
+# first column present
+_SOURCE_COLUMNS = ("source", "dataset_name", "contributor")
+
+EARLIEST_YEAR = 1700          # a record dated before this is listed under "early" (Q65)
 
 
 # ------------------------------------------------------------------ dates and grid refs
@@ -78,6 +88,16 @@ def date_problem(date: Optional[str], date_type: Optional[str]) -> Optional[str]
     if dt in ("", "D"):
         return None
     return f"Vague date: {DATE_TYPE_LABELS.get(dt, 'not a single day')} ({dt})"
+
+
+def early_date_problem(date: Optional[str], earliest: int = EARLIEST_YEAR) -> Optional[str]:
+    """'Dated 1500 (before 1700)' when the date's year is before `earliest`, else None.
+    Only a date that starts with a 4-digit year is read (stored dates are ISO)."""
+    m = re.match(r"\s*(\d{4})", date or "")
+    if not m:
+        return None
+    year = int(m.group(1))
+    return f"Dated {year} (before {earliest})" if year < earliest else None
 
 
 def display_date(date: Optional[str], date_type: Optional[str]) -> str:
@@ -216,8 +236,12 @@ def build_report(main_db, uksi_db, source: str) -> CleaningReport:
     conn = connect_ro(main_db)
     try:
         have = {r[1] for r in conn.execute(f"PRAGMA table_info({source})")}
-        src_col = next((c for c in _SOURCE_COLUMNS if c in have), "NULL")
-        rows = conn.execute(f"SELECT {', '.join(_COLUMNS)}, {src_col} FROM {source}").fetchall()
+        if not have:                         # an older database without this table
+            rows = []
+        else:
+            src_col = next((c for c in _SOURCE_COLUMNS if c in have), "NULL")
+            cols = [c if c in have else "NULL" for c in _COLUMNS]   # contributed: no iRecord
+            rows = conn.execute(f"SELECT {', '.join(cols)}, {src_col} FROM {source}").fetchall()
     finally:
         conn.close()
     pairs = {(r[3] or "", r[2] or "") for r in rows}
@@ -259,6 +283,9 @@ def build_report(main_db, uksi_db, source: str) -> CleaningReport:
         d = date_problem(date, dtype)
         if d:
             problems.append(("date", d))
+        e = early_date_problem(date)
+        if e:
+            problems.append(("early", e))
         g = grid_problem(grid, lat is not None and lon is not None)
         if g:
             problems.append(("grid", g))

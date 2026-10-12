@@ -15,7 +15,7 @@ from .cleaning_report import IRECORD_URL, PROBLEMS, CleaningReport, irecord_url
 SHEET_NAMES = {
     "genus": "Genus only", "family_plus": "Family or higher", "agg": "Aggregates",
     "sl": "Sensu lato", "subsp": "Subspecies, var, form", "hybrid": "Hybrids",
-    "no_tvk": "No TVK", "synonym": "Synonyms", "date": "Date", "grid": "Grid ref",
+    "no_tvk": "No TVK", "synonym": "Synonyms", "date": "Date", "early": "Date before 1700", "grid": "Grid ref",
     "latlon": "Lat-long not grid ref",
 }
 HEADERS = ["Species", "Rank", "Date", "Grid ref", "Site", "Recorder", "Problem",

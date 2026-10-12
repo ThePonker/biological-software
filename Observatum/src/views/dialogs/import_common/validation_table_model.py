@@ -14,6 +14,12 @@ from PySide6.QtGui import QColor
 from ..row_status import RowStatus
 
 
+# The Row column in all three import wizards (F51, 12 Oct 2026): the record's line in the file
+# as a spreadsheet numbers it, the heading line being row 1 -- so the first record is row 2.
+ROW_TOOLTIP = ("The record's row in the file, as a spreadsheet shows it: the heading line is "
+               "row 1, so the first record is row 2.")
+
+
 class ImportValidationTableModel(QAbstractTableModel):
     COLUMNS: List[str] = []
     MESSAGE_COLUMN: Optional[int] = None        # shown in full as a tooltip
@@ -79,9 +85,11 @@ class ImportValidationTableModel(QAbstractTableModel):
         return len(self.COLUMNS)
 
     def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.DisplayRole):
-        if role == Qt.DisplayRole and orientation == Qt.Horizontal:
-            if 0 <= section < len(self.COLUMNS):
+        if orientation == Qt.Horizontal and 0 <= section < len(self.COLUMNS):
+            if role == Qt.DisplayRole:
                 return self.COLUMNS[section]
+            if role == Qt.ToolTipRole and self.COLUMNS[section] == "Row":
+                return ROW_TOOLTIP
         return None
 
     def data(self, index: QModelIndex, role: int = Qt.DisplayRole):

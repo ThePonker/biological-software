@@ -730,8 +730,11 @@ class RecordingSchemeTab(QWidget):
             mode = ask_export_mode(self, "recording scheme records")
             if mode is None:
                 return
+        # NBN copies of iRecord records (Q59): exported only with "Show duplicates" ticked
+        copies = bool(self.filter_bar.get_filters().get('show_duplicates'))
         rows = [dict(r) for r in db.execute_main(
-            "SELECT * FROM recording_scheme WHERE 1" + export_sql(db, "recording_scheme", mode)
+            "SELECT * FROM recording_scheme WHERE 1"
+            + export_sql(db, "recording_scheme", mode, include_copies=copies)
             + " ORDER BY taxonomic_sort_key, species_name")]
         if not rows:
             from PySide6.QtWidgets import QMessageBox

@@ -26,8 +26,8 @@ from Wil's copy before settling the template.
 (Betteshanger Park, M.G. Telfer, 12 Oct: figures in `02` §3). If it becomes regular, a
 "analyse a list" path in Examen would save the hand work. *Not requested; noted.*
 
-**E25. Sundon reference figures.** Update `reference_figures.json` to 231 / 19 / 125 now
-that Jon's identifications are accepted (Q66). Small-fixes round, item 7.
+**E25. Sundon reference figures.** ✅ Done 12 Oct (R9 B4a): `reference_figures.json` 231 / 19 /
+125, Pantheon 114, strict 114 / 19 (Q66; figures in `02`).
 
 **E26. Near-duplicate site names** (EXA12): Ashen Bank / Ashenbank, Ranscombe / Ranscombe
 Farm, "Shoreham, Kent". Still open.
@@ -289,7 +289,8 @@ report-contents job.
 status and record it; check other aculeates whose only status is Falk 1991's.
 
 **F17. *Sympetrum nigrescens* → *S. striolatum* in Pantheon's links** (fault F54). A flagged
-local bridge correction (Q67). Small-fixes round, item 8.
+local bridge correction (Q67). ✅ Built 12 Oct (R9 B4b): `shared/pantheon_bridge_corrections.csv`,
+flagged "local correction" in Pantheon Only results; strict key −1 at six surveys (`02`).
 
 **F14. Wrong targets in `uksi.synonyms`** (fault F25). ✅ Fix built 9 Oct --
 `scripts/fix_uksi_synonyms.py` (dry run, then --apply with a backup): carried-over rows

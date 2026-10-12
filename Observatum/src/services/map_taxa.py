@@ -18,6 +18,7 @@ from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 import paths
 from shared.db_open import connect_ro
+from shared.species_counting import copies_sql
 from shared.species_filter import current_tvk_map, tvks_under
 from shared.species_search import SPECIES_LEVEL, get_index
 
@@ -63,7 +64,8 @@ class TaxonContext:
             for table, gcol in GROUP_COLUMN.items():
                 try:
                     rows = conn.execute(
-                        f"SELECT species_tvk, species_name, COUNT(*) FROM {table} "
+                        f"SELECT species_tvk, species_name, COUNT(*) FROM {table} WHERE 1"
+                        f"{copies_sql(conn, table)} "     # scheme: marked copies once (Q59)
                         f"GROUP BY species_tvk, species_name").fetchall()
                 except sqlite3.OperationalError:
                     continue

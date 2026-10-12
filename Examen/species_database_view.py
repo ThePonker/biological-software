@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont, QColor
 import paths
+from shared.species_list_delegate import HIT_ROLE, SpeciesListDelegate
 
 BG = "#f5f5f4"
 SURFACE = "#ffffff"
@@ -118,6 +119,10 @@ class SpeciesDatabaseView(QWidget):
             "QListWidget::item { padding: 6px 10px; border-bottom: 1px solid " + SEPARATOR + "; }"
             "QListWidget::item:selected { background-color: " + ACCENT_LIGHT + "; color: " + ACCENT_DARK + "; }"
             "QListWidget::item:hover:!selected { background: #f9fafb; }")
+        # one plain line per taxon, its height from the font (F49, 12 Oct 2026)
+        self.results_list.setItemDelegate(
+            SpeciesListDelegate(self.results_list, secondary=TEXT_SECONDARY,
+                                selected_text=ACCENT_DARK))
         self.results_list.currentItemChanged.connect(self._on_species_selected)
         ll.addWidget(self.results_list, 1)
         splitter.addWidget(left)
@@ -218,6 +223,9 @@ class SpeciesDatabaseView(QWidget):
                 display = group
             item = QListWidgetItem(display)
             item.setData(Qt.ItemDataRole.UserRole, (name, tvk, common, family, rank))
+            item.setData(HIT_ROLE, {"scientific": name, "group_of": name, "common": common,
+                                    "rank": "" if rank in ("", "Species") or group else rank,
+                                    "note": note, "group_label": group})
             if rank and rank != "Species": item.setForeground(QColor(TEXT_MUTED))
             self.results_list.addItem(item)
 
@@ -225,11 +233,13 @@ class SpeciesDatabaseView(QWidget):
         """The suite's shared species search (SRCH19/EXA18, 10 Oct 2026): every word, typing
         slips, old names (-> the current taxon), common names, aggregates; all ranks.
         [(name, tvk, common, family, rank, note, group label or '')] -- a whole group found by
-        a common word ("beetle" -> Coleoptera) comes after the species (decision 2, 10 Oct)."""
+        a common word ("beetle" -> Coleoptera) is labelled as a group (decision 2, 10 Oct): first
+        when the text is the group's name, else after the species; animals only (F49)."""
         if not paths.UKSI_DB.exists(): return []
-        from shared.species_search import search
+        from shared.species_search import LIST_GROUP_KINGDOMS, search
         out = []
-        for r in search(query, limit=100, db_path=str(paths.UKSI_DB)):
+        for r in search(query, limit=100, db_path=str(paths.UKSI_DB),
+                        group_kingdoms=LIST_GROUP_KINGDOMS):
             note = (f"old name: {r['old_name']}" if r.get("old_name")
                     else "close spelling" if r.get("match_type") == "fuzzy" else "")
             out.append((r["scientific_name"], r["tvk"], r.get("common_name") or "",
@@ -304,7 +314,8 @@ class SpeciesDatabaseView(QWidget):
         else: self.status_group.hide()
         if getattr(status, "status_note", ""):
             # Not the species' own: held by its sensu-lato / aggregate counterpart.
-            nl = QLabel(f"({status.status_note}: {status.status_from_tvk})")
+            frm = getattr(status, "status_from_tvk", "")
+            nl = QLabel(f"({status.status_note}{': ' + frm if frm else ''})")
             nl.setStyleSheet("color: " + TEXT_MUTED + "; font-size: 10px; border: none;")
             self.status_grid.addWidget(nl, len(rows), 0, 1, 3)
         if status.sqs:

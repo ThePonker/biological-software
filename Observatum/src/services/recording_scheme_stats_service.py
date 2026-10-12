@@ -79,18 +79,28 @@ class RecordingSchemeStatsService:
         dashboard; shared/species_counting.py)."""
         return counted_clause("recording_scheme", prefix, self._db)
 
+    def _copies_out(self, prefix: str = "") -> str:
+        """' AND <prefix>duplicate_of IS NULL' (or ''): for a join back to the scheme table,
+        so a county first never points at the NBN copy of an iRecord record (Q59)."""
+        from shared.scheme_duplicates import live_sql
+        return live_sql(self._db, prefix) if self._db else ""
+
     def _get_family_clause(self, prefix: str = "") -> str:
-        """Get SQL WHERE clause for scheme family scope from settings."""
+        """The scheme scope used by every query here: the family scope from settings, and
+        the marked NBN copies of iRecord records left out (shared/scheme_duplicates.py,
+        Q59) -- so grid squares and month charts count each record once too."""
+        from shared.scheme_duplicates import live_sql
+        copies = live_sql(self._db, prefix) if self._db else ""
         from PySide6.QtCore import QSettings
         fam_str = QSettings().value("scheme/families", "", str).strip()
         if not fam_str:
-            return ""
+            return copies
         families = [f.strip() for f in fam_str.split(',') if f.strip()]
         if not families:
-            return ""
+            return copies
         col = f"{prefix}family" if prefix else "family"
         placeholders = ','.join([f"'{f}'" for f in families])
-        return f" AND {col} IN ({placeholders})"
+        return f" AND {col} IN ({placeholders})" + copies
 
     def _extract_grid_squares(self, grid_ref: str) -> Dict[str, str]:
         """Extract monad, tetrad, hectad from a grid reference."""
@@ -368,7 +378,7 @@ class RecordingSchemeStatsService:
                     FROM first_records fr
                     LEFT JOIN recording_scheme rs ON fr.species_tvk = rs.species_tvk
                         AND fr.first_date = rs.date
-                        AND fr.vc_number = rs.vc_number
+                        AND fr.vc_number = rs.vc_number{self._copies_out('rs.')}
                     GROUP BY fr.species_tvk, fr.vc_number
                 )
                 SELECT species_name, vc_number, first_date, record_id
@@ -514,7 +524,7 @@ class RecordingSchemeStatsService:
                 FROM first_records fr
                 LEFT JOIN recording_scheme rs ON fr.species_tvk = rs.species_tvk 
                     AND fr.first_date = rs.date 
-                    AND rs.vc_number = ?
+                    AND rs.vc_number = ?{self._copies_out('rs.')}
                 ORDER BY fr.first_date DESC
                 LIMIT 100
             """

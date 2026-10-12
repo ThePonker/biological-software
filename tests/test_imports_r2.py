@@ -136,7 +136,7 @@ def test_all_three_wizards_take_a_close_spelling(model):
         assert loose.status.value == "error" and "Species not found in UKSI" in loose.error_message
 
 
-# ---------------------------------------------------------------- decision 2: groups last
+# ------------------------------------- decision 2 (groups), changed by F49: group words first
 
 @pytest.fixture(scope="module")
 def idx():
@@ -147,13 +147,17 @@ def idx():
 @pytest.mark.parametrize("text, group", [("longhorn", "All Cerambycidae (longhorn beetles)"),
                                          ("ladybird", "All Coccinellidae (ladybirds)"),
                                          ("beetle", "All Coleoptera (beetles)")])
-def test_groups_listed_after_every_species(idx, text, group):
+def test_group_words_list_their_groups_first(idx, text, group):
+    """F49 (12 Oct 2026, Wil): the typed text is a group's name -> its group comes FIRST,
+    then the species; groups the word is only inside of stay after the species."""
     r = idx.search(text, limit=25)
+    assert r[0]["is_group"] and r[0]["group_first"]
+    assert r[0]["group_label"] == group + GROUP
     kinds = [x["is_group"] for x in r]
-    first_group = kinds.index(True)
-    assert not any(kinds[:first_group]) and all(kinds[first_group:])     # species, then groups
-    assert r[first_group]["group_label"] == group + GROUP
-    assert r[0]["rank"] == "Species" or r[0]["rank"] == "Breed"
+    n_first = sum(1 for x in r if x["group_first"])
+    assert all(kinds[:n_first]) and not kinds[n_first]                  # groups, then species
+    later = [i for i, x in enumerate(r) if x["is_group"] and not x["group_first"]]
+    assert all(i > max(j for j, k in enumerate(kinds) if not k) for i in later)
 
 
 def test_a_typed_species_is_never_pushed_down(idx):
@@ -181,27 +185,27 @@ def test_filter_wizard_what_box_lists_group_last(qapp):
     c.setCompletionPrefix("longhorn")
     m = c.completionModel()
     shown = [m.data(m.index(i, 0)) for i in range(m.rowCount())]
-    assert shown == ["Green Longhorn (Adela reaumurella)",
-                     "All Cerambycidae (longhorn beetles)" + GROUP]
-    assert c.scientific_name(shown[-1]) == "Cerambycidae"
+    assert shown == ["All Cerambycidae (longhorn beetles)" + GROUP,      # a group word: first
+                     "Green Longhorn (Adela reaumurella)"]
+    assert c.scientific_name(shown[0]) == "Cerambycidae"
     c.setCompletionPrefix("rhag mordx")                  # a species search: no group added
     assert [m.data(m.index(i, 0)) for i in range(m.rowCount())] == ["Rhagium mordax"]
 
 
 def test_codex_and_examen_label_the_group(qapp):
-    from PySide6.QtWidgets import QLabel
     from Codex.species_tab import SpeciesTab
     from Examen.species_database_view import SpeciesDatabaseView
+    from shared.species_list_delegate import HIT_ROLE, row_text
     tab = SpeciesTab()
     tab.search_input.setText("ladybird")
     tab._do_search()
-    texts = [lbl.text() for lbl in tab.results_frame.findChildren(QLabel)]
-    groups = [i for i, t in enumerate(texts) if t.endswith(GROUP)]
-    assert groups and texts[groups[0]] == "All <i>Coccinellidae</i> (ladybirds)" + GROUP
-    assert any("Ladybird" in t for t in texts[:groups[0]])
+    lst = tab.results_list
+    texts = [row_text(lst.item(i).data(HIT_ROLE)) for i in range(lst.count())]
+    assert texts[0] == "All Coccinellidae (ladybirds)" + GROUP              # F49: first
+    assert any("Ladybird" in t for t in texts[1:])
     view = SpeciesDatabaseView.__new__(SpeciesDatabaseView)
     hits = SpeciesDatabaseView._search_uksi(view, "ladybird")
-    assert hits[-1][6] == "All Coccinellidae (ladybirds)" + GROUP and hits[0][6] == ""
+    assert hits[0][6] == "All Coccinellidae (ladybirds)" + GROUP and hits[1][6] == ""
 
 
 # ---------------------------------------------------------------- temp database

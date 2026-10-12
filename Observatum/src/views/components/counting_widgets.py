@@ -28,6 +28,18 @@ def only_excluded_toggle(parent: Optional[QWidget] = None) -> QCheckBox:
     return chk
 
 
+def show_duplicates_toggle(parent: Optional[QWidget] = None) -> QCheckBox:
+    """Recording Scheme: list the NBN Atlas copies of iRecord records too (dimmed, never
+    counted; shared/scheme_duplicates.py, Q59). Off by default."""
+    chk = QCheckBox("Show duplicates", parent)
+    chk.setToolTip("Also list the NBN Atlas copies of iRecord records (the same record sent "
+                   "twice).\nThey are shown dimmed with a \"Duplicate of\" column and are never "
+                   "counted: the iRecord copy is the one that counts.")
+    t = theme()
+    chk.setStyleSheet(f"QCheckBox {{ font-size: 11px; color: {t.get('text_secondary')}; }}")
+    return chk
+
+
 def ask_export_mode(parent: Optional[QWidget] = None, what: str = "records") -> Optional[str]:
     """Counted / include excluded / only excluded; None if cancelled."""
     dlg = QDialog(parent)

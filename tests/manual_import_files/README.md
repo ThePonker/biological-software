@@ -14,8 +14,9 @@ Open them straight from this folder; no editing needed.
 Only test 35 needs a real import, and it can be deleted afterwards (steps below).
 Everything else: **press Cancel before the Import button.**
 
-Row numbers: the observation and specimen wizards count the heading line, so the first
-record is Row 2. The scheme wizard starts at Row 1.
+Row numbers (all three wizards, since 12 Oct): the row of the file as a spreadsheet shows
+it -- the heading line is row 1, so the first record is Row 2. Hover over the **Row** column
+heading to see this said.
 
 ---
 
@@ -46,13 +47,13 @@ record is Row 2. The scheme wizard starts at Row 1.
 
    | Row | Species | Status | Message |
    |---|---|---|---|
-   | 1 | Rutpela maculata | ✓ | |
-   | 2 | Rhagium mordax | ✓ | |
-   | 3 | Rutpela maculata | ⚠ | Close spelling: 'Rutpela maculta' matched to 'Rutpela maculata' \| Imported as 'Rutpela maculta' (close spelling of 'Rutpela maculata') |
-   | 4 | Rhagium mordax | ⚠ | Close spelling: 'Rhagium mordx' matched to 'Rhagium mordax' \| Imported as 'Rhagium mordx' (close spelling of 'Rhagium mordax') |
-   | 5 | Rutpla maculata | ✗ | Species not found in UKSI: Rutpla maculata — closest: Rutpela maculata, Russula maculata — confirm with Resolve Species |
-   | 6 | Ab | ✗ | Species not found in UKSI: Ab — closest: … — confirm with Resolve Species; Not a species-level record: Ab |
-   | 7 | Rutpela maculata | ✓ | (count 0 – test 34) |
+   | 2 | Rutpela maculata | ✓ | |
+   | 3 | Rhagium mordax | ✓ | |
+   | 4 | Rutpela maculata | ⚠ | Close spelling: 'Rutpela maculta' matched to 'Rutpela maculata' \| Imported as 'Rutpela maculta' (close spelling of 'Rutpela maculata') |
+   | 5 | Rhagium mordax | ⚠ | Close spelling: 'Rhagium mordx' matched to 'Rhagium mordax' \| Imported as 'Rhagium mordx' (close spelling of 'Rhagium mordax') |
+   | 6 | Rutpla maculata | ✗ | Species not found in UKSI: Rutpla maculata — closest: Rutpela maculata, Russula maculata — confirm with Resolve Species |
+   | 7 | Ab | ✗ | Species not found in UKSI: Ab — closest: … — confirm with Resolve Species; Not a species-level record: Ab |
+   | 8 | Rutpela maculata | ✓ | (count 0 – test 34) |
 
 4. Carry on to test 31, or press **Cancel**.
 
@@ -66,13 +67,16 @@ record is Row 2. The scheme wizard starts at Row 1.
 
 ## Test 31 – Species picked by hand
 
-There are two ways to pick, and they word the message differently:
+There are two ways to pick, and since 12 Oct both say the same, in all three wizards:
 
 * **The pick list** (the "Resolve Unmatched Species" window, from **Resolve Species...** or
   from **Yes** on the question box): the message reads
-  **File had 'Rutpla maculata'; resolved by you as Rutpela maculata**.
-* **Double-click the Species cell** (scheme and specimen wizards only): the message reads
+  **File had 'Rutpla maculata'; picked by you as Rutpela maculata**.
+* **Double-click the Species cell** (any of the three wizards): the message reads
   **File had 'Ab'; picked by you as Abax parallelepipedus**.
+
+The import note kept with the record says the same: "Imported as 'Ab'; picked by you as
+'Abax parallelepipedus'".
 
 Steps (any of the three wizards, carrying on from test 30):
 1. Click **Resolve Species...** (or Yes on the box).
@@ -80,11 +84,11 @@ Steps (any of the three wizards, carrying on from test 30):
    "Rutpela maculata (Cerambycidae) — close spelling". Click it › **Apply Match →**.
 3. Click **Ab**. Type `Abax parallelepipedus` in the search, click the result › **Apply Match →**.
 4. **Continue with Resolved Species**.
-5. Both rows turn ⚠ with "File had '…'; resolved by you as …".
-6. Scheme and specimen only: to see "picked by you", cancel and start again, then
-   **double-click the Species cell** of the Rutpla or Ab row, choose the species in the
-   search window › **Select Species**. The row turns ⚠
-   "File had 'Ab'; picked by you as Abax parallelepipedus".
+5. Both rows turn ⚠ with "File had '…'; picked by you as …".
+6. To try the double-click, cancel and start again, then **double-click the Species cell**
+   of the Rutpla or Ab row, choose the species in the search window › **Select Species**.
+   The row turns ⚠ "File had 'Ab'; picked by you as Abax parallelepipedus" (the
+   observation wizard too, since 12 Oct; it used to change the name and keep no note).
 7. The specimen table shows ✓, ⚠ and ✗ in the Status column.
 8. Press **Cancel**. Nothing is imported.
 
@@ -92,7 +96,7 @@ Steps (any of the three wizards, carrying on from test 30):
 
 * **Observation import** (`TEST_observation_import.csv`): row 8 (count 0) is ✗
   "Count of 0 — fix the count" and is left out of the import. Press **Cancel**.
-* **Scheme import** (`TEST_scheme_import.csv`): row 7 (count 0) is ✓ and would be stored
+* **Scheme import** (`TEST_scheme_import.csv`): row 8 (count 0) is ✓ and would be stored
   with quantity 0. Press **Cancel**: scheme records cannot be deleted in the app, so
   please don't import this file. Storage was checked on a copy of the database instead:
   the row was saved with quantity 0 (and in the observation import the 0 row was not saved).

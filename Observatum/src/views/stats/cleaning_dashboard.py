@@ -1,7 +1,7 @@
 """Stats/Reports > Cleaning Report (backlog B, claude/38 answers 12-14).
 
-The records to tidy in iRecord, one tab per problem, for Observation or Recording Scheme
-data (chosen at the top). The lists come from services/cleaning_report.py (no Qt there);
+The records to tidy in iRecord, one tab per problem, for Observation, Recording Scheme or
+Contributed data (chosen at the top). The lists come from services/cleaning_report.py (no Qt there);
 every matching record is shown, whatever the species-counting switches say.
 
 Double-click a row (or "Open in iRecord") opens the record in iRecord when it holds an
@@ -291,7 +291,9 @@ class CleaningDashboard(QWidget):
         if rep is None:
             return
         stamp = _dt.date.today().strftime("%Y%m%d")
-        base = f"cleaning_report_{'observation' if rep.source == 'observations' else 'scheme'}_{stamp}"
+        kind = {"observations": "observation", "recording_scheme": "scheme",
+                "contributed_observations": "contributed"}.get(rep.source, rep.source)
+        base = f"cleaning_report_{kind}_{stamp}"
         try:
             if have_openpyxl():
                 path, _ = QFileDialog.getSaveFileName(self, "Export cleaning report", base + ".xlsx",

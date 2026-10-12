@@ -50,7 +50,8 @@ class WizardValidationMixin:
             # iRecord mode only - auto mapping
             self.column_mapping = {}
         
-        # Create import rows
+        # Create import rows (a new validation: no species picked by hand yet)
+        self._species_picks = {}
         import_rows = []
         for i, raw in enumerate(self.raw_rows):
             row = ObservationImportRow(
@@ -107,6 +108,8 @@ class WizardValidationMixin:
             self.validation_table.setColumnCount(len(columns))
             self.validation_table.setHorizontalHeaderLabels(columns)
         
+        from ..import_common.validation_table_model import ROW_TOOLTIP
+        self.validation_table.horizontalHeaderItem(columns.index('Row')).setToolTip(ROW_TOOLTIP)
         self.validation_table.setRowCount(0)
         self.validation_table.setStyleSheet('''
             QTableWidget::item:selected { background-color: {t.get('surface_alt')}; color: {t.get('text_primary')}; }
@@ -234,9 +237,11 @@ class WizardValidationMixin:
         else:
             # Personal mode - some fields editable
             
-            # Species (editable via double-click search)
+            # Species: double-click opens the species search (not typed in the cell, as in
+            # the scheme and specimen wizards -- F51)
             species_item = QTableWidgetItem(row.species_name)
             species_item.setData(Qt.ItemDataRole.UserRole, "species")
+            species_item.setFlags(species_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             self.validation_table.setItem(table_row, 2, species_item)
             
             # Date (editable)
@@ -305,32 +310,52 @@ class WizardValidationMixin:
             except ValueError:
                 pass
     
+    def _validated_row_at(self, table_row: int):
+        """The validated row shown on a table row (found by its Row number)."""
+        item = self.validation_table.item(table_row, 1)
+        try:
+            number = int(item.text()) if item else None
+        except ValueError:
+            return None
+        return next((r for r in getattr(self, "validated_rows", None) or []
+                     if r.row_number == number), None)
+
     def _show_species_search_dialog(self, table_row: int):
-        """Show species search dialog for the given row."""
+        """Double-click on Species: pick the UKSI taxon. Applied as the scheme and specimen
+        wizards do (F51, 12 Oct 2026): the row turns ⚠ "File had '…'; picked by you as …"
+        and the import note keeps the name the file had. It used to put the picked name in
+        the cell as if typed, so the file's name and any note of the pick were lost."""
         if not self.uksi_model:
             QMessageBox.warning(self, "UKSI Not Available", "Species lookup is not available.")
             return
-        
-        current_species = self.validation_table.item(table_row, 2).text()
-        
+        target = self._validated_row_at(table_row)
+        original = (target.species_name if target is not None
+                    else self.validation_table.item(table_row, 2).text()) or ""
+
         # The user picks the species from the search results -- the first hit is not taken
         # for them (9 Oct 2026: one rule set, a search hit is never a match)
         from ..specimen_import_wizard.species_search_dialog import SpeciesSearchDialog
-        dialog = SpeciesSearchDialog(self, self.uksi_model, current_species)
-        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.get_selected_species():
-            species_name = dialog.get_selected_species().get('scientific_name', '')
-            
-            # Update table
-            self.validation_table.item(table_row, 2).setText(species_name)
-            
-            # Track as edited
-            row_num_item = self.validation_table.item(table_row, 1)
-            if row_num_item:
-                try:
-                    self._edited_row_indices.add(int(row_num_item.text()))
-                    self.next_btn.setEnabled(False)
-                except ValueError:
-                    pass
+        dialog = SpeciesSearchDialog(self, self.uksi_model, original)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        picked = dialog.get_selected_species()
+        if not picked or not picked.get("tvk") or target is None:
+            return
+        self._apply_species_pick(table_row, target, picked, original)
+
+    def _apply_species_pick(self, table_row: int, target, picked: dict, original: str):
+        """Put a species picked by double-click onto a row and redraw it. The pick is kept
+        (by row number) so a later revalidation of the row re-applies it."""
+        from shared.species_lookup_entries import apply_confirmed
+        apply_confirmed(target, picked, original, "picked by you")
+        if not hasattr(self, "_species_picks"):
+            self._species_picks = {}
+        self._species_picks[target.row_number] = (original, dict(picked))
+        self._update_table_row_display(table_row, target, self._get_selected_mode())
+        self._update_validation_counts()
+        self._update_confirmation_counts()
+        if hasattr(self, "resolve_species_btn"):
+            self.resolve_species_btn.setVisible(bool(self._get_unmatched_species()))
     
     def _apply_filter(self):
         """Apply row filter based on selected radio button."""
@@ -378,8 +403,15 @@ class WizardValidationMixin:
             # Find the validated row
             for validated_row in self.validated_rows:
                 if validated_row.row_number == row_number:
-                    # Update from table cells (personal mode columns)
-                    validated_row.species_name = self.validation_table.item(table_row, 2).text()
+                    # Update from table cells (personal mode columns). A species picked by
+                    # hand keeps the file's name, so the pick is re-applied after (F51).
+                    cell = self.validation_table.item(table_row, 2).text()
+                    pick = getattr(self, "_species_picks", {}).get(row_number)
+                    if pick and cell == pick[1].get("scientific_name"):
+                        validated_row.species_name = pick[0]
+                    else:
+                        getattr(self, "_species_picks", {}).pop(row_number, None)
+                        validated_row.species_name = cell
                     validated_row.date = self.validation_table.item(table_row, 3).text()
                     validated_row.grid_ref = self.validation_table.item(table_row, 4).text()
                     validated_row.recorder = self.validation_table.item(table_row, 6).text()
@@ -426,6 +458,10 @@ class WizardValidationMixin:
         for table_row in range(self.validation_table.rowCount()):
             row_num_item = self.validation_table.item(table_row, 1)
             if row_num_item and int(row_num_item.text()) == row.row_number:
+                pick = getattr(self, "_species_picks", {}).get(row.row_number)
+                if pick:                         # picked by double-click: still picked (F51)
+                    from shared.species_lookup_entries import apply_confirmed
+                    apply_confirmed(row, pick[1], pick[0], "picked by you")
                 # Update the row in validated_rows
                 for i, vr in enumerate(self.validated_rows):
                     if vr.row_number == row.row_number:
