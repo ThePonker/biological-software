@@ -1,69 +1,62 @@
-"""lector.db - local store of BHL search results and page OCR text.
+"""lector.db - local store of BHL search results, page OCR text and saved searches.
 
 Plain rollback journal (no WAL) because the file lives in the OneDrive-synced
-data/ folder. All schema creation is idempotent.
+data/ folder. Schema version in PRAGMA user_version (see schema.py):
+  0/1  harvests up to fix2 (searches, pages, page_hits)
+  2    saved searches, runs, review notes (12 Oct 2026)
+A database at an older version is not changed silently: LectorStore raises
+NeedsMigration and the caller runs schema.migrate() after a backup
+(`python -m Lector` asks first; scripts/migrate_lector_v2.py has a dry run).
 """
+import json
 import sqlite3
 from datetime import datetime
+from pathlib import Path
 
 from . import config
+from .schema import NeedsMigration, create_or_check
 
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS searches (
-    accepted_name TEXT NOT NULL,      -- current UKSI name (or as supplied)
-    query_name    TEXT NOT NULL,      -- name actually sent to BHL
-    tvk           TEXT,               -- UKSI TVK of the accepted name
-    name_role     TEXT NOT NULL,      -- 'accepted' or 'synonym'
-    searched_at   TEXT NOT NULL,
-    hits_total    INTEGER,            -- pages BHL returned
-    hits_kept     INTEGER,            -- pages kept after filters/cap
-    PRIMARY KEY (accepted_name, query_name)
-);
-CREATE TABLE IF NOT EXISTS pages (
-    page_id     INTEGER PRIMARY KEY,
-    item_id     INTEGER,
-    title_id    INTEGER,
-    title       TEXT,
-    volume      TEXT,
-    year        INTEGER,
-    page_label  TEXT,                 -- printed page number, e.g. 'p. 147'
-    page_url    TEXT,
-    ocr_url     TEXT,
-    text_source TEXT,                 -- OCR / Text Import / corrected OCR
-    ocr_text    TEXT,
-    names_found TEXT,                 -- '; '-joined names BHL found on page
-    fetched_at  TEXT
-);
-CREATE TABLE IF NOT EXISTS page_hits (
-    page_id       INTEGER NOT NULL REFERENCES pages(page_id),
-    accepted_name TEXT NOT NULL,
-    query_name    TEXT NOT NULL,
-    tvk           TEXT,
-    review_status TEXT NOT NULL DEFAULT 'unreviewed',  -- for the review stage
-    PRIMARY KEY (page_id, accepted_name, query_name)
-);
-CREATE INDEX IF NOT EXISTS idx_hits_accepted ON page_hits(accepted_name);
-CREATE INDEX IF NOT EXISTS idx_hits_tvk ON page_hits(tvk);
-CREATE INDEX IF NOT EXISTS idx_pages_year ON pages(year);
-"""
+__all__ = ["LectorStore", "NeedsMigration", "now"]
 
 
-def _now():
+def now():
     return datetime.now().isoformat(timespec="seconds")
 
 
+_now = now                                   # old name, kept for callers
+
+
+PAGE_COLUMNS = ("item_id", "title_id", "title", "volume", "year", "page_label",
+                "page_url", "ocr_url", "page_type", "part_id", "article_title", "authors")
+
+
 class LectorStore:
-    def __init__(self, db_path=config.LECTOR_DB):
+    def __init__(self, db_path=None, check_same_thread=True):
+        db_path = Path(db_path or config.LECTOR_DB)
         db_path.parent.mkdir(parents=True, exist_ok=True)
-        self.conn = sqlite3.connect(str(db_path))
+        self.path = db_path
+        self.conn = sqlite3.connect(str(db_path), check_same_thread=check_same_thread)
         self.conn.row_factory = sqlite3.Row
-        self.conn.executescript(SCHEMA)
+        try:
+            create_or_check(self.conn)
+        except NeedsMigration:
+            self.conn.close()
+            raise
 
     def close(self):
         self.conn.commit()
         self.conn.close()
 
-    # --- searches -------------------------------------------------------
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+
+    def commit(self):
+        self.conn.commit()
+
+    # --- per-name log (pre-saved-search table, still kept up to date) -----
     def search_done(self, accepted_name, query_name):
         row = self.conn.execute(
             "SELECT 1 FROM searches WHERE accepted_name=? AND query_name=?",
@@ -73,26 +66,68 @@ class LectorStore:
     def record_search(self, entry, query_name, role, total, kept):
         self.conn.execute(
             "INSERT OR REPLACE INTO searches VALUES (?,?,?,?,?,?,?)",
-            (entry.name, query_name, entry.tvk, role, _now(), total, kept))
+            (entry.name, query_name, entry.tvk, role, now(), total, kept))
         self.conn.commit()
+
+    # --- BHL's answer per name, before filters (LEC5: re-filter offline) ---
+    def cache_name_hits(self, query_name, pages):
+        self.conn.execute("DELETE FROM name_hits WHERE query_name=?", (query_name,))
+        self.conn.executemany(
+            "INSERT OR REPLACE INTO name_hits (query_name, page_id, record) VALUES (?,?,?)",
+            [(query_name, p["page_id"], json.dumps(p, ensure_ascii=False)) for p in pages])
+        self.conn.execute(
+            "INSERT OR REPLACE INTO name_lookups (query_name, searched_at, pages) VALUES (?,?,?)",
+            (query_name, now(), len(pages)))
+        self.conn.commit()
+
+    def cached_name_hits(self, query_name):
+        """BHL's page list for a name as last fetched, or None if never fetched."""
+        if not self.conn.execute("SELECT 1 FROM name_lookups WHERE query_name=?",
+                                 (query_name,)).fetchone():
+            return None
+        return [json.loads(r[0]) for r in self.conn.execute(
+            "SELECT record FROM name_hits WHERE query_name=? ORDER BY page_id", (query_name,))]
+
+    def name_lookup(self, query_name):
+        return self.conn.execute("SELECT * FROM name_lookups WHERE query_name=?",
+                                 (query_name,)).fetchone()
+
+    def forget_name_hits(self, query_names):
+        for n in query_names:
+            self.conn.execute("DELETE FROM name_hits WHERE query_name=?", (n,))
+            self.conn.execute("DELETE FROM name_lookups WHERE query_name=?", (n,))
 
     # --- pages ----------------------------------------------------------
-    def add_page_hit(self, page, entry, query_name):
-        """Insert page metadata (if new) and link it to this species/name."""
-        self.conn.execute(
-            "INSERT OR IGNORE INTO pages (page_id, item_id, title_id, title, volume,"
-            " year, page_label, page_url, ocr_url) VALUES (?,?,?,?,?,?,?,?,?)",
-            (page["page_id"], page["item_id"], page["title_id"], page["title"],
-             page["volume"], page["year"], page["page_label"], page["page_url"],
-             page["ocr_url"]))
+    def upsert_page(self, page):
+        """Insert page metadata, or refresh it from BHL's latest answer
+        (year, page type, authors...). Downloaded text is never touched."""
+        self.conn.execute("INSERT OR IGNORE INTO pages (page_id) VALUES (?)", (page["page_id"],))
+        cols = [c for c in PAGE_COLUMNS if page.get(c) is not None]
+        if cols:
+            self.conn.execute(
+                f"UPDATE pages SET {', '.join(c + '=?' for c in cols)} WHERE page_id=?",
+                [page[c] for c in cols] + [page["page_id"]])
+
+    def add_hit(self, page_id, accepted_name, query_name, tvk):
         self.conn.execute(
             "INSERT OR IGNORE INTO page_hits (page_id, accepted_name, query_name, tvk)"
-            " VALUES (?,?,?,?)", (page["page_id"], entry.name, query_name, entry.tvk))
+            " VALUES (?,?,?,?)", (page_id, accepted_name, query_name, tvk))
 
-    def commit(self):
-        self.conn.commit()
+    def add_page_hit(self, page, entry, query_name):
+        """Insert page metadata (if new) and link it to this species/name."""
+        self.upsert_page(page)
+        self.add_hit(page["page_id"], entry.name, query_name, entry.tvk)
 
-    def pages_missing_text(self, accepted_name):
+    def pages_missing_text(self, accepted_name=None, page_ids=None):
+        if page_ids is not None:
+            ids = list(page_ids)
+            if not ids:
+                return []
+            marks = ",".join("?" * len(ids))
+            rows = self.conn.execute(
+                f"SELECT page_id FROM pages WHERE fetched_at IS NULL AND page_id IN ({marks})"
+                " ORDER BY year, page_id", ids).fetchall()
+            return [r["page_id"] for r in rows]
         rows = self.conn.execute(
             "SELECT DISTINCT p.page_id FROM pages p JOIN page_hits h USING(page_id)"
             " WHERE h.accepted_name=? AND p.fetched_at IS NULL"
@@ -102,7 +137,7 @@ class LectorStore:
     def save_text(self, page_id, text, text_source, names_found):
         self.conn.execute(
             "UPDATE pages SET ocr_text=?, text_source=?, names_found=?, fetched_at=?"
-            " WHERE page_id=?", (text, text_source, names_found, _now(), page_id))
+            " WHERE page_id=?", (text, text_source, names_found, now(), page_id))
         self.conn.commit()
 
     # --- reporting ------------------------------------------------------
@@ -119,6 +154,39 @@ class LectorStore:
         rows = self.conn.execute(
             "SELECT DISTINCT accepted_name FROM page_hits ORDER BY accepted_name")
         return [r[0] for r in rows]
+
+    def reviewed_count(self, accepted_name):
+        """Pages of a species with a review status other than unreviewed, or notes."""
+        return self.conn.execute(
+            "SELECT COUNT(DISTINCT page_id) FROM page_hits WHERE accepted_name=?"
+            " AND (review_status != 'unreviewed' OR COALESCE(notes, '') != '')",
+            (accepted_name,)).fetchone()[0]
+
+    def forget_species(self, accepted_name):
+        """Drop a species' searches and page links. Page text stays cached, so
+        a re-fetch with new filters costs one request per name, not per page.
+        BHL's cached name lists go too, so the re-fetch asks BHL afresh."""
+        names = [r[0] for r in self.conn.execute(
+            "SELECT DISTINCT query_name FROM page_hits WHERE accepted_name=?"
+            " UNION SELECT query_name FROM searches WHERE accepted_name=?",
+            (accepted_name, accepted_name))]
+        n = self.conn.execute("DELETE FROM page_hits WHERE accepted_name=?",
+                              (accepted_name,)).rowcount
+        self.conn.execute("DELETE FROM searches WHERE accepted_name=?", (accepted_name,))
+        self.forget_name_hits(names)
+        self.conn.execute(
+            "DELETE FROM search_pages WHERE search_id IN (SELECT search_id FROM"
+            " saved_searches WHERE target_name=? AND kind='species')", (accepted_name,))
+        self.conn.commit()
+        return n
+
+    def dossier_rows(self, accepted_name):
+        return self.conn.execute(
+            "SELECT p.*, GROUP_CONCAT(DISTINCT h.query_name) AS matched_names,"
+            " MAX(h.tvk) AS tvk, GROUP_CONCAT(DISTINCT h.review_status) AS statuses,"
+            " MAX(h.notes) AS notes, MAX(h.review_tag) AS review_tag"
+            " FROM pages p JOIN page_hits h USING(page_id)"
+            " WHERE h.accepted_name=? GROUP BY p.page_id", (accepted_name,)).fetchall()
 
     def pages_for_species(self, accepted_name):
         return self.conn.execute(

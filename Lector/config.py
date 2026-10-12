@@ -49,6 +49,8 @@ LECTOR_DB = Path(getattr(paths, "LECTOR_DB", DATA_DIR / "lector.db"))
 UKSI_DB = Path(paths.UKSI_DB)
 KEY_FILE = DATA_DIR / "bhl_api_key.txt"          # data/ is git-ignored
 EXPORT_DIR = DATA_DIR / "lector_exports"
+SYNONYM_FILE = DATA_DIR / "lector_synonyms.txt"   # your synonym corrections (synonyms.py)
+BACKUP_DIR = DATA_DIR / "_backups"                # copy taken before lector.db is updated
 
 # --- BHL API ----------------------------------------------------------------
 API_BASE = "https://www.biodiversitylibrary.org/api3"
@@ -63,6 +65,9 @@ RETRY_STATUS = (429, 500, 502, 503, 504)
 
 # --- Harvest defaults -------------------------------------------------------
 DEFAULT_MAX_PAGES = 500    # per searched name; guards against huge hit lists
+
+# The desktop window's title (Lector/ui/app.py); Atrium finds the open window by it
+GUI_TITLE = "Lector — Biodiversity Heritage Library"
 
 
 def load_api_key(cli_key=None):

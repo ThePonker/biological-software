@@ -358,6 +358,13 @@ class AtriumPanel(QWidget):
         codex_btn.clicked.connect(self._on_codex)
         util_row.addWidget(codex_btn)
 
+        # Lector's console mode (type species one at a time); the tile opens its window
+        self.lector_console_btn = UtilityButton("Lector console", TEXT_PRIMARY)
+        self.lector_console_btn.setToolTip("Lector in a console window: type species one "
+                                           "at a time")
+        self.lector_console_btn.clicked.connect(lambda: self._launch_named("Lector console"))
+        util_row.addWidget(self.lector_console_btn)
+
 
         util_row.addStretch()
         ul.addLayout(util_row)
@@ -457,8 +464,11 @@ class AtriumPanel(QWidget):
             event.accept()
 
     def _on_codex(self):
+        self._launch_named("Codex")
+
+    def _launch_named(self, name):
         for app in APPS:
-            if app.name == "Codex":
+            if app.name == name:
                 launch_and_report(app, self)
                 QTimer.singleShot(500, self.refresh_status)
                 return

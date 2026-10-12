@@ -440,7 +440,7 @@ def test_atr1_tiles_and_one_copy_each(qapp, monkeypatch):
     assert pm.launch_app(ex)[0] == pm.FOCUSED and focused == [7]  # opened elsewhere
     assert len(_FakeProc.started) == 1
 
-    lector = next(a for a in pm.APPS if a.name == "Lector")
+    lector = next(a for a in pm.APPS if a.name == "Lector console")   # the tile opens the window (r7)
     monkeypatch.setattr(lector, "process", None)
     assert pm.launch_app(lector)[0] == pm.LAUNCHED              # the folder is not Lector
     cmd = _FakeProc.started[-1][0]

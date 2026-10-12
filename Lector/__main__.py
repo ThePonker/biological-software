@@ -5,6 +5,10 @@
     python -m Lector probe "Lamia textor"               # dump raw BHL JSON
     python -m Lector status
     python -m Lector export --all          (or --name "Lamia textor")
+    python -m Lector export --name "Lamia textor" --docx [--by-journal] [--pdf]
+    python -m Lector forget --name "Lamia textor"   # then fetch again with new filters
+    python -m Lector synonyms "Lamia textor"        # which older names would be searched
+    python -m Lector gui                   # the desktop window
     python -m Lector                       # no command: type species one at a time
 """
 import argparse
@@ -14,12 +18,12 @@ import sqlite3
 import sys
 from pathlib import Path
 
-from . import config
+from . import config, upgrade
 from .bhl_client import BHLClient, BHLError
 from .export import export_species
 from .harvest import HarvestOptions, extract_pages, harvest_species
 from .species_source import UksiLookup, read_input
-from .store import LectorStore
+from .store import LectorStore, NeedsMigration
 
 
 def _utf8_console():
@@ -28,6 +32,25 @@ def _utf8_console():
             stream.reconfigure(encoding="utf-8")
         except (AttributeError, ValueError):
             pass
+
+
+def open_store():
+    """LectorStore; an older lector.db is updated only after you type YES."""
+    try:
+        return LectorStore()
+    except NeedsMigration as exc:
+        print(f"! {exc}\n  What the update would do (dry run, nothing changed yet):")
+        print(upgrade.format_report(upgrade.dry_run(config.LECTOR_DB)))
+        try:
+            ok = input(f"\nType YES to update {config.LECTOR_DB.name} "
+                       "(a backup copy is made first): ").strip() == "YES"
+        except EOFError:
+            ok = False
+        if not ok:
+            raise SystemExit("Nothing has been changed.")
+        print(upgrade.format_report(upgrade.apply(config.LECTOR_DB, config.BACKUP_DIR)))
+        print("✓ lector.db updated.\n")
+        return LectorStore()
 
 
 def cmd_fetch(args):
@@ -52,12 +75,14 @@ def cmd_fetch(args):
     opts = HarvestOptions(
         from_year=args.from_year, to_year=args.to_year, max_pages=args.max_pages,
         include_titles=args.include_title or [], exclude_titles=args.exclude_title or [],
-        count_only=args.count_only, refresh=args.refresh)
+        count_only=args.count_only, refresh=args.refresh, skip_index=args.skip_index)
     n_names = sum(len(e.query_names()) for e in entries)
+    held = sum(len(e.held_back) for e in entries)
     print(f"Lector: {len(entries)} species, {n_names} names to search"
-          + ("  [count only]" if opts.count_only else ""))
+          + ("  [count only]" if opts.count_only else "")
+          + (f"  ({held} synonyms held back - see `python -m Lector synonyms`)" if held else ""))
 
-    store = LectorStore()
+    store = open_store()
     try:
         for entry in entries:
             harvest_species(client, store, entry, opts)
@@ -89,7 +114,7 @@ def cmd_probe(args):
 
 
 def cmd_status(args):
-    store = LectorStore()
+    store = open_store()
     rows = store.status_rows()
     store.close()
     if not rows:
@@ -103,13 +128,78 @@ def cmd_status(args):
 
 
 def cmd_export(args):
-    store = LectorStore()
+    store = open_store()
     names = store.species_names() if args.all else [args.name]
     out_dir = Path(args.out) if args.out else config.EXPORT_DIR
     for name in names:
+        if args.docx or args.pdf:
+            _export_docx(store, name, out_dir, args.by_journal, args.pdf)
+            continue
         path, n = export_species(store, name, out_dir)
         print(f"✓ {name}: {n} pages → {path}" if path else f"✗ {name}: nothing harvested")
     store.close()
+
+
+def _export_docx(store, name, out_dir, by_journal, pdf=False):
+    from .dossier import export_dossier          # needs python-docx
+    docx_path, xlsx_path, counts = export_dossier(store, name, out_dir, by_journal)
+    if not docx_path:
+        print(f"✗ {name}: nothing harvested")
+        return
+    entries, merged, index, no_match = counts
+    print(f"✓ {name}: {entries} entries ({merged} duplicate scans merged), "
+          f"{index} index pages, {no_match} without the name in the text")
+    print(f"  Word:  {docx_path}")
+    print(f"  Excel: {xlsx_path}" if xlsx_path
+          else "  Excel index skipped - install openpyxl:  pip install openpyxl")
+    if pdf:
+        from .pdf import to_pdf
+        pdf_path, msg = to_pdf(docx_path)
+        print(f"  PDF:   {pdf_path}" if pdf_path else f"  {msg}")
+
+
+def cmd_forget(args):
+    store = open_store()
+    reviewed = store.reviewed_count(args.name)
+    if reviewed and not args.yes:
+        store.close()
+        raise SystemExit(f"✗ {args.name}: {reviewed} pages have a review status or notes, which "
+                         "forget would lose. Nothing has been changed.\n  Runs now re-apply "
+                         "changed filters by themselves, so forget is rarely needed; add --yes "
+                         "to go ahead anyway.")
+    n = store.forget_species(args.name)
+    store.close()
+    print(f"✓ {args.name}: {n} page links removed. Page text is kept, so fetching "
+          "again only re-runs the searches." if n else f"✗ {args.name}: nothing stored")
+
+
+def cmd_synonyms(args):
+    """Show which names a species' search would use, and change your list."""
+    from .synonyms import SynonymRules, candidate_names
+    uksi = UksiLookup()
+    try:
+        entry = uksi.resolve(_tidy_name(args.name))
+    except ValueError as exc:
+        raise SystemExit(f"✗ {exc}")
+    if not entry.tvk:
+        uksi.close()
+        raise SystemExit(f"✗ {args.name} is not in UKSI - check the spelling.")
+    rules = SynonymRules.load()
+    for change, sign in ((args.add, "+"), (args.exclude, "-")):
+        for name in change or []:
+            line = rules.remember(sign, name, None if args.all_species else entry.name, args.reason or "")
+            print(f"✓ added to {rules.user_file.name}: {line}")
+    print(f"{entry.name}  [{entry.tvk}]")
+    for c in candidate_names(uksi, entry.name, entry.tvk, rules):
+        mark = "✓" if c["included"] else "✗"
+        print(f"  {mark} {c['name']:32} {c['origin'].replace('_', ' ')} - {c['source']}")
+        if c["held_back_reason"]:
+            print(f"      {c['held_back_reason']}")
+    for w in rules.warnings:
+        print(f"! {w}")
+    print(f"\nYour list: {rules.user_file}"
+          + ("" if rules.user_file.exists() else " (not made yet; --add / --exclude make it)"))
+    uksi.close()
 
 
 def _tidy_name(raw):
@@ -138,7 +228,7 @@ def cmd_interactive(args):
     print("Type a species name (or TVK). Older names are searched too, if you say so.\n")
     client = BHLClient(config.load_api_key())
     uksi = UksiLookup()
-    store = LectorStore()
+    store = open_store()
     shown = 0
     try:
         while True:
@@ -168,7 +258,7 @@ def cmd_interactive(args):
             if entry.synonyms:
                 print("  Names to search: " + ", ".join([entry.name] + entry.synonyms))
             try:
-                harvest_species(client, store, entry, HarvestOptions())
+                harvest_species(client, store, entry, HarvestOptions(), keep_filters=True)
             except KeyboardInterrupt:
                 print("\n! Stopped - what was fetched is saved; search again to carry on.")
             path, n = export_species(store, entry.name, config.EXPORT_DIR)
@@ -197,11 +287,15 @@ def build_parser():
     f.add_argument("--max-pages", type=int, default=config.DEFAULT_MAX_PAGES,
                    help=f"cap per searched name (default {config.DEFAULT_MAX_PAGES}; 0 = no cap)")
     f.add_argument("--include-title", nargs="+", metavar="WORD",
-                   help="keep only titles containing any of these words")
+                   help="keep only titles containing any of these whole words")
     f.add_argument("--exclude-title", nargs="+", metavar="WORD",
-                   help="drop titles containing any of these words")
+                   help="drop titles containing any of these whole words")
     f.add_argument("--count-only", action="store_true", help="report hit counts, store nothing")
-    f.add_argument("--refresh", action="store_true", help="re-search names already searched")
+    f.add_argument("--refresh", action="store_true",
+                   help="ask BHL again for names already searched (finds new scans); without it"
+                        " the last answer is re-used and only the filters are applied again")
+    f.add_argument("--skip-index", action="store_true",
+                   help="leave out pages BHL types as index or contents")
     f.add_argument("--key", help="BHL API key (otherwise env var or data/bhl_api_key.txt)")
     f.set_defaults(func=cmd_fetch)
 
@@ -218,8 +312,39 @@ def build_parser():
     g.add_argument("--name", help="accepted species name")
     g.add_argument("--all", action="store_true")
     e.add_argument("--out", help=f"output folder (default {config.EXPORT_DIR})")
+    e.add_argument("--docx", action="store_true",
+                   help="Word dossier + Excel index instead of text (needs python-docx)")
+    e.add_argument("--by-journal", action="store_true",
+                   help="with --docx: order entries by journal, then year")
+    e.add_argument("--pdf", action="store_true",
+                   help="Word dossier and a PDF copy (needs Word + docx2pdf, or LibreOffice)")
     e.set_defaults(func=cmd_export)
+
+    fg = sub.add_parser("forget", help="remove a species' searches so it can be re-fetched"
+                                       " with new filters (page text is kept)")
+    fg.add_argument("--name", required=True, help="accepted species name")
+    fg.add_argument("--yes", action="store_true", help="go ahead even if pages have been reviewed")
+    fg.set_defaults(func=cmd_forget)
+
+    sy = sub.add_parser("synonyms", help="show the names a species' search would use;"
+                                         " --add / --exclude change your list")
+    sy.add_argument("name", help="species name or TVK")
+    sy.add_argument("--add", nargs="+", metavar="NAME", help="also search these names")
+    sy.add_argument("--exclude", nargs="+", metavar="NAME", help="never search these names")
+    sy.add_argument("--all-species", action="store_true",
+                    help="with --exclude: for every species, not just this one")
+    sy.add_argument("--reason", help="your reason, kept in the list")
+    sy.set_defaults(func=cmd_synonyms)
+
+    gu = sub.add_parser("gui", help="open the Lector window (saved searches, reading list)")
+    gu.set_defaults(func=cmd_gui)
     return p
+
+
+def cmd_gui(_args):
+    """The desktop window (Lector/ui); launchers\\run_lector_gui.bat, Atrium's tile."""
+    from .ui.app import main as gui_main
+    raise SystemExit(gui_main())
 
 
 def main(argv=None):

@@ -7,8 +7,9 @@ app's own window (by its title, on Windows) and for the process it started
 itself. If either is found the window is brought forward instead of a second
 copy being started -- including a copy opened from run.bat or a launcher.
 
-Lector is a console tool: it is started in a new console window, titled so it
-can be found again (Atrium/console_launch.py).
+Lector opens its window (`python -m Lector gui`, 12 Oct 2026); its console mode
+(type species one at a time) is the "Lector console" button, started in a new
+console window titled so it can be found again (Atrium/console_launch.py).
 
 The Tabella workbook code (open / regenerate, which deleted the old .xlsm files)
 was removed 10 Oct 2026 (ATR-2); Tabella was retired 7 Oct.
@@ -49,6 +50,8 @@ class AppDef:
 
 # Lector's console window title: set by console_launch, found by this.
 LECTOR_TITLE = "Lector — BHL literature (Atrium)"
+# Lector's own window title (single source: Lector/config.py)
+from Lector.config import GUI_TITLE as LECTOR_GUI_TITLE  # noqa: E402
 
 APPS = [
     AppDef("Observatum", "Biological recording", "beetle.png",
@@ -63,7 +66,9 @@ APPS = [
            "Curator", "#4a7c59", "#e6f0ea", window_title="Collection Layout Planner"),
     AppDef("Munia", "Capacity planner", "bat.png",
            "Munia", "#4a6580", "#e4ecf2", window_title="Munia — Capacity Planner"),
-    AppDef("Lector", "BHL literature (console)", "bat.png",
+    AppDef("Lector", "BHL literature", "book.png",
+           "Lector", "#5c6b7a", "#eaecef", window_title=LECTOR_GUI_TITLE, args=("gui",)),
+    AppDef("Lector console", "BHL literature (console)", "book.png",
            "Lector", "#8b8178", "#f3f1ee", window_title=LECTOR_TITLE, console=True),
 ]
 

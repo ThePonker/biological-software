@@ -21,6 +21,8 @@ class SpeciesEntry:
     name: str                      # accepted / supplied name
     tvk: str = None
     synonyms: list = field(default_factory=list)
+    held_back: list = field(default_factory=list)   # (name, reason) not searched (LEC3)
+    added: list = field(default_factory=list)       # names from the user's synonym list
 
     def query_names(self):
         """(name, role) pairs to send to BHL, accepted name first."""
@@ -66,8 +68,11 @@ class UksiLookup:
             self.warnings.append(f"uksi.db not found at {db_path} - names used as supplied")
             return
         self.conn = sqlite3.connect(f"file:{Path(db_path).as_posix()}?mode=ro", uri=True)
+        self.conn.row_factory = sqlite3.Row
         self.taxa_ok = self._has("taxa", ("tvk", "scientific_name"))
         self.syn_ok = self._has("synonyms", ("synonym", "tvk"))
+        self.family_ok = self._has("taxa", ("family", "genus", "rank"))
+        self.map_ok = self._has("name_map", ("name", "recommended_tvk", "name_status"))
         if not self.taxa_ok:
             self.warnings.append("uksi.taxa (tvk, scientific_name) not found - no TVK resolution")
         if not self.syn_ok:
@@ -77,8 +82,69 @@ class UksiLookup:
         cols = {r[1] for r in self.conn.execute(f"PRAGMA table_info({table})")}
         return set(columns) <= cols
 
+    # --- lookups used by the synonym checks and the service (read-only) ---
+    def taxon(self, tvk):
+        """taxa row as a dict (tvk, scientific_name, rank, family, genus) or None."""
+        if not (self.conn and self.taxa_ok and tvk):
+            return None
+        row = self.conn.execute("SELECT * FROM taxa WHERE tvk=?", (tvk,)).fetchone()
+        return dict(row) if row else None
+
+    def taxa_named(self, name):
+        """Current taxa with this exact scientific name (any case)."""
+        if not (self.conn and self.taxa_ok):
+            return []
+        rows = self.conn.execute(
+            "SELECT * FROM taxa WHERE scientific_name=? COLLATE NOCASE ORDER BY tvk",
+            (name.strip(),)).fetchall()
+        return [dict(r) for r in rows]
+
+    def recommended_for(self, name):
+        """TVKs UKSI recommends for an old or variant name (synonyms + name map)."""
+        tvks = []
+        if self.conn and self.syn_ok:
+            tvks += [r[0] for r in self.conn.execute(
+                "SELECT tvk FROM synonyms WHERE LOWER(synonym)=LOWER(?)", (name.strip(),))]
+        if self.conn and self.map_ok:
+            tvks += [r[0] for r in self.conn.execute(
+                "SELECT recommended_tvk FROM name_map WHERE name=? COLLATE NOCASE",
+                (name.strip(),))]
+        return list(dict.fromkeys(tvks))
+
+    def synonym_names(self, tvk):
+        """(name, source) pairs UKSI gives as other names of a taxon: the
+        synonyms table, then Latin S/U rows of the name map."""
+        out = []
+        if self.conn and self.syn_ok:
+            out += [(r[0], "synonyms") for r in self.conn.execute(
+                "SELECT DISTINCT synonym FROM synonyms WHERE tvk=? ORDER BY synonym", (tvk,))]
+        if self.conn and self.map_ok:
+            out += [(r[0], "name_map") for r in self.conn.execute(
+                "SELECT DISTINCT name FROM name_map WHERE recommended_tvk=?"
+                " AND name_status IN ('S','U') ORDER BY name", (tvk,))]
+        return out
+
+    def species_with_epithet(self, epithet, family, exclude_tvk=None):
+        """Current species/subspecies in a family whose name ends in this epithet."""
+        if not (self.conn and self.family_ok and epithet and family):
+            return []
+        rows = self.conn.execute(
+            "SELECT tvk, scientific_name, genus FROM taxa WHERE family=? AND"
+            " rank IN ('Species','Subspecies') AND scientific_name LIKE ? AND tvk != ?",
+            (family, f"% {epithet}", exclude_tvk or "")).fetchall()
+        return [dict(r) for r in rows]
+
+    def family_species(self, family):
+        """(tvk, scientific_name) of the species of a family, in UKSI order."""
+        if not (self.conn and self.family_ok):
+            return []
+        return [(r[0], r[1]) for r in self.conn.execute(
+            "SELECT tvk, scientific_name FROM taxa WHERE family=? AND rank='Species'"
+            " ORDER BY sort_code, scientific_name", (family,))]
+
     def resolve(self, raw, with_synonyms=False):
-        """Turn a raw name or TVK into a SpeciesEntry."""
+        """Turn a raw name or TVK into a SpeciesEntry. With synonyms, names that
+        fail the checks in Lector.synonyms are held back (entry.held_back)."""
         tvk, name = (raw, None) if TVK_RE.match(raw) else (None, raw)
         if self.conn and self.taxa_ok:
             if tvk:
@@ -97,15 +163,17 @@ class UksiLookup:
         elif tvk:
             raise ValueError(f"TVK {tvk} supplied but UKSI lookup unavailable")
         entry = SpeciesEntry(name=name, tvk=tvk)
-        if with_synonyms and tvk and self.conn and self.syn_ok:
-            rows = self.conn.execute(
-                "SELECT DISTINCT synonym FROM synonyms WHERE tvk=?", (tvk,)).fetchall()
-            seen = {name.lower()}
-            for (syn,) in rows:
-                syn = (syn or "").strip()
-                if syn and syn.lower() not in seen:
-                    seen.add(syn.lower())
-                    entry.synonyms.append(syn)
+        if with_synonyms:
+            from .synonyms import SynonymRules, candidate_names
+            for c in candidate_names(self, name, tvk, SynonymRules.load()):
+                if c["origin"] == "accepted":
+                    continue
+                if c["included"]:
+                    entry.synonyms.append(c["name"])
+                    if c["origin"] == "user_added":
+                        entry.added.append(c["name"])
+                else:
+                    entry.held_back.append((c["name"], c["held_back_reason"]))
         return entry
 
     def close(self):
