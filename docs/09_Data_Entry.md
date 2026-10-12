@@ -1,7 +1,7 @@
 # Data Entry
 
 ## The recording grid
-## Updated 8 October 2026
+## Updated 12 October 2026 (§5 banner, §8 built since, §9 constraints)
 ## Consolidates `26_Data_Entry_Design.md` (the design) and
 ## `27_Data_Entry_State.md` (what was built). The research behind it is in
 ## `25_Data_Entry_Research.md`, which remains worth reading.
@@ -144,9 +144,15 @@ Four fixed-height cards plus maps:
   **distribution map** with per-source legend toggles, built from
   martinjc/UK-GeoJSON reprojected.
 
-The banner is width-constrained: on a 1920px display the cards plus the grid's
-minimum column widths can exceed the screen, clipping the maps and legend. Qt
-prints a `setGeometry` warning; the fix is to trim card or column widths.
+**Narrower windows (R9-8, Round 3, 11 Oct).** The banner measures its cards at runtime:
+on a narrower window Traps steps aside first, then This workbook; the legend is never cut
+off; a scroll bar under the banner is the last resort; buttons are no longer clipped. Data
+Entry never forces the window wider than it is (it had forced 1,563 px on Wil's PC). The
+conservation chips read S.41 / SBL / S7 / Protected, with the full label on hover, and fold
+into "+n" when they don't fit. Standalone Data Entry opens fitted to the screen (Round 5).
+
+**Short screens.** At 1280×720 (a laptop at 150 %) the grid shows about 7 rows. Decided
+12 Oct (Q54): a toggle that folds the cards to one line. In the small-fixes round.
 
 ---
 
@@ -235,28 +241,31 @@ without the recorder catches names iRecord writes differently, and says how many
 all are back the job can be closed (`irecord_returned`; rows kept, no longer counted as
 staged); otherwise the missing rows are listed. Commercial jobs commit as before.
 
-## 8. Not yet built
+## 8. Built since 8 October
 
-**Clicker count-mode** (backlog B1). A configurable keystroke increments the
-current quantity; a second decrements for corrections. Works from the spacebar,
-an on-screen button, or a **USB foot pedal programmed to emit that keystroke** —
-so it needs no hardware, and a pedal is an optional improvement. A large,
-glanceable counter lets the total be checked without leaving the eyepieces. The
-flow is ID-first: species and sex set, then count-mode on quantity, then Enter.
-
-**Repeat key** (B2). Clones the just-entered row and lands on Sex — for
-same-species sex splits, three males then two females, common in spiders,
-Diptera and Hymenoptera. Four keystrokes for the second row.
-
-Both matter for microscope work and neither is hard; they have simply not been
-reached.
-
----
+- **Count mode (F9)** (B1, 9 Oct): Space / + / F13 add one to the current row's No., - takes
+  one off, Enter moves on; a large counter; keys in QSettings (`DataEntry/countUpKeys`,
+  `countDownKeys`), so a USB foot pedal works.
+- **Repeat key, Ctrl+R** (B2, 9 Oct): copies species, stage and context into a new row below
+  and lands on Sex.
+- **Paste and common names** (B4, B6, 9 Oct): pasted names go through the typing rules and are
+  never guessed; a single hit reached only through part of a common name asks first.
+- **Check before commit** (B8, built 8 Oct, **passed Wil's test 12 Oct**): missing site,
+  grid ref, doubles, unreadable or future dates, no recorder, no VC, listed before writing;
+  default "Go back and fix".
+- **Round 2 (10 Oct, tested 12 Oct):** a **count of 0** is pink in the cell, named by Check
+  before commit and blocks that row (decision 8); "Showing: entry order" / "sorted by …
+  (view only)" with **Back to entry order** (L21; the stored order never changes); sorting
+  keeps the Copy context tick but copies nothing while sorted (Round 3); the "All my records"
+  map leaves out records the counting switches exclude.
+- **Quick Entry** (Observatum): the Commercial project is a pick-only list of existing
+  projects, with the hint "New projects start in Data Entry" (decision 7). *12 Oct:* its
+  popup is see-through (fault F50, small-fixes round).
 
 ## 9. Known constraints
 
-**Pasted species names store as text with no TVK**, and commit lets those rows
-through with only a count as warning (B4).
+**Pasted names that can't be matched** stay as text with no TVK; Check before commit lists
+them (B4, B8).
 
 **The standalone launcher points at a dev copy by default.** Easy to type into
 the wrong database if the distinction is forgotten.

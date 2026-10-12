@@ -1,8 +1,8 @@
 # Current State
 
-## 10 October 2026
+## 12 October 2026 (after Round 8 and the outstanding tests)
 ## The only home for these figures. If a number appears elsewhere, it is a copy
-## and it will drift.
+## and it will drift. Session history is in `02b_History.md` (split out 12 Oct).
 
 ---
 
@@ -10,17 +10,54 @@
 
 | Component | State |
 |---|---|
-| **Observatum** | Active. **10 Oct:** one shared typo-tolerant species search everywhere; Filter Wizard and filter bars working on all three tabs; one taxon grouping (`shared/taxon_groups.py`, backfilled); Mapping by several taxa/ranks/groups with legend, colour per taxon and a County view; Tier 2 review fixes; filtering sped up (debounce, one reload, index). Species lookup shows the accounts panel. Counts still differ between Home and Observation Data (F45, backlog A). 626 tests pass. |
-| **Data Entry** | **In production, first real commit made 2 October** (Birmingham – Wheels Park, 172 records). Commit now sets `embargo_status`. Species account opens from the grid (6 Oct). **Five more commits 8 October**: Elmley 47 (no embargo, by choice), Alsager 296, Sundon 198, Slade Green 445, Bristol 150 -- 1,136 records. A check the same morning found gaps (fault F28); fixed, and `scripts/check_data_entry_batches.py` now runs after a commit. |
-| **Examen** | **Runs, and reproduces an issued report's SQI exactly** (Glory Park, 117). Reads `assessment_records`, so contributed records count. Excel, PDF and Word reports; compartments (E6), saproxylic SQI + IEC (E7), taxonomic summary (E8b); Tier 1 review fixes 9 Oct. Freeze/archive retired (E13). |
-| **Codex** | Rebuilt 9 October (D5 Pantheon rebuild) on **JNCC June 2026** and **UKSI July 2025**. **63 reviews** (35 status reviews + 28 BRC/ITE/Cox/BSBI atlases, accounts only, 10 Oct), 6,566 review accounts. |
-| **UKSI** | **Updated 6 October to the NHM July 2025 release** (`build_uksi_from_release.py`); the December 2023 file kept as `uksi_2023.db`. |
-| **Contributed records** | `contributed_observations`, 501 records (J. Moore: Birmingham 162, Slade Green 339). Read-only Contributed tab (K1, 9 Oct). Shown on Mapping only when chosen. |
-| **Curator** | Working. Does not write curatorial fields. |
-| **Tabella** | **Retired 7 October 2026**, archived to `_archive\Tabella_20261007`. |
-| **Lector** | BHL harvester for species-profile literature; `data\lector.db`, now backed up. API key in use. Interactive mode added 10 Oct (double-click no longer "crashes"). UI parked. |
-| **Munia** | MUN-1/2 fixed 9 Oct; untested (not in use until work comes in). |
-| **Atrium** | Launcher. Tiles for Examen and Lector; one window per app; dead Tabella code removed (10 Oct). |
+| **Observatum** | Active. Since 10 Oct: species-counting switches everywhere (Settings › Species counting; excluded rows dimmed, "Show only excluded"); Cleaning Report (Stats/Reports); Recording Scheme records read-only; Home cards Personal, Commercial, All, Scheme & Collection (Achievements card gone); Open in iRecord in record details and the Mapping square list; Species lookup "View N scheme records"; Edit Specimen "Field record" box; laptop sizes (dialogs fit 1280×720 and scroll with their buttons kept on screen; the window narrows to about 1,100 px). **Startup "window early, rest behind"** (§1a). Mapping: VC labels, VC boundaries (each border once), Local authority districts switch (2013 ONS for now), Square opacity slider, County view, Current-view atlas PNG. |
+| **Data Entry** | In production. Commits 2 Oct (Birmingham 172) and 8 Oct (1,136 records, five jobs). Count mode (F9) and repeat key (Ctrl+R) built 9 Oct. **Check before commit (B8) passed Wil's test 12 Oct.** A count of 0 is pink and blocks that row's commit; conservation chips read S.41 / SBL / S7 / Protected; "Showing: entry order" / "sorted by … (view only)" with Back to entry order; the banner cards narrow to fit the window. At 1280×720 the grid shows about 7 rows (compact banner agreed, Q54). |
+| **Examen** | Reproduces an issued report's SQI exactly (Glory Park, 117). Reads `assessment_records`, so contributed records count. Excel, PDF and Word reports; compartments (E6), saproxylic SQI + IEC (E7), taxonomic summary (E8b). **PDF passed Wil's review 12 Oct (E3)**; style changes wait for the report-contents work. "1 sp." singular. Fits a laptop screen (minimum 1000×560, toolbar scrolls sideways). |
+| **Codex** | Rebuilt 9 October (D5) on **JNCC June 2026** and **UKSI July 2025**. **63 reviews** (35 status reviews + 28 atlases, accounts only), 6,566 review accounts. Known stale status: *Philanthus triangulum* still carries RDB2 (12 Oct). |
+| **UKSI** | NHM July 2025 release since 6 Oct; the December 2023 file kept as `uksi_2023.db`. Synonym fix applied 9 Oct (98,415 → 98,013). |
+| **Contributed records** | `contributed_observations`, **757 records** from J. Moore: Birmingham 162, Slade Green 339, **Sundon 256** (11 Oct). Read-only Contributed tab. On Mapping only when chosen. |
+| **Insect Collection** | 2,745 specimens. Field record links: the Edit Specimen box, link / unlink scripts and `specimens.no_field_record_checked` (added on the PC 11 Oct). Read-only breakdown of specimens with no field record (§2). |
+| **Curator** | Working. Genus-only specimens get their own "<Genus> sp." row (Leiopus 3 = *L. nebulosus* 2 + Leiopus sp. 1). Does not write curatorial fields. |
+| **Lector** | **In the suite with a desktop window (Round 7, 12 Oct)**: saved searches, search builder with name checks and a preview, runs and what changed, reading list, exports (Word dossier, Excel index, PDF, text). Atrium tile; console in Atrium's Tools row. `lector.db` schema v3 (Round 8). Lector tests 9 of 9 passed; the user manual's ~130-item checklist not started. **Paused by Wil 12 Oct** (Q7). |
+| **Munia** | Multi-year projects split across business years (Round 2). Not in use; no development until work comes in. Only its look from Atrium is to be checked (with the Atrium icon job). |
+| **Atrium** | Launcher. One copy at a time (a second start brings the open one forward). Tiles for Examen and Lector (book icon); Lector console in the Tools row. Icons and restyle agreed as one job (Q52/53). |
+| **Tabella** | Retired 7 October 2026 (`_archive\Tabella_20261007`). |
+
+---
+
+## 1a. Startup, tests and what Wil has tested
+
+**Startup ("window early, rest behind", Round 6, Wil's choice 11 Oct).** Under the splash:
+Home, Observation Data, Contributed and Insect Collection. Behind the open window: Recording
+Scheme records, Stats/Reports, Mapping, Settings, then the species-search index, with a
+"Still loading: …" line in the status bar. A tab clicked early shows "Finishing loading…" and
+moves to the front of the queue. `run.bat --timing` prints the phases and every GUI pause over
+100 ms with where it happened.
+
+| PC, `run.bat --timing` | Round 5 (11 Oct) | Round 6 (12 Oct) | **Round 8 (12 Oct 15:41)** |
+|---|---:|---:|---:|
+| Window shown | 14.7 s | 5.75 s | **5.72 s** |
+| Everything ready | 15.3 s | 16.33 s | **12.05 s** |
+| Longest GUI pause | — | 1,231 ms | **106 ms** (stats order grid build) |
+
+**Automated tests:** 1,219 pass here (12 Oct, Round 8 + review). On the PC after Round 8:
+1,218 passed, 2 skipped, 1 failed; the failure was test-only (it assumed an old `lector.db`)
+and is fixed (`3fe4a7a`). One test-order flake may remain (`test_window_width_r4` before
+`test_small_fixes_20261010`, small fix 9).
+
+**Wil's manual test rounds, all passed:**
+
+| Test round | Covers (build) | Result |
+|---|---|---|
+| Round 9 (tests 1–43) | Round 2 build, 10 Oct | 1–29 on 10/11 Oct; 30–38, 41–43 on 12 Oct (30, 31, 34, 35 with `tests/manual_import_files/`). 39 superseded by Round 12 Test 4; 40 (Munia) skipped by Wil |
+| Round 10 (23) | Round 3, 11 Oct | 23 of 23 |
+| Round 11 (13) | Round 4 and Sundon, 11 Oct | 13 of 13 |
+| Round 12 (4) | Rounds 5–6, 11 Oct | 4 of 4, plus the 150 % scaling check |
+| Lector (9) | Round 7, 12 Oct | 9 of 9 |
+| Outstanding tests (18) | Round 8 opacity, B8, E3, Round 9 leftovers | all passed 12 Oct |
+
+Not yet tested: the Lector manual checklist (`docs/Lector_User_Manual.md`, sections A–N) and
+the test on a clean `lector.db` (paused); Observatum and Lector on a real laptop.
 
 ---
 
@@ -110,15 +147,22 @@ current TVKs through the bridge. The other 10 are treated as ordinary S41
 
 | | |
 |---|---:|
-| Observations | **24,962** (measured 10 Oct on the 9 Oct copy) |
-| Recording Scheme | **110,510**; 35,104 with an iRecord ID (restored 9 Oct, F40); taxon groups backfilled 10 Oct (75,406 rows) |
-| On TVKs newer than UKSI July 2025 | 42 records on 7 TVKs -- left as they are, names stored on the records |
-| Contributed observations | 501 (J. Moore: Birmingham – Wheels Park 162, Slade Green 339) |
+| Observations | **24,962** (measured 10 Oct on the 9 Oct copy). Counted with the default switches on the PC, 12 Oct: **24,827 records, 3,163 species** (Personal 19,043 + Commercial 5,784; Home's All card matches Observation Data) |
+| Changed on the PC 11 Oct | *Melanotus* 10 records to the click-beetle genus (F43); 16 records off TVKs not in UKSI (28 left with no match, Q61); 39 iRecord-format sort keys recomputed (10/11 Oct) |
+| Recording Scheme | **110,510**; 35,104 with an iRecord ID (restored 9 Oct, F40); taxon groups backfilled 10 Oct (75,406 rows). **11 Oct:** 11,149 records from 18 padding datasets moved from exact 1 January dates to year-only (`fix_jan1_dates_20261011.py`; the January bar 11,648 → 499); 39 "unclear" iRecord-longhorn and 173 small-dataset 1 January dates left for the final dataset (Q57/58). Counted with the default switches: 108,577 records, 82 species (12 Oct) |
+| On TVKs not in UKSI July 2025 | 28 records left after the 11 Oct remap (*Astur gentilis*, redpolls, *Collybia*, *Cnephaeus*, the earwig agg.); waiting for the next UKSI (Q61) |
+| Contributed observations | **757** (J. Moore: Birmingham – Wheels Park 162, Slade Green 339, Sundon 256 on 11 Oct) |
 | Vice-county filled | 4,169 backfilled 26 September; 0 missing where a grid ref exists |
 | species_profiles (your own) | **141** -- 70 Kent Deadwood, 71 from seven other reports (6 Oct), keyed on TVK |
 | Remapped to current TVKs, 6 Oct | 12 observations, 1 specimen, 1 own profile (`remap_record_tvks.py`) |
 
-### Specimens — measured 26 September
+### Specimens — measured 26 September; links 11 Oct
+
+**Specimens with no field record** (`scripts/report_specimens_without_records.py`, read only,
+PC 11 Oct): 863 of Wil's, complete, would make **794 new records**; **506 near misses** to link
+by hand (Q28); 2 missing details; 33 other people's (Wil's use only, never exported); 37 already
+in the Recording Scheme (list only). Certain links found by `link_specimens_to_observations.py`:
+about 1,115 (dry run 11 Oct).
 
 | | |
 |---|---:|
@@ -135,6 +179,9 @@ current TVKs through the bridge. The other 10 are treated as ordinary S41
 | uksi_2023.db | The December 2023 file, kept beside it: 122,435 taxa. |
 | pantheon.db | 14,229 species, frozen at 2017 v3.7.4. 11,311 SQS scores on 0, 1, 4, 8, 16, 32. Holds Pantheon's biotope→habitat tree in `habitat_traits`. |
 | vc_lookup.db, examen.db, munia.db, gamification.db | unchanged |
+| lector.db | Schema v3 (Round 8). On the PC, 12 Oct: 3 saved searches -- *Emus hirtus* (499 pages, most without text), *Rutpela maculata* (50), *Lamia textor* (160 pages before filters; Run 4 with "British periodicals": 87 kept of 1,104 found). Updated with backups (`data\_backups\lector_pre_v2_*`, `lector_pre_v3_*`). |
+| vc_splits.db | 14,455 boundary 1 km squares and 42 squares with no VC (9 Oct, F29) |
+| data/maps | `vc_brc_wgs84.geojson`: the PC still has the older coarse 2 MB file (rebuild with `convert_vc_shapefile.py` recommended); `gb_outline.json` on the PC = 2013 ONS districts (380), no build script |
 
 ---
 
@@ -159,7 +206,7 @@ likely a score differing between Pantheon 3.7.4 here and 3.7.6 on the website.
 **Until 2 October Examen gave Glory Park 134.** The September "validation" matched
 key species and never compared the SQI. See `06_Faults.md`.
 
-### Every survey, 9 October (frozen in `scripts/reference_figures.json`; `check_reference_figures.py` ALL MATCH on 10 Oct)
+### Every survey, 9 October (frozen in `scripts/reference_figures.json`; `check_reference_figures.py` ALL MATCH on 10 Oct; Sundon to be updated, below)
 
 Current scoring and Pantheon's published scores alone; key species after the jurisdiction and research-only rules. *Strict* = Examen's Pantheon Only mode.
 
@@ -179,8 +226,21 @@ Current scoring and Pantheon's published scores alone; key species after the jur
 | Long Hanborough 2025 | 118 | 10 | 112 | 111 | 12 |
 | Machen 2024 | 321 | 16 | 120 | 114 | 20 |
 | Slade Green 2026 | 344 | 44 | 153 | 147 | 45 |
-| Sundon 2026 | 135 | 12 | 132 | 114 | 12 |
+| Sundon 2026 (Wil's records only; see below) | 135 | 12 | 132 | 114 | 12 |
 | Tilbury 2025 | 238 | 4 | 100 | 99 | 5 |
+
+**Sundon with Jon Moore's records (11 Oct).** 256 contributed records (150 species) joined
+Wil's 198: Examen gives **231 species (54 shared), 19 key species, SQI 125** over 5 visits
+(1 May – 5 Aug). Wil accepted Jon's identifications as recorded (Q66, 12 Oct), so
+`reference_figures.json` is to be updated to these figures (small fix 7); until then
+`check_reference_figures.py` reports Sundon as moved. Read the Pantheon-only and strict figures
+from Examen when updating (note 42 gives "Pantheon only 114", which may be Wil's records alone).
+In Pantheon Only mode *Sympetrum nigrescens* is linked to *S. striolatum* (a Pantheon
+link-table fault; a flagged local correction is agreed, Q67).
+
+**Ad hoc lists (not stored).** Betteshanger Park (M.G. Telfer, 437 records, 27–28 Apr 2026),
+analysed 12 Oct outside the databases: 296 taxa; Codex Full 29 Key (9.8 %), 5 Rare Key (1.7 %),
+SQI 123; Pantheon only 31 Key, SQI 120.
 
 The 6 October table (11 surveys, with the pre-2 October figures) is in git history. Moves since then are the 9 Oct fix round: one SQI path, the bridge J2 rule in strict mode, invertebrates from UKSI, s.l./s.s. merged (`claude/33`).
 
@@ -234,228 +294,3 @@ A species' habitats are nested only under the biotope Pantheon places them in
 (`habitat_traits`). Wet woodland sits under both tree-associated and wetland.
 
 ---
-
-## 5. Recent history
-
-### Session 44 — 10 October 2026
-
-**Morning:** 28 BRC/ITE/Cox/BSBI atlases loaded as accounts-only reviews (reviews 35 → 63,
-accounts 3,874 → 6,566; no survey figure moved); Species lookup shows the accounts panel;
-Lector given an interactive mode (its "crash" was argparse with no command).
-
-**Day build (backlog 1–5 of 9 Oct), seven agents on separate copies, merged, independently
-reviewed (4 bugs found and fixed), 147 files delivered:** one shared fuzzy species search
-(`shared/species_search.py`, `species_filter.py`); Filter Wizard and filter bars on all tabs
-(`services/filter_builder.py`); one taxon grouping (`shared/taxon_groups.py`; backfill
-applied: 75,406 scheme rows, 3 specimens relabelled); Mapping selection (several taxa,
-ranks, groups, richness, legend, VC/recorder/site/source filters); the Tier 2 review fixes.
-Then filtering sped up (13 files) and small fixes 1–7 (28 files: phenology click-through,
-Clear All beside Species, Codex group view, colour per mapped taxon, County view and the
-multi-part VC outline fault F44). **Eight test rounds with Wil, all passed**; 626 tests pass
-on the PC; `check_reference_figures.py` ALL MATCH. Items found while testing (L8–L34) and
-the specification for counting switches everywhere and a cleaning report (`claude/38`) are
-in `03`. Full status: `claude/39_Development_Status_20261010.md`.
-
-### Session 43 — 9 October 2026
-
-Full suite review (~140 findings, `claude/32`); Tier 1 fixed and tested the same evening
-(steps 1–10). Built: C2, C3, C4 stages 1–2, D5 (`build_pantheon_db.py`), D7, E6, E8, E8b,
-E13, F2, F9, H1–H6 (own map in the Mapping tab), I5 (ruff + hook), K1 (Contributed tab);
-I7b scheme and specimen import repairs on `shared/import_core.py`; E7 saproxylic SQI + IEC;
-I3b/I3c geo fixes (560 VCs corrected, 3,332 lat/longs recomputed). Data: Recording Scheme
-iRecord IDs restored (F40, 35,104), taxonomy backfill (41,892 values), 54 records moved
-from s.l./agg. to the species, Codex rebuilt twice (JNCC date reads 2026-06-09), Jon
-Moore's Slade Green records imported (339). Committed `548a6fa`.
-
-### Session 42 — 8 October 2026
-
-**Step 4 done: Claude Code can now be used on this folder.** `CLAUDE.md` (rules, safety,
-where the docs are, `py -3.14`) and `.claude/settings.json` (deletion and destructive
-git denied, bypass and auto modes off). **`scripts/check_reference_figures.py`**
-freezes every survey's species, key species and both SQIs plus the Codex counts, and
-compares; its first run matched all 44 survey figures and found doc 02's
-`manual_entries` stale (10,079 → 10,092: the 13 clearances after the UKSI swap).
-
-**The morning's Data Entry commits checked.** 59 blank site names (Alsager 17, Sundon
-9, Slade Green 33), Alsager's 31 June pitfall records with no trap or grid ref (now
-Pitfall 3, SJ 77573 55037, VC58), "Cricket bat spid" committed with no TVK (now
-*Mangora acalypha*), three doubled sex-split entries merged (*Poecilus cupreus*,
-*Nebria brevicollis*, *Agriotes lineatus*: 3 records removed, quantities summed).
-Backups `observatum_pre_alsager_pitfall3_*` and `observatum_pre_sitenames_*` in
-`reference\`. The **iRecord export** that "had no Save dialog" had excluded all 279
-embargoed records and stopped silently; it now says so, and suggests
-`<project or site>_<date>.csv`.
-
-**Found:** Pantheon species without a TVK all stored under one blank key (F26) --
-which also explains F5: 9 of the 72 research-only rows, not 10 unbridged species.
-Specimen 1752's sort key corrupted by the 6 Oct remap, and the specimen keys
-possibly on two UKSI numberings (F27). **Done:** B3, E18 (with one shared formatter
-for dates and mode labels). **Run 2:** four Slade Green re-entries deleted, every
-specimen re-keyed on the July 2025 UKSI (no visible change to the tree order),
-review 21's Track filled; all reference figures still match.
-
-**The Pantheon bridge now follows the NAMES sheet by key** (F14 / fault F25). Each
-Pantheon TVK is a UKSI name key, and NAMES says which current species that key
-belongs to; the bridge had matched by name instead, and for a name with several
-targets kept the first met. 104 bridge rows disagreed with NAMES; after two Codex
-rebuilds 37 remain, all deliberate (species kept over an aggregate; subspecies/forms
-to their species; four kept by judgement -- *Tasgius globulifer*, *Ectemnius
-rubicola*, *Hydrobia ventrosa*, *Cimex dissimilis*). 69 more Pantheon taxa now reach
-a species (unmatched 83 → 14), including the Odonata Pantheon holds under English
-names. The first rebuild let NAMES-key merges escape the J2 rule (*Anthonomus
-pomorum* 1 → 4, Badshot Lea 111 → 113); the second applies it to every merge.
-Figures that moved: Kent Pantheon-only 176 → 175 (*Nomada panzeri* now scored -- F19),
-Fermyn Pantheon-only 154 → 153 (*Cantharis flavilabris* now scored); no
-current-scoring SQI and no key-species count moved. Backups
-`codex_pre_bridge_names_*` in `reference\`. *O. linearis* and *P. recurva* are not in the July 2025 UKSI
-and stay without a TVK.
-
-### Session 41 — 7 October 2026 (evening)
-
-Species search in Add Specimen uses the Data Entry ranking (`shared/species_rank.py`).
-Folder tidy: Tabella retired to `_archive`, 135 one-off scripts and 128 `.bak` files
-archived, `build_gb_basemap.py` to `scripts/` (log `_archive/tidy_20261007_log.txt`).
-Lector joined the suite; Spider Extract moved to `Natural History Tools`. Codex Loaded
-Reviews counts species live. Fault F25 (`uksi.synonyms` wrong targets) found through
-Lector. Private GitHub repo `ThePonker/biological-software` set up, `main` and
-`stable` pushed; the `D:\` copy refreshed.
-
-### Session 40 — 6 October 2026
-
-**The UKSI updated to the July 2025 release.** The NHM portal copy turned out to
-carry the Nameserver mapping in its NAMES sheet, so a new builder
-(`build_uksi_from_release.py`) writes a `uksi.db` with the same schema from it:
-current taxa only, every other name a synonym, a `tvk_remap` for every old TVK
-the suite holds, and taxa your data uses kept even where the UKSI flags them
-redundant. A detailed review before switching found five faults in the build
-itself (cross-kingdom name matches, dead-end parents, 'species pro parte'
-refused as a species rank, uncarried English names, sort-code collisions) -- and
-an assumption that duplicate rows explained 24 valid British beetles being
-flagged redundant, which measured false: the UKSI flags them itself. Kept at your
-request. `build_codex_db.py` now translates old TVKs on every build; records and
-profiles remapped; survey figures unchanged bar Pantheon-only shifts.
-
-**Your own species profiles from eight reports** -- 70 Kent Deadwood, then 71
-from Bicester 2025, Graven Hill, Machen, Fermyn Hall Wood, Badshot Lea, BAM and
-Long Hanborough, in four layouts, verbatim, with survey-specific sentences held
-back (`import_own_profiles.py`). Five survey key species remain without an
-account. The staging grid opens the species account (row-number double-click,
-right-click, Ctrl+I).
-
-**A whole-codebase static analysis** (597 files, ~97,500 application lines):
-2 undefined names; all application code compiles on Python 3.12. It found the
-**Examen manual-entry dialog able to empty Codex's `manual_entries`** -- all
-10,079 review statuses -- from a button in the Species Database tab; disabled.
-Also fixed: both observation-filter fallbacks, a `List` import that only Python
-3.14 tolerated, and the staging grid's column-header menu. Rest queued (I7–I12).
-
-### Session 39 — 5 October 2026 (evening)
-
-**JNCC's June 2026 spreadsheet** (27,152 rows) built into Codex -- bringing the
-2022 rove beetle review (Kent 77 → 75) -- and 52 statuses JNCC had dropped or
-re-keyed without a newer review restored. Reviews 27–34 loaded (Species Status
-1, 2, 3, 17; rove and carrion beetles; Falk's 1991 aculeates; molluscs) and the
-**2019 macro-moth Red List, whose 766 statuses had never reached Codex**.
-`withdraw_statuses.py` would have let a 2005 exclusion clear Drake's 2018
-statuses; caught at the dry run, now dated. The UKSI copy found to be December
-2023, older than three public releases.
-
-### Session 38 — 5 October 2026
-
-Acalyptratae (NECR217) loaded with statuses from its data sheets and its 21
-excluded species withdrawn -- whereupon four 'Taxonomy' exclusions turned out to
-resolve, through UKSI synonyms, to valid species the same review had assessed;
-their new NS was cleared and restored, and withdrawals now match exact names
-only. Then a hidden class: 63 legacy statuses stored with a detail (RDBK /
-Insufficiently Known, '1994 IUCN') had escaped every check; cleared, verified.
-Orthoptera, caddis, shieldbug and hoverfly accounts added (26 reviews, ~2,700
-accounts). Spiders 2017 has no accounts; Hyman 1992/94 is print-only, so key
-beetles from it are yours to write.
-
-### Session 37 — 4 October 2026
-
-**Species accounts from the status reviews, and every status the newest one.**
-Tie-ups first (off-site copy, licence). A coverage check against Pantheon found
-**272 species' Nationally Scarce status discarded** by the build (NS-excludes)
--- hoverflies, water beetles, Empidoidea -- fixed. Sawflies (Musgrove, 3 phases)
-extracted and loaded with a new generic `load_review.py`; butterflies 2022
-(threat only); then 15 Natural England Species Status reviews -- ten from
-spreadsheet columns, five from PDFs (ground beetles, Larger Brachycera,
-Dolichopodidae with statuses, Lonchopteridae, Calyptratae) -- every account
-verified sentence by sentence against an independent extraction. **2,263 review
-accounts.** The accounts editor and a Record Detail accounts column (tab colours)
-built; the workbook quotes open-licence accounts with citation.
-
-Then the rule: **each species takes its status from the newest review that
-assessed it**, judgement-exclusions included, scope-exclusions not. JNCC had not
-enforced it: 71 old statuses beside newer ones, 9 withdrawn by later reviews, 7
-old names, and the calyptrate review's 300 provisional statuses never imported.
-All corrected; a full Codex rebuild then reproduced every figure. Birmingham 7 → 6
-key, Kent 78 → 77. Backups pruned 2.8 GB; off-site copy 4–5× faster.
-
-### Session 36 — 2 October 2026
-
-Started as a way to include a collaborator's records in an assessment; ended by
-making Examen reproduce a Pantheon-website SQI exactly, which it had never done.
-
-**Contributed records.** J. Moore's 162 records for Birmingham – Wheels Park went
-into a new `contributed_observations` table, kept apart from `observations` so
-stats and iRecord cannot see them by construction. Examen reads an
-`assessment_records` view of both — 13 queries changed one word. Built in about
-ten minutes on existing pieces. **The first real Data Entry commit** followed,
-and found that commit set the embargo date but not `embargo_status`, so the batch
-would have uploaded to iRecord. Fixed in code and data.
-
-**The Birmingham workbook, reviewed line by line, exposed six faults in turn.**
-Order/family/common blank in exports (one UKSI lookup now serves all). Cinnabar
-and Latticed Heath counted as key though S41 research only — and then still key
-through **UK BAP**, where the research-only category originated. A bare "Priority"
-and "Legal (1)" that were really SBL, NI Priority and the NI Wildlife Order —
-now named and greyed. Habitats nested under every biotope a species had — now
-Pantheon's own tree. A derived SQS of 16 included silently while the stamp said
-"Pantheon published".
-
-**Then the big one.** "No Pantheon data" on the 7-spot Ladybird led to the Codex
-build's invertebrate filter, which recognised a species as an invertebrate only
-if it held a conservation designation. **4,026 Pantheon scores of common species
-had been discarded since April**, inflating every SQI. Fixed from UKSI taxonomy.
-Glory Park went 134 → 120 against its report's 117; the last 3 points were
-Pantheon dividing by every species analysed, not just scored ones. With that,
-**117 exactly.**
-
-Also: the Site Analysis splitter no longer swallows the project table; the table
-sorts by any column with numbers and dates sorted properly; dates dd/mm/yyyy;
-7 Kent Deadwood records moved 2025 → 2024; `scripts/show_funcs.py` for reading
-code without dumping files.
-
-### Session 35 (continued) — 26 September evening
-
-**Vice-county backfill**: 4,169 records filled from grid references; Machen now
-assessed under Wales. Eight grid-ref/date errors corrected first (SV→SU,
-dropped digits, a date in the grid-ref column). **Jurisdiction grey-out** on the
-Conservation tab and workbook. **NECR702** (leaf beetles, Lane 2026) imported:
-1,148 statuses, 287 accounts. **Species accounts split into two layers** — review
-text in Codex keyed `(tvk, review_id)`, your own in `observatum.db` keyed on TVK —
-with review ids now preserved across rebuilds, the importer writing to Codex, and
-one shared reader behind every Observatum display. Editor and workbook column
-still to do.
-
-### Session 35 — 26 September 2026
-Loose ends closed; two days of patches committed; off-site copy made and verified;
-the jurisdiction patch found never to have applied, then applied.
-
-### Session 34 — 12–13 September 2026
-Specimen sex shown in five places; 338 specimens found missing from the Insect
-Collection tree and restored; `SpecimenRepository` whitelists fixed.
-
-### Session 33 — 6 September 2026
-Eleven reports surveyed (`38_Report_Survey.md`); Excel renderer built; DD/NT
-derivation corrected; profile provenance added.
-
-### Session 32 — 5 September 2026
-Sixteen patches, five Codex rebuilds: priority collapse, collapse tiebreak, bridge
-synonyms, bridge-aware ecology, the invented Section 41, habitat cross-product.
-
-### Earlier
-Sessions 22–31: restructure, 11-track Codex, field-season fixes, iRecord recovery,
-Data Entry built, backup system rebuilt, restore tested.

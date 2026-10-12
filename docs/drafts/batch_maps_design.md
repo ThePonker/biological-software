@@ -1,5 +1,16 @@
 # Batch maps and spread over time (R9-7), draft design, 11 Oct 2026
 
+> **Decisions answered 12 Oct 2026** (Q41–Q50 in project note
+> `claude/45_Open_Questions_20261012.md`; the draft below is unchanged): the screen **later,
+> the script is enough for now** (Q41). Q1 date classes **pre-1970 / 1970–99 / 2000–19 / 2020+,
+> editable** (Q42). Q2 class by **first record, latest as an option** (Q43). Q3 **cumulative
+> frames, new squares in a second colour** (Q44). Q4 **decades from 1950 plus a "to 1949"
+> frame** (Q45). Q5 file names **`Genus_species_grid_area.png`** (Q46). Q6 output
+> **`Documents\Observatum batch maps\<date>_<label>\`** (Q47). Q7 **one A4 page per species**
+> (Q48). Q8 **keep** an empty species' page and index row (Q49). Q9 **longhorn checklist order**
+> (Q50; a checklist CSV is needed). The odd first years noted at the end get a cleaning-report
+> check ("date before 1700", Q65).
+
 Wil asked for "a way of running multiple maps with the same settings": for example every
 longhorn species in VC23, a range of taxa across several VCs, or full distribution maps for a
 taxon group (atlas-style). He also asked for "graphics such as species spread over time".

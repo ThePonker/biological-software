@@ -1,7 +1,7 @@
 # Codex
 
 ## The conservation authority
-## Updated 6 October 2026 — supersedes `07_Codex_Design_Spec.md` (16 Apr 2026),
+## Updated 12 October 2026 (§9 known gaps); body 6–10 October — supersedes `07_Codex_Design_Spec.md` (16 Apr 2026),
 ## whose schema and priority-track descriptions no longer match the build.
 
 ---
@@ -320,24 +320,26 @@ baudueri*); check the current TVK before restoring anything (backlog D10).
 
 ## 9. Known gaps
 
-**Review accounts** accumulate through review imports (35 reviews; count in
-`02`); superseded accounts are kept so old reports stay reproducible. Your own
+**Review accounts** accumulate through review imports (63 reviews since 10 Oct,
+35 status reviews and 28 atlases; counts in `02`); superseded accounts are kept so old reports stay reproducible. Your own
 profiles live in `observatum.db`, not here.
 
 **Research-only.** Pantheon's 72 "S41 research only" species are applied in both
-modes, to the S41 and UK BAP entries, and never confer key status. 62 reach
-current TVKs; 10 do not (backlog F5). Whether Welsh S7 carries the same
-qualification is open (F6).
+modes, to the S41 and UK BAP entries, and never confer key status. Since the D5
+Pantheon rebuild (9 Oct) all of them bridge (backlog F5 closed). The Welsh S42/S7 lists
+carry no research-only flag (researched 8 Oct); the new Welsh S7 spreadsheet is still to
+be compared (F6).
 
-**1,519 designation rows reach no track.** Mostly deliberate. See `06_Faults.md`
-F8.
+**1,519 designation rows reached no track.** Mostly deliberate; the bird, Global and
+Badgers Act codes were routed on 9 Oct (backlog F2), to confirm at the next rebuild. See
+`06_Faults.md` F8.
 
 **No mechanism for disputing JNCC data.** If Codex inherits an error there is no
 local override short of a conflicting manual entry. Low priority; JNCC quality is
 generally high and disputes can go to JNCC.
 
-**Rebuild reproducibility is not proven.** Two order-dependencies have been found
-and fixed. A build-twice-and-compare check would settle the rest — backlog D7.
+**Rebuild reproducibility proven 9 Oct** (backlog D7, `check_codex_repeatable.py`: two
+builds identical).
 
 **Pantheon's "unreliable status" flag is not in the database.** Published reports
 use square brackets — `[Nationally Scarce (Nb)]` — to mark a status Pantheon's
@@ -348,3 +350,17 @@ website, not stored. Nothing to implement; recorded so nobody hunts for it.
 **Research-only classification confirmed correct.** Pantheon revised its
 research-only list after 2020, moving Wall and Small Heath off it. `pantheon.db`
 already distinguishes them, so the 72-species list needs no adjustment.
+
+### Found or decided 10–12 October
+
+- ***Philanthus triangulum* still shows RDB2** (Betteshanger analysis, 12 Oct; fault F55).
+  An outdated status; find the newer assessment and record it. Falk 1991 (review 33) is
+  internal reference only, so other aculeates may carry old statuses the same way.
+- ***Sympetrum nigrescens* → *S. striolatum*** in Pantheon's link table (Sundon, 11 Oct;
+  fault F54): affects Pantheon Only mode. **Decided (Q67): a local bridge correction, flagged.**
+- **A "sensitive species" flag** is to be added (Q78, 12 Oct), so public reports reduce the
+  grid refs of such species; Examen's generated data-sharing sentence uses it. Design with
+  the report-contents work.
+- The *Lamia* synonym rows (NAMES-sheet errors) are excluded locally
+  (`scripts/uksi_synonym_corrections.csv`) and still to be reported to the NHM with the other
+  questions for Chris Raper (F11).

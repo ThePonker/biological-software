@@ -1,0 +1,372 @@
+# Faults: closed, before October 2026 (and the 2 October SQI faults)
+
+## Split out of `06b_Faults_Closed.md` on 12 October 2026 to keep each file readable.
+## Kept in brief, because knowing what has already gone wrong is how the rules in `05`
+## were earned.
+
+---
+
+### 4,026 Pantheon scores discarded — every SQI inflated since April
+*Fixed 2 October 2026. The most consequential fault found this year.*
+
+`build_codex_db.py` imported a Pantheon SQS only if the species was in
+`invert_tvks` — built from **designations with category 'Invertebrate'**. Common
+species hold no designation, so their Pantheon scores (almost all SQS 1) were
+discarded as "non-invertebrate TVK collisions": **4,085**, of which 59 were real
+collisions. Species that arrived with Pantheon ecology still appeared in Examen;
+those with a score but no biotope coding — 7-spot Ladybird, Common Greenbottle,
+Marmalade Hoverfly — vanished from the SQI entirely.
+
+Effect: fewer than half of each list scoring, the common SQS-1 species missing,
+**every SQI too high** — Glory Park 134, Kent Deadwood 247, Birmingham 146.
+
+Found from a label: "no Pantheon data" against the 7-spot Ladybird, which Pantheon
+certainly contains. Fixed by deciding "invertebrate" from **UKSI taxonomy**
+(Animalia outside Chordata; 66,322 TVKs) unioned with the designations set.
+Pantheon scores kept: 5,568 → 9,611.
+
+**The September validation never compared the SQI.** It matched Glory Park's key
+species to the report and stopped. The report's SQI was 117 throughout.
+
+### SQI divided by scoring species, not species analysed
+*Fixed 2 October 2026.* `SQIResult.calculate` divided by `species_with_sqs`.
+Pantheon divides by every species it analysed, an unscored one counting 0 — the
+issued reports' method sections say so. Glory Park after the score fix: 144 ÷ 120
+= 120; Pantheon: 144 ÷ 123 = **117, the report exactly.** Every SQI now reports
+both counts, and the workbook notes give the sum and divisor.
+
+### Derived scores included silently
+*Fixed 2 October 2026.* `get_sqs_scores` returns Pantheon's score, else one
+derived from the rule, in one dict with nothing marking which. The SQI mixed them
+while the stamp said "SQS basis: Pantheon published"; "Analysed by Pantheon"
+counted derived-only species. Birmingham: four derived scores, *Cistogaster
+globosa* 16 among them. Now `get_stored_sqs_tvks()` separates them; both SQIs are
+reported; derived scores read "16 (derived)"; species Pantheon lacks read "no
+Pantheon data".
+
+### Research-only moths counted as Key Species
+*Fixed 2 October 2026.* Pantheon distinguishes 72 "S41 research only" species;
+JNCC lists them as plain S41, so Codex Full counted Cinnabar and Latticed Heath as
+key. The workbook's own definitions sheet said they were not. First fix
+relabelled the S41 entry — and they **stayed key through UK BAP**, where the
+category came from. Both entries are now labelled research-only, and
+`_priority_applies` rejects them everywhere. Birmingham 9 → 7, Badshot Lea 9 → 8,
+Bicester 2023 18 → 17; Glory Park unchanged.
+
+### Habitats nested under every biotope a species had
+*Fixed 2 October 2026.* `pantheon.db` stores a species' biotopes and habitats as
+unlinked lists, so a species both open-habitat and tree-associated put "decaying
+wood" under open habitats. The September fix removed the site-wide cross-product
+but not this per-species one. Pantheon's own tree is in `habitat_traits`
+(`parent_trait_id`); pairings it does not make are now skipped. Totals unchanged.
+
+### Exports said "Priority" and "Legal (1)" without saying where
+*Fixed 2 October 2026.* Non-key species exported Codex's short status. Six
+Birmingham species read "Priority" — they were SBL or NI Priority; Holly Blue read
+"Legal (1)" — the NI Wildlife Order. A reader takes both as English. Exports now
+carry the jurisdiction-named label and each legal instrument by name, greyed by
+the classifier's own rules.
+
+### Data Entry commit set the embargo date but not the status
+*Fixed 2 October 2026.* The iRecord export excludes a record only when
+`embargo_status == 'Active'` **and** the date is in the future. The first real
+commit (Birmingham, 172 records) set only the date, so the batch was uploadable.
+Found by checking the first commit's rows, before any export. `commit_job` now
+sets the status; the 172 corrected. The other 3,332 embargoed records were fine.
+
+### Order, family and common name blank in the workbook
+*Fixed 2 October 2026.* `SiteSpecies` had no such fields; the Species tab looked
+them up separately and the Appendix export did so a third time. One
+`load_taxonomy()` in `examen_data` now serves all three.
+
+### The project table vanished when a project was selected
+*Fixed 2 October 2026.* A maximum height and no minimum on the table, in a
+collapsible splitter. Now a floor, non-collapsible, remembered, and pinned across
+clicks.
+
+### Future-dated and mis-dated Kent Deadwood records
+*Fixed 26 September and 2 October 2026.* One *Melanotus* dated 2026-07-10 and
+seven Ashenbank Wood records dated 2025-07-10 — all the 10 July 2024 visit
+(evidence: matching grid refs among 57 records that day). Kent Deadwood is now a
+single 2024 survey of 1,021 records. Was F10.
+
+### Rebuilds renumbered reviews
+*Fixed 26 September 2026.* Preservation saved every review column except `id`;
+the restore let AUTOINCREMENT assign new ones. With one review it was harmless;
+after any deletion, every `manual_entries.review_id` and `supersedes_id` would
+have pointed at the wrong review. Ids now preserved explicitly.
+
+### 338 specimens missing from the Insect Collection tree
+*Fixed 12–13 September 2026.*
+
+The sidebar had been under-reporting for six months. Found only when a sex
+breakdown — counted independently — sat beside the totals and did not add up.
+Coleoptera read 1,550 against a true 1,613.
+
+**244 had no `taxonomic_sort_key`**, and the tree filters `WHERE
+taxonomic_sort_key IS NOT NULL`. Every specimen added since March, including all
+35 then sexed.
+
+The cause ran two layers deep:
+
+1. `AddSpecimenDialog.get_specimen_data()` copied four fields off the selected
+   species and never computed the sort key.
+2. When patched to compute it, **the next specimen still came out without one**.
+   `SpecimenRepository`'s `create()`, `update()` and `create_many()` whitelists
+   had never included `taxonomic_sort_key` or `superfamily`, and dropped them
+   silently. This is the true root cause, older than March.
+
+The key is `INSECT_ORDER_POSITION[order] × 1,000,000 + uksi.taxa.sort_code` —
+measured against 2,323 of 2,324 existing specimens rather than assumed, since
+UKSI holds both `sort_code` and `sort_order` and neither matched directly. The
+one exception, *Tillus elongatus*, carried a key from the 99 fallback — the same
+March fault caught mid-failure.
+
+**94 more were lost** to `subfamily` stored as NULL or `''` for the same species.
+The query grouped them apart, and `build_tree` did `d[species] = count` — an
+assignment — so the second row overwrote the first. 81 species affected.
+
+All backfilled; the dialog and all three repository whitelists fixed. Proven by
+saving a real specimen and reading the row back, and by editing one across
+orders (key prefix 19 → 23). A batch of 184 added afterwards all carried keys.
+
+### The record detail dialog hid most of a specimen
+*Fixed 13 September 2026.* For a specimen it showed date, grid reference,
+location and vice-county — and nothing else. Sex, collector, determiner and all
+four curatorial fields went undisplayed. **Collector and determiner are recorded
+on every one of the 2,568 specimens held at the time**, and had never been shown.
+
+### The jurisdiction patch never applied
+*Fixed 26 September 2026.* Written in early September, run, reported as done — and
+refused, because `site_analysis_view.py` did not import `QComboBox`. It wrote
+nothing, correctly. The service half had applied, so the two were out of step,
+harmlessly: every assessment ran under the England default. Found only by
+opening Examen and looking for the header. A process fault, not a code one —
+see `05_Rules.md`.
+
+### Single machine, no off-site copy
+*Closed 26 September 2026.* `D:\BiologicalSoftware_Offsite`, 3.8 GB, 1,249 files,
+zero failures. **Verified** by running `integrity_check` against the copied
+`observatum.db` and counting specimens — the same standard that closed the
+restore test in September.
+
+### Generated prose had stray punctuation
+*Fixed 26 September 2026.* Clauses were joined with `". "`, turning "across 4
+visits" into a sentence of its own and doubling the final full stop. The card
+beside it read "6.2% of Pantheon species" for a figure out of total species
+recorded.
+
+### DD and NT inflated 200 derived SQS scores
+*Fixed 6 September 2026.*
+
+`shared/sqs_derivation.py` treated **Data Deficient** as conferring Nationally
+Rare status, and gave **Near Threatened** its own score of 2. Both were
+documented in the module as *"not in the published lexicon, but Pantheon's
+practice"*.
+
+Neither is Pantheon's practice. Measured: **no species in `pantheon.db` scores
+2** — 11,311 scores across 0, 1, 4, 8, 16, 32 only. And Pantheon's
+scoring-systems page sets out five criteria in which DD and NT appear solely as
+things a rare or scarce species *may also be*:
+
+> "Nationally Scarce species that do not qualify under any of the other criteria.
+> They may be classed as IUCN Least Concern, **Near Threatened**, or **Data
+> Deficient**, Not Evaluated, or Not Assessed."
+
+The score is driven by **rarity**, and by **threat only from Vulnerable upwards**.
+
+| Case | Was | Now | Species |
+|---|---:|---:|---:|
+| NT alone | 2 | 1 | 40 |
+| DD alone | 8 | 1 | 156 |
+| DD + Nationally Scarce | 8 | 4 | 4 |
+| DD + Nationally Rare | 8 | 8 | 23 (already correct) |
+
+**200 species corrected, every one downward.** The DD-plus-scarce case was an
+error inside the group assumed correct: DD forced `is_rare`, pushing scarce
+species into the rare tier.
+
+**The module's own docstrings were right and the code had drifted from them.**
+
+**Judgement reversed deliberately.** `35_SQS_Stored_vs_Derived.md` recorded
+"DD → rare" as a considered reading — Data Deficient means reviewed but
+unassessable, not common, so treating it as potentially rare is a defensible
+precaution. It is not Pantheon's rule, and the purpose of the derived score is
+comparability with published SQIs.
+
+### The priority collapse — 2,303 conservation facts lost
+*Fixed 5 September 2026.*
+
+`build_codex_db.py` collapses designations with `key = (track, detail or "")`.
+All five priority jurisdictions mapped to `status_detail = None`, so they
+competed for **one slot per species** and four were discarded by row order.
+
+| Jurisdiction | True | Was stored |
+|---|---:|---:|
+| UK BAP | 1,150 | 142 |
+| Scottish Biodiversity List | 2,088 | 1,537 |
+| Env (Wales) Act S7 | 568 | 80 |
+| NERC S.41 England | 943 | 687 |
+| NI Priority Species | 482 | 482 |
+
+The table was *built* to hold one row per jurisdiction — the primary key is
+`(tvk, status_track, status_detail)`. `legal_protection` was implemented
+correctly and `priority` was not. `CodexRepository` needed no change: it was
+starved of data, not written wrongly.
+
+Key species counts did not change — every species kept at least one priority row.
+The damage was confined to *which* jurisdictions were reported.
+
+### Collapse ties resolved by row order
+*Fixed 5 September 2026.*
+
+All modern Red List codes score 100 in `ABBR_PRIORITY`, so ties were common and
+broken by whichever row came back first. `date_designated` was carried in the
+tuple and never consulted. Twelve contests of 34 resolved wrongly — eleven
+vascular plants where a 2014 England list said EX/EW and the 2021 GB list said
+RE.
+
+The twelfth shaped the fix. *Cercyon nigriceps* is stored `Nb` (Hyman 1992)
+against a 1994 review saying the generic `Notable`; plain "most recent wins"
+would have replaced a specific value with a vaguer one, overriding a deliberate
+precedence rule.
+
+**Rule: precedence first, date only as a tiebreak.**
+
+### The TVK bridge never consulted `uksi.synonyms`
+*Fixed 5 September 2026.*
+
+3,068 of 14,229 Pantheon species matched neither the direct-TVK nor the name pass
+and were dropped. **3,000 of them resolve through the synonyms table** — ordinary
+post-2017 taxonomy: *Aedes* → *Ochlerotatus*, *Achaearanea* → *Parasteatoda*.
+Bridge 11,161 → 14,161; unmatched down to 68.
+
+Of the 1,847 that landed on a species another taxon already claimed, only 89 held
+ecology nothing else could reach and 85 a higher SQS — most were spelling
+corrections recording the same animal twice. They are now bridged, with ecology
+unioned and **the incumbent's SQS kept**.
+
+*A first attempt kept the highest score instead. That inflated* Sympetrum
+striolatum *— Common Darter, one of the commonest British dragonflies — from 1 to
+4, by inheriting the score of the Highland Darter form sunk into it. Corrected
+the same day.*
+
+### `PantheonRepository` never used the bridge
+*Fixed 5 September 2026.*
+
+Every ecology lookup passed **current UKSI TVKs** to a database keyed on
+**Pantheon's 2017 TVKs**. For the 8,648 directly matched species that worked; for
+the **3,666 resolved by name or synonym it silently returned nothing** — of 400
+sampled, zero were found in `pantheon.habitats`.
+
+Visible symptom: species carrying an SQS but no biotope and no habitat in the
+Glory Park appendix. Less visible: habitat and SAT SQIs, biotope breakdowns and
+the dominant-biotopes line were computed over the directly matched species only,
+in every assessment the tool had produced.
+
+`PantheonRepository` is now bridge-aware and every caller is fixed at once.
+
+### The Conservation tab was inventing Section 41
+*Fixed 5 September 2026. The worst find of the year.*
+
+`_parse_status` reverse-engineered status codes from a display string. For a
+priority species that string is the literal `"Priority"`, which matches no token,
+so it fell through to a tier fallback that stamped **S41** on all of them.
+
+Glory Park, in Northamptonshire, reported "Section 41: 4". Its four priority
+species are on the Scottish Biodiversity List and the NI Priority Species List;
+**none is on Section 41.**
+
+**Every other fault found this year lost or mis-chose facts. This one
+manufactured them**, and it is the only one that could have put a false statement
+in a client report.
+
+### The Species Database view had been blank since April
+*Fixed 5 September 2026.*
+
+`_display_codex_status` read the pre-April 8-track attribute names. All but one
+returned `""` and were skipped silently, so the panel showed **nothing for any
+species**. `legal_protection` does exist and is a **list** — truthy, reaching
+`QLabel(val)` and raising `TypeError`. Blank or crashing for five months; found
+only because a legally protected species was selected.
+
+### The habitat tree was a cross-product
+*Fixed 5 September 2026.*
+
+`_load_biotope_habitat_mapping` queried every biotope/habitat pair in the whole
+of `pantheon.db`, then filled each row with the **site-wide** count. Glory Park
+showed "coastal" holding one species with "short sward & bare ground: 41" beneath
+it, and every habitat under every biotope with the same SQI repeated.
+
+The analysis service now computes real pairs from the sample. Unreliable SQI
+values are withheld and the scoring count shown instead — "SQI 200*" on three
+species invites misreading in a report.
+
+### Key species were not jurisdiction-aware
+*Fixed 5 September 2026.* See `02_Current_State.md` §4 for the reasoning and the
+resulting figures.
+
+### Feeding guild counts split by casing
+*Fixed 5 September 2026.* `pantheon.db` stores four guild values in two casings.
+Glory Park read `predator (37)` and `Predator (4)`; larval predators are 41.
+Habitats, biotopes and SATs were checked and have no case variants.
+
+### Gap-filled SQS computed by the wrong rule
+*Fixed 5 September 2026.* `seed_codex.SQS_DEFAULTS` scores RDB3 at 16 "per Fowles
+original SQI" — a different index — and takes max-of-pairs where the published
+rule is a function of rarity *and* threat together. **525 of 816 (64%) disagreed
+with the rule.** Derived scores are no longer stored; `CodexRepository` computes
+them on demand from `shared/sqs_derivation.py`, so `sqs_scores` now holds only
+what Pantheon published.
+
+### The appendix labelled every priority listing "S41/BAP"
+*Fixed 5 September 2026.* `display_status` used a label predating the 11-track
+scheme, so the exported appendix printed "S41/BAP (2)" against species with no
+English listing at all. Not invented, but a client's ecologist would read it as
+Section 41. Now names the jurisdiction.
+
+### Unsafe database copies throughout
+*Fixed 2–4 September 2026.* Three mechanisms copied a WAL-mode `observatum.db`
+with `shutil.copy2` while it was open, while `DatabaseManager.backup_main()` did
+it correctly and **had no callers at all**.
+
+### The Restore button had never worked
+*Fixed 4 September 2026.* `self.db_manager.main_db_path + ".pre_restore"` —
+`Path + str` raises `TypeError`, so it failed before touching anything. Replaced
+with `scripts/restore_database.py`, which runs with the app closed and verifies
+before and after.
+
+### The common-name filter excluded 38% of names
+*Fixed 27 August 2026.* A GLOB class ending `...ŵŷwy`; the bare ASCII `w` and `y`
+excluded **7,997 of 20,897** common names instead of the 22 accented ones
+intended. The filter was then found obsolete entirely.
+
+### Pre-live snapshots reached 3.9 GB
+*Fixed 2 September 2026.* 35 files at 114 MB each, inside OneDrive, no pruning.
+Retired in favour of the before-commit backup.
+
+### Obsolete databases in `data/`
+*Cleared 4 September 2026.* 568 MB, including a July dev copy that
+`python -m DataEntry` would have opened by default — a standalone launch would
+have written into a two-month-old database.
+
+### Import wizard doubled every warning
+*Fixed 2 September 2026.* The insert path mutated `row.import_notes`, then
+`_combine_import_notes` read it back and appended the same warning again. 175
+existing rows retain doubled notes; cosmetic.
+
+### Earlier, in brief
+`reset_database.py` given the profile provenance columns (26 Sep) · a
+superseded diagnostic and a drifted duplicate of `sqs_derivation.py` deleted
+(26 Sep) · Data Entry readout card widened when the specimen pill clipped
+(13 Sep) · Codex → Pantheon build order documented · `shared/` extracted so Examen no longer
+depends on Observatum's `src/` · manual Codex entries made portable · `paths.py`
+given a permanent banner · concurrent access handled with WAL and
+`PRAGMA query_only` · Tabella generator relocated and its VBA written · six
+broken reset launchers repaired · `MUNIA_DB` added to `paths.py` · species search
+rewritten from `QCompleter` to a `QListWidget` popup · 2,454 specimen dates
+migrated to ISO · observation edit lock narrowed to `irecord_id` · CSV backup
+always offered · 9 UTF-8 BOMs stripped · toolbar mojibake repaired ·
+`sorted(..., QMessageBox)` crash fixed · Delete Selected delivered · a hardcoded
+date format replaced · staging given CSV coverage · header state guarded against
+column changes.

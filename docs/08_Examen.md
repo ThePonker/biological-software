@@ -1,7 +1,7 @@
 # Examen
 
 ## Invertebrate assemblage assessment
-## Updated 8 October 2026
+## Updated 12 October 2026 (§9 remaining work; §12 Sundon)
 ## Supersedes `29_Examen_Revival_Assessment.md`, whose central finding was wrong,
 ## and the desktop portion of `08_Examen_Web_Design_Spec.md`.
 
@@ -232,42 +232,45 @@ Found and fixed 6 October, by static analysis:
 
 | | |
 |---|---|
-| **"+ Add Manual Entry" could empty Codex** | The Species Database tab's dialog cleared every review status; button and routine disabled |
+| **"+ Add Manual Entry" could empty Codex** | The Species Database tab's dialog cleared every review status; but## 9. Remaining work
+
+Built since this doc's 8 October version: E3 PDF (passed Wil's review 12 Oct; style
+changes wait for the report-contents work), E4 Word, E6 compartments, E7 saproxylic SQI +
+IEC, E8/E8b presentation and the taxonomic summary, E13 freeze retired, E16 the verdict
+sentence removed. Round 2 (10 Oct): "1 sp." singular in the workbook and the compartment SQI
+cell (L25); the species search's group choices ("All Cerambycidae (longhorn beetles) —
+group") in Examen too. Round 5: Examen fits a laptop screen (minimum 1000×560; the toolbar
+scrolls sideways).
+
+| | Item | State |
+|---|---|---|
+| E5 | Resolve the two parallel enrichment paths | Open, 0.5 day |
+| E12 | Views hardcode colours | Open, 0.5 day |
+| E14 | No editor for Pantheon ecology | Unscoped |
+| E15 | A survey spanning a year boundary | Open, small |
+| E22 | Cosmetic display items | Parked |
+| E24 | Ad hoc lists (analyse a list without storing it) | Noted 12 Oct (Betteshanger) |
+| E25 | Sundon `reference_figures.json` to 231 / 19 / 125 | Small-fixes round |
+| E26 | Near-duplicate site names (EXA12) | Open |
+| — | Report contents (winter) | Decisions Q74–Q83 taken 12 Oct, below |
+
+**Report contents, decided 12 Oct:** the Word export stays an appendix (Q74); no visit
+table and no auto-drafted limitations for now (Q75, Q76); **an ISIS-compliance field on the
+project** so reported condition carries a confidence (Q77); **a generated data-sharing
+sentence** with Codex's sensitive-species flag (Q78); no LERC import (Q79); **quote the CIEEM
+2019 validity bands** (Q80, replacing "two years" in §11); **the SQI colour bands 150 / 125
+stay** (Q81, Wil's choice); saproxylic: Wil keeps his own lists per site, no approach to
+Adrian Fowles (Q82); appendices in order → family → genus, then alphabetical (Q83). Read
+NERR005 Table 17 (p. 86) before settling the template.
+
+**Ad hoc analysis.** A list from someone else can be run without storing it. Betteshanger
+Park (M.G. Telfer, 437 records, 12 Oct): 296 taxa; Codex Full 29 Key (9.8 %), 5 Rare Key
+(1.7 %), SQI 123; Pantheon only 31 Key, SQI 120. It showed *Philanthus triangulum* still on
+RDB2 in Codex (fault F55).
 
 ---
 
-## 9. Remaining work
-
-| | Item | Size |
-|---|---|---|
-| ~~E1~~ | ~~Jurisdiction in the UI~~ | ✅ done |
-| ~~E2~~ | ~~Excel report renderer~~ | ✅ done |
-| ~~E2b~~ | ~~Export button~~ | ✅ done |
-| **E16** | **Decide the SQI verdict wording** | **decision** |
-| E3 | PDF renderer | 1–1.5 days |
-| E4 | Word renderer | 0.5–1 day |
-| E5 | Resolve the two parallel enrichment paths | 0.5 day |
-| E6 | Compartment analysis | 0.5 day |
-| E7 | Saproxylic SQI + IEC | ~3 days |
-| E8–E12 | Presentation, punctuation, palettes | ~1.5 days |
-| E13 | Freeze / snapshots retired (9 Oct); examen.db exported by `scripts/export_examen_snapshots.py` | done |
-
-**The SQI verdict needs deciding.** The Overview's summary sentence ends by
-calling a site *of national importance* at SQI ≥200, *regional* at ≥150, *of some
-conservation value* at ≥125. No published source has been found for those bands
-— they are neither Pantheon's nor Fowles's. It is prose written to be lifted into
-a report, asserting a conclusion the literature does not support in those terms.
-Options: remove it; replace it with Telfer's sourced test; or keep the bands with
-a stated source. See `06_Faults.md` F14.
-
-**Then the PDF** — the document that actually gets attached to a report.
-
-Done 8 October: E9 (red ▲ on an SQI from under 15 scoring species, on the
-Overview, the project table and the assemblage table), E10 (Favourable Condition
-stated with its evidence), E17 (the appendix export matches the workbook), E18
-(dates and mode labels), E19 (taxonomic order, one rule: `examen_data.in_taxonomic_order`,
-the specimen collection's order × 1,000,000 + UKSI sort_code), E20 (both SQIs on the
-Overview), E21 (contributed records credited). Still open: E22 cosmetics.
+Still open: E22 cosmetics.
 
 ---
 
@@ -335,7 +338,8 @@ current surveys bar five. The site-specific closing sentence is **written**, wit
 
 Plus **two dates, not one**: when the fieldwork was done and when the assessment
 was run. They can be years apart, and for a repeat survey or a cumulative
-saproxylic index both are material. CIEEM gives survey data a two-year validity.
+saproxylic index both are material. CIEEM gives survey data a two-year validity
+(to be quoted as the CIEEM 2019 bands, decided 12 Oct, Q80).
 
 The first items are what make a figure reproducible in 2029. The attribution is a
 licence condition.
@@ -358,5 +362,12 @@ reference where none is given, VC derived, stage and method mapped, provenance o
 every row, `--replace` for a corrected file. Apply refuses on any unmatched name.
 
 Credited in the workbook (E21, 8 Oct): a "Contributed records" line in the Summary
-stamp, and "contributed by …" in each species' occurrence evidence. Not yet built:
-a browsing tab (K1).
+stamp, and "contributed by …" in each species' occurrence evidence. The read-only
+Contributed tab (K1) was built 9 Oct.
+
+**Sundon (11 Oct).** Jon Moore's 256 records (150 species; pitfall traps; one name fixed in
+the file) joined Wil's 198: **231 species (54 shared), 19 key, SQI 125**, 5 visits. Wil
+accepted the identifications as recorded (Q66), so the reference figures are to be updated.
+`scripts/combined_species_list.py --project Sundon` lists both sides, Wil's from committed
+records. In Pantheon Only mode *Sympetrum nigrescens* is linked to *S. striolatum* (fault
+F54; local correction agreed, Q67).

@@ -1,5 +1,19 @@
 # Photos (A8 / A8b): design update after the groundwork code
 
+> **Decisions answered 12 Oct 2026** (Q5, Q13–Q22, Q71 in project note
+> `claude/45_Open_Questions_20261012.md`; the draft below is unchanged). P1 settled 11 Oct (all
+> 9,090 files, 45 GB, local). **P2:** yes, Media into the `D:\` mirror, and discuss moving the
+> backup from the USB pen to a larger external drive (Q13). **P3, P4:** no preference given, so
+> the recommendation stands (Q14) -- **but Q71 widens P3: microscope captures go to the Inbox,
+> not only stacked images**; look into focus stacking or driving Wil's free stacking software.
+> **P5:** no preference given: no auto-confirm, one "Confirm all" button (Q15). **P6**
+> `Life\_New species\<Genus species>\` (Q16). **P7** 6-figure default, 8 optional; a record
+> only on "Make a new record" (Q17). **P8** "Wil Heeney / Flauna Ecology", All rights reserved,
+> per-photo change (Q18). **P9** yes (Q19). **P10–P13** accept all four (Q20). Inbox: the four
+> choices are enough (Q21); phone photos by OneDrive camera upload into the Inbox, Google
+> Photos for viewing (Q5); **a photo edited in Google Photos replaces the original** (Q22, not
+> the recommendation).
+
 *Draft, 11 October 2026. Background work only. Nothing is wired into any app, no table was
 added and no database was written. Earlier material: `docs/41_Groundwork_Notes_20261009.md`
 Part A (photos) and the 9 Oct discussion note (photo workflow).*

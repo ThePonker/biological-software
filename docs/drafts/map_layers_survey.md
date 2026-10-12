@@ -1,5 +1,14 @@
 # Map background layers: what we have and what could be added
 
+> **Decisions answered 12 Oct 2026** (questions Q6, Q34–Q40 in project note
+> `claude/45_Open_Questions_20261012.md`; the draft below is unchanged):
+> §5.1 the 3.8 GB OS Open Zoomstack download: **yes** (Q6). §5.2 defaults: **rivers and lakes
+> on, the rest off** (Q34). §5.3 districts: **swap to current OS Boundary-Line** (Q35, not the
+> recommendation), labelled **"Local authority districts"** (Q39). §5.4 the atlas PNG **prints
+> what is ticked** (Q36). §5.5 phase 2 (SSSI/NNR, ancient woodland): **yes, later** (Q37).
+> Also: the map credit is **built from the layers drawn** (Q38, §4e); VC boundary colour and
+> width **kept** (Q40). The build is an optional slot (`docs/04_Roadmap.md`).
+
 *Design note, 11 Oct 2026 (Round 3, Test 3 and Test 4 follow-ups). Research only: no app code
 was changed. Wil asked: "what other background layers are available for mapping (with toggles)".
 This note answers it in three parts: what the Mapping tab draws now, which open-licence layers

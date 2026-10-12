@@ -1,6 +1,6 @@
 # Rules
 
-## Updated 8 October 2026
+## Updated 12 October 2026 (rules from Rounds 2–8 added at the end)
 ## Every rule here was paid for. Read this before a long session.
 
 ---
@@ -543,3 +543,38 @@ anything that could move one.
 **A path that ends with nothing must say so.** The iRecord export excluded all 279
 embargoed records, said "0 records will be exported" and stopped: no file, no reason.
 It looked like a missing dialog, and the search began in the wrong place.
+
+---
+
+## Learned in the agent rounds, 10–12 October
+
+**A cache key names every input.** The VC boundary layer and the land's coast were cached
+under one key; whichever was worked out first served both, and after the first paint the
+boundaries were doubled (F47). It also made a test pass or fail depending on test order.
+When two things are cached, check their keys cannot meet.
+
+**Measure on Wil's PC, not only here.** The startup pause was ~145 ms on Linux and 1,231 ms on
+Windows (F48); offscreen Windows has no fonts, so font-metric tests fail there; the Windows
+console is cp1252, so a subprocess printing ✓ broke a test (set `PYTHONIOENCODING=utf-8` and
+decode as UTF-8). `run.bat --timing` exists so the PC's own numbers come back.
+
+**Tests must not assume the state of Wil's data.** Three PC-only failures were tests that
+assumed a script had not yet been applied (1 January dates), an old file (the 2 MB VC
+geojson) or an old database (a pre-saved-searches `lector.db`). Accept both states, or skip
+with the reason.
+
+**A migration never invents a user's choice.** Lector's first update recorded old command-
+line names as Wil's own ticks, overriding the hold-back (F65). An update copies history; only
+the user makes choices.
+
+**A second way in must not overwrite the first.** Lector's console replaced the names and
+filters Wil had set in the window, and its exports overwrote the window's files (F66). A
+console or script that touches what a screen stores leaves it alone unless told
+(`--replace-search`), and writes under its own names.
+
+**Garbage collection and background loading.** Python's collector running during startup
+caused pauses; it is switched off while loading and the loaded objects frozen. It must be
+switched back on in every path, errors and early close included.
+
+**One main line at a time** (agreed 12 Oct). Many parallel fronts outran Wil's testing.
+Build a round, test it, commit and push it, then start the next.
