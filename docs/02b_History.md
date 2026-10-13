@@ -21,6 +21,16 @@ prepare` runs ruff; Claude stages read-only copies of the databases so data test
 delivery; Wil runs targeted tests per task and the full suite with `-n 6` (2 min) for data
 changes and at session end; layout tests no longer depend on test order (F79).
 
+**Evening: the iRecord round trip and the photos.** Wil's test upload proved iRecord keeps an
+External key Observatum supplies (46 Farthinghoe records, `OBS-WJH-IRTEST-…`). Built read-only:
+`check_irecord_download.py` (the sync's own matching, run on a download without importing) and
+`plan_photo_consolidation.py`. Wil answered the 304-row review sheet; `build_photo_moves.py` and
+`move_photos.py` (dry run, log, reverse; never delete or overwrite; Opus review found four
+defects, fixed before delivery) then moved **1,469 specimen photos into the Life tree** at
+23:44, 191 renamed to the new standard (`15.ix.17`, sex in lower case). The photos design was
+cut back to a lean plan (~8 h: sync guard with re-det conflicts, personal jobs like
+commercial, record ↔ photo links, Photos window, one intake screen for Mosaic and phone).
+
 ### Session 47 — 12 October 2026
 
 **Round 7: Lector in the suite.** The lost fix2 work restored exactly (whole-word title

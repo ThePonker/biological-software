@@ -55,6 +55,42 @@ Entry from the Mosaic folder (move and rename); a photo strip on Record Detail, 
 and Species Info, this record's photos first. Later: reports and species accounts, the phone
 Inbox, stacking.
 
+## 13 October (night): B1 done, the lean plan, intake and re-dets
+
+**B1 done (23:44).** 1,469 specimen photos (Microscope Photos, Dead Spiders, Dead Craneflies)
+moved into `Life\...\<species>\Specimen\` by `scripts\move_photos.py` from the move list
+(`build_photo_moves.py`: the plan's 1,165 planned rows plus Wil's review sheet). 191 renamed:
+spelling and current UKSI names, dates to the standard, sex in lower case. 15 to
+`Photos\_Photo review\` (left blank in the sheet), 5 Labs copies to
+`Photos\_duplicates_20261013\`. Nothing deleted; emptied folders left. Backup and log: see
+`03` Reminders. Library check afterwards: 9,095 files (unchanged); Life 4,090 images; UKSI exact
+4,756 (was 4,586), fuzzy 46 (was 140); microscope photos with exactly one matching specimen 987.
+
+**The naming standard** (`shared/photo_names.py`: `format_photo_date`, `standard_photo_stem`;
+everything that names a photo uses them): `<UKSI name> [male|female] <D.roman.YY> [n]`, e.g.
+`Erigone dentipalpis male 30.ix.26`. Older forms are still read: `18.11.16`, `29092026`,
+`14.VII.2023`. A date with no year is never guessed. Subgenus brackets are left out of folder and
+file names. Field photos keep `Genus species - Common name N`.
+
+**The lean plan (agreed; replaces the index-and-review design).** Wil's aims are three: attach a
+photo while entering the record; click a record and see the species' photos with this
+specimen's marked; reports later. So: no index of the 9,000 files (the species folder is the
+index); one small record ↔ photo link table; the Photos button reads the folder; a re-det moves
+the record's photos when it happens. Dropped from the earlier design: match states,
+fingerprints, the review workflow, a housekeeping screen, the setting. Left until wanted: main
+photo, determination history, reports, stacking. Plan and estimates: `03_Backlog.md`.
+
+**Photo intake (B4): one screen for the Mosaic folder and a phone Inbox.** Phone files have
+camera names, so Wil types the species once for a selection; the date and GPS come from the
+photo (6-figure grid ref). Each photo: species only (Life folder, field naming) / attach to a
+record (suggested by species, date and place) / make a record (Data Entry row) / leave. Mosaic
+captures go to the `Specimen` subfolder with the specimen naming. Moved, never copied; logged;
+undo.
+
+**Re-determinations.** The sync takes species from iRecord: a re-det made only in Observatum is
+put back by the next sync. Agreed: A2's conflict check (one side changed → it wins; both → Wil
+chooses), the "in iRecord, change it there too" note on edit, and photos following a re-det.
+
 ## 13 October (late): decisions, the iRecord round trip, and the staged plan
 
 **Decided in discussion (no code yet):**

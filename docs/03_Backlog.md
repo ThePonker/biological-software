@@ -78,7 +78,7 @@ A1–A3, B1–B4 below (discussion only; nothing built). Lector walkthrough and 
 |---|---|---|
 | **Specimens → records** | about half a day | All answered 12 Oct (Q23–Q33, below). Recommended first |
 | **Final Recording Scheme dataset** (M1) | 1 h of questions, 2 sessions | Q4: questions straight after the next big job. Q72/Q73 answered; Q57–Q59 feed it |
-| **iRecord round trip, then Photos** (A1–A3, B1–B4 below) | about 4 sessions | Designed in discussion 13 Oct; P1–P13 answered; Wil says when to start |
+| **iRecord round trip, then Photos** (lean plan below) | about 8 hours | B1 done 13 Oct; A1 script built; Wil says when to start the rest |
 | **Partner's laptop install** | 8–11 days | **Winter**, after photos and the scheme dataset (Q2). Full suite (Q68). Separate databases, data moved by export/import (Q3). Her own empty database plus an optional practice database with sample data (Q69) |
 | Optional: **map background layers** | 3–4 days | Q6, Q34–Q40 answered |
 | Optional: **Atrium icons and restyle** | about 1 session | Q52/Q53: Claude drafts a silhouette for each app from the Observatum logo for Wil to approve; icon files in git are fine; Munia's look checked here |
@@ -87,11 +87,11 @@ A1–A3, B1–B4 below (discussion only; nothing built). Lector walkthrough and 
 | Winter: **report contents** | 2–3 sessions | Q74–Q80, Q83 answered |
 | Later: **batch maps screen** | 1 session | Q41–Q50 answered; the script is enough for now |
 
-### iRecord round trip and photos: staged plan (agreed in discussion 13 Oct, nothing built)
+### iRecord round trip and photos: the lean plan (agreed 13 Oct, late; replaces the staged plan)
 
 Why the sync comes first: a photo link hangs on a record, so the record must keep one identity
 from Data Entry through iRecord and back. Detail: `docs/drafts/photos_design_update.md`,
-section "13 October (late)".
+sections "13 October (late)" and "13 October (night)".
 
 **Finding, 13 Oct 22:29:** iRecord **keeps an External key we supply.** Wil uploaded his 46
 Farthinghoe records (26/06/2026, SP521403) with keys `OBS-WJH-IRTEST-20261013-0001…0046`
@@ -100,15 +100,24 @@ download sent the same evening was older (newest input 19/06/2026, highest ID 53
 does not hold them yet. The new importer fails with "Call to a member function load_values()
 on false" (Wil to ask iRecord).
 
+**Re-determinations (agreed 13 Oct):** the sync takes species and determiner from iRecord, so a
+re-det made only in Observatum is put back by the next sync. Fix with A2: one side changed since
+the last sync → that side wins; both changed → listed to choose. Editing a record that has an
+iRecord ID shows "This record is in iRecord -- change it there too (Open in iRecord)". When a
+record's species changes, its linked specimen photos move and rename with it (logged, undo).
+A determination history is left until wanted.
+
 | # | Stage | Est. | Notes |
 |---|---|---|---|
-| A1 | **Test the sync's matching** on a data copy with a download that holds the 46 IRTEST records: each is added once, keeps its key, no record doubled | ~30 min | Read only. Needs the next download that includes them |
-| A2 | **Sync guard:** a record whose key or iRecord ID points at more than one record is held for review, not added; backup before every sync; a "possibly held twice" check | ~0.5 session | Data change: Opus review |
-| A3 | **Personal jobs work like commercial:** Data Entry creates the record and its Observatum key at commit; the CSV for iRecord carries the key as External key; the sync pairs by key and fills the iRecord ID. "Check iRecord return" pairing by species/date/grid ref retires | ~0.5 session | Changes DE7. After A1 passes |
-| B1 | **Consolidate photos into Life:** Microscope Photos, Dead Spiders, dead craneflies into `Life\<order>\<family>\<species>\Specimen\` (Hemiptera: extra suborder level); dry run, log, reverse script; never delete | ~0.5 session | 1,174 exact (594 species; 143 have a Life folder), ~150 to review, ~145 unplaceable |
-| B2 | **Photo index:** `photos` and `photo_links` tables (migration, dry run, backup), scan, review list (proposed / confirmed / rejected, one "Confirm all") | ~1 session | Schema change: Opus review |
-| B3 | **Photos (n) button** on records and specimens opening a separate window (all photos of the species, this record's marked); one **main photo** shown small in the record dialog | ~0.5 session | |
-| B4 | **Attach at the bench in Data Entry:** pick from the Mosaic folder, **move** and rename `<UKSI name> <sex> <D.month.YY> <n>` into the species folder; the link rides with the staging row through commit | ~0.75 session | After A3 |
+| A1 | **Test the sync's matching** with the returned IRTEST records | ~5 min | ✅ *Script built 13 Oct:* `scripts\check_irecord_download.py` (read only). Waiting for a download that holds the 46 |
+| A2 | **Sync guard:** key or ID naming several records held, not added; backup before every sync; **conflict check** (re-dets, local edits); the iRecord note on edit | ~1.5 h | Data change: Opus review |
+| A3 | **Personal jobs work like commercial:** Data Entry creates the record and its key at commit; the CSV carries it as External key; the sync pairs by key. "Check iRecord return" pairing retires | ~1 h | Changes DE7. After A1 |
+| B1 | **Consolidate specimen photos into Life** | -- | ✅ *Done 13 Oct 23:44* (below) |
+| B2 | **Record ↔ photo links:** one small table (migration, dry run, backup); the 987 microscope photos with exactly one matching specimen linked by script. **No index of the library**: the species folder is the index | ~1 h | Schema change: Opus review |
+| B3 | **Photos button and window:** the species folder's photos, this record's first; "file not found" shown if a linked file is gone | ~1 h | |
+| B4 | **Photo intake** -- one screen for the Mosaic folder and a phone Inbox folder: thumbnails with date and GPS grid ref; type the species once for a selection; then species only / attach to a record (suggested by species, date, place) / make a record (Data Entry row) / leave. Move and rename to the standard, log, undo | ~3.5 h | After A3. Check Pixel motion photos/RAW and phone GPS first |
+| B5 | **Re-det moves the record's photos** (same move code) | ~30 min | With A2 |
+| | **Total** | **~8 h** | Later, when wanted: main photo in the record dialog, determination history, photos in reports, stacking |
 
 ### Decided, waiting for its build
 
@@ -227,6 +236,11 @@ titles (Entomologist's Monthly Magazine apostrophe; Scottish Naturalist); re-exp
 - Photos: before the Inbox build, check how the OneDrive app handles Pixel motion photos and RAW.
 - Read NERR005 Table 17, p. 86, from Wil's copy before settling the report template.
 - Slade Green: waiting for Wil's instruction.
+- Photos moved 13 Oct 23:44 (1,469; log `scripts\_oneoff\photo_moves_log_20261013_234407.csv`;
+  undo with `move_photos.py --reverse <log>`). Backup in
+  `C:\BiologicalSoftware_Backups\photos_before_move_20261013\`. The emptied Microscope Photos,
+  Dead Spiders and Dead Craneflies folders are left in place (Thumbs.db etc.): Wil retires them
+  when happy. 15 photos in `Photos\_Photo review\`, 5 copies in `Photos\_duplicates_20261013\`.
 - iRecord test upload (13 Oct): send the next download once it holds the 46 IRTEST records;
   Claude checks all 46 keys read-only before the sync. Ask iRecord about the new importer's
   `load_values()` error and whether an External key survives a verifier's edit. Survey shows
@@ -287,3 +301,4 @@ From the sweep of notes 30–46, the repo docs, the drafts, the agent briefs and
 | Round 8 (12 Oct) | Lector L1–L16, Observatum O1 (pause) and O2 (square opacity), Lector manual, review fixes | Outstanding tests, all passed 12 Oct |
 | Tests only (12 Oct) | B8 Check before commit; E3 Examen PDF; import test files (`tests/manual_import_files/`) | passed |
 | Handover tasks (13 Oct) | One place for saved filters; cleaning report rows open Record Detail + Hidden here tile; disabled look on every button style; Species Lookup list painter; tests in parallel (`-n 6`) | all passed 13 Oct |
+| 13 Oct (night) | A1 download check; B1 plan, review sheet, standard photo names (`15.ix.17`, sex lower case), move list, mover with log and reverse; 1,469 photos moved into Life | Wil, 13 Oct: tests, full suite 1,386, dry run 0 problems, move checked |
