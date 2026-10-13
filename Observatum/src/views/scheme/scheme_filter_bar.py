@@ -52,6 +52,7 @@ class SchemeFilterBar(QFrame, SavedFiltersMixin):
     
     # Settings key for saved filters
     _settings_key = "scheme_saved_filters"
+    _wizard_tab = "recording_scheme"   # whose old wizard-saved filters move here (13 Oct 2026)
     
     def __init__(self, parent=None):
         super().__init__(parent)

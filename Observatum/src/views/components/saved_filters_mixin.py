@@ -3,6 +3,9 @@ Saved Filters Mixin.
 
 Provides saved filter functionality for filter bar components.
 Handles loading, saving, selecting, and deleting saved filters via QSettings.
+
+13 Oct 2026: this top row is the only place to save filters. A saved filter holds the
+bar's values and, under 'wizard', the Filter Wizard's chips (attach_wizard).
 """
 
 from typing import List, Dict
@@ -11,6 +14,20 @@ from PySide6.QtWidgets import QPushButton, QMessageBox, QInputDialog
 from PySide6.QtCore import QSettings
 
 from ...themes import theme
+from ...services.filter_builder import as_list
+from ...services.saved_filters_service import SavedFiltersService
+
+# Chip keys holding one value, not a list (the rest come back as lists)
+_SCALAR_CHIP_KEYS = ('date_from', 'date_to', 'year')
+
+
+def normalise_chips(chips) -> Dict:
+    """Wizard chips as the wizard holds them. QSettings can hand a one-element list back
+    as a bare string, so list-valued keys go through as_list again."""
+    out = {}
+    for key, value in (chips or {}).items():
+        out[key] = value if key in _SCALAR_CHIP_KEYS else as_list(value)
+    return out
 
 
 class SavedFiltersMixin:
@@ -25,6 +42,8 @@ class SavedFiltersMixin:
     - Must implement _apply_saved_filter(filters: dict)
     - Must set self._settings_key before calling _init_saved_filters()
     - Optionally set self._preset_filters list before calling _init_saved_filters()
+    - Optionally set self._wizard_tab ("observations", ...) to move that tab's old
+      wizard-saved filters (saved_filters.json) into this list, once
     
     Signals to define in using class:
     - special_view_selected = Signal(str) - if using preset view modes
@@ -40,7 +59,10 @@ class SavedFiltersMixin:
         - UI elements are created (saved_combo, save_filter_btn, delete_filter_btn)
         """
         self._saved_filters: List[Dict] = []
+        self._wizard_get = None
+        self._wizard_set = None
         self._load_saved_filters()
+        self._move_wizard_saved_filters()
         self._populate_saved_filters_combo()
         
         # Connect signals
@@ -48,6 +70,39 @@ class SavedFiltersMixin:
         self.save_filter_btn.clicked.connect(self._on_save_filter)
         self.delete_filter_btn.clicked.connect(self._on_delete_filter)
     
+    def attach_wizard(self, get_chips, set_chips):
+        """Let saved filters carry the tab's Filter Wizard chips. get_chips() returns the
+        wizard's get_all_filters(); set_chips(dict) sets the tab's wizard state with no
+        reload (the bar's own filters_changed does the one reload)."""
+        self._wizard_get = get_chips
+        self._wizard_set = set_chips
+
+    def _move_wizard_saved_filters(self):
+        """One-off (13 Oct 2026): the wizard's own saved filters (saved_filters.json, left
+        untouched) are appended to this list as {'wizard': config}, then a flag stops it."""
+        tab = getattr(self, '_wizard_tab', None)
+        if not tab:
+            return
+        flag = f"{self._settings_key}_wizard_moved"
+        settings = QSettings()
+        if settings.value(flag, False, type=bool):
+            return
+        try:
+            entries = SavedFiltersService().get_all_filters(tab=tab)
+        except Exception as e:
+            print(f"[SavedFilters] Could not read wizard filters: {e}")
+            return
+        names = {sf['name'] for sf in self._saved_filters}
+        for name, entry in sorted(entries.items()):
+            new_name = name
+            while new_name in names:
+                new_name += " (wizard)"
+            names.add(new_name)
+            self._saved_filters.append(
+                {'name': new_name, 'filters': {'wizard': dict(entry.get('config') or {})}})
+        self._save_filters_to_settings()
+        settings.setValue(flag, True)
+
     def _load_saved_filters(self):
         """Load saved filters from QSettings."""
         settings = QSettings()
@@ -112,6 +167,10 @@ class SavedFiltersMixin:
         # Apply the filters
         filters = data.get('filters', {})
         if filters:
+            # Wizard chips first (no reload), then the bar's one reload applies both.
+            # No 'wizard' key = no chips: the wizard is cleared.
+            if self._wizard_set:
+                self._wizard_set(normalise_chips(filters.get('wizard')))
             self._apply_saved_filter(filters)
     
     def _on_save_filter(self):
@@ -122,7 +181,10 @@ class SavedFiltersMixin:
         )
         
         if ok and name:
-            filters = self.get_filters()
+            filters = dict(self.get_filters())
+            chips = self._wizard_get() if self._wizard_get else None
+            if chips:
+                filters['wizard'] = dict(chips)
             self._saved_filters.append({'name': name, 'filters': filters})
             self._save_filters_to_settings()
             self._populate_saved_filters_combo()

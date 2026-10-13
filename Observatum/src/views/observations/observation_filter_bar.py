@@ -60,6 +60,7 @@ class ObservationFilterBar(QFrame, SavedFiltersMixin):
     
     # Settings key for saved filters
     _settings_key = "observation_saved_filters"
+    _wizard_tab = "observations"     # whose old wizard-saved filters move here (13 Oct 2026)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -514,7 +515,14 @@ class ObservationFilterBar(QFrame, SavedFiltersMixin):
         self.filters_changed.emit(self.get_filters())
 
     def _set_saved_values(self, filters: dict):
-        """The saved filter's values into the widgets (no signals: see _apply_saved_filter)."""
+        """The saved filter's values into the widgets (no signals: see _apply_saved_filter).
+        A wizard-only saved filter (just a 'wizard' key) blanks the boxes (13 Oct 2026)."""
+        if not (set(filters) - {'wizard'}):
+            for w in (self.species_edit, self.location_edit, self.recorder_edit,
+                      self.date_from_edit, self.date_to_edit, self.family_edit):
+                w.clear()
+            for w in (self.order_combo, self.vc_combo, self.method_combo, self.status_combo):
+                w.resetToFirst()
         # Handle special date values
         date_from = filters.get('date_from', '')
         if date_from == 'THIS_YEAR':

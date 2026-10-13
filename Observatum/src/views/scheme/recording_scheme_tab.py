@@ -226,6 +226,8 @@ class RecordingSchemeTab(QWidget):
         self.toolbar.filters_toggled.connect(self._on_filters_toggled)
         self.toolbar.clear_filters_requested.connect(self.clear_all_filters)
         self.filter_bar.clear_all_requested.connect(self.clear_all_filters)
+        self.filter_bar.attach_wizard(self.filter_wizard.get_all_filters,
+                                      self.set_wizard_filters_quietly)
         self.toolbar.wizard_toggled.connect(self._on_wizard_toggled)
         self.filter_bar.filters_changed.connect(self._on_filters_changed)
         self.filter_wizard.filters_applied.connect(self._on_wizard_filters_applied)
@@ -338,6 +340,12 @@ class RecordingSchemeTab(QWidget):
         """Forget the wizard's filters without reloading (navigation, OBS-08)."""
         self._wizard_filters = {}
         self.filter_wizard.clear_filters()
+
+    def set_wizard_filters_quietly(self, chips: dict):
+        """A saved filter's wizard chips: set the state and the cards, no reload -- the
+        filter bar's filters_changed that follows does the one reload (13 Oct 2026)."""
+        self._wizard_filters = dict(chips or {})
+        self.filter_wizard.set_filters(self._wizard_filters)
 
     def show_species(self, species_name: str):
         """One taxon's records with no other filter left over (Stats > Species lookup,

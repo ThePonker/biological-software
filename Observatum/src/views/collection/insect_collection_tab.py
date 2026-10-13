@@ -167,6 +167,8 @@ class InsectCollectionTab(ICSidebarMixin, ICDataMixin, ICExportMixin, QWidget):
         self.toolbar.wizard_toggled.connect(self._on_wizard_toggled)
         self.toolbar.clear_filters_requested.connect(self.clear_all_filters)
         self.filters.clear_all_requested.connect(self.clear_all_filters)
+        self.filters.attach_wizard(self.filter_wizard.get_all_filters,
+                                   self.set_wizard_filters_quietly)
         self.filter_wizard.filters_applied.connect(self._on_wizard_filters_applied)
         self.filter_wizard.filters_reset.connect(self._on_wizard_filters_reset)
         self.toolbar.export_requested.connect(self._on_export_all)
@@ -207,6 +209,12 @@ class InsectCollectionTab(ICSidebarMixin, ICDataMixin, ICExportMixin, QWidget):
         """Forget the wizard's filters without reloading (navigation, OBS-08)."""
         self._wizard_filters = {}
         self.filter_wizard.clear_filters()
+
+    def set_wizard_filters_quietly(self, chips: dict):
+        """A saved filter's wizard chips: set the state and the cards, no reload -- the
+        filter bar's filters_changed that follows does the one reload (13 Oct 2026)."""
+        self._wizard_filters = dict(chips or {})
+        self.filter_wizard.set_filters(self._wizard_filters)
 
     def clear_all_filters(self):
         """Toolbar "Clear Filters" and the filter bar's "Clear All" -- one behaviour

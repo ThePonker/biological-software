@@ -3,13 +3,13 @@ Filter Wizard Widget.
 
 Main container for the filter system.
 Shows card grid and manages filter state.
-Supports saving and loading filter configurations.
+Saving/loading lives in the filter bar's top row (13 Oct 2026).
 """
 
 from typing import Dict, Any, List
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QPushButton, QComboBox, QMessageBox, QScrollArea, QFrame, QSizePolicy
+    QComboBox, QScrollArea, QFrame, QSizePolicy
 )
 from PySide6.QtCore import Signal, Qt
 
@@ -37,9 +37,9 @@ class FilterWizard(QWidget):
     
     Signals:
         filters_changed: Emitted when filters change (filter_dict)
-        filter_applied: Emitted when Apply is clicked (filter_dict)
+        filter_applied: Emitted when a card dialog is accepted (filter_dict)
         filters_applied: Alias for filter_applied (backward compat)
-        filter_cleared: Emitted when Reset is clicked
+        filter_cleared: kept for compatibility (Reset button removed 13 Oct 2026)
         filters_reset: Alias for filter_cleared (backward compat)
     """
     
@@ -52,13 +52,11 @@ class FilterWizard(QWidget):
     def __init__(
         self,
         accent_color: str = None,
-        show_save_controls: bool = True,
         tab_name: str = "observations",
         parent=None
     ):
         super().__init__(parent)
         self._accent_color = accent_color or "#5f8575"
-        self._show_save_controls = show_save_controls
         self._tab_name = tab_name
         
         # Filter state
@@ -91,12 +89,8 @@ class FilterWizard(QWidget):
         self._uksi_model = None
         self._taxon_data_loaded = False
         
-        # Saved filters service
-        self._saved_filters_service = None
-        
         self._setup_ui()
         self._hide_cards_without_columns()
-        self._load_saved_filter_names()
     
     def _setup_ui(self):
         """Set up the wizard UI: a title line, the cards, and one row of controls.
@@ -167,30 +161,6 @@ class FilterWizard(QWidget):
         )
         self.card_grid.card_clicked.connect(self._on_card_clicked)
         layout.addWidget(self.card_grid)
-        
-        # One row: saved filters on the left, Reset / Apply on the right
-        button_layout = QHBoxLayout()
-        button_layout.setSpacing(8)
-        if self._show_save_controls:
-            self._add_save_controls(button_layout, t)
-        button_layout.addStretch()
-        
-        # Reset button (cancel style: warm grey outlined)
-        reset_btn = QPushButton("Reset")
-        reset_btn.setToolTip("Clear the wizard's choices (the filter bar's stay)")
-        reset_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        reset_btn.clicked.connect(self._reset_filters)
-        reset_btn.setStyleSheet(t.button_cancel_style())
-        button_layout.addWidget(reset_btn)
-        
-        # Apply button (primary)
-        apply_btn = QPushButton("Apply Filter")
-        apply_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        apply_btn.clicked.connect(self._apply_filters)
-        apply_btn.setStyleSheet(t.button_primary_style())
-        button_layout.addWidget(apply_btn)
-        
-        layout.addLayout(button_layout)
 
     MAX_HEIGHT = 300     # px; the cards scroll beyond this (L29)
 
@@ -204,127 +174,6 @@ class FilterWizard(QWidget):
         self._fit_height()
         super().showEvent(event)
 
-    def _add_save_controls(self, row: QHBoxLayout, t):
-        """Load saved ▾  🗑   Save as [name] Save -- the left end of the controls row."""
-        load_label = QLabel("Load saved:")
-        load_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 12px; background: transparent;")
-        row.addWidget(load_label)
-        
-        self._saved_filters_combo = QComboBox()
-        self._saved_filters_combo.setMinimumWidth(150)
-        self._saved_filters_combo.setPlaceholderText("Select filter...")
-        self._saved_filters_combo.currentTextChanged.connect(self._on_load_saved_filter)
-        self._style_combo(self._saved_filters_combo)
-        row.addWidget(self._saved_filters_combo)
-        
-        # Delete saved filter button (delete style: crimson outlined)
-        delete_btn = QPushButton("🗑")
-        delete_btn.setToolTip("Delete selected saved filter")
-        delete_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        delete_btn.clicked.connect(self._delete_saved_filter)
-        delete_btn.setFixedWidth(34)
-        delete_btn.setStyleSheet(t.button_delete_style())
-        row.addWidget(delete_btn)
-        
-        row.addSpacing(16)
-        
-        filter_label = QLabel("Save as:")
-        filter_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 12px; background: transparent;")
-        row.addWidget(filter_label)
-        
-        self._filter_name_input = QLineEdit()
-        self._filter_name_input.setPlaceholderText("Enter filter name...")
-        self._filter_name_input.setMaximumWidth(180)
-        self._filter_name_input.returnPressed.connect(self._save_filter)
-        self._style_input(self._filter_name_input)
-        row.addWidget(self._filter_name_input)
-        
-        save_btn = QPushButton("💾 Save")
-        save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        save_btn.clicked.connect(self._save_filter)
-        save_btn.setStyleSheet(t.button_primary_style())
-        row.addWidget(save_btn)
-    
-    def _get_saved_filters_service(self):
-        """Lazy load the saved filters service."""
-        if self._saved_filters_service is None:
-            try:
-                from ....services.saved_filters_service import get_saved_filters_service
-                self._saved_filters_service = get_saved_filters_service()
-            except Exception as e:
-                print(f"[FilterWizard] Could not load saved filters service: {e}")
-        return self._saved_filters_service
-    
-    def _load_saved_filter_names(self):
-        """Load saved filter names into the combo box."""
-        if not self._show_save_controls:
-            return
-        
-        service = self._get_saved_filters_service()
-        if service:
-            self._saved_filters_combo.blockSignals(True)
-            self._saved_filters_combo.clear()
-            self._saved_filters_combo.addItem("")  # Empty option
-            
-            names = service.get_filter_names(tab=self._tab_name)
-            for name in sorted(names):
-                self._saved_filters_combo.addItem(name)
-            
-            self._saved_filters_combo.blockSignals(False)
-    
-    def _on_load_saved_filter(self, name: str):
-        """Load a saved filter by name."""
-        if not name:
-            return
-        
-        service = self._get_saved_filters_service()
-        if service:
-            config = service.get_filter(name, tab=self._tab_name)
-            if config:
-                self.set_filters(config)
-                self._apply_filters()      # SRCH11: loading used to fill the cards only
-                print(f"[FilterWizard] Loaded and applied saved filter: {name}")
-    
-    def _save_filter(self):
-        """Save current filter configuration."""
-        if not hasattr(self, '_filter_name_input'):
-            return
-        
-        name = self._filter_name_input.text().strip()
-        if not name:
-            QMessageBox.warning(self, "Save Filter", "Please enter a name for the filter.")
-            return
-        
-        service = self._get_saved_filters_service()
-        if service:
-            config = self.get_all_filters()
-            if service.save_filter(name, config, tab=self._tab_name):
-                self._filter_name_input.clear()
-                self._load_saved_filter_names()
-                QMessageBox.information(self, "Save Filter", f"Filter '{name}' saved successfully.")
-            else:
-                QMessageBox.warning(self, "Save Filter", "Could not save filter.")
-    
-    def _delete_saved_filter(self):
-        """Delete the currently selected saved filter."""
-        if not hasattr(self, '_saved_filters_combo'):
-            return
-        
-        name = self._saved_filters_combo.currentText()
-        if not name:
-            return
-        
-        reply = QMessageBox.question(
-            self, "Delete Filter",
-            f"Delete saved filter '{name}'?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        )
-        
-        if reply == QMessageBox.StandardButton.Yes:
-            service = self._get_saved_filters_service()
-            if service and service.delete_filter(name, tab=self._tab_name):
-                self._load_saved_filter_names()
-    
     def _on_card_clicked(self, card_id: str):
         """Handle card click - open appropriate dialog."""
         dialog = None
@@ -391,6 +240,8 @@ class FilterWizard(QWidget):
                 self._update_card_states()
                 self._update_filter_count()
                 self.filters_changed.emit(self.get_all_filters())
+                # 13 Oct 2026: the bottom Apply button is gone, so an accepted dialog applies
+                self._apply_filters()
     
     def _update_card_states(self):
         """Update card visual states based on filter data."""
@@ -429,25 +280,7 @@ class FilterWizard(QWidget):
         self._filters = _empty_filters()
         self._update_card_states()
         self._update_filter_count()
-        if hasattr(self, '_saved_filters_combo'):
-            self._saved_filters_combo.blockSignals(True)
-            self._saved_filters_combo.setCurrentIndex(0)
-            self._saved_filters_combo.blockSignals(False)
 
-    def _reset_filters(self):
-        """Reset all filters."""
-        self._filters = _empty_filters()
-        self._update_card_states()
-        self._update_filter_count()
-        
-        # Clear saved filter selection
-        if hasattr(self, '_saved_filters_combo'):
-            self._saved_filters_combo.setCurrentIndex(0)
-        
-        self.filter_cleared.emit()
-        self.filters_reset.emit()  # Emit both for compatibility
-        self.filters_changed.emit({})
-    
     def get_all_filters(self) -> Dict[str, Any]:
         """Get combined filter configuration."""
         result = {}

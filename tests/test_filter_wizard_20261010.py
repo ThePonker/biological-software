@@ -245,13 +245,13 @@ def test_saved_filters_per_tab_and_keep_notes(qapp, tmp_path, monkeypatch):
     assert svc.delete_filter("Wood", tab="recording_scheme")
     assert svc.get_filter("Wood", tab="observations") is not None
 
+    # 13 Oct 2026: the wizard no longer saves/loads (the filter bar's top row does); it
+    # keeps Notes search when chips are set, and applies them
     w = fw.FilterWizard(tab_name="observations")
-    w._saved_filters_service = svc
     applied = []
     w.filters_applied.connect(applied.append)
-    svc.save_filter("Oak", {"notes_search": ["~oak"], "year": 2024}, tab="observations")
-    w._load_saved_filter_names()
-    w._on_load_saved_filter("Oak")
+    w.set_filters({"notes_search": ["~oak"], "year": 2024})
+    w._apply_filters()
     assert w.get_all_filters() == {"notes_search": ["~oak"], "year": 2024}   # Notes kept
     assert applied and applied[-1] == {"notes_search": ["~oak"], "year": 2024}  # and applied
 
