@@ -31,6 +31,8 @@ Problems:
     returned    (Observation only) a record Wil removed here with "Deleted in iRecord --
                 remove here" that a later download brought back: still hidden, listed so he
                 can check iRecord and "Show again" if he wants it (F72, shared/hidden_records).
+    hidden      (Observation only, 13 Oct 2026) EVERY hidden record, returned or not (so
+                "returned" is a subset); hidden records are never counted as checked.
 Verification status is not a problem (answer 12). A scheme count of 0 is presence
 (decision 8), so counts are not checked at all.
 
@@ -38,7 +40,8 @@ Left out (F71, 13 Oct): the Recording Scheme's marked NBN copies of iRecord reco
 (shared/scheme_duplicates.py, THE rule) unless include_copies is asked for -- on Wil's PC
 that takes the scheme from 110,510 to about 76,389 records checked (34,121 marked; on a
 database without the duplicate_of column nothing changes); and hidden observations
-(shared/hidden_records.py), which appear only under "returned".
+(shared/hidden_records.py), which appear only under "hidden" (and "returned" when a
+download brought them back) and are never checked.
 """
 from __future__ import annotations
 
@@ -71,9 +74,10 @@ PROBLEMS: List[Tuple[str, str]] = [(k, KIND_LABELS[k]) for k in NAME_KINDS] + [
     ("grid", "No grid ref or coarse (10 km+)"),
     ("latlon", "Not a grid ref (looks like latitude/longitude)"),
     ("returned", RETURNED_LABEL),
+    ("hidden", "Hidden here"),            # 13 Oct 2026: every hidden record, returned or not
 ]
 PROBLEM_LABELS = dict(PROBLEMS)
-OBSERVATION_ONLY = ("returned",)          # tiles that mean nothing for the other sources
+OBSERVATION_ONLY = ("returned", "hidden")          # tiles that mean nothing for the other sources
 
 DATE_TYPE_LABELS = {
     "DD": "day range", "O": "month only", "OO": "month range", "Y": "year only",
@@ -274,6 +278,12 @@ def _returned_rows(conn) -> Dict[int, Tuple[str, str]]:
     return {r[0]: (r[3] or "", r[4] or "") for r in returned(conn)}
 
 
+def _hidden_rows(conn) -> Dict[int, Tuple[str, str]]:
+    """{observation id: (hidden_at, returned_at or "")} for every hidden observation."""
+    from shared.hidden_records import hidden
+    return {r[0]: (r[3] or "", r[4] or "") for r in hidden(conn)}
+
+
 def build_report(main_db, uksi_db, source: str, include_copies: bool = False) -> CleaningReport:
     """The cleaning report for one source table. Read-only; UKSI lookups batched.
     include_copies: scheme only -- check the marked NBN copies of iRecord records too."""
@@ -283,6 +293,7 @@ def build_report(main_db, uksi_db, source: str, include_copies: bool = False) ->
     conn = connect_ro(main_db)
     copies_marked = hidden_count = 0
     returned_at: Dict[int, Tuple[str, str]] = {}
+    hidden_at: Dict[int, Tuple[str, str]] = {}
     try:
         have = {r[1] for r in conn.execute(f"PRAGMA table_info({source})")}
         if not have:                         # an older database without this table
@@ -299,16 +310,20 @@ def build_report(main_db, uksi_db, source: str, include_copies: bool = False) ->
                 hidden_count = conn.execute(
                     f"SELECT COUNT(*) FROM {source} WHERE hidden_at IS NOT NULL").fetchone()[0]
                 returned_at = _returned_rows(conn)
-                if returned_at:
-                    marks = ",".join("?" * len(returned_at))
+                hidden_at = _hidden_rows(conn)
+                if hidden_at:             # 13 Oct 2026: all hidden rows, for "hidden" / "returned"
+                    marks = ",".join("?" * len(hidden_at))
                     rows += conn.execute(f"{select} AND id IN ({marks})",
-                                         list(returned_at)).fetchall()
+                                         list(hidden_at)).fetchall()
     finally:
         conn.close()
-    pairs = {(r[3] or "", r[2] or "") for r in rows}
+    # Names, TVKs and ranks from the live rows only: a hidden record must not make a live
+    # one a "synonym" (review, 13 Oct 2026)
+    live = [r for r in rows if r[0] not in hidden_at]
+    pairs = {(r[3] or "", r[2] or "") for r in live}
     stored_tvks = {t for t, _ in pairs if t}
     current = current_tvk_map(stored_tvks, str(uksi_db)) if stored_tvks else {}
-    need_rank = {r[3] for r in rows if r[3] and not (r[4] or "").strip()}
+    need_rank = {r[3] for r in live if r[3] and not (r[4] or "").strip()}
     uksi_ranks: Dict[str, str] = {}
     if need_rank:
         u = connect_ro(uksi_db)
@@ -319,21 +334,28 @@ def build_report(main_db, uksi_db, source: str, include_copies: bool = False) ->
             u.close()
     synonyms = synonym_groups(pairs, current)
 
-    report = CleaningReport(source=source, total_records=len(rows) - len(returned_at),
+    report = CleaningReport(source=source, total_records=len(rows) - len(hidden_at),
                             rows={k: [] for k, _ in PROBLEMS}, include_copies=include_copies,
                             copies_marked=copies_marked, hidden_records=hidden_count)
     kind_cache: Dict[Tuple[str, str], frozenset] = {}
     flagged = set()
     for (rid, irec, name, tvk, rank, date, dtype, grid, site, recorder, lat, lon, ds) in rows:
         name, tvk = name or "", tvk or ""
-        if rid in returned_at:               # hidden: listed under "returned" only
-            h, r = returned_at[rid]
-            report.rows["returned"].append(CleaningRow(
-                record_id=rid, species=name, rank=(rank or "").strip(),
-                date=display_date(date, dtype), grid_ref=grid or "", site=site or "",
-                recorder=recorder or "", irecord_id=irec, problem="returned",
-                detail=f"Removed here {h[:16].replace('T', ' ')}; came back from iRecord "
-                       f"{r[:16].replace('T', ' ')} (still hidden)", dataset=ds or ""))
+        if rid in hidden_at:                 # hidden: listed under "hidden" / "returned" only
+            h, r = hidden_at[rid]
+            stamp = h[:16].replace("T", " ")
+            base = dict(record_id=rid, species=name, rank=(rank or "").strip(),
+                        date=display_date(date, dtype), grid_ref=grid or "", site=site or "",
+                        recorder=recorder or "", irecord_id=irec, dataset=ds or "")
+            detail = f"Removed here {stamp}"
+            if r:
+                detail += f"; came back from iRecord {r[:16].replace('T', ' ')}"
+            report.rows["hidden"].append(CleaningRow(problem="hidden", detail=detail, **base))
+            if rid in returned_at:
+                h, r = returned_at[rid]
+                report.rows["returned"].append(CleaningRow(
+                    problem="returned", detail=f"Removed here {h[:16].replace('T', ' ')}; came "
+                    f"back from iRecord {r[:16].replace('T', ' ')} (still hidden)", **base))
             continue
         rank = (rank or "").strip() or uksi_ranks.get(tvk) or \
             uksi_ranks.get(current.get(tvk) or "", "")

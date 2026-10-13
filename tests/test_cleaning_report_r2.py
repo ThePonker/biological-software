@@ -209,6 +209,7 @@ def qapp():
 
 
 def test_dashboard_lists_and_opens(qapp, dbs, monkeypatch):
+    from PySide6.QtCore import Qt
     from src.views.stats.cleaning_dashboard import CleaningDashboard
     d = CleaningDashboard(main_db=dbs[0], uksi_db=dbs[1])
     d.refresh()
@@ -219,12 +220,13 @@ def test_dashboard_lists_and_opens(qapp, dbs, monkeypatch):
     monkeypatch.setattr(d, "open_in_observatum", lambda row: shown.append(row.record_id))
     d.show_problem("grid")
     view = d.current_view()
+    first = view.model().index(0, 0).data(Qt.ItemDataRole.UserRole).record_id
     d._on_double_click(view.model().index(0, 0))
-    assert opened == [IRECORD_URL.format(id=1007)]
+    assert opened == [] and shown == [first]                  # 13 Oct 2026: detail, never iRecord
     d.show_problem("genus")                                   # genus: record 2 has no iRecord ID
     view = d.current_view()
     d._on_double_click(view.model().index(0, 0))
-    assert shown == [2]
+    assert shown == [first, 2]
     d.cmb_source.setCurrentIndex(1)
     assert d.report().source == "recording_scheme"
 
@@ -243,6 +245,9 @@ def test_detail_dialog_view_only_on_data_copy(qapp):
         d.cmb_source.blockSignals(True)
         d.cmb_source.setCurrentIndex(idx)
         d.cmb_source.blockSignals(False)
+        d._shown_source = d.source()     # as after a report is shown (13 Oct 2026: the rows'
+        #   own source decides the table); no main window here, so no Observation tab to
+        #   wire Edit / Delete to -- both stay hidden for either source
         row = CleaningRow(rid, "", "", "", "", "", "", None, "grid", "")
         dlg = d.detail_dialog(row)
         texts = [b.text() for b in dlg.findChildren(QPushButton) if b.isVisibleTo(dlg)]

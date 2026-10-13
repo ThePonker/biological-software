@@ -202,12 +202,12 @@ def test_cleaning_dashboard_early_tile_and_contributed_source(qapp, tmp_path):
     assert dash._tiles["early"].text() == "Date before 1700\n1"
     view = dash._views["early"]
     dash._on_double_click(view.model().index(0, 0))
-    assert opened == ["https://irecord.org.uk/record-details?occurrence_id=77"]
+    assert opened == [] and len(shown) == 1                # 13 Oct 2026: detail, not iRecord
     dash.cmb_source.setCurrentIndex(dash.cmb_source.findData("contributed_observations"))
     dash.refresh()
     assert dash._tiles["early"].text() == "Date before 1700\n1"
     dash._on_double_click(dash._views["early"].model().index(0, 0))
-    assert shown == [1]                                    # no iRecord ID: opens in Observatum
+    assert len(shown) == 2 and shown[1] == 1               # opens in Observatum
 
 
 @needs_data

@@ -4,7 +4,8 @@ Claude delivers files to Wil's PC with its device tools (stage = copy from the P
 commit = write to the PC). This script does the steps in between, so they are the
 same every time:
 
-  1. prepare  -- for the files changed between two commits: check the copies just
+  1. prepare  -- for the files changed between two commits: lint them with ruff (it
+                 stops before writing anything if ruff finds a problem), check the copies just
                  staged from the PC still match BASE (so nothing Wil changed is
                  overwritten), copy each new version to an output folder keeping
                  the PC's line endings (CRLF where his copy has CRLF), and print
@@ -51,8 +52,32 @@ def pc_path(root: str, rel: str) -> str:
     return root + "\\" + rel.replace("/", "\\")
 
 
+def lint(files: list) -> bool:
+    """ruff (the repo's ruff.toml) on the .py files being delivered -- the same check as
+    Wil's pre-commit hook, so a delivery never stops his commit (13 Oct 2026)."""
+    py = [f for f in files if f.endswith(".py")]
+    if not py:
+        return True
+    try:
+        r = subprocess.run([sys.executable, "-m", "ruff", "check", *py],
+                           capture_output=True, text=True)
+    except OSError as e:
+        print(f"  STOP lint: could not run ruff ({e})")
+        return False
+    if r.returncode != 0:
+        print(r.stdout + r.stderr)
+        print("  STOP lint: fix the problems above, commit, and prepare again "
+              "(nothing written)")
+        if "No module named ruff" in r.stderr:
+            print("  (install it: pip install ruff)")
+        return False
+    return True
+
+
 def prepare(a) -> int:
     files = changed(a.base, a.head)
+    if not lint(files):
+        return 1
     problems = 0
     os.makedirs(a.out, exist_ok=True)
     for rel in files:

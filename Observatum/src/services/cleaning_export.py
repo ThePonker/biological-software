@@ -17,6 +17,7 @@ SHEET_NAMES = {
     "sl": "Sensu lato", "subsp": "Subspecies, var, form", "hybrid": "Hybrids",
     "no_tvk": "No TVK", "synonym": "Synonyms", "date": "Date", "early": "Date before 1700", "grid": "Grid ref",
     "latlon": "Lat-long not grid ref", "returned": "Came back from iRecord",
+    "hidden": "Hidden here",
 }
 HEADERS = ["Species", "Rank", "Date", "Grid ref", "Site", "Recorder", "Problem",
            "iRecord ID", "iRecord link", "Observatum ID", "Source"]

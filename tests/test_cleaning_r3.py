@@ -225,7 +225,7 @@ def test_latlon_problem_rule():
 
 def test_cleaning_report_latlon_list_export_and_screen(tmp_path, qapp):
     from Observatum.src.services.cleaning_export import HEADERS, SHEET_NAMES, export_xlsx
-    from Observatum.src.services.cleaning_report import PROBLEM_LABELS, PROBLEMS, build_report
+    from Observatum.src.services.cleaning_report import OBSERVATION_ONLY, PROBLEM_LABELS, PROBLEMS, build_report
     main, uksi = _cleaning_dbs(tmp_path)
     assert PROBLEM_LABELS["latlon"] == "Not a grid ref (looks like latitude/longitude)"
     rep = build_report(main, uksi, "recording_scheme")
@@ -241,8 +241,8 @@ def test_cleaning_report_latlon_list_export_and_screen(tmp_path, qapp):
     path = export_xlsx(rep, str(tmp_path / "c.xlsx"))
     wb = load_workbook(path, read_only=True)
     try:
-        # the scheme's export has no "Came back from iRecord" sheet (observations only, F72)
-        assert wb.sheetnames == ["Summary"] + [SHEET_NAMES[k] for k, _ in PROBLEMS if k != "returned"]
+        # the scheme's export has no "Came back from iRecord" sheet (observations only, F72; nor "Hidden here")
+        assert wb.sheetnames == ["Summary"] + [SHEET_NAMES[k] for k, _ in PROBLEMS if k not in OBSERVATION_ONLY]
         sheet = list(wb[SHEET_NAMES["latlon"]].values)
         assert list(sheet[0]) == HEADERS and HEADERS[-1] == "Source"
         assert [(s[3], s[9], s[10]) for s in sheet[1:]] == [

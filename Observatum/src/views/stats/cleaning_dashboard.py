@@ -7,14 +7,17 @@ views/stats/cleaning_table.py; every matching record is shown, whatever the spec
 switches say.
 
 The iRecord ID cell is a link where the record holds one; "Open in iRecord" is enabled only
-for such a row (the tooltip says why otherwise); double-click opens iRecord, or the record
-in Observatum (view only) when it has no iRecord ID. "Export" writes one .xlsx: a Summary
-sheet and a sheet per problem.
+for such a row (the tooltip says why otherwise); double-click opens the record's detail
+dialog (13 Oct 2026). An ordinary Observation row keeps Edit / Delete, wired to the Observation
+tab's own flows (observation_record_actions); hidden / returned, Recording Scheme and
+Contributed rows are view only. "Export" writes one .xlsx: a Summary sheet and a sheet per
+problem.
 
 Recording Scheme: the marked NBN copies of iRecord records (shared/scheme_duplicates.py)
 are left out unless "Include NBN copies of iRecord records" is ticked; the header line and
 the export say which. Observation: "Came back from iRecord -- check" lists records removed
-here that a download brought back (still hidden); "Show again" un-hides one.
+here that a download brought back (still hidden); "Hidden here" lists every hidden record;
+"Show again" un-hides one from either tile.
 """
 from __future__ import annotations
 
@@ -53,6 +56,7 @@ class CleaningDashboard(QWidget):
         super().__init__(parent)
         self._main_db, self._uksi_db = main_db, uksi_db
         self._reports: Dict[tuple, CleaningReport] = {}
+        self._shown_source: Optional[str] = None   # the source of the rows on screen
         self._models: Dict[str, CleaningRowModel] = {}
         self._views: Dict[str, CleaningTableView] = {}
         self._tiles: Dict[str, QPushButton] = {}
@@ -115,13 +119,13 @@ class CleaningDashboard(QWidget):
         root.addWidget(self.stack, 1)
 
         bottom = QHBoxLayout()
-        self.lbl_hint = QLabel("Double-click a record: opens it in iRecord (underlined iRecord ID), "
-                               "or in Observatum if it has no iRecord ID.")
+        self.lbl_hint = QLabel("Double-click a record to open its details. Click an underlined "
+                               "iRecord ID (or Open in iRecord) to open it in iRecord.")
         bottom.addWidget(self.lbl_hint)
         bottom.addStretch()
         self.btn_show_again = QPushButton("Show again")
-        self.btn_show_again.setToolTip("Un-hide this record in Observatum (it came back from "
-                                       "iRecord, so it is in both).")
+        self.btn_show_again.setToolTip("Un-hide this record in Observatum (it is shown and "
+                                       "counted again).")
         self.btn_show_again.clicked.connect(self.show_selected_again)
         self.btn_irecord = QPushButton("Open in iRecord")
         self.btn_irecord.clicked.connect(self.open_selected_in_irecord)
@@ -158,6 +162,9 @@ class CleaningDashboard(QWidget):
                 self._reports[key] = build_report(main, uksi, key[0], include_copies=key[1])
             except Exception as e:
                 print(f"[CleaningDashboard] report not built: {e}")
+                for model in self._models.values():      # never leave another source's rows
+                    model.set_rows([])
+                self._shown_source = None
                 self.lbl_summary.setText(f"The report could not be made: {e}")
                 return
             finally:
@@ -172,6 +179,7 @@ class CleaningDashboard(QWidget):
         return self._reports.get((self.source(), self.include_copies()))
 
     def _show(self, rep: CleaningReport):
+        self._shown_source = rep.source
         counts = rep.counts
         for key, label in PROBLEMS:
             self._models[key].set_rows(rep.rows.get(key, []))
@@ -217,19 +225,16 @@ class CleaningDashboard(QWidget):
                                    else Qt.CursorShape.ArrowCursor)
         self.btn_observatum.setEnabled(row is not None)
         self.btn_observatum.setToolTip("" if row is not None else NO_ROW_TIP)
-        returned = self.current_key() == "returned" and self.source() == "observations"
-        self.btn_show_again.setVisible(returned)
-        self.btn_show_again.setEnabled(returned and row is not None)
+        hidden = self.current_key() in ("returned", "hidden") and self.source() == "observations"
+        self.btn_show_again.setVisible(hidden)
+        self.btn_show_again.setEnabled(hidden and row is not None)
 
     # ------------------------------------------------------------------ actions
     def _on_double_click(self, index):
         row = index.data(Qt.ItemDataRole.UserRole)
         if row is None:
             return
-        if irecord_url(row.irecord_id):
-            self._open_irecord(row)
-        else:
-            self.open_in_observatum(row)
+        self.open_in_observatum(row)             # 13 Oct 2026: always the detail dialog
 
     def open_selected_in_irecord(self):
         row = self.current_row()
@@ -251,9 +256,9 @@ class CleaningDashboard(QWidget):
         self.open_in_observatum(row)
 
     def show_selected_again(self):
-        """Un-hide the selected "came back" record (clears hidden_at; the ID is forgotten)."""
+        """Un-hide the selected hidden record (clears hidden_at; the ID is forgotten)."""
         row = self.current_row()
-        if row is None or self.source() != "observations":
+        if row is None or self._shown_source != "observations":
             return
         from shared.hidden_records import show_again
         try:
@@ -275,38 +280,27 @@ class CleaningDashboard(QWidget):
             QMessageBox.warning(self, "Show again", "The database has no hidden_at column yet.")
             return
         print(f"[CleaningDashboard] record {row.record_id} shown again")
+        key = self.current_key()
+        from .cleaning_detail import reload_observation_tab
+        reload_observation_tab(self)
         self.mark_stale()
         self.refresh()
-        self.show_problem("returned")
+        self.show_problem(key)                   # 13 Oct 2026: stay on the tile pressed on
+
+    def _is_editable(self, row: CleaningRow) -> bool:
+        """Only a live Observation row may be edited / deleted from here."""
+        return self._shown_source == "observations" and row.problem not in OBSERVATION_ONLY
 
     def detail_dialog(self, row: CleaningRow):
-        """The existing record detail dialog for a row, view only (no Edit / Delete)."""
-        main, _uksi = self._paths()
-        from shared.db_open import connect_ro
-        conn = connect_ro(main)
-        try:
-            import sqlite3
-            conn.row_factory = sqlite3.Row
-            found = conn.execute(f"SELECT * FROM {self.source()} WHERE id = ?",
-                                 (row.record_id,)).fetchone()
-        finally:
-            conn.close()
-        if found is None:
+        """The record's detail dialog (views/stats/cleaning_detail.py), or None if not found."""
+        from .cleaning_detail import build_dialog, find_record
+        source = self._shown_source              # the rows' own table, not the combo's
+        if source is None:
             return None
-        record = dict(found)
-        if self.source() == "recording_scheme":
-            from ..dialogs import SchemeRecordDetailDialog
-            record.update(species=record.get("species_name", ""), common=record.get("common_name", ""),
-                          location=record.get("site_name", ""), gridRef=record.get("grid_ref", ""),
-                          vc=record.get("vc_number", ""),
-                          verification=record.get("verification_status", ""))
-            dlg = SchemeRecordDetailDialog(record, parent=self)
-        else:
-            from ..dialogs import RecordDetailDialog
-            dlg = RecordDetailDialog(record=record, record_type="observation", parent=self)
-        for btn in dlg.findChildren(QPushButton):
-            if btn.text().strip() in ("Edit", "Delete"):
-                btn.hide()
+        record = find_record(self._paths()[0], source, row.record_id)
+        if record is None:
+            return None
+        dlg = build_dialog(self, record, source, self._is_editable(row))
         dlg.navigate_to_observations.connect(lambda sp: (dlg.close(), self.navigate_to_observations.emit(sp)))
         dlg.navigate_to_collection.connect(lambda sp: (dlg.close(), self.navigate_to_collection.emit(sp)))
         return dlg
@@ -320,7 +314,12 @@ class CleaningDashboard(QWidget):
         if dlg is None:
             QMessageBox.information(self, "Open in Observatum", "That record could not be found.")
             return
-        dlg.exec()
+        from .cleaning_detail import run_dialog
+        if run_dialog(self, dlg, self._is_editable(row)):   # changed: rebuild, same tile
+            key = self.current_key()
+            self.mark_stale()
+            self.refresh()
+            self.show_problem(key)
 
     def _on_export(self):
         rep = self.report()

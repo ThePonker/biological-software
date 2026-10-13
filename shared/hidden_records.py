@@ -229,3 +229,20 @@ def returned(conn: sqlite3.Connection):
         f"FROM {ID_TABLE} h JOIN {TABLE} o ON CAST(o.irecord_id AS TEXT) = h.irecord_id "
         f"WHERE h.returned_at IS NOT NULL AND o.{COLUMN} IS NOT NULL "
         f"ORDER BY o.species_name, o.id").fetchall()
+
+
+def hidden(conn: sqlite3.Connection):
+    """[(observation id, irecord_id, species_name, hidden_at, returned_at)] for EVERY hidden
+    observation, returned or not (13 Oct 2026; the cleaning report's "Hidden here" tile).
+    returned_at is None where no download brought it back; [] without the hidden_at column."""
+    if COLUMN not in _columns(conn):
+        return []
+    if schema_present(conn):
+        return conn.execute(
+            f"SELECT o.id, o.irecord_id, o.species_name, COALESCE(h.hidden_at, o.{COLUMN}), "
+            f"h.returned_at FROM {TABLE} o LEFT JOIN {ID_TABLE} h "
+            f"ON CAST(o.irecord_id AS TEXT) = h.irecord_id "
+            f"WHERE o.{COLUMN} IS NOT NULL ORDER BY o.species_name, o.id").fetchall()
+    return conn.execute(
+        f"SELECT id, irecord_id, species_name, {COLUMN}, NULL FROM {TABLE} "
+        f"WHERE {COLUMN} IS NOT NULL ORDER BY species_name, id").fetchall()
