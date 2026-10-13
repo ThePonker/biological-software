@@ -554,7 +554,8 @@ boundaries were doubled (F47). It also made a test pass or fail depending on tes
 When two things are cached, check their keys cannot meet.
 
 **Measure on Wil's PC, not only here.** The startup pause was ~145 ms on Linux and 1,231 ms on
-Windows (F48); offscreen Windows has no fonts, so font-metric tests fail there; the Windows
+Windows (F48); offscreen Windows has no fonts, so font-metric tests fail there unless
+`QT_QPA_FONTDIR` points at the Windows fonts (`tests/conftest.py` does, F79); the Windows
 console is cp1252, so a subprocess printing ✓ broke a test (set `PYTHONIOENCODING=utf-8` and
 decode as UTF-8). `run.bat --timing` exists so the PC's own numbers come back.
 
@@ -578,3 +579,19 @@ switched back on in every path, errors and early close included.
 
 **One main line at a time** (agreed 12 Oct). Many parallel fronts outran Wil's testing.
 Build a round, test it, commit and push it, then start the next.
+
+**A view acts on the rows it shows, not on what a drop-down now says** (F81, 13 Oct). The
+cleaning report looked a row up by the Data drop-down's table; after a failed rebuild the
+rows were another source's. Keep the source with the rows, and clear the rows when a build
+fails.
+
+**Rows left out of a check feed none of it** (F80, 13 Oct). Hidden records were kept out of
+the cleaning report's checks but still fed the synonym groups, so a live record could be
+flagged by a hidden one. Filter once, before anything is derived from the rows.
+
+**A completer's pop-up is made when it is first needed** (13 Oct). Calling `popup()` in a
+screen's `__init__` made a top-level window for a screen never shown, and Qt crashed on
+clean-up in the tests. Attach delegates the first time the list fills.
+
+**Run the full suite in parallel** (13 Oct): `py -3.14 -m pytest tests -q -n 6`. Tests that
+change shared Qt state must put it back (`conftest.py` restores the application font).

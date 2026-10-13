@@ -39,7 +39,7 @@ comes first either way.
 | 6 | ✅ *Built 12 Oct (R9 B3), Wil to run `mark_scheme_irecord_duplicates.py`.* **Scheme iRecord duplicates:** mark the 34,121 NBN "Longhorn beetle data from iRecord" copies that share an iRecord ID so each record counts once, keeping the iRecord copy. A flag, not a delete; reversible. Other tiers wait for the final dataset | Q59 |
 | 7 | ✅ *Done 12 Oct (R9 B4a).* **Sundon reference figures:** `reference_figures.json` now 231 species / 19 key / SQI 125, Pantheon 114, strict 114 / 19 (Jon's IDs accepted as recorded) | Q66 |
 | 8 | ✅ *Built 12 Oct (R9 B4b).* ***Sympetrum nigrescens*** linked to *S. striolatum* in Pantheon Only mode: a local correction to the bridge, flagged (`shared/pantheon_bridge_corrections.csv`; strict key −1 at six surveys, `02`) | Q67 |
-| 9 | **Test-order flake** (`test_window_width_r4` before `test_small_fixes_20261010`); check whether the 12 Oct map cache-key fix already cured it | Q89, note 43 |
+| 9 | ✅ *Fixed 13 Oct (F79).* **Test-order flake:** offscreen Qt on Windows had no fonts; `tests/conftest.py` sets `QT_QPA_FONTDIR`, so the layout tests pass in any order and in parallel | Q89, note 43 |
 | 10 | **Retire the scheme month chart's never-built species dropdown** (`stat_widgets.py` `_species_combo`) to `_archive` | Q64 |
 | 11 | **Suite-review leftovers sweep** (Tier 3 and 4: OBS-22/23, INF5–11, CDX-4, OBS-25/27, SRCH20/22, MAP13/15/16, DE10–14, IMP-18): verify each, fix or close; about half a session | Q90, note 39 §4.11 |
 | 12 | **Data Entry compact banner:** a toggle that folds the cards to one line, for short laptop screens (about 7 grid rows at 1280×720) | Q54 |
@@ -64,6 +64,13 @@ Also for this round (small, already decided): rename the "Districts (modern)" sw
 | C4 | ✅ *Built 13 Oct, Wil to run.* **Old-format sort keys** (`'000204…'` strings on 41 observations in the 10 Oct copy, incl. *Isoaeschna isoceles* 10743–4, whose TVK is superseded — the key comes from the current taxon *Aeshna isoceles*): `backfill_taxon_groups.py --fix-odd-keys` (dry run, backup, `--apply`) | Wil, Round 9 |
 
 ---
+
+### Next (from the 13 Oct handover, `claude/47`)
+
+Later / parked: Specimens to check tab (design agreed; build after the Data Entry jobs Hook,
+Notts, Coedely, Scunthorpe, Warwick are entered and committed). Photos (needs the camera model
+and stacking software name). Lector walkthrough and tests. Test 36 (Drawer in hand on the
+1280×720 laptop). F72's uncovered raw queries for hidden records: decide whether to sweep.
 
 ## Then: the big jobs (Q1 open; suggested order below, `04_Roadmap.md`)
 
@@ -250,3 +257,4 @@ From the sweep of notes 30–46, the repo docs, the drafts, the agent briefs and
 | Round 7 (12 Oct) | Lector stage A (fix2, LEC1–6, saved searches, service) and the desktop window | Lector, 9 of 9 |
 | Round 8 (12 Oct) | Lector L1–L16, Observatum O1 (pause) and O2 (square opacity), Lector manual, review fixes | Outstanding tests, all passed 12 Oct |
 | Tests only (12 Oct) | B8 Check before commit; E3 Examen PDF; import test files (`tests/manual_import_files/`) | passed |
+| Handover tasks (13 Oct) | One place for saved filters; cleaning report rows open Record Detail + Hidden here tile; disabled look on every button style; Species Lookup list painter; tests in parallel (`-n 6`) | all passed 13 Oct |

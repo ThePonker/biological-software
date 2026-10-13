@@ -4,7 +4,7 @@
 ## Open faults carry an action. Closed ones are kept in brief, because knowing
 ## what has already gone wrong is how the rules in `05` were earned. Older closed
 ## faults are in `06b_Faults_Closed.md` (split out 12 Oct). New faults take the
-## next free number (F78 next).
+## next free number (F82 next).
 
 ---
 
@@ -231,6 +231,24 @@ unconverted, so multi-line string anchors still fail unpredictably.
 ---
 
 ## Closed since 10 October
+
+### F79. Layout tests passed or failed with test order -- FIXED 13 Oct
+Offscreen Qt on Windows finds no fonts, so the 1280 px window tests measured with no glyphs
+(Drawer in hand 2,052 px against 1,240) unless an earlier test had started Qt with real fonts.
+Shown up by the parallel run (`-n 6`). `tests/conftest.py` sets `QT_QPA_FONTDIR` on Windows;
+all 1,369 tests pass in parallel.
+
+### F80. Cleaning report: hidden records fed the synonym check -- FIXED 13 Oct
+*Found by the review.* Hidden observations were left out of the checks but their names and
+TVKs still built the synonym groups, so a live record could be listed as "Same species as" a
+hidden one, and counted in "have at least one problem". Already true for "came back" records
+before 13 Oct. Names, TVKs and ranks now come from the live rows only.
+
+### F81. Cleaning report: a failed rebuild left another source's rows openable -- FIXED 13 Oct
+*Found by the review, before delivery.* With Contributed shown, switching to Observation and
+a failed build left the Contributed rows on screen; a double-click looked the id up in
+`observations` and could open that record with Edit / Delete. The rows are cleared when a
+build fails and the table is the shown rows' own source (`cleaning_detail.py`).
 
 ### F47. VC boundary layer drawn from the land's borders after the first paint -- FIXED 12 Oct
 *Found by the Round 8 review.* On a PC without `gb_outline.json` the land is drawn from the

@@ -40,10 +40,11 @@ moves to the front of the queue. `run.bat --timing` prints the phases and every 
 | Everything ready | 15.3 s | 16.33 s | **12.05 s** |
 | Longest GUI pause | — | 1,231 ms | **106 ms** (stats order grid build) |
 
-**Automated tests:** 1,219 pass here (12 Oct, Round 8 + review). On the PC after Round 8:
-1,218 passed, 2 skipped, 1 failed; the failure was test-only (it assumed an old `lector.db`)
-and is fixed (`3fe4a7a`). One test-order flake may remain (`test_window_width_r4` before
-`test_small_fixes_20261010`, small fix 9).
+**Automated tests (13 Oct):** on the PC, `py -3.14 -m pytest tests -q -n 6` (pytest-xdist,
+installed 13 Oct): 1,366 passed, 3 skipped in 1 min 55 s at `19e4a1c` (one process: 7 min 43 s).
+Task 4 added 2 tests (`test_species_lookup_list.py`). The test-order failures are cured: offscreen
+Qt on Windows had no fonts, so the 1280 px layout tests passed only when an earlier test had
+started Qt with real fonts; `tests/conftest.py` now sets `QT_QPA_FONTDIR` (backlog small fix 9).
 
 **Wil's manual test rounds, all passed:**
 

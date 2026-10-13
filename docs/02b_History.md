@@ -5,6 +5,22 @@
 
 ---
 
+### Session 48 — 13 October 2026
+
+**Handover tasks 1–4 and a faster way of working.** (1) One place for saved filters: the
+filter bar's top row saves the bar's boxes and the Filter Wizard's chips together; the wizard's
+own Load saved / bin / Save as / Save / Reset / Apply Filter row is gone, and a card dialog's
+Apply now filters the table (it only updated the cards before). (2) Cleaning report: a row
+opens Record Detail (Edit / Delete with the iRecord box for a live Observation row, through the
+Observation tab's own flows; scheme, contributed and hidden rows view only); a "Hidden here"
+tile with Show again. The Opus review found hidden rows feeding the synonym check (F80) and a
+failed build leaving another source's rows editable (F81); both fixed before delivery.
+(3) Every button style greys out when disabled. (4) Species Lookup's drop-down drawn by the
+shared species list painter (search and picks unchanged). Working method: `claude_deliver.py
+prepare` runs ruff; Claude stages read-only copies of the databases so data tests run before
+delivery; Wil runs targeted tests per task and the full suite with `-n 6` (2 min) for data
+changes and at session end; layout tests no longer depend on test order (F79).
+
 ### Session 47 — 12 October 2026
 
 **Round 7: Lector in the suite.** The lost fix2 work restored exactly (whole-word title
