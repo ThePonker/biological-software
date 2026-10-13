@@ -103,19 +103,20 @@ def test_what_dialog_group_choice_becomes_a_working_chip(qapp):
     v = tab_values(DB, "observations")
     d = WhatFilterDialog(species_list=v["species"], taxon_groups=v["orders"],
                          family_list=v["families"])
-    c = d._species_input.completer()
+    c = d._search_input.completer()          # R11: the one What box
     c.setCompletionPrefix("ladybird")
     m = c.completionModel()
     first = m.data(m.index(0, 0))
     assert first == GROUP
-    d._on_species_completer_activated(first)
+    d._on_completer_activated(first)
     assert d.get_values() == {"species": [GROUP]}            # the chip names what was chosen
     labels = [w.text() for w in d._chips["species"][0].findChildren(QLabel)]
-    assert f"Species: {GROUP}" in labels
+    chip = "Family: All Coccinellidae (ladybirds)"          # R11: the chip says what it is
+    assert chip in labels
     assert len(matching_ids(DB, "observations", d.get_values())) > 0
     # reopened: the chip still says the group
     d2 = WhatFilterDialog(current_values=d.get_values(), species_list=v["species"])
-    assert f"Species: {GROUP}" in [w.text() for w in d2._chips["species"][0].findChildren(QLabel)]
+    assert chip in [w.text() for w in d2._chips["species"][0].findChildren(QLabel)]
 
 
 # ---------------------------------------------------------------- F69

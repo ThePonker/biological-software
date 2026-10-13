@@ -4,7 +4,7 @@
 ## Open faults carry an action. Closed ones are kept in brief, because knowing
 ## what has already gone wrong is how the rules in `05` were earned. Older closed
 ## faults are in `06b_Faults_Closed.md` (split out 12 Oct). New faults take the
-## next free number (F77 next).
+## next free number (F78 next).
 
 ---
 
@@ -399,6 +399,16 @@ calendar the application shows, once, from an application event filter installed
 Green band with white month, year and drawn chevron arrows; Saturday and Sunday in the
 warning amber; today bold in the accent on the pale moss band (a text format cannot draw an
 outline). `date_filter_widget.py` uses the same look in its tab accent instead of its own copy.
+
+### F77. Filter Wizard dialogs: Enter in a box wiped the chips already there -- FIXED 13 Oct (Round 11 A, to test)
+Found while building the one What box (backlog 17). A Filter Wizard dialog opened on stored
+chips (a reopened card, a loaded saved filter) made the first auto-default push button its
+default button: the "Clear All" link, or the first chip's x. Enter in a search box then added
+its chip and pressed that button too -- every chip went (What, Where and Who; How is set
+the same way). Measured on the Round 10 code: What opened on Family Cerambycidae, "Coleoptera"
++ Enter in the Order box -> no chips left. Now "Clear All" and the chip's x
+(`chip_display.FilterChip`) are never auto-default (`what/where/who/how_filter_dialog.py`);
+tests in `tests/test_r11a.py`.
 
 ### F45. Records and species counted differently from screen to screen -- FIXED 10 Oct
 Backlog A (Round 2): one counting rule per source (`shared/record_kinds.py`,

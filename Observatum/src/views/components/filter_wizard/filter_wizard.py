@@ -68,6 +68,7 @@ class FilterWizard(QWidget):
         self._species_list: List[str] = []
         self._taxon_groups: List[str] = []   # despite the name: ORDERS (key 'taxon_group')
         self._group_list: List[str] = []     # real taxon groups (key 'group'), display labels
+        self._species_info: Dict[str, dict] = {}   # {species: {common, family, rank}} (R11)
         self._family_list: List[str] = []
         self._taxon_family_map: Dict[str, List[str]] = {}
         self._recorder_list: List[str] = []
@@ -338,6 +339,7 @@ class FilterWizard(QWidget):
                 taxon_groups=self._taxon_groups,
                 family_list=self._family_list,
                 group_list=self._group_list,
+                species_info=self._species_info,
                 taxon_family_map=self._taxon_family_map,
                 parent=self
             )
@@ -510,6 +512,7 @@ class FilterWizard(QWidget):
         self._taxon_groups = v['orders']
         self._family_list = v['families']
         self._group_list = v.get('groups', [])
+        self._species_info = v.get('species_info', {})   # common name / family per species (R11)
         self._vc_list = v['vice_counties']
         self._grid_ref_list = v['grid_refs']
         self._site_list = v['sites']

@@ -146,7 +146,8 @@ def test_filter_wizard_fuzzy_matching_one_copy():
             sys.modules.setdefault(m, mod)
     from src.views.components.filter_wizard import fuzzy, what_filter_dialog, where_filter_dialog
     from src.views.components.filter_wizard import chip_display, how_filter_dialog, who_filter_dialog
-    assert what_filter_dialog.FuzzyCompleter is fuzzy.FuzzyCompleter
+    # the What dialog's one box (R11) shares fuzzy.py's Enter rule, not a copy of it
+    assert what_filter_dialog.picking_from_popup is fuzzy.picking_from_popup
     assert where_filter_dialog.FuzzyCompleter is fuzzy.PlaceCompleter
     assert how_filter_dialog.FilterChip is who_filter_dialog.FilterChip is chip_display.FilterChip
 

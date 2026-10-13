@@ -165,11 +165,14 @@ def test_enter_on_half_typed_text_is_a_contains_chip(qapp):
     from src.views.components.filter_wizard.who_filter_dialog import WhoFilterDialog
     d = WhatFilterDialog(species_list=["Rutpela maculata"], taxon_groups=["Coleoptera", "Diptera"],
                          family_list=["Cerambycidae"])
-    d._order_input.setText("Coleop")
-    d._on_enter_pressed(d._order_input, "taxon_group", "Order")
-    d._family_input.setText("cerambycidae")
-    d._on_enter_pressed(d._family_input, "family", "Family")
-    assert d.get_values() == {"taxon_group": ["~Coleop"], "family": ["Cerambycidae"]}
+    # R11: one box. Half-typed text takes the list's top row (the order it names), a name
+    # typed in full is that name, and text nothing offers is a contains chip (*text*).
+    for text in ("Coleop", "cerambycidae", "zzqx"):
+        d._search_input.setText(text)
+        d._on_enter()
+    assert d.get_values() == {"taxon_group": ["Coleoptera"], "family": ["Cerambycidae"],
+                              "species": ["~zzqx"]}
+    assert "Species: *zzqx*" in d.chip_texts()
 
     w = WhereFilterDialog(vc_list=["Oxfordshire"], grid_ref_list=["SP5822"], site_list=["Otmoor"])
     w._vc_input.setText("oxf")

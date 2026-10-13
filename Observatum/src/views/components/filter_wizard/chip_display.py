@@ -69,6 +69,7 @@ class FilterChip(QFrame):
         remove_btn.setFixedSize(20, 20)
         remove_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         remove_btn.clicked.connect(self._on_remove)
+        remove_btn.setAutoDefault(False)   # Enter in a dialog's box must not remove a chip (F77)
         remove_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: transparent;

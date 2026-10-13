@@ -525,13 +525,13 @@ class ObservationFilterBar(QFrame, SavedFiltersMixin):
         elif date_from:
             self.date_from_edit.setDate(QDate.fromString(date_from, "yyyy-MM-dd"))
         else:
-            self.date_from_edit.setDate(QDate(1900, 1, 1))
+            self.date_from_edit.clear()      # blank; 1900 is a real date since OBS-14 (F78)
         
         date_to = filters.get('date_to', '')
         if date_to:
             self.date_to_edit.setDate(QDate.fromString(date_to, "yyyy-MM-dd"))
         else:
-            self.date_to_edit.setDate(QDate(1900, 1, 1))
+            self.date_to_edit.clear()        # blank: 'This Year' showed To 01/01/1900, 0 rows (F78)
         
         self.species_edit.setText(filters.get('species', ''))
         self.location_edit.setText(filters.get('location', ''))

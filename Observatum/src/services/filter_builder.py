@@ -334,6 +334,31 @@ def dataset_counts(values_with_counts: Iterable[Tuple[str, int]]) -> List[Tuple[
     return sorted(out, key=lambda vn: (vn[0].casefold(), vn[0]))
 
 
+def _species_info(conn, cols: TabColumns) -> Dict[str, dict]:
+    """{species name: {"common", "family", "rank"}} as the tab's records hold them (the
+    commonest non-blank value of each), for the What box's rows (R11, 13 Oct 2026: "blackbi"
+    showed only "Turdus merula" -- now "Turdus merula  Blackbird · Turdidae"). One pass."""
+    have = {r[1] for r in conn.execute(f"PRAGMA table_info({cols.table})")}
+    fields = [(k, c) for k, c in (("common", "common_name"), ("family", cols.family),
+                                  ("rank", "taxon_rank")) if c and c in have]
+    if not fields:
+        return {}
+    picked = ", ".join(c for _, c in fields)
+    best: Dict[Tuple[str, str], Tuple[int, str]] = {}
+    for row in conn.execute(
+            f"SELECT {cols.species}, {picked}, COUNT(*) FROM {cols.table} "
+            f"WHERE COALESCE({cols.species}, '') <> '' GROUP BY {cols.species}, {picked}"):
+        name, n = row[0], row[-1]
+        for (key, _), value in zip(fields, row[1:-1]):
+            value = str(value or "").strip()
+            if value and ((name, key) not in best or n > best[(name, key)][0]):
+                best[(name, key)] = (n, value)
+    out: Dict[str, dict] = {}
+    for (name, key), (_, value) in best.items():
+        out.setdefault(name, {})[key] = value
+    return out
+
+
 def tab_values(db_path, tab: str, only: Optional[Iterable[str]] = None) -> Dict[str, list]:
     """Distinct values present in the tab's table, for the wizard's dialogs (SRCH12) and
     the filter bars' lists (OBS-15). `only` limits which lists are read."""
@@ -360,6 +385,7 @@ def tab_values(db_path, tab: str, only: Optional[Iterable[str]] = None) -> Dict[
 
     readers = {
         'species': lambda: distinct(cols.species),
+        'species_info': lambda: _species_info(conn, cols),
         'orders': lambda: distinct(cols.order),
         'families': lambda: distinct(cols.family),
         'groups': lambda: _group_labels(conn, cols),

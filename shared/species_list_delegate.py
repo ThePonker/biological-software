@@ -5,7 +5,9 @@ box in Quick Entry / Add Specimen / the import wizards).
 Plain text on one line, no boxes: the scientific name in italics, the common name after it
 in the secondary colour, then any note ("old name: ...", "close spelling") and the rank of
 anything above species ("Genus", "Family") smaller, in the secondary colour. A whole group
-found by a common word reads "All <i>Coleoptera</i> (beetles) — group".
+found by a common word reads "All <i>Coleoptera</i> (beetles) — group" (and its rank, when
+the row's dict carries one: the Filter Wizard's What box). A row marked "plain" is a name
+that is not a taxon (a taxon group): not in italics.
 
 The row height comes from the font actually used (QFontMetrics at run time, plus a little
 space above and below), never a fixed number of pixels: on Windows a fixed 32 px row or a
@@ -49,7 +51,7 @@ def hit_from_result(r: dict, note: str = "", recorded: Optional[bool] = None,
 def row_text(hit: dict) -> str:
     """The row as plain text (for tests, tooltips and accessibility)."""
     if hit.get("group_label"):
-        return hit["group_label"]
+        return "  ".join(p for p in (hit["group_label"], hit.get("rank", "")) if p)
     parts = [hit.get("scientific", ""), hit.get("common", ""), hit.get("family", ""),
              hit.get("note", ""),
              hit.get("rank", ""), "★" if hit.get("recorded") else ""]
@@ -90,9 +92,14 @@ class SpeciesListDelegate(QStyledItemDelegate):
         if label:
             if label.startswith("All ") and sci and sci in label:
                 before, after = label.split(sci, 1)
-                return [(before, base, False), (sci, italic, False), (after, base, True)]
-            return [(label, base, False)]
-        runs = [(hit.get("scientific", ""), italic, False)]
+                runs = [(before, base, False), (sci, italic, False), (after, base, True)]
+            else:
+                runs = [(label, base, False)]
+            if hit.get("rank"):            # the What box says what a group is (R11)
+                runs.append(("  " + hit["rank"], small, True))
+            return runs
+        # plain: a name that is not a taxon (a taxon group, "Butterflies (Lepidoptera)")
+        runs = [(hit.get("scientific", ""), base if hit.get("plain") else italic, False)]
         if hit.get("common"):
             runs.append(("  " + hit["common"], base, True))
         if hit.get("family"):

@@ -167,6 +167,8 @@ class HowFilterDialog(QDialog):
         self._clear_all_btn = QPushButton("Clear All")
         self._clear_all_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._clear_all_btn.clicked.connect(self._clear_all_chips)
+        # never the dialog's default button: Enter in a box must not press it (F77)
+        self._clear_all_btn.setAutoDefault(False)
         self._clear_all_btn.setVisible(False)
         self._clear_all_btn.setStyleSheet(f"""
             QPushButton {{
