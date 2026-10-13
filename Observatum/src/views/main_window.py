@@ -229,6 +229,7 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
         self.stats_reports_tab.navigate_to_scheme_taxon.connect(self._navigate_to_scheme_taxon)
         self.stats_reports_tab.navigate_to_scheme_vc.connect(self._navigate_to_scheme_tab_with_vc)
         self.stats_reports_tab.navigate_to_scheme_record.connect(self._navigate_to_scheme_record)
+        self.stats_reports_tab.navigate_to_home_species.connect(self._navigate_to_home_species)
         # Commercial Reports: manage a project's records (8 Oct 2026)
         _crd = getattr(self.stats_reports_tab, 'commercial_reports_dashboard', None)
         if _crd is not None and hasattr(_crd, 'add_records_requested'):
@@ -248,6 +249,7 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
         try:
             self.home_tab.navigate_to_collection.connect(self._navigate_to_collection_tab)
             self.home_tab.navigate_to_observations.connect(self._navigate_to_observation_tab)
+            self.home_tab.navigate_to_species_lookup.connect(self._navigate_to_species_lookup)
         except AttributeError:
             pass  # Signal not available yet
 
@@ -526,6 +528,17 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
         elif hasattr(self.recording_scheme_tab, 'filter_bar'):
             fb = self.recording_scheme_tab.filter_bar
             fb.clear_filters()
+
+    @waits_for("stats")
+    def _navigate_to_species_lookup(self, species_name: str, tvk: str = ""):
+        """Home > Species Info "Open in Species lookup" (Q55, 13 Oct 2026)."""
+        self.tabs.setCurrentWidget(self._stats_page)
+        self.stats_reports_tab.show_species_lookup(species_name, tvk)
+
+    def _navigate_to_home_species(self, species_data: dict):
+        """Stats > Species lookup "Show on Home" (Q55): the species in Home > Species Info."""
+        self.tabs.setCurrentWidget(self.home_tab)
+        self.home_tab.show_species(species_data)
 
     @waits_for("scheme")
     def _navigate_to_scheme_taxon(self, species_name: str):

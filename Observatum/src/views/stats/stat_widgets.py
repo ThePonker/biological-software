@@ -225,13 +225,11 @@ class HorizontalBarChart(QFrame):
 
 class MonthlyActivityChart(QFrame):
     """Mini vertical bar chart for monthly activity with gridlines and clickable bars."""
-    species_changed = Signal(str)
     month_clicked = Signal(int)  # Emits month number (1-12)
     MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-    def __init__(self, title: str, show_species_filter: bool = False, value_label: str = "records", parent=None):
+    def __init__(self, title: str, value_label: str = "records", parent=None):
         super().__init__(parent)
-        self._show_species_filter = show_species_filter
         self._all_data = {}
         self._values = []
         self._value_label = value_label
@@ -504,24 +502,6 @@ class MonthlyActivityChart(QFrame):
             nice_max = ticks[-1] if ticks else 1
             grid_color = theme().get('border', '#e0e0e0')
             self._position_gridlines(ticks, nice_max, grid_color)
-
-    def set_species_list(self, species_names: list):
-        """Populate the species filter dropdown."""
-        if not self._show_species_filter or not hasattr(self, '_species_combo'):
-            return
-        self._species_combo.blockSignals(True)
-        self._species_combo.clear()
-        self._species_combo.addItem("All Species", "")
-        for name in sorted(species_names):
-            if name:
-                self._species_combo.addItem(name, name)
-        self._species_combo.blockSignals(False)
-
-    def _on_species_changed(self, index: int):
-        """Handle species filter change."""
-        if hasattr(self, '_species_combo'):
-            species = self._species_combo.currentData()
-            self.species_changed.emit(species or "")
 
     def apply_theme(self):
         """Apply the current theme."""

@@ -23,6 +23,7 @@ class SpeciesInfoPanel(Card):
     view_specimens_clicked = Signal(str)  # Emits species TVK
     view_records_clicked = Signal(str)  # Emits species name for filtering observations
     profile_clicked = Signal(dict)  # Emits species data for profile editing
+    lookup_clicked = Signal(str, str)  # (scientific name, TVK): Stats > Species lookup (Q55)
 
     def __init__(self, parent=None):
         super().__init__("Species Info", parent)
@@ -158,6 +159,15 @@ class SpeciesInfoPanel(Card):
         collection_layout.addWidget(self.collection_count)
 
         content_layout.addLayout(collection_layout)
+
+        # Q55 (13 Oct 2026): the same species in Stats > Species lookup
+        self.lookup_btn = QPushButton("Open in Species lookup →")
+        self.lookup_btn.setFlat(True)
+        self.lookup_btn.setStyleSheet(f"color: {TabColors.STATS}; font-size: {t.font_size('sm')}; text-align: left; padding: 0; border: none; background: transparent;")
+        self.lookup_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.lookup_btn.setToolTip("Every count for this species: records, scheme, specimens, phenology")
+        self.lookup_btn.clicked.connect(self._on_lookup)
+        content_layout.addWidget(self.lookup_btn)
 
         # Species Profile section
         self._setup_profile_section(content_layout)
@@ -340,6 +350,15 @@ class SpeciesInfoPanel(Card):
             species_name = self._current_species.get('species_name') or self._current_species.get('scientific_name', '')
             if species_name:
                 self.view_records_clicked.emit(species_name)
+
+    def _on_lookup(self):
+        """Open this species in Stats > Species lookup (Q55)."""
+        if self._current_species:
+            name = (self._current_species.get('scientific_name')
+                    or self._current_species.get('species_name') or '')
+            tvk = self._current_species.get('tvk') or self._current_species.get('species_tvk') or ''
+            if name:
+                self.lookup_clicked.emit(name, tvk)
 
     def _on_view_specimens(self):
         """Handle view specimens button click."""

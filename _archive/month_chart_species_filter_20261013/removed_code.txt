@@ -1,0 +1,44 @@
+"""Retired 13 Oct 2026 (backlog small fix 10, Q64): the Recording Scheme month chart's
+species drop-down was never built (nothing created _species_combo), so its list, signal and
+handler did nothing. Kept here for reference only; not imported anywhere."""
+
+# ---- from stat_widgets.py MonthlyActivityChart
+    def set_species_list(self, species_names: list):
+        """Populate the species filter dropdown."""
+        if not self._show_species_filter or not hasattr(self, '_species_combo'):
+            return
+        self._species_combo.blockSignals(True)
+        self._species_combo.clear()
+        self._species_combo.addItem("All Species", "")
+        for name in sorted(species_names):
+            if name:
+                self._species_combo.addItem(name, name)
+        self._species_combo.blockSignals(False)
+
+    def _on_species_changed(self, index: int):
+        """Handle species filter change."""
+        if hasattr(self, '_species_combo'):
+            species = self._species_combo.currentData()
+            self.species_changed.emit(species or "")
+
+
+# ---- from scheme_dashboard.py RecordingSchemeDashboard
+    def _on_monthly_species_changed(self, species_name: str):
+        """Handle species filter change for monthly chart."""
+        from ...services.recording_scheme_stats_service import get_recording_scheme_stats
+        stats_service = get_recording_scheme_stats()
+        if species_name:
+            # Get monthly counts for specific species
+            monthly_counts = stats_service.get_monthly_counts_by_species(species_name)
+        else:
+            # Get all species monthly counts
+            monthly_counts = stats_service.get('monthly_counts', [])
+        if monthly_counts and len(monthly_counts) == 12:
+            self.monthly_chart.set_data(monthly_counts)
+
+
+# ---- from scheme_dashboard.py update
+                self.species_table.set_data(species_list)
+                # Populate monthly chart species filter
+                species_names = [s.get('species', s.get('species_name', '')) for s in species_list]
+                self.monthly_chart.set_species_list(species_names)

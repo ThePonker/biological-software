@@ -53,6 +53,7 @@ class StatsReportsTab(QWidget):
     navigate_to_scheme_taxon = Signal(str)  # Species lookup: one taxon, found and counted as there (R4)
     navigate_to_scheme_vc = Signal(str, int)  # Request to switch with species and VC filter
     navigate_to_scheme_record = Signal(int)  # Request to switch to Recording Scheme tab and show specific record
+    navigate_to_home_species = Signal(dict)  # Species lookup "Show on Home" (Q55)
 
     def __init__(self, parent=None, build=True):
         """build=False: an empty tab; build_parts() then builds it a piece at a time
@@ -147,6 +148,7 @@ class StatsReportsTab(QWidget):
         self.species_dashboard.navigate_to_observations.connect(self.navigate_to_observations.emit)
         self.species_dashboard.navigate_to_collection.connect(self.navigate_to_collection.emit)
         self.species_dashboard.navigate_to_scheme.connect(self.navigate_to_scheme_taxon.emit)
+        self.species_dashboard.show_on_home.connect(self.navigate_to_home_species.emit)
         self.stack.addWidget(self.species_dashboard)
         yield
 
@@ -184,6 +186,11 @@ class StatsReportsTab(QWidget):
             print(f"[StatsReportsTab] Error initializing dashboards: {e}")
             import traceback
             traceback.print_exc()
+
+    def show_species_lookup(self, species_name: str, tvk: str = "") -> bool:
+        """Home > Species Info's link (Q55): the Species section, opened on this species."""
+        self.section_toggle._on_clicked('species')      # marks the button, switches the page
+        return self.species_dashboard.show_species(species_name, tvk)
 
     def _on_section_changed(self, section_id: str):
         """Handle section change."""

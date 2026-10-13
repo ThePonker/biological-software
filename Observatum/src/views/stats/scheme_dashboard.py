@@ -1381,23 +1381,10 @@ class SchemeDashboard(QScrollArea):
         layout.addLayout(row)
 
     def _setup_monthly_chart(self, layout):
-        """Monthly distribution chart with species filter."""
-        self.monthly_chart = MonthlyActivityChart("Monthly Distribution of Records", show_species_filter=True)
-        self.monthly_chart.species_changed.connect(self._on_monthly_species_changed)
+        """Monthly distribution chart (all species; the never-built species drop-down went to
+        _archive/month_chart_species_filter_20261013, 13 Oct 2026)."""
+        self.monthly_chart = MonthlyActivityChart("Monthly Distribution of Records")
         layout.addWidget(self.monthly_chart)
-
-    def _on_monthly_species_changed(self, species_name: str):
-        """Handle species filter change for monthly chart."""
-        from ...services.recording_scheme_stats_service import get_recording_scheme_stats
-        stats_service = get_recording_scheme_stats()
-        if species_name:
-            # Get monthly counts for specific species
-            monthly_counts = stats_service.get_monthly_counts_by_species(species_name)
-        else:
-            # Get all species monthly counts
-            monthly_counts = stats_service.get('monthly_counts', [])
-        if monthly_counts and len(monthly_counts) == 12:
-            self.monthly_chart.set_data(monthly_counts)
 
     def _setup_vc_table(self, layout):
         """Full VC table at bottom - to be tidied in later phase."""
@@ -1437,9 +1424,6 @@ class SchemeDashboard(QScrollArea):
             species_list = stats.get('species_list', [])
             if species_list:
                 self.species_table.set_data(species_list)
-                # Populate monthly chart species filter
-                species_names = [s.get('species', s.get('species_name', '')) for s in species_list]
-                self.monthly_chart.set_species_list(species_names)
 
             # County firsts (activity feed)
             county_firsts = stats.get('county_firsts', [])

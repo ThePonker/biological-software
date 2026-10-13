@@ -27,6 +27,7 @@ class HomeTab(QWidget):
     # Signal to request navigation to Insect Collection tab with species filter
     navigate_to_collection = Signal(str)  # Emits species TVK or name
     navigate_to_observations = Signal(str)  # Emits species name for filtering observations
+    navigate_to_species_lookup = Signal(str, str)  # (name, TVK): Stats > Species lookup (Q55)
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -111,6 +112,9 @@ class HomeTab(QWidget):
         # View records button -> navigate to Observation Data
         self.species_info.view_records_clicked.connect(self._on_view_records)
 
+        # Open in Species lookup -> Stats > Species lookup (Q55, 13 Oct 2026)
+        self.species_info.lookup_clicked.connect(self.navigate_to_species_lookup.emit)
+
     def _on_record_saved(self, record_data):
         self.refresh_data()
         # Clear species info panel after save
@@ -128,6 +132,11 @@ class HomeTab(QWidget):
         enriched = self._enrich_species_data(species_data)
         self.species_info.set_species(enriched)
         # Quick Entry is already updated by the search widget itself
+
+    def show_species(self, species_data: dict):
+        """Species lookup's "Show on Home" (Q55): this species in Species Info, browsing only
+        (Quick Entry is left as it is)."""
+        self.species_info.set_species(self._enrich_species_data(species_data))
 
     def _on_profile_clicked(self, species_data: dict):
         """Handle profile button click - open profile dialog."""

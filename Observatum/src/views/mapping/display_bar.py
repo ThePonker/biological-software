@@ -5,7 +5,7 @@ review SRCH18: "Period" used to sit with the filters although it only recolours)
 R9-5 (11 Oct 2026): a "VC labels" tick box (on by default, remembered) for the vice-county
 numbers (national scale) / names (zoomed in) drawn on the map and on its atlas page.
 R4: a "VC boundaries" tick box beside it (on by default, remembered) for the boundary lines,
-and "Districts (modern)" (off by default, remembered) for gb_outline.json's district borders.
+and "Local authority districts" (off by default, remembered; was "Districts (modern)") for gb_outline.json's district borders.
 R8 (12 Oct 2026, Wil: "make the presence squares with a toggle to change the transparency"):
 a "Square opacity" slider beside them, 0-100 % (default 100 %: the squares as before),
 remembered, so the borders and labels under the squares can be seen. The atlas PNG made
@@ -134,7 +134,7 @@ class MapDisplayBar(QFrame):
         self.vc_bounds_check.toggled.connect(self._on_vc_bounds)
         lay.addWidget(self.vc_bounds_check)
 
-        self.districts_check = QCheckBox("Districts (modern)")
+        self.districts_check = QCheckBox("Local authority districts")   # Q39, 13 Oct 2026
         self.districts_check.setStyleSheet(lab_style)
         self.districts_check.setToolTip(
             "Modern local-authority district borders (ONS 2013), as faint lines. Remembered.")

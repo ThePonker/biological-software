@@ -295,7 +295,7 @@ def _segs(chains):
 @needs_vc
 def test_with_gb_outline_coast_is_sea_edges_and_districts_switch(qapp, tmp_path, monkeypatch):
     """Wil's PC: gb_outline.json (ONS districts). The coast leaves out the district borders;
-    "Districts (modern)" draws them, off by default; the page credits the coastline."""
+    "Local authority districts" draws them, off by default; the page credits the coastline."""
     import shared.maps.grid_map as gm
     from shared.maps.atlas_sheet import COAST_CREDIT
     m = gm.GridMap(geojson_path=str(paths.VC_GEOJSON), maps_dir=_outline_dir(tmp_path))
@@ -352,7 +352,7 @@ def test_districts_switch_default_off_remembered_and_greyed_without_file(setting
     from PySide6.QtCore import QSettings
     from src.views.mapping.display_bar import DISTRICTS_SETTING, MapDisplayBar
     bar = MapDisplayBar()
-    assert bar.districts() is False and bar.districts_check.text() == "Districts (modern)"
+    assert bar.districts() is False and bar.districts_check.text() == "Local authority districts"
     lay = bar.layout()
     assert lay.indexOf(bar.districts_check) == lay.indexOf(bar.vc_bounds_check) + 1
     bar.districts_check.setChecked(True)

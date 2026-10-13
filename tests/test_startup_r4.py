@@ -169,6 +169,7 @@ def _fakes():
         navigate_to_scheme_taxon = Signal(str)      # r4_records (Species lookup)
         navigate_to_scheme_vc = Signal(str, int)
         navigate_to_scheme_record = Signal(int)
+        navigate_to_home_species = Signal(dict)       # Species lookup "Show on Home" (Q55)
         built = 0
 
         def __init__(self, *a, **k):

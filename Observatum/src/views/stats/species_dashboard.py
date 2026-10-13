@@ -27,6 +27,7 @@ class SpeciesDashboard(QScrollArea):
     navigate_to_observations = Signal(str)
     navigate_to_collection = Signal(str)
     navigate_to_scheme = Signal(str)        # the Recording Scheme tab, this taxon (R4)
+    show_on_home = Signal(dict)             # Home > Species Info, this species (Q55, 13 Oct 2026)
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -352,6 +353,31 @@ class SpeciesDashboard(QScrollArea):
                 self._show_species_detail(species_data)
                 break
     
+    def show_species(self, species_name: str, tvk: str = "") -> bool:
+        """Open one species from elsewhere (Home > Species Info's link, Q55): found by the
+        same search as typing, the row with this TVK (else this exact name) picked as a
+        click would. False when the search finds nothing for the name."""
+        try:
+            from types import SimpleNamespace
+            from shared.species_search import SPECIES_LEVEL, search
+            results = [SimpleNamespace(**r) for r in search(species_name, limit=15,
+                                                             ranks=SPECIES_LEVEL)]
+        except Exception as e:
+            print(f"[SpeciesDashboard] show_species: {e}")
+            return False
+        pick = (next((r for r in results if tvk and r.tvk == tvk), None)
+                or next((r for r in results if r.scientific_name == species_name), None))
+        if pick is None:
+            return False
+        self._search_results = [pick]
+        self._search_timer.stop()
+        self.species_search.blockSignals(True)
+        self.species_search.setText(pick.scientific_name)
+        self.species_search.blockSignals(False)
+        self.clear_btn.setVisible(True)
+        self._on_completer_activated(self._display(pick))
+        return True
+
     def _get_observation_count(self, species_name: str) -> int:
         """All the species' observation records (personal and commercial): what the
         Observations tab shows when "View N Records" opens it (its Data Type is All)."""
@@ -601,6 +627,15 @@ class SpeciesDashboard(QScrollArea):
                 f"View {species['specimens']} Specimens", "",
                 t.get('warning_bg'), t.get('warning_text'), t.get('warning'),
                 lambda checked, s=species['species']: self.navigate_to_collection.emit(s)))
+
+        # Q55 (13 Oct 2026): the same species in Home > Species Info
+        home = {'scientific_name': species['species'], 'tvk': species.get('tvk') or '',
+                'common_name': species.get('common', ''), 'family': species.get('family', ''),
+                'order': species.get('order', '')}
+        buttons.append(self._nav_button(
+            "Show on Home", "This species in Home › Species Info",
+            TabColors.HOME_LIGHT, TabColors.HOME_DARK, TabColors.HOME,
+            lambda checked, h=home: self.show_on_home.emit(h)))
 
         if buttons:
             for btn in buttons:
