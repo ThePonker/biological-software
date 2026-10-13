@@ -8,7 +8,8 @@ from PySide6.QtWidgets import (
     QScrollArea, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QFrame, QLineEdit, QGridLayout, QCompleter, QPushButton
 )
-from PySide6.QtCore import Qt, QStringListModel, QTimer, Signal
+from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtGui import QStandardItem, QStandardItemModel
 
 from ...models.database import get_database
 from ...models.uksi import UKSIModel
@@ -119,14 +120,16 @@ class SpeciesDashboard(QScrollArea):
         
         search_layout.addLayout(search_row)
         
-        # Completer for dropdown
-        self._completer_model = QStringListModel()
+        # Completer for dropdown: rows drawn by the suite's shared species list painter
+        # (13 Oct 2026); each row's text is still _display(r), so a pick works as before
+        self._completer_model = QStandardItemModel(self)
         self._completer = QCompleter(self._completer_model, self)
         self._completer.setCompletionMode(QCompleter.CompletionMode.UnfilteredPopupCompletion)
         self._completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self._completer.setMaxVisibleItems(15)
         self._completer.activated.connect(self._on_completer_activated)
         self.species_search.setCompleter(self._completer)
+        self._painted = False        # the painter is attached when the list first fills
         
         self._main_layout.addWidget(search_frame)
     
@@ -216,7 +219,7 @@ class SpeciesDashboard(QScrollArea):
         print(f"[SpeciesDashboard] _do_search called with text: '{text}'")
         
         if len(text) < 2:
-            self._completer_model.setStringList([])
+            self._set_results([])
             return
         
         try:   # the shared species search (10 Oct 2026): slips, old names, common names
@@ -225,19 +228,33 @@ class SpeciesDashboard(QScrollArea):
             results = [SimpleNamespace(**r) for r in search(text, limit=15, ranks=SPECIES_LEVEL)]
         except Exception as e:
             print(f"[SpeciesDashboard] Search error: {e}")
-            self._completer_model.setStringList([])
+            self._set_results([])
             return
         
         if results:
             self._search_results = results
-            display_list = [self._display(r) for r in results]
-            
-            self._completer_model.setStringList(display_list)
+            self._set_results(results)
             self._completer.complete()
         else:
             self._search_results = []
-            self._completer_model.setStringList([])
+            self._set_results([])
     
+    def _set_results(self, results):
+        """The drop-down's rows: text _display(r) (what a pick is matched on), drawn by the
+        shared painter -- scientific name in italics, common name, family, any note."""
+        from shared.species_list_delegate import HIT_ROLE, SpeciesListDelegate, hit_from_result
+        if results and not self._painted:
+            # Not in __init__: the pop-up is a top-level window, made only when needed
+            # (one made for a dashboard never shown crashed Qt on clean-up)
+            self._painted = True
+            popup = self._completer.popup()
+            popup.setItemDelegate(SpeciesListDelegate(popup, secondary=theme().get("text_secondary")))
+        self._completer_model.clear()
+        for r in results:
+            item = QStandardItem(self._display(r))
+            item.setData(hit_from_result(vars(r), family=True), HIT_ROLE)
+            self._completer_model.appendRow(item)
+
     @staticmethod
     def _display(r) -> str:
         if r.common_name:

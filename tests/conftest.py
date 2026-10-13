@@ -64,23 +64,3 @@ def _application_font_restored():
         if QApplication.instance() is app and QApplication.font() != font:
             QApplication.setFont(font)
 
-
-# Layout tests that measure windows against 1280 px: they pass in one process but not under
-# parallel workers (pytest -n 6), so they run on their own afterwards (13 Oct 2026):
-#   py -3.14 -m pytest tests -q -n 6 -m "not layout"; py -3.14 -m pytest tests -q -m layout
-LAYOUT_TESTS = (
-    "tests/test_window_width_r4.py::",
-    "tests/test_r10c.py::test_drawer_in_hand_fits_laptop_width_with_wide_text",
-    "tests/test_lector_r8.py::test_dashboard_rows_fit_1280x720",
-)
-
-
-def pytest_configure(config):
-    config.addinivalue_line("markers", "layout: window-width tests, run outside the parallel run")
-
-
-def pytest_collection_modifyitems(config, items):
-    for item in items:
-        nodeid = item.nodeid.replace("\\", "/")
-        if nodeid.startswith(LAYOUT_TESTS):
-            item.add_marker(pytest.mark.layout)

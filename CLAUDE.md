@@ -34,8 +34,8 @@ Before every delivery Claude runs, in its own workspace: `ruff check` on the
 changed files (`claude_deliver.py prepare` refuses if it fails), the test files
 for the code touched, then the full suite once. At the start of a session, ask
 Wil before staging read-only copies of his `data\*.db`, so the data tests run
-there too (agreed 13 Oct 2026). Tests marked `slow` run only in the full suite
-on Wil's PC at the end of the session.
+there too (agreed 13 Oct 2026). The full suite runs in parallel: `pytest tests -q -n 6`
+(pytest-xdist; about 2 minutes on Wil's PC instead of 8).
 
 **Delivery to Wil's PC.** Check his file still matches what was last sent, keep
 each file's line endings (CRLF where his copy has it), write it, then re-check it
@@ -44,7 +44,7 @@ byte for byte. Never overwrite a file he has changed since.
 **Wil's test list** covers only what visibly changed, numbered, one test at a
 time, grouped by program (PowerShell first, then one app at a time). In
 PowerShell he runs only the named test files for that change (about a minute).
-The full suite (`py -3.14 -m pytest tests -q`) runs on his PC when a change
+The full suite (`py -3.14 -m pytest tests -q -n 6`) runs on his PC when a change
 touches stored data, figures, counting or `shared\`, and once at the end of the
 session before the last push.
 
