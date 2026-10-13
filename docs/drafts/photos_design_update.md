@@ -55,6 +55,43 @@ Entry from the Mosaic folder (move and rename); a photo strip on Record Detail, 
 and Species Info, this record's photos first. Later: reports and species accounts, the phone
 Inbox, stacking.
 
+## 13 October (late): decisions, the iRecord round trip, and the staged plan
+
+**Decided in discussion (no code yet):**
+- **Where photos live:** Microscope Photos, Dead Spiders and dead craneflies are consolidated
+  into the Life tree, `Life\<order>\<family>\<species>\`, with specimen photos in a
+  **`Specimen`** subfolder. **Hemiptera's extra level is the suborder.**
+- **Folder rule for a new photo:** reuse the species' existing folder; else the per-group rule
+  from UKSI; else `Life\_New species\<Genus species>\`.
+- **File name:** `<UKSI name> <sex> <D.month.YY> <n>`. Grid ref **not** in the name (an
+  optional setting, off by default).
+- **Viewing:** a **Photos (n)** button on a record or specimen opens a separate window (all
+  photos of the species, this record's marked); one photo can be the **main photo**, shown
+  small in the record dialog. Field and microscope photos both.
+- **Bench photos are moved, not copied**, and attached **in Data Entry**.
+- **Uncertainty kept, not hidden:** each link is proposed / confirmed / rejected with how it was
+  matched; dates trusted name > camera (EXIF) > file date; a fingerprint re-finds a moved
+  file; a missing file is marked missing, never removed.
+
+**Consolidation figures** (from `media_library_check_20261013.csv`): 1,469 source photos;
+1,174 match UKSI exactly (594 species: 143 already have a Life folder, holding 341 of them;
+833 photos need new folders; no name clashes); about 150 to review; about 145 cannot be placed.
+
+**Why the iRecord sync comes first.** A photo link hangs on a record, so the record needs one
+identity from Data Entry through iRecord and back. Today personal jobs go to iRecord as a CSV
+with no key and are paired on their return by species, date, grid ref and recorder; commercial
+records are created in Observatum, but none has yet made the round trip by its key.
+**Test, 13 Oct 22:29:** iRecord kept the External keys Wil supplied
+(`OBS-WJH-IRTEST-20261013-0001…0046`, 46 Farthinghoe records, record 57539766 checked). These
+keys cannot collide with the key generator (it counts only `OBS-WJH-YYYYMMDD-…`). The new
+iRecord importer failed ("load_values() on false"); the spreadsheet uploader worked.
+
+**Staged plan** (about 4 sessions; table in `03_Backlog.md`): A1 test the sync's matching with
+the returned IRTEST records (~30 min) → A2 sync guard: hold, don't add, backup first (~0.5) → A3
+personal jobs create the record and key at commit, like commercial (~0.5) → B1 consolidate
+into Life with dry run, log and reverse (~0.5) → B2 photo index and review list (~1) → B3
+Photos button, window and main photo (~0.5) → B4 attach in Data Entry, move and rename (~0.75).
+
 > **Decisions answered 12 Oct 2026** (Q5, Q13–Q22, Q71 in project note
 > `claude/45_Open_Questions_20261012.md`; the draft below is unchanged). P1 settled 11 Oct (all
 > 9,090 files, 45 GB, local). **P2:** yes, Media into the `D:\` mirror, and discuss moving the

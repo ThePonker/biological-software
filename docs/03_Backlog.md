@@ -68,8 +68,8 @@ districts**" (Q39; the source swap to Boundary-Line is in the map-layers job).
 ### Next (from the 13 Oct handover, `claude/47`)
 
 Later / parked: Specimens to check tab (design agreed; build after the Data Entry jobs Hook,
-Notts, Coedely, Scunthorpe, Warwick are entered and committed). Photos (needs the camera model
-and stacking software name). Lector walkthrough and tests. Test 36 (Drawer in hand on the
+Notts, Coedely, Scunthorpe, Warwick are entered and committed). Photos and the iRecord round trip: staged plan
+A1–A3, B1–B4 below (discussion only; nothing built). Lector walkthrough and tests. Test 36 (Drawer in hand on the
 1280×720 laptop). F72's uncovered raw queries for hidden records: decide whether to sweep.
 
 ## Then: the big jobs (Q1 open; suggested order below, `04_Roadmap.md`)
@@ -78,7 +78,7 @@ and stacking software name). Lector walkthrough and tests. Test 36 (Drawer in ha
 |---|---|---|
 | **Specimens → records** | about half a day | All answered 12 Oct (Q23–Q33, below). Recommended first |
 | **Final Recording Scheme dataset** (M1) | 1 h of questions, 2 sessions | Q4: questions straight after the next big job. Q72/Q73 answered; Q57–Q59 feed it |
-| **Photos** (A8 link, A8b inbox) | about 3 sessions | P1–P13 answered except P3/P5 (recommended stands); Q71 changes P3 |
+| **iRecord round trip, then Photos** (A1–A3, B1–B4 below) | about 4 sessions | Designed in discussion 13 Oct; P1–P13 answered; Wil says when to start |
 | **Partner's laptop install** | 8–11 days | **Winter**, after photos and the scheme dataset (Q2). Full suite (Q68). Separate databases, data moved by export/import (Q3). Her own empty database plus an optional practice database with sample data (Q69) |
 | Optional: **map background layers** | 3–4 days | Q6, Q34–Q40 answered |
 | Optional: **Atrium icons and restyle** | about 1 session | Q52/Q53: Claude drafts a silhouette for each app from the Observatum logo for Wil to approve; icon files in git are fine; Munia's look checked here |
@@ -86,6 +86,29 @@ and stacking software name). Lector walkthrough and tests. Test 36 (Drawer in ha
 | Winter: **C4 import wizard merge** | 4–7 days | Q84–Q87 answered (Q85 to confirm) |
 | Winter: **report contents** | 2–3 sessions | Q74–Q80, Q83 answered |
 | Later: **batch maps screen** | 1 session | Q41–Q50 answered; the script is enough for now |
+
+### iRecord round trip and photos: staged plan (agreed in discussion 13 Oct, nothing built)
+
+Why the sync comes first: a photo link hangs on a record, so the record must keep one identity
+from Data Entry through iRecord and back. Detail: `docs/drafts/photos_design_update.md`,
+section "13 October (late)".
+
+**Finding, 13 Oct 22:29:** iRecord **keeps an External key we supply.** Wil uploaded his 46
+Farthinghoe records (26/06/2026, SP521403) with keys `OBS-WJH-IRTEST-20261013-0001…0046`
+through the spreadsheet uploader; record 57539766 shows `OBS-WJH-IRTEST-20261013-0026`. The
+download sent the same evening was older (newest input 19/06/2026, highest ID 53,796,418) and
+does not hold them yet. The new importer fails with "Call to a member function load_values()
+on false" (Wil to ask iRecord).
+
+| # | Stage | Est. | Notes |
+|---|---|---|---|
+| A1 | **Test the sync's matching** on a data copy with a download that holds the 46 IRTEST records: each is added once, keeps its key, no record doubled | ~30 min | Read only. Needs the next download that includes them |
+| A2 | **Sync guard:** a record whose key or iRecord ID points at more than one record is held for review, not added; backup before every sync; a "possibly held twice" check | ~0.5 session | Data change: Opus review |
+| A3 | **Personal jobs work like commercial:** Data Entry creates the record and its Observatum key at commit; the CSV for iRecord carries the key as External key; the sync pairs by key and fills the iRecord ID. "Check iRecord return" pairing by species/date/grid ref retires | ~0.5 session | Changes DE7. After A1 passes |
+| B1 | **Consolidate photos into Life:** Microscope Photos, Dead Spiders, dead craneflies into `Life\<order>\<family>\<species>\Specimen\` (Hemiptera: extra suborder level); dry run, log, reverse script; never delete | ~0.5 session | 1,174 exact (594 species; 143 have a Life folder), ~150 to review, ~145 unplaceable |
+| B2 | **Photo index:** `photos` and `photo_links` tables (migration, dry run, backup), scan, review list (proposed / confirmed / rejected, one "Confirm all") | ~1 session | Schema change: Opus review |
+| B3 | **Photos (n) button** on records and specimens opening a separate window (all photos of the species, this record's marked); one **main photo** shown small in the record dialog | ~0.5 session | |
+| B4 | **Attach at the bench in Data Entry:** pick from the Mosaic folder, **move** and rename `<UKSI name> <sex> <D.month.YY> <n>` into the species folder; the link rides with the staging row through commit | ~0.75 session | After A3 |
 
 ### Decided, waiting for its build
 
@@ -204,6 +227,10 @@ titles (Entomologist's Monthly Magazine apostrophe; Scottish Naturalist); re-exp
 - Photos: before the Inbox build, check how the OneDrive app handles Pixel motion photos and RAW.
 - Read NERR005 Table 17, p. 86, from Wil's copy before settling the report template.
 - Slade Green: waiting for Wil's instruction.
+- iRecord test upload (13 Oct): send the next download once it holds the 46 IRTEST records;
+  Claude checks all 46 keys read-only before the sync. Ask iRecord about the new importer's
+  `load_values()` error and whether an External key survives a verifier's edit. Survey shows
+  "iRecord Import" and observation type "MV light trap": check before a real upload.
 - iRecord: delete the 635 double submissions (D11); check the next sync, then retire
   `observatum_pre_sync_20261009.db` (D12).
 - Download the Welsh S7 2026 xlsx (F6); questions for Chris Raper, including the *Lamia* rows (F11).
