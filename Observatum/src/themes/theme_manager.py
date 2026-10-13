@@ -143,7 +143,10 @@ class ThemeManager(QObject):
         """
     
     def button_secondary_style(self) -> str:
-        """Get secondary button style (outlined)."""
+        """Get secondary button style (outlined).
+
+        13 Oct 2026: every button style greys out when disabled, not only primary (the
+        cleaning report's Open in iRecord stayed green when it could do nothing)."""
         return f"""
             QPushButton {{
                 background-color: {self.get('surface')};
@@ -158,6 +161,10 @@ class ThemeManager(QObject):
             }}
             QPushButton:pressed {{
                 background-color: {self.get('pressed')};
+            }}
+            QPushButton:disabled {{
+                background-color: {self.get('disabled_bg')};
+                color: {self.get('disabled_text')};
             }}
         """
     
@@ -177,6 +184,11 @@ class ThemeManager(QObject):
             }}
             QPushButton:pressed {{
                 background-color: {self.get('pressed')};
+            }}
+            QPushButton:disabled {{
+                background-color: transparent;
+                color: {self.get('disabled_text')};
+                border-color: {self.get('border')};
             }}
         """
     
@@ -198,6 +210,11 @@ class ThemeManager(QObject):
                 background-color: {self.get('error')};
                 color: white;
             }}
+            QPushButton:disabled {{
+                background-color: transparent;
+                color: {self.get('disabled_text')};
+                border-color: {self.get('border')};
+            }}
         """
     
     def button_tab_style(self, tab_name: str) -> str:
@@ -214,6 +231,10 @@ class ThemeManager(QObject):
             }}
             QPushButton:hover {{
                 opacity: 0.9;
+            }}
+            QPushButton:disabled {{
+                background-color: {self.get('disabled_bg')};
+                color: {self.get('disabled_text')};
             }}
         """
     

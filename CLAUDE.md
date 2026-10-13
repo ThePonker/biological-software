@@ -29,15 +29,24 @@ methods and their imports), and the section of `docs/05_Rules.md` for the area
 (databases, taxonomy, PowerShell, …). Don't read the whole docs set up front.
 
 **Tests.** New tests build small purpose-made databases; don't pin exact
-figures from Wil's live data (they go stale as soon as a data script runs). Run
-the full suite before every delivery.
+figures from Wil's live data (they go stale as soon as a data script runs).
+Before every delivery Claude runs, in its own workspace: `ruff check` on the
+changed files (`claude_deliver.py prepare` refuses if it fails), the test files
+for the code touched, then the full suite once. At the start of a session, ask
+Wil before staging read-only copies of his `data\*.db`, so the data tests run
+there too (agreed 13 Oct 2026). Tests marked `slow` run only in the full suite
+on Wil's PC at the end of the session.
 
 **Delivery to Wil's PC.** Check his file still matches what was last sent, keep
 each file's line endings (CRLF where his copy has it), write it, then re-check it
 byte for byte. Never overwrite a file he has changed since.
 
 **Wil's test list** covers only what visibly changed, numbered, one test at a
-time, grouped by program (PowerShell first, then one app at a time).
+time, grouped by program (PowerShell first, then one app at a time). In
+PowerShell he runs only the named test files for that change (about a minute).
+The full suite (`py -3.14 -m pytest tests -q`) runs on his PC when a change
+touches stored data, figures, counting or `shared\`, and once at the end of the
+session before the last push.
 
 **Docs** (`02`, `03`, `06`) are updated once at the end of a session, not by
 each agent. Keep a short dated handover note in the claude.ai Project per day.
