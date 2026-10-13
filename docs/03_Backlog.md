@@ -40,10 +40,10 @@ comes first either way.
 | 7 | ✅ *Done 12 Oct (R9 B4a).* **Sundon reference figures:** `reference_figures.json` now 231 species / 19 key / SQI 125, Pantheon 114, strict 114 / 19 (Jon's IDs accepted as recorded) | Q66 |
 | 8 | ✅ *Built 12 Oct (R9 B4b).* ***Sympetrum nigrescens*** linked to *S. striolatum* in Pantheon Only mode: a local correction to the bridge, flagged (`shared/pantheon_bridge_corrections.csv`; strict key −1 at six surveys, `02`) | Q67 |
 | 9 | ✅ *Fixed 13 Oct (F79).* **Test-order flake:** offscreen Qt on Windows had no fonts; `tests/conftest.py` sets `QT_QPA_FONTDIR`, so the layout tests pass in any order and in parallel | Q89, note 43 |
-| 10 | **Retire the scheme month chart's never-built species dropdown** (`stat_widgets.py` `_species_combo`) to `_archive` | Q64 |
+| 10 | ✅ *Done 13 Oct (warm-up).* **Retire the scheme month chart's never-built species dropdown** (`stat_widgets.py` `_species_combo`): removed; the code kept in `_archive/month_chart_species_filter_20261013/removed_code.txt` (the service's `get_monthly_counts_by_species` left in place) | Q64 |
 | 11 | **Suite-review leftovers sweep** (Tier 3 and 4: OBS-22/23, INF5–11, CDX-4, OBS-25/27, SRCH20/22, MAP13/15/16, DE10–14, IMP-18): verify each, fix or close; about half a session | Q90, note 39 §4.11 |
 | 12 | **Data Entry compact banner:** a toggle that folds the cards to one line, for short laptop screens (about 7 grid rows at 1280×720) | Q54 |
-| 13 | **Species lookup ↔ Species Info:** keep both, link each to the other | Q55 |
+| 13 | ✅ *Done 13 Oct (warm-up).* **Species lookup ↔ Species Info:** Home › Species Info "Open in Species lookup →" opens Stats/Reports › Species on that species; Species lookup "Show on Home" shows it in Species Info | Q55 |
 | 14 | ✅ *Built 13 Oct (R10 A1, F68).* **What filter group choices filter:** "All Coccinellidae (ladybirds) — group" picked in the Species box keeps every record at or below the taxon (by TVK); the chip names the group | Round 9 test 11 |
 | 15 | ✅ *Built 13 Oct (R10 A2, F69).* **Species box drop-down on the quick filter bars** (Observation Data, Recording Scheme, Contributed): the shared species list with group choices, scoped to the tab's species; typed text still filters | Round 9 test 15 |
 | 16 | ✅ *Built 13 Oct (R10 A3, F70).* **Examen Species Database:** group rows drawn like the others; a clicked group lists its species with "Back to search results"; cap 1,000 with "First 1,000 shown — type more to narrow" | Round 9 test 31 |
@@ -51,8 +51,8 @@ comes first either way.
 | 18 | ✅ *Built 13 Oct (R10 B1), to test.* **Cleaning report:** the checks shown once (tiles; the tab strip under them retired; the clicked tile stays marked); iRecord ID cell drawn as a link and "Open in iRecord" enabled only for a row that has one (tooltip says why); the scheme's marked NBN copies left out by THE rule (`shared/scheme_duplicates.py`) with a tick box "Include NBN copies of iRecord records" (off) -- header line and the export's Summary say which; on Wil's PC 110,510 checked drops to 76,389 | F71, Round 9 Test 16 |
 | 19 | ✅ *Built 13 Oct (R10 B2), Wil to run `add_hidden_at_column.py`.* **iRecord-safe delete and edit:** Delete on an observation with an iRecord ID asks (Open in iRecord / Deleted in iRecord -- remove here / Cancel); "remove here" HIDES (`observations.hidden_at`, `hidden_irecord_ids`; `shared/hidden_records.py` is THE rule, through `species_counting.copies_sql`, the repository's list queries and the `assessment_records` view); a download that brings the record again keeps it hidden and the cleaning report lists it under "Came back from iRecord -- check" with Show again; Edit shows a note (the local edit stays possible). The sync already UPDATES a held record (F73: not a fault) | F72, F73; agreed 12 Oct late |
 
-Also for this round (small, already decided): rename the "Districts (modern)" switch
-"**Local authority districts**" (Q39; the source swap to Boundary-Line is in the map-layers job).
+✅ *Done 13 Oct (warm-up).* The Mapping switch "Districts (modern)" is now "**Local authority
+districts**" (Q39; the source swap to Boundary-Line is in the map-layers job).
 
 ### Round 10 (13 Oct): quick fixes from Round 9 testing — C (Drawer in hand, calendar, sort keys)
 
@@ -183,8 +183,8 @@ titles (Entomologist's Monthly Magazine apostrophe; Scottish Naturalist); re-exp
 | Q14, Q15 | Photos: stacked/no videos; no auto-confirm, one "Confirm all" button | No preference given: the recommendation stands unless changed (Q71 already widens P3) |
 | Q60 | Embargo of Badshot Lea (190), Bicester 2023 (960), Kent Deadwood (28) | Revisit |
 | Q61 | The 28 no-match names | Default: wait for the next UKSI; *Astur* → *Accipiter gentilis* by hand if wanted |
-| Q70 | Microscope camera make and model (USB and LAN both available) | Needed before the integration |
-| Q71 | Which free stacking software Wil uses | Needed to decide "drive it" vs "code it" |
+| Q70 | ✅ *Answered 13 Oct:* **TrueChrome 4K Pro**, captured with its own software **Mosaic** | Photos design note, 13 Oct section |
+| Q71 | Which free stacking software Wil uses (not on the current PC; Mosaic does not stack). Stacking is not needed for the first stage (13 Oct) | Needed to decide "drive it" vs "code it" |
 | Q83 | Checklist order for the collection drawers | Examen part answered |
 | Q85 | Confirm the "name as recorded" field idea | When building C4 |
 | Q11 | Literature records into Observatum | Later, with Lector |
@@ -193,11 +193,13 @@ titles (Entomologist's Monthly Magazine apostrophe; Scottish Naturalist); re-exp
 
 ## Reminders (no answer needed)
 
-- Refresh the `D:\` copy after Round 8 (Rounds 5–8 committed and pushed).
+- `D:\` copy refreshed 13 Oct (robocopy run; confirm FAILED 0 and the read-only integrity check
+  next time it is run).
 - Test Observatum and Lector on a real laptop (the 150 % scaling check passed).
 - Partner install: check `uk_vice_counties.svg` and `family_common_names.json` are present.
-- Rebuild the PC's VC outline file: `py -3.14 scripts\convert_vc_shapefile.py` (keeps the old
-  file; the PC has the coarse 2 MB one).
+- ✅ VC outline file rebuilt on the PC 13 Oct (112 VCs, 15.0 MB; the old 2 MB file kept as
+  `vc_brc_wgs84_before_20261013_195800.geojson`). Watch whether Mapping opens slower; if so,
+  raise `SIMPLIFY_KEEP_EVERY` (now 5) in the script and re-run.
 - `fix1_lector_years_dupes.py` can go from the project root (copy in `_archive\lector_fix1_20261011\`).
 - Photos: before the Inbox build, check how the OneDrive app handles Pixel motion photos and RAW.
 - Read NERR005 Table 17, p. 86, from Wil's copy before settling the report template.

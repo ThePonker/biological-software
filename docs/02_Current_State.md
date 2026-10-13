@@ -182,7 +182,7 @@ about 1,115 (dry run 11 Oct).
 | vc_lookup.db, examen.db, munia.db, gamification.db | unchanged |
 | lector.db | Schema v3 (Round 8). On the PC, 12 Oct: 3 saved searches -- *Emus hirtus* (499 pages, most without text), *Rutpela maculata* (50), *Lamia textor* (160 pages before filters; Run 4 with "British periodicals": 87 kept of 1,104 found). Updated with backups (`data\_backups\lector_pre_v2_*`, `lector_pre_v3_*`). |
 | vc_splits.db | 14,455 boundary 1 km squares and 42 squares with no VC (9 Oct, F29) |
-| data/maps | `vc_brc_wgs84.geojson`: the PC still has the older coarse 2 MB file (rebuild with `convert_vc_shapefile.py` recommended); `gb_outline.json` on the PC = 2013 ONS districts (380), no build script |
+| data/maps | `vc_brc_wgs84.geojson`: rebuilt on the PC 13 Oct from `vc_brc.shp` (112 VCs, 15.0 MB; the old coarse 2 MB file kept as `vc_brc_wgs84_before_20261013_195800.geojson`); `gb_outline.json` on the PC = 2013 ONS districts (380), no build script |
 
 ---
 

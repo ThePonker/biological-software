@@ -1,5 +1,60 @@
 # Photos (A8 / A8b): design update after the groundwork code
 
+## 13 October 2026: Wil's aims, the microscope workflow, and the library measured
+
+**Aim.** A microscope photo may be any of: evidence attached to a specimen or record, a
+picture for a report or species account, and a reference set for identification.
+
+**Workflow Wil wants (microscope first).**
+- Camera **TrueChrome 4K Pro**, captured with its software **Mosaic** (Q70). Mosaic's save
+  folder can be changed but seemed to revert when Mosaic closed, so the suite must remember
+  the folder itself and say plainly when it is empty or missing.
+- While entering data **in Data Entry**, with the specimen in front of him, attach the
+  capture to that row. The file is **moved** (not copied; nothing left in the Mosaic folder)
+  into the species folder and named by his convention.
+- Clicking a record anywhere: **all photos of that species**, with the one(s) for this record
+  / specimen labelled.
+- Focus stacking: not needed for the first stage. Today: photos saved to the desktop, then a
+  free stacking program (name not known; not on this PC). Mosaic does not stack (Q71 open).
+
+**Today's files.** Spiders: `Photos\Life\Dead Spiders\<Genus species>\`, names such as
+`Arctosa leopardus male`, `Ozyptila simplex (2)`, `Xysticus acerbus 2`, recently with a date
+so a photo can be tied to a record. Beetles (a few years ago): `Photos\Microscope Photos\
+<Order>\...\<Family>\` with `Genus species D.month.YY` names.
+
+**Library check, run on the PC 13 Oct** (`scripts/check_media_library.py`, read only; rows in
+`scripts\_oneoff\media_library_check_20261013.csv`):
+
+| | |
+|---|---|
+| Library | 9,095 files, 45.27 GB; **all local, none cloud-only**; 8,916 "always keep on this device" (P1 met) |
+| Life | 2,682 images; 2,638 (98.4 %) follow the Life convention; 16 named from the folder only |
+| Microscope Photos | 1,428 images; 1,310 (91.7 %) follow the microscope convention; 1,307 with a date |
+| Elsewhere | 3,441 images (All Other Photos, Originals); 41 with a species name |
+| UKSI (5,060 named files, 1,497 names) | exact 4,586; exact review 7; synonym 283; fuzzy 140; none 44 |
+| Microscope photo ↔ specimen (1,316 with species and date) | **exactly one specimen 966**; several 180; none 170 |
+| Folder vs file name disagree | 17 (old names and slips, e.g. *Pyronia tithonis*, "Pardose monticola" folder) |
+| Not photos | 908 `.db` + 343 `.ini` (Windows thumbnail caches), 192 videos (17.4 GB in Videos) |
+
+**Issues for the design (noted 13 Oct, not decided):**
+1. A Data Entry row has no record id until it is committed: the photo link must be held with
+   the staging row and carried through the commit.
+2. The name reader must learn `male` / `female` (today "male" would be read as an infraspecific
+   name) and both numbering styles, `(2)` and ` 2`; the 5 unread Dead Spiders names are these.
+3. Spider photo names mostly carry no date, so they link to the species; a record link needs a
+   date or a pick by hand.
+4. A move within OneDrive is a rename (atomic); a move across drives is copy, check, then
+   remove the original -- the build must verify before the original goes.
+5. New tables (photos and links) are a schema change: migration script with dry run and backup,
+   `reset_database.py` audited, independent review.
+6. Does a record hold sex? If Data Entry has the field, the photo name can take it from there.
+
+**Suggested first stage** (to confirm): index the existing photos (link by name; the 966
+single-specimen matches confirmed with the one "Confirm all" button, Q15); "Add photo" in Data
+Entry from the Mosaic folder (move and rename); a photo strip on Record Detail, Species lookup
+and Species Info, this record's photos first. Later: reports and species accounts, the phone
+Inbox, stacking.
+
 > **Decisions answered 12 Oct 2026** (Q5, Q13–Q22, Q71 in project note
 > `claude/45_Open_Questions_20261012.md`; the draft below is unchanged). P1 settled 11 Oct (all
 > 9,090 files, 45 GB, local). **P2:** yes, Media into the `D:\` mirror, and discuss moving the
