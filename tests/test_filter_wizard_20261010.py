@@ -350,6 +350,19 @@ def test_observation_bar_dates_before_2000_count(on_copy, qapp):
         assert bar.get_filters()["date_from"] == "1899-01-01"
 
 
+def _scheme_hand(where):
+    """Hand count of the rows the Scheme tab lists for `where`: the marked NBN copies of
+    iRecord records left out ("Show duplicates" off) by THE rule,
+    shared/scheme_duplicates.live_sql ('' on a database without the column)."""
+    from shared.scheme_duplicates import live_sql
+    c = _ro()
+    try:
+        return c.execute(f"SELECT COUNT(*) FROM recording_scheme WHERE ({where})"
+                         + live_sql(c)).fetchone()[0]
+    finally:
+        c.close()
+
+
 def _scheme_rows(db_path, filters):
     from src.views.scheme.scheme_data_worker import SchemeDataWorker
     w = SchemeDataWorker(db_path, filters)
@@ -381,28 +394,27 @@ def test_scheme_tab_wizard_and_bar(on_copy, monkeypatch):
 
     tab._on_wizard_filters_applied({"site_name": ["~Wood"], "vice_county": ["Oxfordshire"],
                                     "year": 2019})
-    assert _scheme_rows(on_copy, captured["f"]) == _hand(
-        "SELECT COUNT(*) FROM recording_scheme WHERE (site_name LIKE '%wood%' "
-        "OR vice_county = 'Oxfordshire') AND date LIKE '2019%'")
+    assert _scheme_rows(on_copy, captured["f"]) == _scheme_hand(
+        "(site_name LIKE '%wood%' OR vice_county = 'Oxfordshire') AND date LIKE '2019%'")
     tab.refresh()                                               # SRCH9: kept on reload
     assert "_wizard_sql" in captured["f"]
     tab._on_wizard_filters_reset()
     assert "_wizard_sql" not in (captured["f"] or {})
 
     # SRCH8: Source, Accepted, Subfamily
-    assert _scheme_rows(on_copy, {"source": "iRecord"}) == _hand(
-        "SELECT COUNT(*) FROM recording_scheme WHERE COALESCE(irecord_id, '') <> ''")
-    assert _scheme_rows(on_copy, {"source": "NBN Atlas"}) == _hand(
-        "SELECT COUNT(*) FROM recording_scheme WHERE COALESCE(nbn_atlas_id, '') <> ''")
-    assert _scheme_rows(on_copy, {"status": "Accepted"}) == _hand(
-        "SELECT COUNT(*) FROM recording_scheme WHERE verification_status LIKE 'Accepted%'")
+    assert _scheme_rows(on_copy, {"source": "iRecord"}) == _scheme_hand(
+        "COALESCE(irecord_id, '') <> ''")
+    assert _scheme_rows(on_copy, {"source": "NBN Atlas"}) == _scheme_hand(
+        "COALESCE(nbn_atlas_id, '') <> ''")
+    assert _scheme_rows(on_copy, {"status": "Accepted"}) == _scheme_hand(
+        "verification_status LIKE 'Accepted%'")
     statuses = [tab.filter_bar.status_combo.itemText(i) for i in range(tab.filter_bar.status_combo.count())]
     assert "Accepted" in statuses and not any(" - " in s for s in statuses)
     has_sub = _hand("SELECT COUNT(*) FROM recording_scheme WHERE TRIM(COALESCE(subfamily, '')) <> ''")
     assert tab.filter_bar.subfamily_combo.isEnabled() == bool(has_sub)
     # OBS-14: the bar's "Date To" no longer lets undated records through
-    assert _scheme_rows(on_copy, {"date_to": "1999-12-31"}) == _hand(
-        "SELECT COUNT(*) FROM recording_scheme WHERE date <> '' AND date < '2000'")
+    assert _scheme_rows(on_copy, {"date_to": "1999-12-31"}) == _scheme_hand(
+        "date <> '' AND date < '2000'")
 
 
 def test_collection_tab_wizard(on_copy):

@@ -1,75 +1,46 @@
-"""Stats/Reports > Cleaning Report (backlog B, claude/38 answers 12-14).
+"""Stats/Reports > Cleaning Report (backlog B, claude/38 answers 12-14; F71 / F72, 13 Oct).
 
-The records to tidy in iRecord, one tab per problem, for Observation, Recording Scheme or
-Contributed data (chosen at the top). The lists come from services/cleaning_report.py (no Qt there);
-every matching record is shown, whatever the species-counting switches say.
+The records to tidy in iRecord, one tile per problem, for Observation, Recording Scheme or
+Contributed data (chosen at the top). Click a tile: its list shows beneath (the clicked tile
+stays marked). The lists come from services/cleaning_report.py (no Qt there); the table is
+views/stats/cleaning_table.py; every matching record is shown, whatever the species-counting
+switches say.
 
-Double-click a row (or "Open in iRecord") opens the record in iRecord when it holds an
-iRecord ID; "Open in Observatum" shows the existing record detail, view only (cleaning
-happens in iRecord). "Export" writes one .xlsx: a Summary sheet and a sheet per problem.
+The iRecord ID cell is a link where the record holds one; "Open in iRecord" is enabled only
+for such a row (the tooltip says why otherwise); double-click opens iRecord, or the record
+in Observatum (view only) when it has no iRecord ID. "Export" writes one .xlsx: a Summary
+sheet and a sheet per problem.
+
+Recording Scheme: the marked NBN copies of iRecord records (shared/scheme_duplicates.py)
+are left out unless "Include NBN copies of iRecord records" is ticked; the header line and
+the export say which. Observation: "Came back from iRecord -- check" lists records removed
+here that a download brought back (still hidden); "Show again" un-hides one.
 """
 from __future__ import annotations
 
 import datetime as _dt
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, QSortFilterProxyModel, Qt, QUrl, Signal
+from PySide6.QtCore import Qt, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
-    QAbstractItemView, QApplication, QComboBox, QFileDialog, QGridLayout, QHBoxLayout,
-    QHeaderView, QLabel, QMessageBox, QPushButton, QTableView, QTabWidget, QVBoxLayout, QWidget,
+    QApplication, QCheckBox, QComboBox, QFileDialog, QGridLayout, QHBoxLayout, QLabel,
+    QMessageBox, QPushButton, QStackedWidget, QVBoxLayout, QWidget,
 )
 
 import paths
 from ...models.database import get_database
 from ...services.cleaning_export import export_csv_folder, export_xlsx, have_openpyxl
 from ...services.cleaning_report import (
-    PROBLEMS, SOURCES, CleaningReport, CleaningRow, build_report, irecord_url,
+    OBSERVATION_ONLY, PROBLEMS, SOURCES, CleaningReport, CleaningRow, build_report, irecord_url,
 )
 from ...themes import theme
+from .cleaning_table import CleaningRowModel, CleaningTableView, link_colour
 
-COLUMNS = ["Species", "Rank", "Date", "Grid ref", "Site", "Recorder", "Problem", "iRecord ID",
-           "Source"]
-_FIELDS = ["species", "rank", "date", "grid_ref", "site", "recorder", "detail", "irecord_id",
-           "dataset"]
 _TILES_PER_ROW = 6
-
-
-class CleaningRowModel(QAbstractTableModel):
-    """The rows of one problem; UserRole gives the CleaningRow."""
-
-    def __init__(self, rows: Optional[List[CleaningRow]] = None, parent=None):
-        super().__init__(parent)
-        self._rows = rows or []
-
-    def set_rows(self, rows: List[CleaningRow]):
-        self.beginResetModel()
-        self._rows = rows
-        self.endResetModel()
-
-    def rowCount(self, parent=QModelIndex()):
-        return 0 if parent.isValid() else len(self._rows)
-
-    def columnCount(self, parent=QModelIndex()):
-        return 0 if parent.isValid() else len(COLUMNS)
-
-    def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
-        if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
-            return COLUMNS[section]
-        return None
-
-    def data(self, index, role=Qt.ItemDataRole.DisplayRole):
-        if not index.isValid():
-            return None
-        r = self._rows[index.row()]
-        if role == Qt.ItemDataRole.UserRole:
-            return r
-        value = getattr(r, _FIELDS[index.column()])
-        if role == Qt.ItemDataRole.DisplayRole:
-            return "" if value is None else str(value)
-        if role == Qt.ItemDataRole.EditRole:            # sort key: iRecord IDs as numbers
-            return value if value is not None else (-1 if index.column() == 7 else "")
-        return None
+NO_ROW_TIP = "Select a record first."
+NO_ID_TIP = "This record has no iRecord ID. Use Open in Observatum."
+COPIES_LABEL = "Include NBN copies of iRecord records"
 
 
 class CleaningDashboard(QWidget):
@@ -81,10 +52,11 @@ class CleaningDashboard(QWidget):
     def __init__(self, parent=None, main_db=None, uksi_db=None):
         super().__init__(parent)
         self._main_db, self._uksi_db = main_db, uksi_db
-        self._reports: Dict[str, CleaningReport] = {}
+        self._reports: Dict[tuple, CleaningReport] = {}
         self._models: Dict[str, CleaningRowModel] = {}
-        self._views: Dict[str, QTableView] = {}
+        self._views: Dict[str, CleaningTableView] = {}
         self._tiles: Dict[str, QPushButton] = {}
+        self._keys = [k for k, _ in PROBLEMS]
         self.open_url = QDesktopServices.openUrl          # replaceable in tests
         self._setup_ui()
 
@@ -104,6 +76,12 @@ class CleaningDashboard(QWidget):
             self.cmb_source.addItem(label, table)
         self.cmb_source.currentIndexChanged.connect(lambda _i: self.refresh())
         top.addWidget(self.cmb_source)
+        top.addSpacing(12)
+        self.chk_copies = QCheckBox(COPIES_LABEL)
+        self.chk_copies.setToolTip("Recording Scheme only: also check the rows marked as the NBN "
+                                   "Atlas copy of an iRecord record (left out by default).")
+        self.chk_copies.toggled.connect(lambda _c: self.refresh())
+        top.addWidget(self.chk_copies)
         top.addStretch()
         self.btn_refresh = QPushButton("Refresh")
         self.btn_refresh.clicked.connect(lambda: self.refresh(force=True))
@@ -119,52 +97,49 @@ class CleaningDashboard(QWidget):
 
         tiles = QGridLayout()
         tiles.setSpacing(8)
-        self.tabs = QTabWidget()
+        self.stack = QStackedWidget()
         for i, (key, label) in enumerate(PROBLEMS):
             tile = QPushButton(label)
+            tile.setCheckable(True)
             tile.setCursor(Qt.CursorShape.PointingHandCursor)
-            tile.clicked.connect(lambda _c=False, n=i: self.tabs.setCurrentIndex(n))
+            tile.clicked.connect(lambda _c=False, k=key: self.show_problem(k))
             self._tiles[key] = tile
             tiles.addWidget(tile, i // _TILES_PER_ROW, i % _TILES_PER_ROW)
-
             model = CleaningRowModel(parent=self)
-            proxy = QSortFilterProxyModel(self)
-            proxy.setSourceModel(model)
-            proxy.setSortRole(Qt.ItemDataRole.EditRole)
-            view = QTableView()
-            view.setModel(proxy)
-            view.setSortingEnabled(True)
-            view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-            view.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-            view.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-            view.verticalHeader().setVisible(False)
-            view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-            view.horizontalHeader().setStretchLastSection(True)
-            for col, w in enumerate((200, 110, 90, 140, 190, 150, 240, 90, 260)):
-                view.setColumnWidth(col, w)
+            view = CleaningTableView(model)
             view.doubleClicked.connect(self._on_double_click)
+            view.selectionModel().currentRowChanged.connect(lambda *_: self._update_buttons())
             self._models[key], self._views[key] = model, view
-            self.tabs.addTab(view, label)
+            self.stack.addWidget(view)
         root.addLayout(tiles)
-        root.addWidget(self.tabs, 1)
+        root.addWidget(self.stack, 1)
 
         bottom = QHBoxLayout()
-        self.lbl_hint = QLabel("Double-click a record: opens it in iRecord, or in Observatum "
-                               "if it has no iRecord ID.")
+        self.lbl_hint = QLabel("Double-click a record: opens it in iRecord (underlined iRecord ID), "
+                               "or in Observatum if it has no iRecord ID.")
         bottom.addWidget(self.lbl_hint)
         bottom.addStretch()
+        self.btn_show_again = QPushButton("Show again")
+        self.btn_show_again.setToolTip("Un-hide this record in Observatum (it came back from "
+                                       "iRecord, so it is in both).")
+        self.btn_show_again.clicked.connect(self.show_selected_again)
         self.btn_irecord = QPushButton("Open in iRecord")
         self.btn_irecord.clicked.connect(self.open_selected_in_irecord)
         self.btn_observatum = QPushButton("Open in Observatum")
         self.btn_observatum.clicked.connect(self.open_selected_in_observatum)
+        bottom.addWidget(self.btn_show_again)
         bottom.addWidget(self.btn_irecord)
         bottom.addWidget(self.btn_observatum)
         root.addLayout(bottom)
+        self.show_problem(self._keys[0])
         self.apply_theme()
 
     # ------------------------------------------------------------------ data
     def source(self) -> str:
         return self.cmb_source.currentData()
+
+    def include_copies(self) -> bool:
+        return self.source() == "recording_scheme" and self.chk_copies.isChecked()
 
     def _paths(self):
         db = get_database()
@@ -173,47 +148,80 @@ class CleaningDashboard(QWidget):
         return str(main), str(uksi)
 
     def refresh(self, force: bool = False):
-        """Show the report for the chosen source (built once, rebuilt on Refresh / stale)."""
-        src = self.source()
-        if force or src not in self._reports:
+        """Show the report for the chosen source (built once per choice, rebuilt on Refresh)."""
+        key = (self.source(), self.include_copies())
+        self.chk_copies.setEnabled(self.source() == "recording_scheme")
+        if force or key not in self._reports:
             QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
             try:
                 main, uksi = self._paths()
-                self._reports[src] = build_report(main, uksi, src)
+                self._reports[key] = build_report(main, uksi, key[0], include_copies=key[1])
             except Exception as e:
                 print(f"[CleaningDashboard] report not built: {e}")
                 self.lbl_summary.setText(f"The report could not be made: {e}")
                 return
             finally:
                 QApplication.restoreOverrideCursor()
-        self._show(self._reports[src])
+        self._show(self._reports[key])
 
     def mark_stale(self):
         """Records changed elsewhere: rebuild on the next visit."""
         self._reports.clear()
 
     def report(self) -> Optional[CleaningReport]:
-        return self._reports.get(self.source())
+        return self._reports.get((self.source(), self.include_copies()))
 
     def _show(self, rep: CleaningReport):
         counts = rep.counts
-        for i, (key, label) in enumerate(PROBLEMS):
+        for key, label in PROBLEMS:
             self._models[key].set_rows(rep.rows.get(key, []))
-            self.tabs.setTabText(i, f"{label} ({counts[key]:,})")
             self._tiles[key].setText(f"{label}\n{counts[key]:,}")
-        self.lbl_summary.setText(
-            f"{rep.source_label}: {rep.records_with_problem:,} of {rep.total_records:,} records "
-            f"have at least one problem. A record with several problems is listed under each. "
-            f"Every record is listed, whatever your species-counting settings.")
+            self._tiles[key].setVisible(rep.source == "observations" or key not in OBSERVATION_ONLY)
+        if self.current_key() in OBSERVATION_ONLY and rep.source != "observations":
+            self.show_problem(self._keys[0])
+        text = (f"{rep.source_label}: {rep.records_with_problem:,} of {rep.total_records:,} records "
+                f"checked have at least one problem. A record with several problems is listed "
+                f"under each. Every record is listed, whatever your species-counting settings.")
+        if rep.copies_note:
+            text += " " + rep.copies_note
+        if rep.source == "observations" and rep.hidden_records:
+            text += (f" {rep.hidden_records:,} record(s) removed here but still in iRecord are "
+                     f"hidden and not checked.")
+        self.lbl_summary.setText(text)
+        self._update_buttons()
+
+    # ------------------------------------------------------------------ tiles
+    def current_key(self) -> str:
+        return self._keys[self.stack.currentIndex()]
+
+    def show_problem(self, key: str):
+        """Show one problem's list and mark its tile."""
+        self.stack.setCurrentIndex(self._keys.index(key))
+        for k, tile in self._tiles.items():
+            tile.setChecked(k == key)
+        self._update_buttons()
+
+    def current_view(self) -> CleaningTableView:
+        return self.stack.currentWidget()
+
+    def current_row(self) -> Optional[CleaningRow]:
+        view = self.current_view()
+        return view.current_row() if view is not None else None
+
+    def _update_buttons(self):
+        row = self.current_row()
+        has_link = bool(row is not None and irecord_url(row.irecord_id))
+        self.btn_irecord.setEnabled(has_link)
+        self.btn_irecord.setToolTip("" if has_link else (NO_ROW_TIP if row is None else NO_ID_TIP))
+        self.btn_irecord.setCursor(Qt.CursorShape.PointingHandCursor if has_link
+                                   else Qt.CursorShape.ArrowCursor)
+        self.btn_observatum.setEnabled(row is not None)
+        self.btn_observatum.setToolTip("" if row is not None else NO_ROW_TIP)
+        returned = self.current_key() == "returned" and self.source() == "observations"
+        self.btn_show_again.setVisible(returned)
+        self.btn_show_again.setEnabled(returned and row is not None)
 
     # ------------------------------------------------------------------ actions
-    def current_row(self) -> Optional[CleaningRow]:
-        view = self.tabs.currentWidget()
-        if view is None:
-            return None
-        idx = view.currentIndex()
-        return idx.data(Qt.ItemDataRole.UserRole) if idx.isValid() else None
-
     def _on_double_click(self, index):
         row = index.data(Qt.ItemDataRole.UserRole)
         if row is None:
@@ -226,10 +234,9 @@ class CleaningDashboard(QWidget):
     def open_selected_in_irecord(self):
         row = self.current_row()
         if row is None:
-            QMessageBox.information(self, "Open in iRecord", "Select a record first.")
+            QMessageBox.information(self, "Open in iRecord", NO_ROW_TIP)
         elif not irecord_url(row.irecord_id):
-            QMessageBox.information(self, "Open in iRecord",
-                                    "This record has no iRecord ID. Use Open in Observatum.")
+            QMessageBox.information(self, "Open in iRecord", NO_ID_TIP)
         else:
             self._open_irecord(row)
 
@@ -239,9 +246,38 @@ class CleaningDashboard(QWidget):
     def open_selected_in_observatum(self):
         row = self.current_row()
         if row is None:
-            QMessageBox.information(self, "Open in Observatum", "Select a record first.")
+            QMessageBox.information(self, "Open in Observatum", NO_ROW_TIP)
             return
         self.open_in_observatum(row)
+
+    def show_selected_again(self):
+        """Un-hide the selected "came back" record (clears hidden_at; the ID is forgotten)."""
+        row = self.current_row()
+        if row is None or self.source() != "observations":
+            return
+        from shared.hidden_records import show_again
+        try:
+            db = get_database()
+            if db is not None and not self._main_db:
+                with db.main_connection() as conn:
+                    ok = show_again(conn, row.record_id)
+            else:
+                import sqlite3
+                conn = sqlite3.connect(self._paths()[0])
+                try:
+                    ok = show_again(conn, row.record_id)
+                finally:
+                    conn.close()
+        except Exception as e:
+            QMessageBox.warning(self, "Show again", f"The record could not be shown again:\n{e}")
+            return
+        if not ok:
+            QMessageBox.warning(self, "Show again", "The database has no hidden_at column yet.")
+            return
+        print(f"[CleaningDashboard] record {row.record_id} shown again")
+        self.mark_stale()
+        self.refresh()
+        self.show_problem("returned")
 
     def detail_dialog(self, row: CleaningRow):
         """The existing record detail dialog for a row, view only (no Edit / Delete)."""
@@ -321,13 +357,17 @@ class CleaningDashboard(QWidget):
                                  f"color: {t.get('text_primary')};")
         self.lbl_summary.setStyleSheet(f"color: {t.get('text_secondary')};")
         self.lbl_hint.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 12px;")
+        self.chk_copies.setStyleSheet(f"color: {t.get('text_secondary')};")
         self.btn_export.setStyleSheet(t.button_primary_style())
         self.btn_refresh.setStyleSheet(t.button_secondary_style())
+        self.btn_show_again.setStyleSheet(t.button_secondary_style())
         for b in (self.btn_irecord, self.btn_observatum):
             b.setStyleSheet(t.button_tab_style("observation"))
         tile_css = (f"QPushButton {{ background-color: {t.get('surface')}; color: {t.get('text_primary')};"
                     f" border: 1px solid {t.get('border')}; border-radius: {t.get('radius_md')};"
                     f" padding: 6px 10px; text-align: left; }}"
-                    f" QPushButton:hover {{ background-color: {t.get('hover')}; }}")
+                    f" QPushButton:hover {{ background-color: {t.get('hover')}; }}"
+                    f" QPushButton:checked {{ background-color: {t.get('selected_bg')};"
+                    f" border: 2px solid {link_colour()}; font-weight: 600; }}")
         for tile in self._tiles.values():
             tile.setStyleSheet(tile_css)

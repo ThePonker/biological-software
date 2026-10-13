@@ -230,18 +230,33 @@ def test_home_equals_observation_data(on_copy):
     assert len(tab._counted(tab.table_model._observations)) == total
 
 
+def _live_scheme_ids(db_path):
+    """The scheme ids counted at all: the marked NBN copies of iRecord records left out by
+    THE rule (shared/scheme_duplicates.live_sql; no-op on a database without the column)."""
+    from shared.scheme_duplicates import live_sql
+    c = sqlite3.connect(db_path)
+    try:
+        return {r[0] for r in c.execute("SELECT id FROM recording_scheme WHERE 1" + live_sql(c))}
+    finally:
+        c.close()
+
+
 @needs_data
 def test_scheme_worker_dims_and_lists_only_excluded(on_copy):
     from src.views.scheme.scheme_data_worker import SchemeDataWorker
     agg = sc.excluded_ids(on_copy, "recording_scheme", ["agg"])
-    total = sqlite3.connect(on_copy).execute("SELECT COUNT(*) FROM recording_scheme").fetchone()[0]
+    live = _live_scheme_ids(on_copy)               # each record once: marked NBN copies out
+    live_agg = set(agg) & live
     w = SchemeDataWorker(on_copy, {"_counting_kinds": frozenset({"agg"})})
     w.run()
     records, _n = w.results
-    assert len(records) == total and w.counted == total - len(agg) and set(w.dimmed) == set(agg)
+    listed = {r["id"] for r in records}
+    assert listed == live and len(records) == len(live)
+    assert w.counted == len(live) - len(live_agg) and set(w.dimmed) == set(agg)
+    assert listed & set(w.dimmed) == live_agg
     w = SchemeDataWorker(on_copy, {"_counting_kinds": frozenset({"agg"}), "only_excluded": True})
     w.run()
-    assert len(w.results[0]) == len(agg) == w.counted
+    assert len(w.results[0]) == len(live_agg) == w.counted
 
 
 @needs_data
@@ -250,15 +265,17 @@ def test_scheme_stats_follow_the_switches(on_copy):
     from src.services.recording_scheme_stats_service import RecordingSchemeStatsService
     svc = RecordingSchemeStatsService()
     svc.initialize(get_database())
+    from shared.scheme_duplicates import live_sql
     c = sqlite3.connect(on_copy)
-    assert svc._get_exclusion_clause() == ""
+    copies = live_sql(c)                           # the marked NBN copies: never counted (Q59)
+    assert svc._get_exclusion_clause() == copies   # no kinds left out: only the copies rule
     sc.set_excluded("recording_scheme", ["agg"])
     n = c.execute("SELECT COUNT(*) FROM recording_scheme WHERE 1" + svc._get_exclusion_clause()).fetchone()[0]
     leiopus = c.execute("SELECT COUNT(*) FROM recording_scheme WHERE species_name = "
-                        "'Leiopus linnei/nebulosus'").fetchone()[0]
+                        "'Leiopus linnei/nebulosus'" + copies).fetchone()[0]
     assert leiopus > 0
-    assert n == c.execute("SELECT COUNT(*) FROM recording_scheme").fetchone()[0] - len(
-        sc.excluded_ids(on_copy, "recording_scheme"))
+    live = _live_scheme_ids(on_copy)
+    assert n == len(live) - len(set(sc.excluded_ids(on_copy, "recording_scheme")) & live)
     assert c.execute("SELECT COUNT(*) FROM recording_scheme WHERE species_name = "
                      "'Leiopus linnei/nebulosus'" + svc._get_exclusion_clause()).fetchone()[0] == 0
 

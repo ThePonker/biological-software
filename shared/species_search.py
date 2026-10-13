@@ -126,6 +126,17 @@ def group_label(scientific_name: str, common_name: Optional[str]) -> str:
     return f"All {scientific_name}" + (f" ({common})" if common else "") + " — group"
 
 
+_GROUP_LABEL = re.compile(r"^\s*All\s+(.+?)(?:\s*\([^()]*\))?\s*[—-]+\s*group\s*$")
+
+
+def parse_group_label(text: Optional[str]) -> Optional[str]:
+    """The taxon a group_label() stands for ('All Coccinellidae (ladybirds) — group' ->
+    'Coccinellidae'), or None when the text isn't a group label. A chip or filter box
+    holding the label filters by the whole group (F68, 13 Oct 2026)."""
+    m = _GROUP_LABEL.match(text or "")
+    return m.group(1).strip() if m else None
+
+
 def rank_group(rank: Optional[str]) -> int:
     """0 species, 1 below species, 2 genus, 3 family, 4 higher (the 'species first' order)."""
     r = rank or ""
@@ -434,6 +445,29 @@ class SpeciesIndex:
             tvk = self.parent[self.pos[tvk]]
         return out
 
+    def members(self, tvk: str) -> List[int]:
+        """The positions of every species and infraspecific taxon under tvk (through
+        subgenera, tribes, subfamilies...), in name order -- a group's species list
+        (Examen's Species Database, F70, 13 Oct 2026). The children map is built once."""
+        kids = getattr(self, "_children_map", None)
+        if kids is None:
+            kids = {}
+            for i, p in enumerate(self.parent):
+                if p:
+                    kids.setdefault(p, []).append(i)
+            self._children_map = kids
+        out, stack, seen = [], [tvk], {tvk}
+        while stack:
+            for i in kids.get(stack.pop(), ()):
+                t = self.tvk[i]
+                if t in seen:
+                    continue
+                seen.add(t)
+                stack.append(t)
+                if rank_group(self.rank[i]) in (0, 1):
+                    out.append(i)
+        return sorted(out, key=lambda i: (self.sci[i] or "").lower())
+
 
 # ---------------------------------------------------------------- the per-process index
 
@@ -501,4 +535,4 @@ def search_objects(text: str, limit: Optional[int] = 50, ranks: Optional[Iterabl
 
 
 __all__ = ["SPECIES_LEVEL", "LIST_GROUP_KINGDOMS", "MAX_GROUPS", "SpeciesIndex", "get_index", "search", "search_objects", "fold",
-           "fold_words", "rank_group", "group_label", "is_broad", "warm_up"]
+           "fold_words", "rank_group", "group_label", "parse_group_label", "is_broad", "warm_up"]

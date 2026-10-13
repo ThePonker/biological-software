@@ -67,6 +67,7 @@ class ObservationDetailMixin:
         # Connect signals for actions
         dialog.edit_requested.connect(self._on_detail_edit_requested)
         dialog.delete_requested.connect(self._on_detail_delete_requested)
+        dialog.hide_requested.connect(self._on_detail_hide_requested)
         dialog.profile_requested.connect(self._on_profile_requested)
         dialog.navigate_to_observations.connect(self._on_navigate_to_observations)
         dialog.navigate_to_collection.connect(self._on_navigate_to_collection)
@@ -203,9 +204,20 @@ class ObservationDetailMixin:
         """Handle delete request from detail dialog (already confirmed there).
 
         observatum.db is backed up first, as every delete is (OBS-04).
+
+        A record that is also in iRecord is never deleted here, whoever asked (F72): it
+        gets the "Also in iRecord" box and, at most, is hidden (review 13 Oct 2026).
         """
+        from ..components import irecord_delete
         from ..components.delete_guard import backup_before_delete
         record_id = record.get('id')
+        if irecord_delete.with_irecord([record]):
+            choice = irecord_delete.ask(self, 1)
+            if choice == irecord_delete.OPEN:
+                irecord_delete.open_pages([record])
+            elif choice == irecord_delete.HIDE:
+                self._on_detail_hide_requested(record)
+            return
         if record_id and backup_before_delete(self, "Delete Observation"):
             try:
                 if self._obs_repo:
@@ -216,6 +228,20 @@ class ObservationDetailMixin:
                 self.records_changed.emit()
             except Exception as e:
                 print(f"[ObservationTab] Error deleting record: {e}")
+
+    def _on_detail_hide_requested(self, record: Dict):
+        """"Deleted in iRecord -- remove here" (F72): hide the record, never delete it.
+
+        observatum.db is backed up first, as every delete is; the iRecord ID is remembered
+        so the next download cannot bring the record back (shared/hidden_records.py).
+        """
+        from ..components.irecord_delete import hide_records
+        try:
+            if hide_records(self, [record], title="Remove here"):
+                self._load_data()
+                self.records_changed.emit()
+        except Exception as e:
+            print(f"[ObservationTab] Error hiding record: {e}")
 
     def _on_profile_requested(self, record: Dict):
         """Handle profile view/create request from detail dialog."""

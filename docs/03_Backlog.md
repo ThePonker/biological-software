@@ -44,9 +44,24 @@ comes first either way.
 | 11 | **Suite-review leftovers sweep** (Tier 3 and 4: OBS-22/23, INF5–11, CDX-4, OBS-25/27, SRCH20/22, MAP13/15/16, DE10–14, IMP-18): verify each, fix or close; about half a session | Q90, note 39 §4.11 |
 | 12 | **Data Entry compact banner:** a toggle that folds the cards to one line, for short laptop screens (about 7 grid rows at 1280×720) | Q54 |
 | 13 | **Species lookup ↔ Species Info:** keep both, link each to the other | Q55 |
+| 14 | ✅ *Built 13 Oct (R10 A1, F68).* **What filter group choices filter:** "All Coccinellidae (ladybirds) — group" picked in the Species box keeps every record at or below the taxon (by TVK); the chip names the group | Round 9 test 11 |
+| 15 | ✅ *Built 13 Oct (R10 A2, F69).* **Species box drop-down on the quick filter bars** (Observation Data, Recording Scheme, Contributed): the shared species list with group choices, scoped to the tab's species; typed text still filters | Round 9 test 15 |
+| 16 | ✅ *Built 13 Oct (R10 A3, F70).* **Examen Species Database:** group rows drawn like the others; a clicked group lists its species with "Back to search results"; cap 1,000 with "First 1,000 shown — type more to narrow" | Round 9 test 31 |
+| 17 | **One search box in What that finds everything** (species, genus, family, order, taxon group -- one box instead of four) | Wil, Round 9 test 11; not built, wants a design |
+| 18 | ✅ *Built 13 Oct (R10 B1), to test.* **Cleaning report:** the checks shown once (tiles; the tab strip under them retired; the clicked tile stays marked); iRecord ID cell drawn as a link and "Open in iRecord" enabled only for a row that has one (tooltip says why); the scheme's marked NBN copies left out by THE rule (`shared/scheme_duplicates.py`) with a tick box "Include NBN copies of iRecord records" (off) -- header line and the export's Summary say which; on Wil's PC 110,510 checked drops to 76,389 | F71, Round 9 Test 16 |
+| 19 | ✅ *Built 13 Oct (R10 B2), Wil to run `add_hidden_at_column.py`.* **iRecord-safe delete and edit:** Delete on an observation with an iRecord ID asks (Open in iRecord / Deleted in iRecord -- remove here / Cancel); "remove here" HIDES (`observations.hidden_at`, `hidden_irecord_ids`; `shared/hidden_records.py` is THE rule, through `species_counting.copies_sql`, the repository's list queries and the `assessment_records` view); a download that brings the record again keeps it hidden and the cleaning report lists it under "Came back from iRecord -- check" with Show again; Edit shows a note (the local edit stays possible). The sync already UPDATES a held record (F73: not a fault) | F72, F73; agreed 12 Oct late |
 
 Also for this round (small, already decided): rename the "Districts (modern)" switch
 "**Local authority districts**" (Q39; the source swap to Boundary-Line is in the map-layers job).
+
+### Round 10 (13 Oct): quick fixes from Round 9 testing — C (Drawer in hand, calendar, sort keys)
+
+| # | Fix | Source / decision |
+|---|---|---|
+| C1 | ✅ *Built 13 Oct, to test.* **Drawer in hand tick boxes** drew nothing when ticked: the list's tick is the suite's `TickDelegate` in its own column, rows like the Insect Collection table; the "Show" radio buttons use `tick_mark.radio_qss` (F74) | Tests 20–25 |
+| C2 | ✅ *Built 13 Oct, to test.* **"Not yet / Already in a drawer"** boxes replaced by one "Show:" choice — Not yet in a drawer (default) / All specimens / Only this drawer; the drawer's own specimens always show (F75) | Wil, Round 9 |
+| C3 | ✅ *Built 13 Oct, to test.* **Date calendar pop-ups** styled once for the application (`shared/calendar_style.py`): readable Moss Green header, themed arrows, amber weekends, today in the accent — Quick Entry, When filter, Mark commercial, import wizard, Data Entry, date filters (F76) | Test 7 |
+| C4 | ✅ *Built 13 Oct, Wil to run.* **Old-format sort keys** (`'000204…'` strings on 41 observations in the 10 Oct copy, incl. *Isoaeschna isoceles* 10743–4, whose TVK is superseded — the key comes from the current taxon *Aeshna isoceles*): `backfill_taxon_groups.py --fix-odd-keys` (dry run, backup, `--apply`) | Wil, Round 9 |
 
 ---
 

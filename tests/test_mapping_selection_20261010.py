@@ -26,6 +26,13 @@ SPEC_OBS = ("(o.id = s.observation_id OR (s.observation_id IS NULL AND o.species
             "REPLACE(UPPER(s.grid_ref),' ','')))")
 
 
+def rs_live():
+    """' AND duplicate_of IS NULL' (or ''): the marked NBN copies of iRecord records are never
+    mapped -- THE rule, shared/scheme_duplicates.live_sql -- so scheme hand SQL adds it."""
+    from shared.scheme_duplicates import live_sql
+    return live_sql(str(paths.OBSERVATUM_DB))
+
+
 def sql1(q):
     conn = sqlite3.connect(f"file:{paths.OBSERVATUM_DB}?mode=ro", uri=True)
     try:
@@ -83,7 +90,8 @@ def test_source_split_matches_sql(ms):
     assert len(com.records) == sql1(
         f"SELECT COUNT(*) FROM observations WHERE {GRID} AND NOT {PERSONAL} AND NOT {EMB}")
     assert com.embargoed == sql1(f"SELECT COUNT(*) FROM observations WHERE {GRID} AND {EMB}")
-    assert len(fetch(ms, [], "scheme").records) == sql1(f"SELECT COUNT(*) FROM recording_scheme WHERE {GRID}")
+    assert len(fetch(ms, [], "scheme").records) == sql1(
+        f"SELECT COUNT(*) FROM recording_scheme WHERE {GRID}{rs_live()}")
     assert len(fetch(ms, [], "contributed").records) == sql1(
         f"SELECT COUNT(*) FROM contributed_observations WHERE {GRID}")
     inc = fetch(ms, [], "commercial", include_embargoed=True)
@@ -123,8 +131,10 @@ def test_all_shows_each_record_once(ms):
     assert by_table["specimens"] == sql1("SELECT COUNT(*) FROM specimens WHERE COALESCE(grid_ref,'')<>''") - dup_spec
     dup_rs = sql1("SELECT COUNT(*) FROM recording_scheme WHERE COALESCE(irecord_id,'')<>'' AND "
                   "COALESCE(grid_ref,'')<>'' AND irecord_id IN (SELECT irecord_id FROM observations "
-                  f"WHERE COALESCE(irecord_id,'')<>'' AND NOT {EMB})")
-    assert by_table["recording_scheme"] == sql1(f"SELECT COUNT(*) FROM recording_scheme WHERE {GRID}") - dup_rs
+                  f"WHERE COALESCE(irecord_id,'')<>'' AND NOT {EMB}){rs_live()}")
+    # the marked NBN copies of iRecord records are never mapped either (Q59)
+    assert by_table["recording_scheme"] == sql1(
+        f"SELECT COUNT(*) FROM recording_scheme WHERE {GRID}{rs_live()}") - dup_rs
     assert by_table["observations"] == sql1(f"SELECT COUNT(*) FROM observations WHERE {GRID} AND NOT {EMB}")
     keys = [(r["table"], r["id"]) for r in res.records]
     assert len(keys) == len(set(keys))
@@ -149,7 +159,7 @@ def test_species_genus_family_order_against_sql(ms, taxa):
         f"AND order_name = 'Coleoptera'")
     cer = chip(taxa, "Cerambycidae", "family")
     assert len(fetch(ms, [cer], "scheme").records) == sql1(
-        f"SELECT COUNT(*) FROM recording_scheme WHERE {GRID} AND family = 'Cerambycidae'")
+        f"SELECT COUNT(*) FROM recording_scheme WHERE {GRID} AND family = 'Cerambycidae'{rs_live()}")
 
 
 @needs_data
@@ -194,7 +204,7 @@ def test_vc_recorder_site_and_dates(ms):
     assert len(fetch(ms, [], "personal", vc=23).records) == sql1(
         f"SELECT COUNT(*) FROM observations WHERE {GRID} AND {PERSONAL} AND NOT {EMB} AND vc_number = 23")
     assert len(fetch(ms, [], "scheme", recorder="heeney").records) == sql1(
-        f"SELECT COUNT(*) FROM recording_scheme WHERE {GRID} AND recorder LIKE '%heeney%'")
+        f"SELECT COUNT(*) FROM recording_scheme WHERE {GRID} AND recorder LIKE '%heeney%'{rs_live()}")
     assert len(fetch(ms, [], "collection", recorder="heeney").records) <= sql1(
         f"SELECT COUNT(*) FROM specimens WHERE {GRID} AND collector LIKE '%heeney%'")
     assert len(fetch(ms, [], "personal", site="Bicester").records) == sql1(

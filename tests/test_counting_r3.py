@@ -256,8 +256,11 @@ def _scheme_svc():
 
 
 def _months(conn, where="", params=()):
+    """Hand monthly counts, each record once: the marked NBN copies of iRecord records left
+    out by THE rule (shared/scheme_duplicates.live_sql; '' without the column)."""
+    from shared.scheme_duplicates import live_sql
     q = (f"SELECT CAST(strftime('%m', date) AS INTEGER), COUNT(*) FROM recording_scheme "
-         f"WHERE date IS NOT NULL {where} GROUP BY 1")
+         f"WHERE date IS NOT NULL {where}{live_sql(conn)} GROUP BY 1")
     d = dict(conn.execute(q, params).fetchall())
     return [d.get(m, 0) for m in range(1, 13)]
 
@@ -269,17 +272,20 @@ def test_d3_scheme_month_charts_skip_vague_dates(on_copy):
     svc = _scheme_svc()
     got = svc.get("monthly_counts")
     assert got == _months(c, day)
+    from shared.scheme_duplicates import live_sql
+    copies = live_sql(c)
     vague = c.execute("SELECT COUNT(*) FROM recording_scheme WHERE COALESCE(date_type,'D') != 'D' "
-                      "AND date IS NOT NULL AND strftime('%m', date) IS NOT NULL").fetchone()[0]
+                      "AND date IS NOT NULL AND strftime('%m', date) IS NOT NULL"
+                      + copies).fetchone()[0]
     assert sum(_months(c)) - sum(got) == vague
     # a VC's Records Over Time chart
     vc = c.execute("SELECT vc_number FROM recording_scheme WHERE date_type != 'D' "
-                   "AND vc_number IS NOT NULL GROUP BY 1 ORDER BY COUNT(*) DESC").fetchone()
+                   f"AND vc_number IS NOT NULL{copies} GROUP BY 1 ORDER BY COUNT(*) DESC").fetchone()
     if vc:
         assert svc.get_vc_details(vc[0])["monthly_records"] == _months(
             c, day + " AND vc_number = ?", (vc[0],))
     # the chart's species picker (not built on screen yet; the method it calls was missing)
-    sp = c.execute("SELECT species_name FROM recording_scheme WHERE date_type != 'D' "
+    sp = c.execute(f"SELECT species_name FROM recording_scheme WHERE date_type != 'D'{copies} "
                    "GROUP BY 1 ORDER BY COUNT(*) DESC").fetchone()[0]
     assert svc.get_monthly_counts_by_species(sp) == _months(c, day + " AND species_name = ?", (sp,))
     assert sum(svc.get_monthly_counts_by_species(sp)) < sum(_months(c, "AND species_name = ?", (sp,)))

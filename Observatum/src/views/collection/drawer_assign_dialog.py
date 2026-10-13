@@ -10,6 +10,10 @@ unticking one and saving takes it out of the drawer. A specimen recorded in anot
 drawer can be ticked after "Move here" (one at a time, or "Move all here").
 "Drawers…" lists every drawer with its count, to open one or empty it.
 
+Round 10 C (13 Oct): the list's tick column is the suite's tick box (TickDelegate) and the
+rows look like the Insect Collection table (F74); the two "Not yet / Already in a drawer"
+check boxes are one "Show:" choice of three radio buttons (F75). Both in drawer_assign_list.
+
 Records where specimens ARE. Planning a layout is Curator's job; this does not plan.
 Rules and the write live in shared/drawer_assign.py (pure, tested).
 """
@@ -19,10 +23,10 @@ import re
 import sqlite3
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QBrush, QColor, QFont
+from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (
-    QCheckBox, QComboBox, QDialog, QFormLayout, QFrame, QHBoxLayout, QHeaderView, QLabel,
-    QMessageBox, QPushButton, QSplitter, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
+    QComboBox, QDialog, QFormLayout, QFrame, QHBoxLayout, QHeaderView, QLabel, QMessageBox,
+    QPushButton, QSplitter, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
 import paths
@@ -30,13 +34,13 @@ from shared import drawer_assign as da
 from shared.fit_to_screen import fit_to_screen
 
 from ...themes import theme
+from .drawer_assign_list import COL_NOW, COL_SPECIES, COL_TICK, ROLE_ID, ShowChoice, SpecimenList
 from .drawer_assign_save import DrawerSaveMixin
 
-GOLD = "#8a6609"
-GOLD_TEXT = "#7a5a08"
-GOLD_BG = "#faf6eb"
-GREY = "#9ca3af"
-ROLE_ID = Qt.ItemDataRole.UserRole
+GOLD = theme().get("accent_collection")
+GOLD_TEXT = theme().get("accent_collection_dark")
+GOLD_BG = theme().get("accent_collection_light")
+GREY = theme().get("text_muted")
 ROLE_KEY = Qt.ItemDataRole.UserRole + 1
 
 
@@ -138,12 +142,8 @@ class DrawerAssignDialog(DrawerSaveMixin, QDialog):
         self.tree.setColumnCount(2)
         self.tree.itemSelectionChanged.connect(self._on_tree)
         lv.addWidget(self.tree, 1)
-        self.chk_free = QCheckBox("Not yet in a drawer")
-        self.chk_free.setChecked(True)
-        self.chk_placed = QCheckBox("Already in a drawer")
-        for c in (self.chk_free, self.chk_placed):
-            c.toggled.connect(lambda *_: self._fill_list())
-            lv.addWidget(c)
+        self.show_choice = ShowChoice(vertical=True)      # under the tree: fits a laptop (R10 fix)
+        lv.addWidget(self.show_choice)
         split.addWidget(left)
 
         mid = QWidget()
@@ -169,11 +169,8 @@ class DrawerAssignDialog(DrawerSaveMixin, QDialog):
         top.addWidget(btn_none)
         top.addWidget(self.btn_move_all)
         mv.addLayout(top)
-        self.list = QTreeWidget()
-        self.list.setColumnCount(5)
-        self.list.setHeaderLabels(["Species", "Date", "Site", "Sex", "Drawer now"])
-        self.list.setRootIsDecorated(False)
-        self.list.setUniformRowHeights(True)
+        self.show_choice.changed.connect(lambda *_: self._fill_list())
+        self.list = SpecimenList()
         self.list.itemChanged.connect(self._on_item_changed)
         mv.addWidget(self.list, 1)
         split.addWidget(mid)
@@ -267,7 +264,7 @@ class DrawerAssignDialog(DrawerSaveMixin, QDialog):
         st, dr = self._drawer()
         if s["id"] in self._ticked or s["id"] in self._unticked or da.here(s, st, dr):
             return True
-        return self.chk_placed.isChecked() if da.placed(s) else self.chk_free.isChecked()
+        return self.show_choice.shows(da.placed(s))
 
     def _fill_list(self):
         if not hasattr(self, "list"):
@@ -278,28 +275,12 @@ class DrawerAssignDialog(DrawerSaveMixin, QDialog):
         storage, drawer = self._drawer()
         shown = [s for s in self._specs if self._in_scope(s)]
         genus = None
-        head_font = QFont(); head_font.setBold(True); head_font.setItalic(True)
         for s in shown:
             if s["genus"] != genus:
                 genus = s["genus"]
-                h = QTreeWidgetItem([genus or "(no genus)"])
-                h.setFont(0, head_font)
-                h.setForeground(0, QBrush(QColor(GOLD_TEXT)))
-                h.setFlags(Qt.ItemFlag.ItemIsEnabled)
-                for c in range(5):
-                    h.setBackground(c, QBrush(QColor("#f3efe4")))
-                self.list.addTopLevelItem(h)
-            it = QTreeWidgetItem([s["species_name"] or "", s.get("date_collected") or "",
-                                  s.get("site_name") or "", s.get("sex") or "", ""])
-            f = it.font(0); f.setItalic(True); it.setFont(0, f)
-            it.setData(0, ROLE_ID, s["id"])
-            it.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
-                        | Qt.ItemFlag.ItemIsUserCheckable)
-            self._style(it, s)
-            self.list.addTopLevelItem(it)
-        for c in range(1, 5):
-            self.list.resizeColumnToContents(c)
-        self.list.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+                self.list.add_heading(genus)
+            self._style(self.list.add_specimen(s), s)
+        self.list.fit_columns()
         scope = self._filter[1] if self._filter else "All specimens"
         free = sum(1 for s in shown if not da.placed(s))
         self.lbl_scope.setText(f"{scope} — {len(shown):,} shown, {free:,} not yet in a drawer")
@@ -316,12 +297,13 @@ class DrawerAssignDialog(DrawerSaveMixin, QDialog):
             now = f"{now} → moving here"
         elif s["id"] in self._unticked:
             now = f"{now} → to be removed"
-        it.setText(4, now)
-        it.setCheckState(0, Qt.CheckState.Checked if ticked else Qt.CheckState.Unchecked)
+        it.setText(COL_NOW, now)
+        it.setCheckState(COL_TICK, Qt.CheckState.Checked if ticked else Qt.CheckState.Unchecked)
         grey = away and not ticked
-        for c in range(5):
+        for c in range(COL_SPECIES, COL_NOW + 1):
             it.setForeground(c, QBrush(QColor(GREY)) if grey else QBrush())
-        it.setToolTip(0, f"Recorded in {now}. Tick it to move it to this drawer." if grey else "")
+        it.setToolTip(COL_SPECIES, f"Recorded in {now}. Tick it to move it to this drawer."
+                      if grey else "")
 
     # ---------------------------------------------------------------- ticking
     def _ask(self, title, text, yes="Move here"):
@@ -358,9 +340,9 @@ class DrawerAssignDialog(DrawerSaveMixin, QDialog):
         return True
 
     def _on_item_changed(self, item, col):
-        if self._building or col != 0:
+        if self._building or col != COL_TICK:
             return
-        sid = item.data(0, ROLE_ID)
+        sid = item.data(COL_TICK, ROLE_ID)
         if sid is None:
             return
         on = item.checkState(0) == Qt.CheckState.Checked
@@ -368,16 +350,11 @@ class DrawerAssignDialog(DrawerSaveMixin, QDialog):
         self._building = True            # restyle in place (a declined move is unticked again)
         self._style(item, self._by_id[sid])
         self._building = False
-        self.list.resizeColumnToContents(4)
+        self.list.resizeColumnToContents(COL_NOW)
         self._update_summary()
 
     def _shown_ids(self):
-        out = []
-        for i in range(self.list.topLevelItemCount()):
-            sid = self.list.topLevelItem(i).data(0, ROLE_ID)
-            if sid is not None:
-                out.append(sid)
-        return out
+        return self.list.specimen_ids()
 
     def _tick_shown(self, on):
         """Tick (or untick) every shown specimen; ticking leaves those in other drawers alone

@@ -37,6 +37,8 @@ def wire_observation_detail(dialog, source) -> bool:
     tab._current_detail_dialog = dialog      # its edit handler closes this dialog first
     dialog.edit_requested.connect(tab._on_detail_edit_requested)
     dialog.delete_requested.connect(tab._on_detail_delete_requested)
+    if hasattr(dialog, "hide_requested") and hasattr(tab, "_on_detail_hide_requested"):
+        dialog.hide_requested.connect(tab._on_detail_hide_requested)   # also in iRecord (F72)
 
     def _forget(_result=None):
         if getattr(tab, "_current_detail_dialog", None) is dialog:

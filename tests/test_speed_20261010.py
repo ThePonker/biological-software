@@ -54,6 +54,13 @@ def settings_isolated(qapp):
     QCoreApplication.setApplicationName(app)
 
 
+def _copies_out(db):
+    """' AND duplicate_of IS NULL' or '' (shared/scheme_duplicates.live_sql): the marked NBN
+    copies of iRecord records, which the Scheme tab leaves out unless "Show duplicates"."""
+    from shared.scheme_duplicates import live_sql
+    return live_sql(db)
+
+
 def _hand(db, sql, params=()):
     c = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
     try:
@@ -217,10 +224,12 @@ def _scheme_rows(db, filters):
 
 
 def test_scheme_counts_unchanged(qapp, db_copy, settings_isolated):
-    """The loader's counts, against hand SQL (figures as on 9 Oct's copy in the comments)."""
-    h = lambda sql: _hand(db_copy, sql)  # noqa: E731
+    """The loader's counts, against hand SQL (figures as on 9 Oct's copy in the comments;
+    with the marked NBN copies of iRecord records left out, as the tab does by default,
+    in brackets). Hand SQL applies THE rule, shared/scheme_duplicates.live_sql."""
+    h = lambda sql: _hand(db_copy, sql + _copies_out(db_copy))  # noqa: E731
     mordax = h("SELECT COUNT(*) FROM recording_scheme WHERE species_name = 'Rhagium mordax'")
-    assert mordax == 4628
+    assert 3000 < mordax <= 4628                                       # 4,628 (3,431)
     for text in ("rhag mor", "Rhagium mordx", "Rhagium mordax"):
         assert _scheme_rows(db_copy, {"species": text}) == mordax
     assert _scheme_rows(db_copy, {"location": "wood"}) == h(
@@ -230,7 +239,7 @@ def test_scheme_counts_unchanged(qapp, db_copy, settings_isolated):
     assert _scheme_rows(db_copy, {"location": "wood", "status": "Accepted"}) == h(
         "SELECT COUNT(*) FROM recording_scheme WHERE site_name LIKE '%wood%' "
         "AND verification_status LIKE 'Accepted%'")
-    assert _scheme_rows(db_copy, None) == h("SELECT COUNT(*) FROM recording_scheme")  # 110,510
+    assert _scheme_rows(db_copy, None) == h("SELECT COUNT(*) FROM recording_scheme WHERE 1")  # 110,510 (76,389)
 
 
 def test_scheme_worker_cancelled_gives_no_results_and_no_error(qapp, db_copy):
@@ -261,7 +270,7 @@ def test_scheme_tab_newer_filter_replaces_running_load_without_waiting(
         monkeypatch.setattr(tab, "_on_data_loaded",
                             lambda recs, n, *rest: (loads.append(len(recs)), orig(recs, n, *rest)))
         t = time.perf_counter()
-        tab._load_data(None)                             # all 110,510: still running ...
+        tab._load_data(None)                             # all (76,389 with copies out): still running ...
         first = tab._data_worker
         tab._load_data({"species": "Rhagium mordax"})    # ... when the filter changes
         assert time.perf_counter() - t < 1.0             # no 2 s wait on the old load
@@ -270,8 +279,10 @@ def test_scheme_tab_newer_filter_replaces_running_load_without_waiting(
         while not loads and time.perf_counter() < deadline:
             _wait(50)
         _wait(300)
-        assert loads == [4628]                           # only the newer filter is shown
-        assert tab.table_model.rowCount() == 4628
+        mordax = _hand(db_copy, "SELECT COUNT(*) FROM recording_scheme WHERE species_name = "
+                       "'Rhagium mordax'" + _copies_out(db_copy))   # 4,628 (3,431 copies out)
+        assert loads == [mordax]                         # only the newer filter is shown
+        assert tab.table_model.rowCount() == mordax
         first.wait(10000)
     finally:
         db._main_db_path, db._uksi_db_path = old

@@ -154,7 +154,7 @@ def test_dialog_drawer_contents_show_ticked_and_untick_removes(dlg):
     assert dlg.lbl_count.text() == "2 in this drawer"
     _click(dlg, 3, False)
     assert dlg.lbl_count.text() == "1 in this drawer (1 to remove)"
-    assert "to be removed" in _item(dlg, 3).text(4)
+    assert "to be removed" in _item(dlg, 3).text(5)
     ch = dlg.plan_changes()
     assert da.outline(ch, dlg._specs, "Cabinet 1", "Drawer 9") == [("Remove from Cabinet 1 · Drawer 9", 1)]
     saved = []
@@ -169,7 +169,7 @@ def test_dialog_drawer_contents_show_ticked_and_untick_removes(dlg):
 def test_dialog_move_one_with_confirm_and_decline(dlg):
     from PySide6.QtCore import Qt
     dlg.go_to("Cabinet 2", "Drawer 1")
-    dlg.chk_placed.setChecked(True)
+    dlg.show_choice.set("all")                  # R10: was chk_placed
     dlg.answer = False
     _click(dlg, 5, True)
     assert dlg.asked and "Cabinet 1 · Drawer 10" in dlg.asked[-1]
@@ -177,7 +177,7 @@ def test_dialog_move_one_with_confirm_and_decline(dlg):
     assert 5 not in dlg._ticked
     dlg.answer = True
     _click(dlg, 5, True)
-    assert "moving here" in _item(dlg, 5).text(4)
+    assert "moving here" in _item(dlg, 5).text(5)
     assert dlg.lbl_count.text() == "2 in this drawer (1 to move)"
     ch = dlg.plan_changes()
     assert da.outline(ch, dlg._specs, "Cabinet 2", "Drawer 1") == [
@@ -188,7 +188,7 @@ def test_dialog_move_one_with_confirm_and_decline(dlg):
 
 def test_dialog_move_all_shown_and_tick_all_skips_others(dlg):
     dlg.go_to("Cabinet 2", "Drawer 1")
-    dlg.chk_placed.setChecked(True)
+    dlg.show_choice.set("all")                  # R10: was chk_placed
     dlg._tick_shown(True)                       # free one ticked, others' drawers left alone
     assert dlg._ticked == {1}
     dlg._move_all_shown()

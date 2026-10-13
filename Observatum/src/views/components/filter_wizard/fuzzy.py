@@ -7,9 +7,11 @@ through the suite's shared species search (SpeciesCompleter, 10 Oct 2026).
 """
 from typing import Dict, List, Optional
 
-from PySide6.QtCore import Qt, QSortFilterProxyModel
+from PySide6.QtCore import QEvent, Qt, QSortFilterProxyModel
 from PySide6.QtGui import QStandardItemModel, QStandardItem
 from PySide6.QtWidgets import QCompleter
+
+from shared.species_list_delegate import HIT_ROLE, SpeciesListDelegate
 
 
 class FuzzyFilterProxyModel(QSortFilterProxyModel):
@@ -176,16 +178,62 @@ class PlaceCompleter(FuzzyCompleter):
     proxy_class = PlaceFilterProxyModel
 
 
+def _species_item(display: str, scientific: str) -> QStandardItem:
+    """A list row drawn by the shared painter: the scientific name in italics, the common
+    name (the rest of a "Common (Scientific)" entry) after it in the secondary colour."""
+    item = QStandardItem(display)
+    common = display.replace(f"({scientific})", "").strip() if display != scientific else ""
+    item.setData({"scientific": scientific, "group_of": scientific, "common": common}, HIT_ROLE)
+    return item
+
+
+def _group_item(label: str, scientific: str) -> QStandardItem:
+    item = QStandardItem(label)
+    item.setData({"group_label": label, "group_of": scientific, "scientific": scientific}, HIT_ROLE)
+    return item
+
+
 class SpeciesCompleter(FuzzyCompleter):
     """FuzzyCompleter for a list of species ("Common (Scientific)" or "Scientific"), matched
-    with the shared species search as well. names: display text -> scientific name."""
+    with the shared species search as well. names: display text -> scientific name.
+
+    The rows are drawn by the suite's shared species list painter
+    (shared/species_list_delegate.py) when `secondary` (the colour of common names) is
+    given, as Quick Entry's box is (F69, 13 Oct 2026); set_items() replaces the list when
+    a tab's data changes (the quick filter bars)."""
     proxy_class = SpeciesFilterProxyModel
 
-    def __init__(self, items: List[str], parent=None, names: Optional[Dict[str, str]] = None):
-        super().__init__(items, parent)
-        self._proxy_model.names = dict(names or {i: i for i in items})
+    def __init__(self, items: List[str], parent=None, names: Optional[Dict[str, str]] = None,
+                 secondary: Optional[str] = None):
+        super().__init__([], parent)
         self._group_rows = (0, 0)            # group choices added (at the top, at the end)
         self._group_names: Dict[str, str] = {}   # every group label offered -> its taxon
+        self._secondary = secondary
+        self._painted = False
+        self.set_items(items, names)
+
+    def _ensure_painter(self):
+        """Give the pop-up list the shared painter, the first time it is about to open.
+        QCompleter makes its pop-up (a top-level window) only when needed; making it in
+        __init__ left one for every filter bar built, shown or not."""
+        if self._secondary is not None and not self._painted:
+            self._painted = True
+            self.popup().setItemDelegate(
+                SpeciesListDelegate(self.popup(), secondary=self._secondary))
+
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.Type.KeyPress and obj is self.widget():
+            self._ensure_painter()
+        return super().eventFilter(obj, event)
+
+    def set_items(self, items: List[str], names: Optional[Dict[str, str]] = None):
+        """Replace the species offered (display texts; names: display -> scientific)."""
+        names = dict(names or {i: i for i in items})
+        self._proxy_model.names = names
+        self._source_model.removeRows(0, self._source_model.rowCount())
+        self._group_rows = (0, 0)
+        for display in items:
+            self._source_model.appendRow(_species_item(display, names.get(display, display)))
 
     def splitPath(self, path: str) -> List[str]:
         """As FuzzyCompleter, and the whole groups the text names are added, labelled
@@ -202,13 +250,17 @@ class SpeciesCompleter(FuzzyCompleter):
         first = [g for g in groups if len(g) > 2 and g[2]]
         later = [g for g in groups if g not in first]
         for k, g in enumerate(first):
-            self._source_model.insertRow(k, QStandardItem(g[0]))
+            self._source_model.insertRow(k, _group_item(g[0], g[1]))
         for g in later:
-            self._source_model.appendRow(QStandardItem(g[0]))
+            self._source_model.appendRow(_group_item(g[0], g[1]))
         for g in groups:
             self._group_names[g[0]] = g[1]
         self._group_rows = (len(first), len(later))
         return out
+
+    def is_group(self, display: str) -> bool:
+        """Is this list entry a group choice ("All Cerambycidae (...) \u2014 group")?"""
+        return display in self._group_names
 
     def scientific_name(self, display: str) -> str:
         """The scientific name behind a list entry: a species, or a group choice's taxon."""

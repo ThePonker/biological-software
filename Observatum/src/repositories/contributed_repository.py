@@ -75,6 +75,15 @@ def list_groups(conn) -> list:
     return _rows(conn, sql)
 
 
+def list_species(conn) -> list:
+    """(species_name, common_name) of every contributed species, for the filter box's
+    drop-down (F69, 13 Oct 2026)."""
+    return [tuple(r) for r in conn.execute(
+        f"SELECT species_name, MAX(common_name) FROM {TABLE} "
+        "WHERE species_name IS NOT NULL AND species_name <> '' "
+        "GROUP BY species_name ORDER BY species_name")]
+
+
 def fetch_records(conn, contributor=None, project=..., batch=..., text="") -> list:
     """Contributed records as dicts (every column), filtered and sorted.
 

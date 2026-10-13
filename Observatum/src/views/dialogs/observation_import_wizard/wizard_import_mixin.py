@@ -260,6 +260,7 @@ class WizardImportMixin:
             
             counts["new"], counts["updated"], counts["failed"] = (
                 self.imported_count, self.updated_count, self.error_count)
+            counts["came_back"] = self._keep_hidden_after_sync(rows_to_import, import_mode)
             self.skipped_count = (counts["unchanged"] + counts["duplicates_skipped"]
                                   + counts["errors_left_out"] + counts["warnings_left_out"])
             self.import_status_label.setText("Import complete!")
@@ -304,6 +305,23 @@ class WizardImportMixin:
             QMessageBox.critical(self, "Import Error", f"Error during import:\n{str(e)}")
             self.import_status_label.setText(f"Error: {str(e)}")
             self.import_status_label.setStyleSheet(f"color: {t.get('error')};")
+
+    def _keep_hidden_after_sync(self, rows, import_mode) -> int:
+        """A record Wil removed here ("Deleted in iRecord -- remove here", F72) that the
+        download brought again stays hidden and is flagged for the cleaning report
+        (shared/hidden_records.after_download). Returns how many came back."""
+        if import_mode != ImportMode.IRECORD_SYNC:
+            return 0
+        try:
+            from shared.hidden_records import after_download
+            with self.db.main_connection() as conn:
+                n = after_download(conn, [r.irecord_id for r in rows])
+        except Exception as e:
+            print(f"[ObservationImportWizard] hidden-record check failed: {e}")
+            return 0
+        if n:
+            print(f"[ObservationImportWizard] {n} hidden record(s) came back from iRecord; kept hidden")
+        return n
 
     def _batch_insert_observations(self, records: list) -> int:
         """Batch insert multiple observation records.
@@ -768,6 +786,7 @@ class WizardImportMixin:
 
     SUMMARY_ORDER = (("new", "New records"), ("updated", "Updated records"),
                      ("unchanged", "Already up to date (not changed)"),
+                     ("came_back", "Removed here earlier, came back from iRecord (kept hidden; see the cleaning report)"),
                      ("duplicates_skipped", "Duplicates skipped"),
                      ("errors_left_out", "Rows with errors, not imported"),
                      ("warnings_left_out", "Rows with warnings, not imported"),

@@ -175,6 +175,7 @@ class ObservationRepository(BaseRepository):
         
         query = f"""
             SELECT * FROM observations
+            WHERE 1{self._hidden()}
             ORDER BY {order_by}
             LIMIT ? OFFSET ?
         """
@@ -251,7 +252,7 @@ class ObservationRepository(BaseRepository):
         
         query = f"""
             SELECT * FROM observations
-            WHERE {where_clause}
+            WHERE {where_clause}{self._hidden()}
             ORDER BY date DESC
             LIMIT ? OFFSET ?
         """
@@ -271,9 +272,9 @@ class ObservationRepository(BaseRepository):
         Returns:
             List of Observations
         """
-        query = """
+        query = f"""
             SELECT * FROM observations
-            WHERE species_tvk = ?
+            WHERE species_tvk = ?{self._hidden()}
             ORDER BY date DESC
             LIMIT ?
         """
@@ -291,9 +292,9 @@ class ObservationRepository(BaseRepository):
         Returns:
             List of Observations
         """
-        query = """
+        query = f"""
             SELECT * FROM observations
-            WHERE grid_ref LIKE ?
+            WHERE grid_ref LIKE ?{self._hidden()}
             ORDER BY date DESC
             LIMIT ?
         """
@@ -310,9 +311,9 @@ class ObservationRepository(BaseRepository):
         Returns:
             List of Observations without irecord_id
         """
-        query = """
+        query = f"""
             SELECT * FROM observations
-            WHERE irecord_id IS NULL
+            WHERE irecord_id IS NULL{self._hidden()}
             ORDER BY date DESC
             LIMIT ?
         """
@@ -330,9 +331,9 @@ class ObservationRepository(BaseRepository):
         Returns:
             List of Observations
         """
-        query = """
+        query = f"""
             SELECT * FROM observations
-            WHERE vc_number = ?
+            WHERE vc_number = ?{self._hidden()}
             ORDER BY date DESC
             LIMIT ?
         """
@@ -466,6 +467,12 @@ class ObservationRepository(BaseRepository):
         """Count all observations."""
         return self.count()
     
+    def _hidden(self) -> str:
+        """' AND hidden_at IS NULL': records removed here but still in iRecord (F72,
+        shared/hidden_records.py); '' on a database without the column."""
+        from shared.hidden_records import live_sql
+        return live_sql(self._db)
+
     def _get_species_exclusion_clause(self) -> str:
         """' AND id NOT IN (...)': the records the species-counting switches leave out
         (Settings > Species counting; shared/species_counting.py)."""

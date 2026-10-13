@@ -241,7 +241,8 @@ def test_cleaning_report_latlon_list_export_and_screen(tmp_path, qapp):
     path = export_xlsx(rep, str(tmp_path / "c.xlsx"))
     wb = load_workbook(path, read_only=True)
     try:
-        assert wb.sheetnames == ["Summary"] + [SHEET_NAMES[k] for k, _ in PROBLEMS]
+        # the scheme's export has no "Came back from iRecord" sheet (observations only, F72)
+        assert wb.sheetnames == ["Summary"] + [SHEET_NAMES[k] for k, _ in PROBLEMS if k != "returned"]
         sheet = list(wb[SHEET_NAMES["latlon"]].values)
         assert list(sheet[0]) == HEADERS and HEADERS[-1] == "Source"
         assert [(s[3], s[9], s[10]) for s in sheet[1:]] == [
@@ -257,12 +258,10 @@ def test_cleaning_report_latlon_list_export_and_screen(tmp_path, qapp):
     d = CleaningDashboard(main_db=main, uksi_db=uksi)
     d.cmb_source.setCurrentIndex(1)                             # Recording Scheme
     d.refresh()
-    i = [k for k, _ in PROBLEMS].index("latlon")
-    assert d.tabs.tabText(i) == "Not a grid ref (looks like latitude/longitude) (2)"
-    assert d._tiles["latlon"].text().endswith("\n2")
+    assert d._tiles["latlon"].text() == "Not a grid ref (looks like latitude/longitude)\n2"
     d._tiles["latlon"].click()
-    assert d.tabs.currentIndex() == i
-    model = d.tabs.currentWidget().model()
+    assert d.current_key() == "latlon" and d._tiles["latlon"].isChecked()
+    model = d.current_view().model()
     assert model.headerData(8, Qt.Orientation.Horizontal) == "Source"
     assert model.index(0, 8).data() == "iRecord | survey 2"
     d.deleteLater()

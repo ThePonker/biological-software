@@ -9,6 +9,8 @@ partial-match marker left in and vice-counties compared by name against a number
 Now every tab declares its columns once (TAB_COLUMNS) and calls build_where().
 
 Rules (one place):
+  * A Species chip that is a group choice ("All Coccinellidae (ladybirds) — group") keeps
+    every record at or below that taxon (by TVK, through shared/species_filter; F68).
   * Within a key, chips are alternatives (OR): two sites = either site.
   * Within the What, Where, Who and How cards the keys are alternatives too (a record
     matching ANY species / order / family chip) -- as Observation Data always did.
@@ -31,6 +33,8 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
+from shared.species_search import parse_group_label
+
 
 # Which card each wizard key belongs to (FilterWizard.set_filters uses this too)
 CARD_KEYS: Dict[str, Tuple[str, ...]] = {
@@ -51,6 +55,7 @@ class TabColumns:
     """The columns a tab's wizard keys refer to. None = the tab has no such field."""
     table: str
     species: str = 'species_name'
+    tvk: Optional[str] = 'species_tvk'   # a group chip in Species filters by TVK (F68)
     order: str = 'order_name'            # the wizard's "taxon_group" key (really the order)
     group: Optional[str] = 'taxon_group'  # the wizard's "group" key: real taxon group
     family: str = 'family'
@@ -173,8 +178,20 @@ def date_clauses(col: str, date_from=None, date_to=None, year=None) -> Tuple[Lis
 
 # -- the wizard -----------------------------------------------------------------
 
-def _key_clause(cols: TabColumns, key: str, values: List[Any]) -> Tuple[Optional[str], list]:
-    """OR of one key's chips, or (None, []) if the key has nothing / no column here."""
+def _group_chip_sql(cols: TabColumns, label: str, present_tvks) -> Tuple[str, list]:
+    """A Species chip holding a group label ("All Coccinellidae (ladybirds) — group", F68,
+    13 Oct 2026): every record at or below that taxon by TVK (shared/species_filter), or
+    -- for a record with no TVK -- the taxon's name in its name, order or family column."""
+    from shared.species_filter import species_filter
+    name_cols = tuple(c for c in (cols.species, cols.order, cols.family) if c)
+    return species_filter(label, present_tvks or set()).sql(cols.tvk or "''", name_cols)
+
+
+def _key_clause(cols: TabColumns, key: str, values: List[Any],
+                present_tvks=None) -> Tuple[Optional[str], list]:
+    """OR of one key's chips, or (None, []) if the key has nothing / no column here.
+    present_tvks: the table's distinct TVKs (read by build_where when a Species chip is a
+    whole group; None when no database was given -- the group then matches by name)."""
     col = cols.column_for(key)
     if not values or not col:
         return None, []
@@ -196,6 +213,8 @@ def _key_clause(cols: TabColumns, key: str, values: List[Any]) -> Tuple[Optional
             sql, p = status_match(col, v)
         elif key == 'notes_search':
             sql, p = notes_match(col, v)
+        elif key == 'species' and parse_group_label(str(v)):
+            sql, p = _group_chip_sql(cols, str(v), present_tvks)
         else:
             sql, p = text_match(col, v)
         parts.append(sql)
@@ -203,15 +222,31 @@ def _key_clause(cols: TabColumns, key: str, values: List[Any]) -> Tuple[Optional
     return ("(" + " OR ".join(parts) + ")"), params
 
 
-def build_where(tab: str, filters: Dict[str, Any]) -> Tuple[str, list]:
-    """(sql, params) for the wizard's filters on this tab; ('', []) when nothing applies."""
-    return build_where_cols(tab_columns(tab), filters)
+def build_where(tab: str, filters: Dict[str, Any], db_path=None) -> Tuple[str, list]:
+    """(sql, params) for the wizard's filters on this tab; ('', []) when nothing applies.
+    db_path: the tab's database, read (once, read-only) for its TVKs when a Species chip
+    is a whole group (F68); without it a group matches by name columns only."""
+    return build_where_cols(tab_columns(tab), filters, db_path)
 
 
-def build_where_cols(cols: TabColumns, filters: Dict[str, Any]) -> Tuple[str, list]:
+def _present_tvks(cols: TabColumns, filters: Dict[str, Any], db_path) -> Optional[set]:
+    """The table's distinct TVKs, only when a Species chip is a group and there is a db."""
+    if not db_path or not cols.tvk or not any(
+            parse_group_label(str(v)) for v in as_list(filters.get('species'))):
+        return None
+    from shared.species_filter import table_tvks
+    conn = _connect_ro(db_path)
+    try:
+        return table_tvks(lambda sql: conn.execute(sql).fetchall(), cols.table, cols.tvk)
+    finally:
+        conn.close()
+
+
+def build_where_cols(cols: TabColumns, filters: Dict[str, Any], db_path=None) -> Tuple[str, list]:
     """build_where for a table described by its own TabColumns (the Mapping tab reads
     contributed_observations too, which has no wizard tab)."""
     filters = filters or {}
+    present = _present_tvks(cols, filters, db_path)
     card_sql, params = [], []
     for card, keys in CARD_KEYS.items():
         if card == 'when':
@@ -224,7 +259,7 @@ def build_where_cols(cols: TabColumns, filters: Dict[str, Any]) -> Tuple[str, li
         joiner = " OR " if card in OR_CARDS else " AND "
         parts, p_card = [], []
         for key in keys:
-            sql, p = _key_clause(cols, key, as_list(filters.get(key)))
+            sql, p = _key_clause(cols, key, as_list(filters.get(key)), present)
             if sql:
                 parts.append(sql)
                 p_card.extend(p)
@@ -251,7 +286,7 @@ def _connect_ro(db_path) -> sqlite3.Connection:
 
 def matching_ids(db_path, tab: str, filters: Dict[str, Any]) -> Optional[Set[int]]:
     """Ids of the tab's rows the wizard keeps; None when the wizard has no filters."""
-    sql, params = build_where(tab, filters)
+    sql, params = build_where(tab, filters, db_path)
     if not sql:
         return None
     cols = tab_columns(tab)

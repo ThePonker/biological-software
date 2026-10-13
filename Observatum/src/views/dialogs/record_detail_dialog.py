@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Signal, Qt
 
 from shared.fit_to_screen import fit_to_screen
+from shared.irecord_links import irecord_url
 
 from ...themes import theme
 from ...utils.date_utils import format_date_display
@@ -42,7 +43,8 @@ class RecordDetailDialog(QDialog):
     # Signals
     profile_requested = Signal(dict)
     edit_requested = Signal(dict)     # record data
-    delete_requested = Signal(dict)   # record data
+    delete_requested = Signal(dict)   # record data (no iRecord ID: a real delete)
+    hide_requested = Signal(dict)     # record data (also in iRecord: hide here, F72)
     navigate_to_observations = Signal(str)  # species name - go to Observation Data tab
     navigate_to_collection = Signal(str)    # species name - go to Insect Collection tab
     
@@ -697,37 +699,17 @@ class RecordDetailDialog(QDialog):
         delete_btn.clicked.connect(self._on_delete)
         btn_layout.addWidget(delete_btn)
         
-        # Disable edit/delete for iRecord-sourced records
-        irecord_id = self.record.get('irecord_id') or ''
-        if str(irecord_id).strip():
-            edit_btn.setEnabled(False)
-            edit_btn.setToolTip("Cannot edit iRecord-sourced records")
-            edit_btn.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {t.get('border')};
-                    color: {t.get('text_muted')};
-                    border: none;
-                    border-radius: {t.get('radius_md')};
-                    padding: 10px 24px;
-                    font-size: 13px;
-                    font-weight: 500;
-                }}
-            """)
-            edit_btn.setCursor(Qt.CursorShape.ArrowCursor)
-            delete_btn.setEnabled(False)
-            delete_btn.setToolTip("Cannot delete iRecord-sourced records")
-            delete_btn.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: transparent;
-                    color: {t.get('text_muted')};
-                    border: 1px solid {t.get('border')};
-                    border-radius: {t.get('radius_md')};
-                    padding: 10px 24px;
-                    font-size: 13px;
-                    font-weight: 500;
-                }}
-            """)
-            delete_btn.setCursor(Qt.CursorShape.ArrowCursor)
+        # A record that is also in iRecord (F72, 12 Oct 2026): Edit stays possible (Wil's
+        # fallback) with a plain note; Delete asks (see components/irecord_delete.py)
+        self.edit_note = None
+        if self.record_type == 'observation' and irecord_url(self.record.get('irecord_id')):
+            from ..components.irecord_delete import EDIT_NOTE
+            self.edit_note = QLabel(EDIT_NOTE)
+            self.edit_note.setWordWrap(True)
+            self.edit_note.setObjectName("irecord_edit_note")
+            self.edit_note.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 12px; "
+                                         f"border: none;")
+            btn_layout.addWidget(self.edit_note, 1)
 
         # Open in iRecord: any record that has been into iRecord (R9-3)
         from ..components.irecord_button import irecord_button_for
@@ -787,7 +769,18 @@ class RecordDetailDialog(QDialog):
         """Handle delete click with confirmation."""
         species_name = self.record.get('species_name', 'this record')
         record_type_text = "specimen" if self.record_type == 'specimen' else "observation"
-        
+
+        # Also in iRecord (F72): delete there first, or hide here -- never a real delete
+        if self.record_type == 'observation' and irecord_url(self.record.get('irecord_id')):
+            from ..components import irecord_delete
+            choice = irecord_delete.ask(self, 1)
+            if choice == irecord_delete.OPEN:
+                irecord_delete.open_pages([self.record])
+            elif choice == irecord_delete.HIDE:
+                self.hide_requested.emit(self.record)
+                self.accept()
+            return
+
         reply = QMessageBox.warning(
             self,
             "Confirm Delete",

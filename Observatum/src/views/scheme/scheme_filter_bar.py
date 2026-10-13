@@ -20,6 +20,7 @@ from ...core.config import TabColors  # Added import
 from ..components.date_filter_widget import DateFilterWidget
 from ..components.combo_filter_widget import ComboFilterWidget
 from ..components.filter_debounce import debounce_text, cancel_pending
+from ..components.species_box import attach_species_completer, species_items
 from ..components.saved_filters_mixin import SavedFiltersMixin, create_saved_filter_buttons
 from ..components.filter_styles import (
     STANDARD_INPUT_HEIGHT,
@@ -144,12 +145,8 @@ class SchemeFilterBar(QFrame, SavedFiltersMixin):
         self.species_edit.setFixedHeight(STANDARD_INPUT_HEIGHT)
         self.species_edit.setStyleSheet(f"QLineEdit {{ {input_style} }}")
         debounce_text(self.species_edit, self._emit_filters)   # one reload per pause, not per key
-        
-        self._species_completer_model = QStringListModel()
-        self._species_completer = QCompleter(self._species_completer_model)
-        self._species_completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-        self._species_completer.setFilterMode(Qt.MatchFlag.MatchContains)
-        self.species_edit.setCompleter(self._species_completer)
+        # the shared species drop-down, scoped to the scheme's species (F69, 13 Oct 2026)
+        self._species_completer = attach_species_completer(self.species_edit)
         species_box.addWidget(self.species_edit)
         filters_row.addWidget(species_container)
         
@@ -456,9 +453,11 @@ class SchemeFilterBar(QFrame, SavedFiltersMixin):
         part("dates", lambda: db.execute_main(
             "SELECT MIN(date) as min_date, MAX(date) as max_date FROM recording_scheme "
             "WHERE date IS NOT NULL AND date <> ''"), "date range")
-        part("species", lambda: [row['species_name'] or row[0] for row in db.execute_main(
-            "SELECT DISTINCT species_name FROM recording_scheme WHERE species_name IS NOT NULL "
-            "ORDER BY species_name") if row[0]], "species list")
+        part("species", lambda: species_items(
+            (row[0], row[1]) for row in db.execute_main(
+                "SELECT species_name, MAX(common_name) FROM recording_scheme "
+                "WHERE species_name IS NOT NULL AND species_name <> '' "
+                "GROUP BY species_name ORDER BY species_name")), "species list")
         part("locations", lambda: [row['site_name'] or row[0] for row in db.execute_main(
             "SELECT DISTINCT site_name FROM recording_scheme WHERE site_name IS NOT NULL "
             "ORDER BY site_name") if row[0]], "location list")
@@ -497,7 +496,7 @@ class SchemeFilterBar(QFrame, SavedFiltersMixin):
 
         # Species and location completers
         if choices.get("species") is not None:
-            self._species_completer_model.setStringList(choices["species"])
+            self._species_completer.set_items(*choices["species"])
         if choices.get("locations") is not None:
             self._location_completer_model.setStringList(choices["locations"])
 

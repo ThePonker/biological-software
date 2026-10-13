@@ -398,7 +398,7 @@ class RecordingSchemeTab(QWidget):
         # The Filter Wizard's filters, on every load until Reset (SRCH9: lost on reload)
         if self._wizard_filters:
             from ...services.filter_builder import build_where
-            sql, params = build_where('recording_scheme', self._wizard_filters)
+            sql, params = build_where('recording_scheme', self._wizard_filters, db_path)
             if sql:
                 filters['_wizard_sql'] = (sql, params)
         filters['_counting_kinds'] = self._counting_kinds(filters)
@@ -910,4 +910,4 @@ class RecordingSchemeTab(QWidget):
                 dialog.navigate_to_collection.connect(self._on_navigate_to_collection)
                 dialog.exec()
         except Exception as e:
-            print(f"Error showing record {record_id}: {e}")
+            print(f"Error showing record {record_id}: {e}")

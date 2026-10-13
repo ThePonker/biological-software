@@ -7,6 +7,10 @@ indicator the same tick as an image, drawn here once per colour into a small PNG
 
     paint_tick(painter, QRectF(...), QColor("#ffffff"))       # a delegate's paint()
     widget.setStyleSheet(checkbox_qss(fill="#4F6D8A", mark="#FFFFFF", border="#9A9A9A"))
+    widget.setStyleSheet(radio_qss(fill=..., mark=..., border=..., background=...))
+
+radio_qss (13 Oct 2026, F74) is the same for radio buttons: a round box, filled in the
+colour with a white dot when chosen.
 """
 import tempfile
 from pathlib import Path
@@ -58,6 +62,44 @@ def tick_image(fill, mark, size=16, radius=3):
         _draw(path, size, fill, mark, radius)
         _draw(CACHE / f"{name}@2x.png", size * 2, fill, mark, radius)
     return path.as_posix()
+
+
+def _draw_dot(path, size, fill, mark):
+    img = QImage(size, size, QImage.Format.Format_ARGB32)
+    img.fill(Qt.GlobalColor.transparent)
+    p = QPainter(img)
+    p.setRenderHint(QPainter.RenderHint.Antialiasing)
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(QColor(fill))
+    p.drawEllipse(QRectF(0, 0, size, size))
+    p.setBrush(QColor(mark))
+    r = size * 5 / 16
+    p.drawEllipse(QRectF(size / 2 - r / 2, size / 2 - r / 2, r, r))
+    p.end()
+    img.save(str(path), "PNG")
+
+
+def dot_image(fill, mark, size=16):
+    """Path of a PNG of the chosen radio button (filled circle, a dot in the mark colour)."""
+    name = f"dot_{QColor(fill).name()[1:]}_{QColor(mark).name()[1:]}_{size}"
+    path = CACHE / f"{name}.png"
+    if not path.exists() or not (CACHE / f"{name}@2x.png").exists():
+        CACHE.mkdir(parents=True, exist_ok=True)
+        _draw_dot(path, size, fill, mark)
+        _draw_dot(CACHE / f"{name}@2x.png", size * 2, fill, mark)
+    return path.as_posix()
+
+
+def radio_qss(fill, mark, border, background, hover=None, size=16, selector="QRadioButton"):
+    """Style sheet for radio buttons: an empty round box, or the box filled with a dot."""
+    img = dot_image(fill, mark, size)
+    return f"""
+        {selector}::indicator {{ width: {size}px; height: {size}px; border-radius: {size // 2}px;
+            border: 1px solid {border}; background-color: {background}; }}
+        {selector}::indicator:hover {{ border-color: {hover or fill}; }}
+        {selector}::indicator:checked {{ border: 1px solid {fill}; background-color: {fill};
+            image: url("{img}"); }}
+    """
 
 
 def checkbox_qss(fill, mark, border, background, hover=None, size=16, selector="QCheckBox"):

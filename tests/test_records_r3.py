@@ -121,7 +121,8 @@ def test_species_lookup_leiopus_on_copy(settings):
             return conn.execute(sql, params).fetchall()
 
     sc.set_excluded("recording_scheme", ["agg"])
-    want = conn.execute("SELECT COUNT(*) FROM recording_scheme WHERE species_tvk=?",
+    from shared.scheme_duplicates import live_sql   # each record once: marked NBN copies out
+    want = conn.execute("SELECT COUNT(*) FROM recording_scheme WHERE species_tvk=?" + live_sql(conn),
                         (AGG_TVK,)).fetchone()[0]
     d = SpeciesDashboard()
     d._db = Db()
@@ -130,7 +131,7 @@ def test_species_lookup_leiopus_on_copy(settings):
         family="Cerambycidae", order_name="Coleoptera", old_name=None, match_type="exact",
         rank="Species aggregate")]
     d._on_completer_activated(d._display(d._search_results[0]))
-    assert d._selected_species["schemeRecords"] == want > 1900
+    assert d._selected_species["schemeRecords"] == want > 1800   # 1,933; 1,832 with copies marked
     conn.close()
 
 

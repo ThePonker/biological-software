@@ -400,6 +400,26 @@ class ThemeManager(QObject):
             }}
         """
     
+    def calendar_colours(self, accent: str = None) -> Dict[str, str]:
+        """Colours for the date pop-up calendars (shared/calendar_style, F76): the
+        header band in the accent (Moss Green unless a tab accent is given), weekends
+        in the warning colour, today on the pale accent band."""
+        accent = accent or self.get('primary')
+        return {
+            'surface': self.get('surface'), 'surface_alt': self.get('surface_alt'),
+            'text_primary': self.get('text_primary'), 'text_secondary': self.get('text_secondary'),
+            'text_muted': self.get('text_muted'), 'border': self.get('border'),
+            'hover': self.get('hover'), 'accent': accent,
+            'accent_text': self.get('button_primary_text'), 'weekend': self.get('warning'),
+            'today_bg': self.get('success_bg') if accent == self.get('primary') else self.get('hover'),
+        }
+
+    def calendar_style(self, accent: str = None) -> str:
+        """Style sheet of the date pop-up calendars (the day formats are set by
+        shared/calendar_style.apply, which install() runs for every calendar shown)."""
+        from shared.calendar_style import calendar_qss
+        return calendar_qss(self.calendar_colours(accent))
+
     def badge_style(self, variant: str = 'default') -> str:
         """
         Get badge/tag style.

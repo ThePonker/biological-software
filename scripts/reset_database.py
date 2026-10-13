@@ -156,7 +156,18 @@ CREATE TABLE IF NOT EXISTS observations (
     
     -- Timestamps
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    -- Removed here but still in iRecord (F72, shared/hidden_records.py): hidden, not deleted
+    hidden_at TEXT
+);
+"""
+
+CREATE_HIDDEN_IRECORD_IDS = """
+CREATE TABLE IF NOT EXISTS hidden_irecord_ids (
+    irecord_id TEXT PRIMARY KEY,
+    hidden_at TEXT,
+    species_name TEXT,
+    returned_at TEXT
 );
 """
 
@@ -527,7 +538,7 @@ CREATE INDEX IF NOT EXISTS idx_contrib_contributor ON contributed_observations(c
 CREATE INDEX IF NOT EXISTS idx_contrib_batch ON contributed_observations(import_batch);
 CREATE VIEW IF NOT EXISTS assessment_records AS
     SELECT 'own' AS origin, NULL AS contributor, id, record_type, project_name, client, site_name, sub_location, trap_number, visit_number, date, species_name, species_tvk, common_name, order_name, family, quantity, sex, stage, method, recorder, determiner, grid_ref, vice_county, vc_number
-    FROM observations
+    FROM observations WHERE hidden_at IS NULL
     UNION ALL
     SELECT 'contributed' AS origin, contributor, id, record_type, project_name, client, site_name, sub_location, trap_number, visit_number, date, species_name, species_tvk, common_name, order_name, family, quantity, sex, stage, method, recorder, determiner, grid_ref, vice_county, vc_number
     FROM contributed_observations;
@@ -652,6 +663,7 @@ def create_tables(cursor):
         ('entry_jobs', CREATE_ENTRY_JOBS),
         ('entry_staging', CREATE_ENTRY_STAGING),
         ('contributed_observations', CREATE_CONTRIBUTED_OBSERVATIONS),
+        ('hidden_irecord_ids', CREATE_HIDDEN_IRECORD_IDS),
     ]
     
     for name, sql in tables:

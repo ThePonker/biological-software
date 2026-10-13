@@ -212,17 +212,17 @@ def test_dashboard_lists_and_opens(qapp, dbs, monkeypatch):
     from src.views.stats.cleaning_dashboard import CleaningDashboard
     d = CleaningDashboard(main_db=dbs[0], uksi_db=dbs[1])
     d.refresh()
-    assert d.tabs.tabText(0) == "Genus only (1)"
+    assert d._tiles["genus"].text() == "Genus only\n1"
     assert d._tiles["grid"].text().endswith("\n2")
     opened, shown = [], []
     d.open_url = lambda u: opened.append(u.toString())
     monkeypatch.setattr(d, "open_in_observatum", lambda row: shown.append(row.record_id))
-    d.tabs.setCurrentIndex([k for k, _ in PROBLEMS].index("grid"))
-    view = d.tabs.currentWidget()
+    d.show_problem("grid")
+    view = d.current_view()
     d._on_double_click(view.model().index(0, 0))
     assert opened == [IRECORD_URL.format(id=1007)]
-    d.tabs.setCurrentIndex(0)                                 # genus: record 2 has no iRecord ID
-    view = d.tabs.currentWidget()
+    d.show_problem("genus")                                   # genus: record 2 has no iRecord ID
+    view = d.current_view()
     d._on_double_click(view.model().index(0, 0))
     assert shown == [2]
     d.cmb_source.setCurrentIndex(1)
@@ -252,10 +252,14 @@ def test_detail_dialog_view_only_on_data_copy(qapp):
 
 @pytest.mark.skipif(not HAVE_DATA, reason="data copies absent")
 def test_data_copy_figures_and_speed():
+    from shared.scheme_duplicates import live_sql
     conn = sqlite3.connect(f"file:{DATA_MAIN}?mode=ro", uri=True)
-    no_date = conn.execute("SELECT COUNT(*) FROM recording_scheme WHERE COALESCE(date,'')=''").fetchone()[0]
+    copies = live_sql(conn)                                 # the marked NBN copies left out (Q59)
+    no_date = conn.execute("SELECT COUNT(*) FROM recording_scheme WHERE COALESCE(date,'')=''"
+                           + copies).fetchone()[0]
     vague = conn.execute("SELECT COUNT(*) FROM recording_scheme WHERE COALESCE(date,'')<>'' "
-                         "AND COALESCE(date_type,'D') NOT IN ('D','')").fetchone()[0]
+                         "AND COALESCE(date_type,'D') NOT IN ('D','')" + copies).fetchone()[0]
+    total = conn.execute("SELECT COUNT(*) FROM recording_scheme WHERE 1" + copies).fetchone()[0]
     conn.close()
     from shared.species_search import get_index
     get_index(DATA_UKSI)                                    # warmed at start-up in the app
@@ -263,4 +267,4 @@ def test_data_copy_figures_and_speed():
     rep = build_report(DATA_MAIN, DATA_UKSI, "recording_scheme")
     assert time.perf_counter() - t0 < 10
     assert rep.counts["date"] == no_date + vague
-    assert rep.total_records > 100000
+    assert rep.total_records == total > 70000              # each record once

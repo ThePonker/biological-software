@@ -65,6 +65,9 @@ def main():
     from shared.opaque_popups import install as solid_popups
     from src.themes import theme
     solid_popups(app, lambda: (theme().get('surface'), theme().get('text_primary')))
+    # every date pop-up calendar readable and themed (F76, 13 Oct 2026)
+    from shared.calendar_style import install as themed_calendars
+    themed_calendars(app, lambda: theme().calendar_colours())
 
     # Show splash screen immediately; its bar follows the startup steps
     # (src/views/splash_progress.py) and keeps moving while records load in threads

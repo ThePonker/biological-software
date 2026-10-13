@@ -28,8 +28,17 @@ Problems:
                 quadrants (5 km) are not coarse.
     latlon      the grid ref field holds latitude/longitude text ("49.4557N2.5591W"), not a
                 grid ref (decision 6, 11 Oct; listed only -- nothing is converted).
+    returned    (Observation only) a record Wil removed here with "Deleted in iRecord --
+                remove here" that a later download brought back: still hidden, listed so he
+                can check iRecord and "Show again" if he wants it (F72, shared/hidden_records).
 Verification status is not a problem (answer 12). A scheme count of 0 is presence
 (decision 8), so counts are not checked at all.
+
+Left out (F71, 13 Oct): the Recording Scheme's marked NBN copies of iRecord records
+(shared/scheme_duplicates.py, THE rule) unless include_copies is asked for -- on Wil's PC
+that takes the scheme from 110,510 to about 76,389 records checked (34,121 marked; on a
+database without the duplicate_of column nothing changes); and hidden observations
+(shared/hidden_records.py), which appear only under "returned".
 """
 from __future__ import annotations
 
@@ -41,6 +50,7 @@ from dataclasses import dataclass, field
 from typing import Dict, Iterable, List, Optional, Tuple
 
 from shared.db_open import connect_ro
+from shared.hidden_records import RETURNED_LABEL
 from shared.record_kinds import KIND_LABELS, classify, ranks_for_tvks
 from shared.species_filter import current_tvk_map
 
@@ -60,8 +70,10 @@ PROBLEMS: List[Tuple[str, str]] = [(k, KIND_LABELS[k]) for k in NAME_KINDS] + [
     ("early", "Date before 1700"),
     ("grid", "No grid ref or coarse (10 km+)"),
     ("latlon", "Not a grid ref (looks like latitude/longitude)"),
+    ("returned", RETURNED_LABEL),
 ]
 PROBLEM_LABELS = dict(PROBLEMS)
+OBSERVATION_ONLY = ("returned",)          # tiles that mean nothing for the other sources
 
 DATE_TYPE_LABELS = {
     "DD": "day range", "O": "month only", "OO": "month range", "Y": "year only",
@@ -214,10 +226,26 @@ class CleaningRow:
 @dataclass
 class CleaningReport:
     source: str                                   # table name
-    total_records: int = 0
+    total_records: int = 0                        # records checked (copies / hidden left out)
     rows: Dict[str, List[CleaningRow]] = field(default_factory=dict)
     records_with_problem: int = 0
     seconds: float = 0.0
+    include_copies: bool = False                  # scheme: NBN copies of iRecord records in
+    copies_marked: int = 0                        # scheme: rows marked as such (0 = no column)
+    hidden_records: int = 0                       # observations: removed here, still in iRecord
+
+    @property
+    def copies_note(self) -> str:
+        """One line saying what was done about the scheme's NBN copies ('' elsewhere)."""
+        if self.source != "recording_scheme":
+            return ""
+        if not self.copies_marked:
+            return "NBN copies of iRecord records: none marked in this database (every row checked)."
+        if self.include_copies:
+            return (f"NBN copies of iRecord records included: {self.copies_marked:,} marked copies "
+                    f"are among the records checked.")
+        return (f"NBN copies of iRecord records left out: {self.copies_marked:,} marked copies "
+                f"not checked (tick 'Include NBN copies of iRecord records' to add them).")
 
     @property
     def counts(self) -> Dict[str, int]:
@@ -228,12 +256,33 @@ class CleaningReport:
         return dict(SOURCES).get(self.source, self.source)
 
 
-def build_report(main_db, uksi_db, source: str) -> CleaningReport:
-    """The cleaning report for one source table. Read-only; UKSI lookups batched."""
+def _scope_sql(conn, source: str, include_copies: bool) -> str:
+    """The WHERE fragment leaving out the scheme's marked copies (unless asked for) and
+    hidden observations -- through the two shared rules."""
+    if source == "recording_scheme" and not include_copies:
+        from shared.scheme_duplicates import live_sql
+        return live_sql(conn)
+    if source == "observations":
+        from shared.hidden_records import live_sql
+        return live_sql(conn)
+    return ""
+
+
+def _returned_rows(conn) -> Dict[int, Tuple[str, str]]:
+    """{observation id: (hidden_at, returned_at)} for hidden records a download brought back."""
+    from shared.hidden_records import returned
+    return {r[0]: (r[3] or "", r[4] or "") for r in returned(conn)}
+
+
+def build_report(main_db, uksi_db, source: str, include_copies: bool = False) -> CleaningReport:
+    """The cleaning report for one source table. Read-only; UKSI lookups batched.
+    include_copies: scheme only -- check the marked NBN copies of iRecord records too."""
     if source not in dict(SOURCES):
         raise ValueError(f"unknown source {source!r}")
     t0 = time.perf_counter()
     conn = connect_ro(main_db)
+    copies_marked = hidden_count = 0
+    returned_at: Dict[int, Tuple[str, str]] = {}
     try:
         have = {r[1] for r in conn.execute(f"PRAGMA table_info({source})")}
         if not have:                         # an older database without this table
@@ -241,7 +290,19 @@ def build_report(main_db, uksi_db, source: str) -> CleaningReport:
         else:
             src_col = next((c for c in _SOURCE_COLUMNS if c in have), "NULL")
             cols = [c if c in have else "NULL" for c in _COLUMNS]   # contributed: no iRecord
-            rows = conn.execute(f"SELECT {', '.join(cols)}, {src_col} FROM {source}").fetchall()
+            select = f"SELECT {', '.join(cols)}, {src_col} FROM {source} WHERE 1"
+            rows = conn.execute(select + _scope_sql(conn, source, include_copies)).fetchall()
+            if source == "recording_scheme" and "duplicate_of" in have:
+                copies_marked = conn.execute(
+                    f"SELECT COUNT(*) FROM {source} WHERE duplicate_of IS NOT NULL").fetchone()[0]
+            if source == "observations" and "hidden_at" in have:
+                hidden_count = conn.execute(
+                    f"SELECT COUNT(*) FROM {source} WHERE hidden_at IS NOT NULL").fetchone()[0]
+                returned_at = _returned_rows(conn)
+                if returned_at:
+                    marks = ",".join("?" * len(returned_at))
+                    rows += conn.execute(f"{select} AND id IN ({marks})",
+                                         list(returned_at)).fetchall()
     finally:
         conn.close()
     pairs = {(r[3] or "", r[2] or "") for r in rows}
@@ -258,12 +319,22 @@ def build_report(main_db, uksi_db, source: str) -> CleaningReport:
             u.close()
     synonyms = synonym_groups(pairs, current)
 
-    report = CleaningReport(source=source, total_records=len(rows),
-                            rows={k: [] for k, _ in PROBLEMS})
+    report = CleaningReport(source=source, total_records=len(rows) - len(returned_at),
+                            rows={k: [] for k, _ in PROBLEMS}, include_copies=include_copies,
+                            copies_marked=copies_marked, hidden_records=hidden_count)
     kind_cache: Dict[Tuple[str, str], frozenset] = {}
     flagged = set()
     for (rid, irec, name, tvk, rank, date, dtype, grid, site, recorder, lat, lon, ds) in rows:
         name, tvk = name or "", tvk or ""
+        if rid in returned_at:               # hidden: listed under "returned" only
+            h, r = returned_at[rid]
+            report.rows["returned"].append(CleaningRow(
+                record_id=rid, species=name, rank=(rank or "").strip(),
+                date=display_date(date, dtype), grid_ref=grid or "", site=site or "",
+                recorder=recorder or "", irecord_id=irec, problem="returned",
+                detail=f"Removed here {h[:16].replace('T', ' ')}; came back from iRecord "
+                       f"{r[:16].replace('T', ' ')} (still hidden)", dataset=ds or ""))
+            continue
         rank = (rank or "").strip() or uksi_ranks.get(tvk) or \
             uksi_ranks.get(current.get(tvk) or "", "")
         problems: List[Tuple[str, str]] = []

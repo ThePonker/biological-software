@@ -21,14 +21,18 @@ old match by name (every typed word in species_name or common_name) did (review 
   * text that is exactly a UKSI name ("Nicrophorus vespillo"): the TVKs, OR a record whose
     species_name or common_name is the text itself (whole, any case), OR -- for a record
     with no TVK or one UKSI doesn't hold -- the old match by name. So N. vespilloides
-    stays out.
+    stays out;
+  * a group choice picked from a drop-down, held as its label ("All Coccinellidae
+    (ladybirds) — group"; F68, 13 Oct 2026): every record whose TVK is at or below that
+    taxon, OR -- for a record with no TVK -- one whose name columns hold the taxon's name.
 """
 from __future__ import annotations
 
 import re
 from typing import Dict, Iterable, List, Optional, Set
 
-from shared.species_search import LIST_GROUP_KINGDOMS, MAX_GROUPS, fold, fold_words, get_index
+from shared.species_search import (LIST_GROUP_KINGDOMS, MAX_GROUPS, fold, fold_words, get_index,
+                                   parse_group_label)
 
 _SAFE_TVK = re.compile(r"^[A-Za-z0-9:_.\-]+$")
 _current_cache: Dict[str, Optional[str]] = {}
@@ -141,6 +145,11 @@ def tvks_under(wanted: Iterable[str], present_tvks: Iterable[str], db_path: Opti
             anc_cache[c] = any(a in wanted for a in idx.ancestors(c))
         if anc_cache[c]:
             chosen.add(t)
+        elif len(idx.ancestors(c)) == 1 and c in idx.pos and not idx.parent[idx.pos[c]]:
+            # a taxon UKSI holds with no parent (5 in uksi.db, e.g. Morimus funereus): it
+            # can't be placed under any group, so it is matched by name like one UKSI
+            # doesn't hold (review 13 Oct 2026: 2 scheme Coleoptera were missed)
+            unknown.add(t)
     return chosen, unknown
 
 
@@ -155,14 +164,32 @@ class SpeciesFilter:
         self.tvks: Set[str] = set()        # the table's TVKs that are chosen
         self.unknown: Set[str] = set()     # the table's TVKs UKSI can't place (matched by name)
         self.exact = False                  # the text is exactly the chosen taxa's name
+        self.group = parse_group_label(self.text)   # the taxon of a group label, if one
         self.by_name_only = by_name or len("".join(fold_words(self.text))) < 2
         if self.by_name_only:
+            return
+        if self.group:
+            self._choose_group(present_tvks, db_path)
             return
         self.taxa, self.exact = _choose(self.text, db_path)
         if not self.taxa:                   # nothing in UKSI: the old match by name
             self.by_name_only = True
             return
         self.tvks, self.unknown = tvks_under({r["tvk"] for r in self.taxa}, present_tvks, db_path)
+
+    def _choose_group(self, present_tvks, db_path):
+        """A group label (F68): the whole taxon by TVK; a record with no TVK by the taxon's
+        name in its name columns (the caller passes order / family columns to sql())."""
+        self.words = [self.group]
+        idx = get_index(db_path)
+        tvk = idx.tvk_for_name(self.group)
+        if not tvk:
+            self.by_name_only = True
+            return
+        self.taxa = [{"tvk": tvk, "scientific_name": idx.sci[idx.pos[tvk]],
+                      "rank": idx.rank[idx.pos[tvk]], "is_group": True}]
+        self.exact = True      # a placed record is chosen by TVK alone; the name only when it has none
+        self.tvks, self.unknown = tvks_under({tvk}, present_tvks, db_path)
 
     # ------------------------------------------------------------ in memory
 

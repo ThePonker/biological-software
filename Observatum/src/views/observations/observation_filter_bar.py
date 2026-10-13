@@ -21,6 +21,7 @@ from ...core.config import TabColors
 from ..components.date_filter_widget import DateFilterWidget
 from ..components.combo_filter_widget import ComboFilterWidget
 from ..components.filter_debounce import debounce_text, cancel_pending
+from ..components.species_box import attach_species_completer, species_items
 from ..components.saved_filters_mixin import SavedFiltersMixin, create_saved_filter_buttons
 from ..components.filter_styles import (
     STANDARD_INPUT_HEIGHT,
@@ -210,13 +211,8 @@ class ObservationFilterBar(QFrame, SavedFiltersMixin):
         self.species_edit.setFixedHeight(STANDARD_INPUT_HEIGHT)
         self.species_edit.setStyleSheet(f"QLineEdit {{ {input_style} }}")
         
-        self._species_completer_model = QStringListModel()
-        self._species_completer = QCompleter(self._species_completer_model)
-        self._species_completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-        self._species_completer.setFilterMode(Qt.MatchFlag.MatchContains)
-        self._species_completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
-        self._species_completer.setMaxVisibleItems(10)
-        self.species_edit.setCompleter(self._species_completer)
+        # the shared species drop-down, scoped to the recorded species (F69, 13 Oct 2026)
+        self._species_completer = attach_species_completer(self.species_edit)
         species_box.addWidget(self.species_edit)
         filters_row.addWidget(species_container)
 
@@ -596,16 +592,15 @@ class ObservationFilterBar(QFrame, SavedFiltersMixin):
         except Exception as e:
             print(f"[FilterBar] Error getting date range: {e}")
         
-        # Populate species completer
+        # Populate species completer: "Common (Scientific)" as the What dialog lists them
         try:
             query = """
-                SELECT DISTINCT species_name FROM observations WHERE species_name IS NOT NULL 
-                UNION SELECT DISTINCT common_name FROM observations WHERE common_name IS NOT NULL
-                ORDER BY 1
+                SELECT species_name, MAX(common_name) FROM observations
+                WHERE species_name IS NOT NULL AND species_name <> ''
+                GROUP BY species_name ORDER BY species_name
             """
             results = db.execute_main(query)
-            species_list = [row['species_name'] or row[0] for row in results if row[0]]
-            self._species_completer_model.setStringList(species_list)
+            self._species_completer.set_items(*species_items((r[0], r[1]) for r in results))
         except Exception as e:
             print(f"[FilterBar] Error loading species list: {e}")
         

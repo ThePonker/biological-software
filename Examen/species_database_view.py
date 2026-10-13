@@ -8,12 +8,12 @@ from published reviews. Naturalist theme.
 """
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QSplitter, QListWidget, QListWidgetItem,
     QFrame, QScrollArea, QGridLayout,
 )
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QFont, QColor
+from PySide6.QtGui import QFont
 import paths
 from shared.species_list_delegate import HIT_ROLE, SpeciesListDelegate
 
@@ -62,6 +62,10 @@ LIST_TRACKS = ["legal_protection", "priority"]
 
 SEVERE = {"CR", "EN", "VU", "NR", "RDB1", "RDB2", "RE", "EX", "EW"}
 MODERATE = {"NT", "NS", "Na", "Nb", "RDB3", "RDBK", "Notable", "DD", "Amber"}
+# Rows a search lists at most (F70, 13 Oct 2026: 100 stopped "beetle" in the A's). The
+# search itself takes ~10 ms; the list is what costs, and 1,000 rows build in well under
+# a second offscreen. Past the cap the count line says so.
+SEARCH_LIMIT = 1000
 
 
 
@@ -112,6 +116,16 @@ class SpeciesDatabaseView(QWidget):
         self.result_count = QLabel("")
         self.result_count.setStyleSheet("color: " + TEXT_MUTED + "; font-size: 11px;")
         ll.addWidget(self.result_count)
+        # A group's species list (F70): back to the search results from here
+        self.back_button = QPushButton("\u2190 Back to search results")
+        self.back_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.back_button.setStyleSheet(
+            "QPushButton { border: none; color: " + ACCENT + "; font-size: 12px; "
+            "text-align: left; padding: 2px 0; background: transparent; }"
+            "QPushButton:hover { text-decoration: underline; }")
+        self.back_button.clicked.connect(self._do_search)
+        self.back_button.hide()
+        ll.addWidget(self.back_button)
         self.results_list = QListWidget()
         self.results_list.setStyleSheet(
             "QListWidget { border: 1px solid " + BORDER + "; border-radius: 4px; "
@@ -208,26 +222,54 @@ class SpeciesDatabaseView(QWidget):
     def _do_search(self):
         q = self.search_input.text().strip()
         self.results_list.clear()
+        self.back_button.hide()
         if len(q) < 3:
             self.result_count.setText("")
             return
         results = self._search_uksi(q)
-        self.result_count.setText(f"{len(results)} species found")
-        for name, tvk, common, family, rank, note, group in results:
-            display = f"{name}  ({common})" if common else name
-            if rank and rank != "Species":
-                display += f"  [{rank}]"
-            if note:
-                display += f"  \u2014 {note}"
-            if group:   # a whole group found by a common word, after the species (decision 2)
-                display = group
-            item = QListWidgetItem(display)
-            item.setData(Qt.ItemDataRole.UserRole, (name, tvk, common, family, rank))
-            item.setData(HIT_ROLE, {"scientific": name, "group_of": name, "common": common,
-                                    "rank": "" if rank in ("", "Species") or group else rank,
-                                    "note": note, "group_label": group})
-            if rank and rank != "Species": item.setForeground(QColor(TEXT_MUTED))
-            self.results_list.addItem(item)
+        if len(results) >= SEARCH_LIMIT:
+            self.result_count.setText(f"First {len(results):,} shown \u2014 type more to narrow")
+        else:
+            self.result_count.setText(f"{len(results):,} species found")
+        for row in results:
+            self.results_list.addItem(self._make_item(*row))
+
+    @staticmethod
+    def _make_item(name, tvk, common, family, rank, note, group) -> QListWidgetItem:
+        """One row, drawn by the shared painter: a group row ("All Coleoptera (beetles)
+        \u2014 group") the same as any other -- F70, 13 Oct 2026: rows above species were
+        given a muted foreground, so a family row looked disabled while an order row that
+        happened to be selected did not."""
+        display = f"{name}  ({common})" if common else name
+        if rank and rank != "Species":
+            display += f"  [{rank}]"
+        if note:
+            display += f"  \u2014 {note}"
+        if group:   # a whole group found by a common word, after the species (decision 2)
+            display = group
+        item = QListWidgetItem(display)
+        item.setData(Qt.ItemDataRole.UserRole, (name, tvk, common, family, rank))
+        item.setData(HIT_ROLE, {"scientific": name, "group_of": name, "common": common,
+                                "rank": "" if rank in ("", "Species") or group else rank,
+                                "note": note, "group_label": group})
+        return item
+
+    def _show_group_members(self, tvk, name):
+        """A genus, family, order... clicked: its species fill the left list (as Codex
+        lists a group's species; F70), with "Back to search results" above them."""
+        from shared.species_search import get_index, rank_group
+        idx = get_index(str(paths.UKSI_DB))
+        members = idx.members(tvk)
+        self.results_list.blockSignals(True)
+        self.results_list.clear()
+        for i in members:
+            rank = idx.rank[i] or ""
+            self.results_list.addItem(self._make_item(
+                idx.label[i] or idx.sci[i], idx.tvk[i], idx.common[i] or "",
+                idx.family[i] or "", "" if rank_group(rank) == 0 else rank, "", ""))
+        self.results_list.blockSignals(False)
+        self.result_count.setText(f"{len(members):,} species in {name} \u2014 click one for its profile")
+        self.back_button.show()
 
     def _search_uksi(self, query):
         """The suite's shared species search (SRCH19/EXA18, 10 Oct 2026): every word, typing
@@ -238,7 +280,7 @@ class SpeciesDatabaseView(QWidget):
         if not paths.UKSI_DB.exists(): return []
         from shared.species_search import LIST_GROUP_KINGDOMS, search
         out = []
-        for r in search(query, limit=100, db_path=str(paths.UKSI_DB),
+        for r in search(query, limit=SEARCH_LIMIT, db_path=str(paths.UKSI_DB),
                         group_kingdoms=LIST_GROUP_KINGDOMS):
             note = (f"old name: {r['old_name']}" if r.get("old_name")
                     else "close spelling" if r.get("match_type") == "fuzzy" else "")
@@ -257,11 +299,25 @@ class SpeciesDatabaseView(QWidget):
         self.species_name_label.setText(name)
         self.common_name_label.setText(f"{common}  \u2014  {family}" if common else family or "")
         self.tvk_label.setText(f"TVK: {tvk}" if tvk else "")
+        if self._is_group(tvk):
+            self._show_group_members(tvk, name)
         self._read_errors = []
         self._display_codex_status(tvk)
         self._display_pantheon_ecology(tvk)
         self.read_error_label.setText("\n".join(self._read_errors))
         self.read_error_label.setVisible(bool(self._read_errors))
+
+    @staticmethod
+    def _is_group(tvk) -> bool:
+        """A genus or higher taxon (its species are listed, F70)."""
+        try:
+            from shared.species_search import get_index, rank_group
+            idx = get_index(str(paths.UKSI_DB))
+            i = idx.pos.get(tvk)
+            return i is not None and rank_group(idx.rank[i]) >= 2
+        except Exception as e:  # noqa: BLE001 -- no uksi.db: a plain profile
+            print(f"[Examen SpeciesDatabaseView] rank lookup failed: {e}")
+            return False
 
     def _display_codex_status(self, tvk):
         while self.status_grid.count():

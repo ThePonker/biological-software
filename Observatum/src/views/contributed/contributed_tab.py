@@ -17,11 +17,12 @@ from shared.display_format import dmy
 from ...core.config import TabColors
 from ...models.database import get_database
 from ...repositories.contributed_repository import (
-    COLUMNS, fetch_records, has_table, list_groups, open_ro,
+    COLUMNS, fetch_records, has_table, list_groups, list_species, open_ro,
 )
 from ...themes import theme
 from ..components.filter_debounce import debounce_text
 from ..components.filter_styles import get_input_style
+from ..components.species_box import attach_species_completer, species_items
 
 ACCENT, ACCENT_LIGHT = TabColors.OBSERVATION, TabColors.OBSERVATION_LIGHT
 DATE_COLUMNS = {"date", "received_date"}
@@ -60,6 +61,8 @@ class ContributedTab(QWidget):
         self.search_edit.setMinimumWidth(160)
         self.search_edit.setStyleSheet(get_input_style())
         debounce_text(self.search_edit, self._load_records)   # once typing pauses
+        # the shared species drop-down, scoped to the contributed species (F69, 13 Oct 2026)
+        self._species_completer = attach_species_completer(self.search_edit)
         bl.addWidget(self.search_edit)
         note = QLabel("Read only - records other people sent you. Not in stats, maps or iRecord.")
         note.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {t.font_size('sm')}; "
@@ -171,6 +174,9 @@ class ContributedTab(QWidget):
         groups = self._read(list_groups)
         if groups is None:
             return
+        species = self._read(list_species)
+        if species is not None:
+            self._species_completer.set_items(*species_items(species))
         keep = self._current
         self.tree.blockSignals(True)
         self.tree.clear()

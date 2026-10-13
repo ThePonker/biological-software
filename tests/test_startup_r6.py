@@ -503,7 +503,7 @@ def test_scheme_filter_lists_read_in_a_thread_match(qapp):
     def state(bar):
         combos = [[(c.itemText(i), c.itemData(i)) for i in range(c.count())]
                   for c in (bar.vc_combo, bar.subfamily_combo, bar.status_combo)]
-        return (combos, bar._species_completer_model.stringList(),
+        return (combos, dict(bar._species_completer._proxy_model.names),
                 bar._location_completer_model.stringList())
     assert state(a) == state(b)
     assert len(state(b)[1]) > 10 and len(state(b)[0][0]) > 2

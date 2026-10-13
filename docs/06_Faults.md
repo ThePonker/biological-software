@@ -1,10 +1,10 @@
 # Faults
 
-## Updated 12 October 2026
+## Updated 13 October 2026
 ## Open faults carry an action. Closed ones are kept in brief, because knowing
 ## what has already gone wrong is how the rules in `05` were earned. Older closed
 ## faults are in `06b_Faults_Closed.md` (split out 12 Oct). New faults take the
-## next free number (F68 next).
+## next free number (F77 next).
 
 ---
 
@@ -272,6 +272,47 @@ common points and each edge is drawn once (Round 5).
 Found on the PC by `test_banner_cards_fit_the_window` (Round 3). The banner now measures its
 cards at runtime and never forces the window wider than it is.
 
+### F68. What filter: a group choice did not filter -- FIXED 13 Oct (Round 10 A)
+Round 9 test 11. The Filter Wizard's Species box offered "All Coccinellidae (ladybirds) —
+group", but the chip it made held the bare taxon name ("Coccinellidae"), and the filter
+builder turned a Species chip into `species_name = ?` -- no record's species is a family, so
+Apply showed everything. Now the chip holds the label itself (what was chosen is what the
+chip says), `shared/species_filter.py` understands a group label (every record at or below
+the taxon by TVK; a record with no TVK by the taxon's name in its name, order or family
+columns) and `filter_builder.build_where` reads the table's TVKs for it (`db_path` passed
+by `matching_ids` and the scheme tab). Coccinellidae: 901 observations, 39 specimens, 0
+scheme records; Papilionoidea (a superfamily, no column holds it): 1,038 observations.
+Wil's later wish, one search box in What that finds everything, is on the backlog.
+Review (13 Oct): a record whose TVK UKSI holds with no parent (5 such taxa; Morimus
+funereus, 2 scheme rows) is now matched by name like one UKSI doesn't hold -- Coleoptera on
+the scheme went from 110,508 to 110,510, the order column's count (`tests/test_r10rev.py`).
+
+### F69. Quick filter bars' Species box had no drop-down -- FIXED 13 Oct (Round 10 A)
+Round 9 test 15. The Species box on Observation Data, the Recording Scheme and Contributed
+filtered on typed text ("rut mac" worked), but its QCompleter matched "contains" only, so
+nothing opened to pick the full name from. The three now carry the What dialog's
+`SpeciesCompleter` (shared species search, group choices) drawn by the shared list painter
+(`Observatum/src/views/components/species_box.py`), scoped to that tab's species ("Common
+(Scientific)" as the What dialog lists them). Picking a row puts its text in the box, which
+filters as typed text did; a picked group filters the whole group (F68). The pop-up gets
+its painter the first time a key is pressed, not at build (a pop-up is a top-level
+window; building one per bar crashed a test's tidy-up).
+Review (13 Oct): a pick put the list's "Western Honey Bee (Apis mellifera)" in the box and
+the filter found NO record for that text (only species with no common name, like Rutpela
+maculata, worked). The box now takes the scientific name (a group keeps its label):
+`QuickBarSpeciesCompleter.pathFromIndex` in `species_box.py`.
+
+### F70. Examen Species Database: group rows pale, a group showed nothing, 100-row cap -- FIXED 13 Oct (Round 10 A)
+Round 9 test 31. (a) Every row above species rank was given a muted foreground
+(`setForeground(TEXT_MUTED)`), which the shared painter honours, so a family row looked
+disabled while the selected order row did not; removed -- the painter already shows the
+rank small. (b) Clicking a group showed only its name, rank and TVK; it now fills the left
+list with the group's species (`SpeciesIndex.members`, in name order; 547 weevils in 0.2 s)
+with "← Back to search results" above them, and a new search also returns. (c) The cap of
+100 stopped "beetle" in the A's; now 1,000 (`SEARCH_LIMIT`; a 1,000-row list builds in
+about 70 ms offscreen), and when it is hit the count line says "First 1,000 shown — type
+more to narrow". Codex's Species Search had none of these (test 31 passed) and is unchanged.
+
 ### F65. Lector: the update ticked held-back names as Wil's choices -- FIXED 12 Oct
 The first `lector.db` update recorded the names of old `--synonyms` fetches as Wil's own
 choices, overriding the hold-back (*Lamia* rosenmulleri, sartor, sutor, titillator). The
@@ -295,6 +336,69 @@ list ("Cabinet", "Useful Box", "Storage box"), so "Cabinet 1" could not be shown
 Now the four are filled from the specimen and the three lists accept any value. Specimens
 already edited cannot be told apart in the data: any drawer, storage, condition or
 preparation lost that way has to be set again.
+
+### F71. Cleaning report: checks shown twice, hidden iRecord link, NBN copies counted -- FIXED 13 Oct (Round 10 B1, to test)
+*Found 12 Oct (Round 9 Test 16).* The checks appeared as tiles AND as a scrolling tab strip
+under them; nothing showed which rows "Open in iRecord" worked for; the scheme's 34,121
+marked NBN copies of iRecord records were checked as records ("22,805 of 110,510" on Wil's
+PC) although THE rule (`shared/scheme_duplicates.py`) leaves them out everywhere else.
+**Fixed:** tiles only (checkable; the clicked one is marked; `views/stats/cleaning_table.py`
+split out); the iRecord ID cell is a link (underlined, link colour, hand cursor) and the
+button is enabled only for such a row, with a tooltip saying why otherwise; the copies are
+left out through `scheme_duplicates.live_sql` unless "Include NBN copies of iRecord records"
+is ticked, and the header line and the export's Summary sheet say which. On the 10 Oct copy
+(no `duplicate_of` column) nothing changes: 15,957 of 110,510; with the column filled as on
+Wil's PC it reads 15,490 of 76,389 (copies in: 15,957 of 110,510).
+
+### F72. A record deleted here came back with the next iRecord download -- FIXED 13 Oct (Round 10 B2, to test; needs `add_hidden_at_column.py`)
+Agreed with Wil 12 Oct, late. Deleting an observation that iRecord still holds only lost it
+until the next download re-created it (the old dialog greyed Edit and Delete out instead).
+**Fixed:** Delete on such a record asks: *Open in iRecord* / *Deleted in iRecord -- remove
+here* / *Cancel*; "remove here" hides the record (`observations.hidden_at`) and remembers
+its iRecord ID (`hidden_irecord_ids`), after the usual pre-delete backup; nothing is
+deleted. `shared/hidden_records.py` is THE rule: `live_sql` goes through
+`species_counting.copies_sql` (every counting screen, maps, exports), the repository's list
+queries (Observation tab) and the `assessment_records` view (Examen). A download that brings
+the record again keeps it hidden and marks it; the cleaning report lists it under "Came back
+from iRecord -- check" with *Show again*. Edit shows "Change this in iRecord; the change
+comes back with the next download" and stays possible. Schema by
+`scripts/add_hidden_at_column.py` (dry run, backup, idempotent); until it is run the app
+says so and hides nothing.
+Review (13 Oct): the tab's delete handler refuses a real delete of any record with an iRecord
+ID whoever asks (the box, then at most a hide); the "Came back" list holds rows still hidden
+only. Checked on a copy: migration dry run / apply / second apply, reference figures identical
+before and after; hiding one record moved every counting path (stats, repository, Examen view)
+by exactly one and Show again restored them.
+
+### F73. Does the iRecord download update a record Observatum already holds? -- NOT A FAULT, 13 Oct
+Checked for F72 (item 4): the sync's duplicate check finds the held record by iRecord ID and
+`_update_observation` writes the changed sync fields (identification, date, grid ref,
+verification and the rest of `SYNC_UPDATE_FIELDS`), skipping a record already up to date;
+`tests/test_r10b.py::test_irecord_sync_updates_held_record` shows date, grid ref and
+verification changing on a temp copy. Nothing to change. The import note is not touched by
+an update (ours, F32) -- the summary's "Updated records" count is the record of it.
+### F74. Drawer in hand: ticked rows showed no tick box -- FIXED 13 Oct
+Round 9 tests 20–25 (Wil): in the Drawer in hand list a ticked row drew no box at all, and
+the ticked "Not yet in a drawer" check box drew no box either (the native Windows 11 style
+draws a checked indicator invisibly in places). The list's tick is now its own first column
+drawn by the suite's `TickDelegate` (Insect Collection gold, click anywhere in the cell,
+Shift+click a range), the rows look like the Insect Collection table (24 px, alternate
+shading), and the choice below is radio buttons styled by `shared/tick_mark.radio_qss`
+(the same drawn image as `checkbox_qss`). `Observatum/src/views/collection/drawer_assign_list.py`.
+
+### F75. Drawer in hand: two filter check boxes felt like one deselects the other -- FIXED 13 Oct
+"Not yet in a drawer" / "Already in a drawer" were independent in code but read as a pair.
+Replaced by one row "Show: Not yet in a drawer / All specimens / Only this drawer" (default
+the first, as before); the drawer in hand's own specimens, and anything ticked, always show.
+
+### F76. Date calendar pop-up unreadable (month and year white on a pale band) -- FIXED 13 Oct
+Round 9 test 7 (Quick Entry's date): the QCalendarWidget header text was white on the pale
+form background, the arrows plain, weekends red. `shared/calendar_style.py` styles every
+calendar the application shows, once, from an application event filter installed in
+`Observatum/src/main.py` and `DataEntry/__main__.py` (`theme().calendar_colours()`): Moss
+Green band with white month, year and drawn chevron arrows; Saturday and Sunday in the
+warning amber; today bold in the accent on the pale moss band (a text format cannot draw an
+outline). `date_filter_widget.py` uses the same look in its tab accent instead of its own copy.
 
 ### F45. Records and species counted differently from screen to screen -- FIXED 10 Oct
 Backlog A (Round 2): one counting rule per source (`shared/record_kinds.py`,

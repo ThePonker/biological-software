@@ -644,23 +644,50 @@ class ObservationTab(
         from .checked_records import describe_records
 
         checked = [o for o in self.table_model.get_checked_observations() if o.get("id")]
-        checked_ids = [o.get("id") for o in checked]
-        if not checked_ids:
+        if not checked:
             QMessageBox.information(self, "Delete Selected", "No records are selected.")
             return
 
+        # Records also in iRecord (F72): delete there first, or hide here -- never deleted
+        from ..components import irecord_delete
+        in_irecord = irecord_delete.with_irecord(checked)
+        to_hide = []
+        if in_irecord:
+            choice = irecord_delete.ask(self, len(in_irecord))
+            if choice == irecord_delete.OPEN:
+                irecord_delete.open_pages(in_irecord)
+                return
+            if choice != irecord_delete.HIDE:
+                return
+            to_hide = in_irecord
+            checked = [o for o in checked if o not in in_irecord]
+        checked_ids = [o.get("id") for o in checked]
+
         count = len(checked_ids)
-        reply = QMessageBox.warning(
-            self,
-            "Delete Selected",
-            f"Permanently delete {count} observation{'s' if count != 1 else ''}?\n\n"
-            f"{describe_records(checked)}\n\n"
-            "A backup of the database is taken first. This cannot be undone here.",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        )
-        if reply != QMessageBox.StandardButton.Yes:
-            return
+        if count:
+            reply = QMessageBox.warning(
+                self,
+                "Delete Selected",
+                f"Permanently delete {count} observation{'s' if count != 1 else ''}?\n\n"
+                f"{describe_records(checked)}\n\n"
+                "A backup of the database is taken first. This cannot be undone here."
+                + (f"\n\n{len(to_hide)} record(s) also in iRecord are hidden, not deleted."
+                   if to_hide else ""),
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+        if to_hide:
+            hidden = irecord_delete.hide_records(self, to_hide, title="Remove here")
+            if hidden is None:
+                return                      # backup failed or the database is not ready
+            if not count:
+                self.table_model.set_all_checked(False)
+                self._load_data()
+                self._update_selection_count()
+                self.records_changed.emit()
+                return
 
         try:
             from shared.backup_service import backup_main_only

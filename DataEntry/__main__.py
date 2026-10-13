@@ -65,6 +65,8 @@ def main(argv=None) -> int:
     from DataEntry import theme as de_theme
     from shared.opaque_popups import install as solid_popups
     solid_popups(app, lambda: (de_theme.CARD, de_theme.INK))      # F50: solid drop-down lists
+    from shared.calendar_style import install as themed_calendars
+    themed_calendars(app, de_theme.calendar_colours)                 # F76: readable date calendars
 
     from shared.fit_to_screen import fit_to_screen
     widget = DataEntryWidget(main_db)

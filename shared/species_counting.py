@@ -316,11 +316,17 @@ def _id_list(ids) -> str:
 
 def copies_sql(db, source: str, col: str = "id") -> str:
     """' AND <prefix>duplicate_of IS NULL' for recording_scheme -- the marked NBN copies of
-    iRecord records are never counted (shared/scheme_duplicates.py, Q59) -- else ''."""
-    if source != "recording_scheme":
-        return ""
-    from shared.scheme_duplicates import live_sql, prefix_of
-    return live_sql(db, prefix_of(col))
+    iRecord records are never counted (shared/scheme_duplicates.py, Q59); for observations
+    ' AND <prefix>hidden_at IS NULL' -- records removed here but still in iRecord are never
+    counted (shared/hidden_records.py, F72) -- else ''."""
+    if source == "recording_scheme":
+        from shared.scheme_duplicates import live_sql, prefix_of
+        return live_sql(db, prefix_of(col))
+    if source == "observations":
+        from shared.hidden_records import live_sql
+        from shared.scheme_duplicates import prefix_of
+        return live_sql(db, prefix_of(col))
+    return ""
 
 
 def _not_excluded(db, source, col, kinds) -> str:

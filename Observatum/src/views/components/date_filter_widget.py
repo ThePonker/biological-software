@@ -177,58 +177,9 @@ class DateFilterWidget(QWidget):
         self._style_calendar()
     
     def _style_calendar(self):
-        """Style the calendar popup."""
-        t = theme()
-        self._calendar.setStyleSheet(f"""
-            QCalendarWidget {{
-                background-color: {t.get('surface')};
-                border: 1px solid {t.get('border')};
-                border-radius: {t.get('radius_sm')};
-            }}
-            QCalendarWidget QToolButton {{
-                color: {t.get('text_primary')};
-                background-color: {t.get('surface')};
-                font-weight: bold;
-                padding: 4px 8px;
-                border: none;
-            }}
-            QCalendarWidget QToolButton:hover {{
-                background-color: {t.get('hover')};
-                border-radius: {t.get('radius_sm')};
-            }}
-            QCalendarWidget QMenu {{
-                background-color: {t.get('surface')};
-                color: {t.get('text_primary')};
-            }}
-            QCalendarWidget QSpinBox {{
-                color: {t.get('text_primary')};
-                background-color: {t.get('surface')};
-                font-weight: bold;
-                selection-background-color: {self._accent_color};
-                selection-color: white;
-            }}
-            QCalendarWidget QWidget#qt_calendar_navigationbar {{
-                background-color: {t.get('surface')};
-                padding: 4px;
-                border-bottom: 1px solid {t.get('border')};
-            }}
-            QCalendarWidget QTableView {{
-                background-color: {t.get('surface')};
-                selection-background-color: {self._accent_color};
-                selection-color: white;
-                outline: none;
-            }}
-            QCalendarWidget QTableView::item:hover {{
-                background-color: {t.get('hover')};
-            }}
-            QCalendarWidget QHeaderView::section {{
-                background-color: {t.get('surface')};
-                color: {t.get('text_secondary')};
-                font-weight: bold;
-                border: none;
-                padding: 4px;
-            }}
-        """)
+        """The suite's calendar look (shared/calendar_style, F76) in this filter's accent."""
+        from shared.calendar_style import apply
+        apply(self._calendar, theme().calendar_colours(self._accent_color))
     
     def _show_calendar(self):
         """Show the calendar popup."""

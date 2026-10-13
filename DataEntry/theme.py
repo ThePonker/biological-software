@@ -89,6 +89,13 @@ def input_qss():
 def checkbox_qss():
     return "QCheckBox { color: %s; spacing: 6px; }" % INK
 
+def calendar_colours():
+    """Colours of the date pop-up calendar (shared/calendar_style, F76), the same look as
+    Observatum's: Moss Green band, amber weekends, today on the pale moss band."""
+    return {"surface": CARD, "surface_alt": SURFACE_ALT, "text_primary": INK,
+            "text_secondary": MUTED, "text_muted": FAINT, "border": LINE, "hover": HOVER,
+            "accent": MOSS, "accent_text": _g("button_primary_text", "#ffffff"), "weekend": GOLD, "today_bg": MOSS_BG}
+
 def badge_qss(kind="default"):
     m = {
         "default":  (SURFACE_ALT, MUTED),

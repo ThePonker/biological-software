@@ -349,7 +349,8 @@ class WhatFilterDialog(QDialog):
         
         if self._species_display_list:
             completer = SpeciesCompleter(self._species_display_list, self._species_input,
-                                         names=self._species_map)
+                                         names=self._species_map,
+                                         secondary=t.get('text_secondary'))
             self._species_input.setCompleter(completer)
             completer.activated.connect(self._on_species_completer_activated)
         
@@ -363,10 +364,11 @@ class WhatFilterDialog(QDialog):
         """Handle species autocomplete - map display to scientific name."""
         if display_text:
             scientific_name = self._species_map.get(display_text)
-            if scientific_name is None:   # a group choice ("All Cerambycidae (...) — group")
-                comp = self._species_input.completer()
-                scientific_name = (comp.scientific_name(display_text)
-                                   if hasattr(comp, "scientific_name") else display_text)
+            if scientific_name is None:
+                # a group choice ("All Cerambycidae (...) — group"): the chip holds the label
+                # itself, and the filter builder keeps the whole group by TVK (F68, 13 Oct
+                # 2026: the chip held "Cerambycidae", which no species_name equals)
+                scientific_name = display_text
             self._add_chip("species", scientific_name, f"Species: {display_text}")
             QTimer.singleShot(50, self._species_input.clear)
     
