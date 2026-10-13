@@ -36,3 +36,44 @@ def _backups_never_leave_the_test_folder(tmp_path_factory):
     except Exception:
         pass
     yield folder
+
+
+@pytest.fixture(autouse=True)
+def _application_font_restored():
+    """Each test leaves the application font as it found it (13 Oct 2026). Run in parallel
+    (pytest -n 6), tests share each worker's QApplication in a different order, and a main
+    window applying the saved font size -- or a test's wide font -- carried into the next
+    layout test (1280 px fits failed). No QApplication yet: nothing to do."""
+    app = None
+    if "PySide6.QtWidgets" in sys.modules:
+        app = sys.modules["PySide6.QtWidgets"].QApplication.instance()
+    font = None
+    if app is not None:
+        from PySide6.QtGui import QFont
+        font = QFont(app.font())
+    yield
+    if font is not None:
+        from PySide6.QtWidgets import QApplication
+        if QApplication.instance() is app and QApplication.font() != font:
+            QApplication.setFont(font)
+
+
+# Layout tests that measure windows against 1280 px: they pass in one process but not under
+# parallel workers (pytest -n 6), so they run on their own afterwards (13 Oct 2026):
+#   py -3.14 -m pytest tests -q -n 6 -m "not layout"; py -3.14 -m pytest tests -q -m layout
+LAYOUT_TESTS = (
+    "tests/test_window_width_r4.py::",
+    "tests/test_r10c.py::test_drawer_in_hand_fits_laptop_width_with_wide_text",
+    "tests/test_lector_r8.py::test_dashboard_rows_fit_1280x720",
+)
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "layout: window-width tests, run outside the parallel run")
+
+
+def pytest_collection_modifyitems(config, items):
+    for item in items:
+        nodeid = item.nodeid.replace("\\", "/")
+        if nodeid.startswith(LAYOUT_TESTS):
+            item.add_marker(pytest.mark.layout)
