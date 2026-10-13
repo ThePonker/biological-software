@@ -6,6 +6,42 @@ Python / PySide6 / SQLite, Windows, inside OneDrive. One developer, real client
 data, reports issued to Natural England and others. **Correctness of figures
 matters more than speed.**
 
+## How we work (agreed with Wil, 13 Oct 2026)
+
+**Size the job first.**
+- **Small fix** (under ~50 lines, one or two files): do it directly. No agent, no
+  review. Test it, deliver it.
+- **Feature** (several files): one builder agent with a short brief that says
+  exactly what to do and "**nothing beyond this — no extras**". Keep each task
+  separate: build, Wil tests, Wil commits, then the next.
+- **Independent review** only when stored data or report figures could change
+  (data scripts, counting, Examen/Codex figures, deletes). Not for visual changes.
+
+**Models.** Opus 5.5 or below for everything: Opus for managing, planning and
+reviews of data or figures; Sonnet for builder agents; Haiku for test runs and
+other mechanical steps. **Never use Fable without asking Wil first** — say what
+the job is, why Fable would help, and roughly the time saved against the extra
+cost; use it only if he says yes. (If Wil switches the chat to Fable himself,
+that is his choice.)
+
+**Reading.** Read only what the task needs: the files you will change (whole
+methods and their imports), and the section of `docs/05_Rules.md` for the area
+(databases, taxonomy, PowerShell, …). Don't read the whole docs set up front.
+
+**Tests.** New tests build small purpose-made databases; don't pin exact
+figures from Wil's live data (they go stale as soon as a data script runs). Run
+the full suite before every delivery.
+
+**Delivery to Wil's PC.** Check his file still matches what was last sent, keep
+each file's line endings (CRLF where his copy has it), write it, then re-check it
+byte for byte. Never overwrite a file he has changed since.
+
+**Wil's test list** covers only what visibly changed, numbered, one test at a
+time, grouped by program (PowerShell first, then one app at a time).
+
+**Docs** (`02`, `03`, `06`) are updated once at the end of a session, not by
+each agent. Keep a short dated handover note in the claude.ai Project per day.
+
 ## Where things are
 
 | Need | Look in |
@@ -13,7 +49,7 @@ matters more than speed.**
 | What exists, folder layout, databases, rebuild chains | `docs/01_Architecture.md` |
 | Current figures (the only home for them) | `docs/02_Current_State.md` |
 | What to do next — read the top before starting | `docs/03_Backlog.md` |
-| Rules learned the hard way | `docs/05_Rules.md` (imported below) |
+| Rules learned the hard way | `docs/05_Rules.md` (read the section you need) |
 | Open faults in the area you are touching | `docs/06_Faults.md` |
 | Codex / Examen / Data Entry detail | `docs/07`, `08`, `09` |
 | Report layer spec (before E3 or E7) | `docs/38_Report_Survey.md` |
@@ -117,4 +153,7 @@ cancel/close `#8b8178` outlined; delete `#a63d40` outlined (via `theme()`).
 
 ## Full rules
 
-@docs/05_Rules.md
+`docs/05_Rules.md` holds every rule learned the hard way (figures, conservation
+statuses, patching, diagnostics, PowerShell, databases, UKSI taxonomy, reading
+code, agent rounds). It is no longer loaded in full at the start of every
+session: read the section for the area you are working in before you start.
