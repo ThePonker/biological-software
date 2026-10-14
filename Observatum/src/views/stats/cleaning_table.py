@@ -9,13 +9,14 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, QSortFilterProxyModel, Qt
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import QAbstractItemView, QHeaderView, QTableView
 
 from shared.irecord_links import irecord_url
 
 from ...services.cleaning_report import CleaningRow
+from ..components.natural_sort_proxy import NaturalSortProxy
 from ...themes import theme
 
 COLUMNS = ["Species", "Rank", "Date", "Grid ref", "Site", "Recorder", "Problem", "iRecord ID",
@@ -65,7 +66,7 @@ class CleaningRowModel(QAbstractTableModel):
         if role == Qt.ItemDataRole.DisplayRole:
             return "" if value is None else str(value)
         if role == Qt.ItemDataRole.EditRole:            # sort key: iRecord IDs as numbers
-            return value if value is not None else (-1 if index.column() == IRECORD_COLUMN else "")
+            return value
         if index.column() == IRECORD_COLUMN and irecord_url(value):
             if role == Qt.ItemDataRole.ForegroundRole:
                 return QColor(link_colour())
@@ -83,7 +84,7 @@ class CleaningTableView(QTableView):
 
     def __init__(self, model: CleaningRowModel, parent=None):
         super().__init__(parent)
-        self.proxy = QSortFilterProxyModel(self)
+        self.proxy = NaturalSortProxy(self)
         self.proxy.setSourceModel(model)
         self.proxy.setSortRole(Qt.ItemDataRole.EditRole)
         self.setModel(self.proxy)

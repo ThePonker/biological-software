@@ -1629,6 +1629,12 @@ class EntryGridPage(QWidget):
         self._photo_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._photo_btn.setToolTip("Attach photos from the capture folder to the current row.")
         self._photo_btn.clicked.connect(self._attach_photos)
+        if not self._on_live_db():
+            # bench photos are real files in the one photo library, linked in this database:
+            # on a dev copy the links would be invisible to the live app (14 Oct 2026)
+            self._photo_btn.setEnabled(False)
+            self._photo_btn.setToolTip("Photos can only be attached in the live database "
+                                       "(observatum.db), not a dev or test copy.")
         cnt_row.addWidget(self._photo_btn)
         self._counter = QLabel("")
         self._counter.setStyleSheet(f"color: {theme.INK}; font-size: 26px; font-weight: 700;")
@@ -1739,6 +1745,18 @@ class EntryGridPage(QWidget):
         self._counter.setVisible(bool(on))
         self._view.setFocus()
         self._show_counter(self._view.currentIndex().row())
+
+    def _on_live_db(self) -> bool:
+        """Is this staging connection the live observatum.db (not a dev or test copy)?"""
+        try:
+            import os
+            from DataEntry.data_entry_widget import LIVE_DB_BASENAME
+            for _seq, name, path in self._conn.execute("PRAGMA database_list"):
+                if name == "main":
+                    return os.path.basename(path or "").lower() == LIVE_DB_BASENAME
+        except Exception:
+            pass
+        return False
 
     def _attach_photos(self):
         row = self._model.row_dict(self._view.currentIndex().row())

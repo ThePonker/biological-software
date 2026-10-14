@@ -12,6 +12,8 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 
+from shared.natural_sort import less_than
+
 # Status codes as names and the vernacular fallback (backlog E8): shared with the exports.
 try:
     from Examen.presentation import status_name, vernacular, is_description, SQI_TOOLTIP
@@ -28,6 +30,12 @@ def biotope_options(species):
     """The single biotopes in a species list, sorted: one entry per biotope, never
     a combined "a, b" string (EXA11)."""
     return sorted({b for s in species for b in s.get("biotopes", [])})
+
+
+class _NaturalItem(QTableWidgetItem):
+    """A cell that sorts naturally by its text (SQS 2 before 11)."""
+    def __lt__(self, other):
+        return less_than(self.text(), other.text())
 
 
 class SpeciesTab(QWidget):
@@ -147,33 +155,33 @@ class SpeciesTab(QWidget):
         self.table.setSortingEnabled(False)
         self.table.setRowCount(len(filtered))
         for i, sp in enumerate(filtered):
-            self.table.setItem(i, 0, QTableWidgetItem(sp["name"]))
+            self.table.setItem(i, 0, _NaturalItem(sp["name"]))
             shown = vernacular(sp["common"], sp["family"], sp["order"])
-            ci = QTableWidgetItem(shown)
+            ci = _NaturalItem(shown)
             if is_description(sp["common"], shown):
                 # A group description, not a name: muted, and says so
                 ci.setForeground(QColor(TEXT_MUTED))
                 ci.setToolTip("No common name in UKSI; the group is described instead.")
             self.table.setItem(i, 1, ci)
-            si = QTableWidgetItem(status_name(sp["status"]))
+            si = _NaturalItem(status_name(sp["status"]))
             if sp["status"]:
                 si.setToolTip(f"{sp['status']}" + (f" \u2014 full status: {sp['status_full']}"
                                                    if sp.get("status_full") else ""))
             if sp["tier"] == "Rare": si.setForeground(QColor(RED_STATUS))
             elif sp["tier"] == "Scarce": si.setForeground(QColor(AMBER))
             self.table.setItem(i, 2, si)
-            sqs = QTableWidgetItem(str(sp["sqs"]) if sp["sqs"] else "")
+            sqs = _NaturalItem(str(sp["sqs"]) if sp["sqs"] else "")
             sqs.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.table.setItem(i, 3, sqs)
-            ti = QTableWidgetItem(sp["tier"])
+            ti = _NaturalItem(sp["tier"])
             if sp["tier"] == "Rare": ti.setForeground(QColor(RED_STATUS))
             elif sp["tier"] == "Scarce": ti.setForeground(QColor(AMBER))
             elif sp["tier"] == "Priority": ti.setForeground(QColor(MOSS_GREEN))
             self.table.setItem(i, 4, ti)
-            self.table.setItem(i, 5, QTableWidgetItem(", ".join(sp["biotopes"])))
-            self.table.setItem(i, 6, QTableWidgetItem(sp["habitat"]))
-            self.table.setItem(i, 7, QTableWidgetItem(sp["family"]))
-            self.table.setItem(i, 8, QTableWidgetItem(sp["order"]))
+            self.table.setItem(i, 5, _NaturalItem(", ".join(sp["biotopes"])))
+            self.table.setItem(i, 6, _NaturalItem(sp["habitat"]))
+            self.table.setItem(i, 7, _NaturalItem(sp["family"]))
+            self.table.setItem(i, 8, _NaturalItem(sp["order"]))
         self.table.setSortingEnabled(True)
         self.table.resizeColumnsToContents()
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)

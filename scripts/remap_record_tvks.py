@@ -152,12 +152,21 @@ for tbl in ("observations", "specimens", "recording_scheme", "species_profiles")
     for s in skipped:
         print(f"      ! skipped row {s[0]} ({s[1]}): {s[2]}")
 
+def old_name_differs(old, new) -> bool:
+    return bool(old) and old.strip() != (new or "").strip()
+
+
 if not APPLY:
     sys.exit("\n  DRY RUN -- nothing changed. After the UKSI swap, re-run with --apply.\n")
 
 bk = os.path.join(os.path.dirname(str(paths.OBSERVATUM_DB)), f"observatum_pre_uksi_remap_{datetime.now():%Y%m%d_%H%M%S}.db")
 src = sqlite3.connect(str(paths.OBSERVATUM_DB)); dst = sqlite3.connect(bk); src.backup(dst); dst.close(); src.close()
 print(f"\n  backup: {bk}")
+# the species each record had before (14 Oct 2026: a remap is an edit here -- the next iRecord
+# sync must not undo it -- and the record's photos follow the new name, as a re-det does)
+before = {tbl: {rid: (o.execute(f"SELECT species_name FROM {tbl} WHERE id=?", (rid,)).fetchone() or [""])[0]
+                for rid, v in upd if v.get("species_name")}
+          for tbl, (upd, *_r) in plans.items() if tbl in ("observations", "specimens")}
 try:
     for tbl, (upd, *_r) in plans.items():
         for rid, v in upd:
@@ -165,6 +174,23 @@ try:
     o.commit()
 except Exception as e:
     o.rollback(); sys.exit(f"  x FAILED, rolled back -- nothing changed: {type(e).__name__}: {e}")
+renamed = {tbl: [(rid, old, v["species_name"]) for rid, v in plans[tbl][0]
+                if v.get("species_name") and old_name_differs(before[tbl].get(rid), v["species_name"])
+                for old in [before[tbl].get(rid)]]
+           for tbl in before}
+if "observations" in plans and plans["observations"][0]:
+    # every remapped record, the TVK-only ones too (species_tvk is a field the sync guards)
+    from shared.sync_conflicts import mark_edited
+    n = mark_edited(o, [rid for rid, _v in plans["observations"][0]])
+    o.commit()
+    print(f"  observations marked as edited here (the next sync keeps the new TVK and name): {n}")
+from shared.photo_files import follow_redet  # noqa: E402
+moved = 0
+for tbl, kind in (("observations", "observation"), ("specimens", "specimen")):
+    for rid, old, new in renamed.get(tbl, []):
+        res = follow_redet(str(paths.OBSERVATUM_DB), kind, rid, old, new, notify=False)
+        moved += len(res.moved) if res else 0
+print(f"  photos moved to the new species' folders: {moved}")
 present = set(taxa)
 for tbl, (upd, *_r) in plans.items():
     left = o.execute(f"SELECT COUNT(1) FROM {tbl} WHERE species_tvk IN ({','.join('?' * len(remap))})", list(remap)).fetchone()[0]

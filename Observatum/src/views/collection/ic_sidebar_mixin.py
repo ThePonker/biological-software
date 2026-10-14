@@ -93,6 +93,9 @@ class ICSidebarMixin:
                 if old_species and new_species and new_species != old_species \
                         and species_now(db_path, "specimen", specimen_id) == new_species:
                     follow_redet(db_path, "specimen", specimen_id, old_species, new_species)
+                # its photos still in _Bench are filed once it has a species from UKSI
+                from shared.bench_photos import file_record_photos_at
+                file_record_photos_at(db_path, "specimen", [specimen_id])
             self._load_data()
             self.data_changed.emit()
 
@@ -103,13 +106,21 @@ class ICSidebarMixin:
         nothing is deleted.
         """
         from ..components.delete_guard import backup_before_delete
+        from ..components import record_photos_delete
+        from ...models.database import get_database
         specimen_id = specimen.get('id')
-        if not specimen_id or not backup_before_delete(self, "Delete Specimen"):
+        if not specimen_id:
+            return
+        # its photos: to _Bench or left in the species folder, links removed (14 Oct 2026)
+        after = record_photos_delete.ask(self, str(getattr(get_database(), 'main_db_path', '') or ''),
+                                         [specimen_id], "Delete Specimen", kind="specimen")
+        if after is None or not backup_before_delete(self, "Delete Specimen"):
             return
         if self._specimen_repo:
             self._specimen_repo.delete(specimen_id)
         elif self._specimen_model:
             self._specimen_model.delete_specimen(specimen_id)
+        after()
         print(f"[InsectCollectionTab] Deleted specimen id {specimen_id} "
               f"({specimen.get('species_name')})")
         self._load_data()

@@ -139,6 +139,25 @@ def orphan_staging_links(conn) -> List[tuple]:
         f"AND NOT EXISTS (SELECT 1 FROM entry_staging s WHERE s.id = l.{STAGING}) ORDER BY l.id")]
 
 
+def orphan_record_links(conn) -> List[tuple]:
+    """(link id, photo path, 'record 12' / 'specimen 5') for links to a record or specimen that
+    no longer exists (deleted some other way than the apps' delete, which asks; review 14 Oct
+    2026). The photo files are not looked at."""
+    if not has_table(conn):
+        return []
+    tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    out = []
+    if "observations" in tables:
+        out += [(i, p, f"record {o}") for i, p, o in conn.execute(
+            f"SELECT l.id, l.photo_path, l.observation_id FROM {TABLE} l WHERE l.observation_id IS NOT NULL "
+            "AND NOT EXISTS (SELECT 1 FROM observations x WHERE x.id = l.observation_id)")]
+    if "specimens" in tables:
+        out += [(i, p, f"specimen {s}") for i, p, s in conn.execute(
+            f"SELECT l.id, l.photo_path, l.specimen_id FROM {TABLE} l WHERE l.specimen_id IS NOT NULL "
+            "AND NOT EXISTS (SELECT 1 FROM specimens x WHERE x.id = l.specimen_id)")]
+    return sorted(out)
+
+
 def add_link(conn, photo_path: str, specimen_id: Optional[int] = None,
              observation_id: Optional[int] = None, method: str = BY_HAND) -> bool:
     """Link a photo. True when a new link was written (an existing one is left as it is)."""
@@ -243,5 +262,5 @@ def linked_specimen_ids(conn, ids: Iterable[int]) -> set:
 
 __all__ = ["TABLE", "CREATE_SQL", "INDEX_SQL", "SPECIMEN_MATCH", "BY_HAND", "INTAKE", "norm",
            "has_table", "ensure_schema", "add_link", "remove_link", "STAGING", "has_staging_column",
-           "add_staging_link", "photos_for_staging", "drop_staging_links", "orphan_staging_links", "staging_counts", "promote_staging", "photos_for_specimen",
+           "add_staging_link", "photos_for_staging", "drop_staging_links", "orphan_staging_links", "orphan_record_links", "staging_counts", "promote_staging", "photos_for_specimen",
            "photos_for_observation", "observation_photo_counts", "specimen_photo_counts", "link_count", "repoint", "linked_specimen_ids"]

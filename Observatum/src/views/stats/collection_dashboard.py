@@ -11,12 +11,13 @@ Dashboard for collection managers showing:
 
 from PySide6.QtWidgets import (
     QScrollArea, QWidget, QVBoxLayout, QHBoxLayout, QFrame, QLabel,
-    QTableWidget, QTableWidgetItem, QHeaderView
+    QTableWidget, QHeaderView
 )
 from PySide6.QtCore import Signal, Qt
 
 from .stat_widgets import StatCard
 from ..components.sort_items import number_item
+from ..components.natural_sort_proxy import NaturalItem
 from ...themes import theme
 from ...utils.date_utils import format_date_display
 from ...core.config import TabColors
@@ -129,7 +130,7 @@ class ClickableDataTable(QFrame):
         self.table.setRowCount(len(data))
         
         for row, item in enumerate(data):
-            name_item = QTableWidgetItem(str(item.get(key_field, '')))
+            name_item = NaturalItem(str(item.get(key_field, '')))
             self.table.setItem(row, 0, name_item)
             
             for col, field in enumerate(value_fields, start=1):
@@ -248,7 +249,7 @@ class SimpleBreakdownTable(QFrame):
         self.table.setSortingEnabled(False)
         self.table.setRowCount(len(data))
         for row, item in enumerate(data):
-            key_item = QTableWidgetItem(str(item.get(key_field, '')))
+            key_item = NaturalItem(str(item.get(key_field, '')))
             self.table.setItem(row, 0, key_item)
             
             self.table.setItem(row, 1, number_item(item.get(value_field, 0)))   # sorts as a number
@@ -355,7 +356,7 @@ class YearBreakdownTable(QFrame):
         for row, item in enumerate(by_year):
             year = item.get('year', '')
             
-            year_item = QTableWidgetItem(str(year))
+            year_item = NaturalItem(str(year))
             self.table.setItem(row, 0, year_item)
             
             # counts sort as numbers, not text (10 Oct)

@@ -41,8 +41,6 @@ class ObservationDetailMixin:
         self._photos_window = PhotosWindow(value('species_name') or '', mine, parent=self,
                                            record_kind='observation', record_id=rid,
                                            db_path=path or None)
-        self._photos_window.links_changed.connect(
-            lambda _n: self.table_model.set_photo_counts(self._photo_counts()))
         self._photos_window.show()
 
     def _show_record_detail(self, record: Dict):
@@ -166,8 +164,8 @@ class ObservationDetailMixin:
                         )
                         # an edit made here: the next iRecord sync will not quietly undo it (A2).
                         # Only a real change counts (saving unchanged is not an edit).
-                        from shared.sync_conflicts import differing, mark_edited
-                        if differing(dict(record), updates):
+                        from shared.sync_conflicts import differing, mark_edited, cleared
+                        if differing(dict(record), updates) or cleared(dict(record), updates):
                             mark_edited(conn, [record_id])
                         conn.commit()
                     conn.close()
@@ -177,6 +175,9 @@ class ObservationDetailMixin:
                         from shared.photo_files import follow_redet
                         follow_redet(str(paths.OBSERVATUM_DB), "observation", record_id,
                                      old_species, updates['species_name'])
+                    # its photos still in _Bench are filed once it has a species from UKSI
+                    from shared.bench_photos import file_record_photos_at
+                    file_record_photos_at(paths.OBSERVATUM_DB, "observation", [record_id])
                     self._load_data()
                     self.records_changed.emit()
                 except Exception as e:

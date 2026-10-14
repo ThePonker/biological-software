@@ -23,6 +23,7 @@ from .observation_export_mixin import ObservationExportMixin
 from .observation_detail_mixin import ObservationDetailMixin
 from ..dialogs import ObservationImportWizard
 from ..components.hscroll_strip import HScrollStrip
+from shared.natural_sort import sort_key
 from ...models.database import get_database
 from ...models.observation import ObservationModel
 from ...models.uksi import UKSIModel
@@ -230,16 +231,19 @@ class ObservationTab(
                 for i in range(n):
                     record = source._observations[i]
                     if col_key == 'photos':          # the camera column: by count, as a number
-                        keys.append((source.photo_count(record), i))
+                        keys.append((sort_key(source.photo_count(record)), i))
                         continue
                     if isinstance(record, dict):
-                        val = record.get(col_key, '') or ''
+                        val = record.get(col_key)
                     else:
-                        val = getattr(record, col_key, '') or ''
-                    keys.append((str(val).lower(), i))
+                        val = getattr(record, col_key, None)
+                    keys.append((sort_key(val), i))
 
                 reverse = (order == Qt.SortOrder.DescendingOrder)
+                blanks = [k for k in keys if k[0] == (1,)]      # blanks stay last either way
+                keys = [k for k in keys if k[0] != (1,)]
                 keys.sort(key=lambda x: x[0], reverse=reverse)
+                keys += blanks
 
                 # Apply the sort order
                 source.beginResetModel()
@@ -260,6 +264,10 @@ class ObservationTab(
         self.sort_proxy.setSourceModel(self.table_model)
         self.table_view.setModel(self.sort_proxy)
         self.sort_proxy.setDynamicSortFilter(True)
+        if getattr(self, '_widths', None) is not None:
+            self._widths.watch(self.table_model)
+            self._widths.watch(self.sort_proxy)
+            self._widths.apply()
         # Don't enable sorting yet - data is pre-sorted from SQL
         # Sorting gets enabled when user first views the tab
         self._proxy_connected = True
@@ -277,18 +285,11 @@ class ObservationTab(
             self._sorting_enabled = True
 
     def _setup_column_widths(self):
-        """Set up column widths from saved settings or defaults."""
-        header = self.table_view.horizontalHeader()
-        widths = self.table_model.get_column_widths()
-        settings = QSettings()
-        
-        for i, width in enumerate(widths):
-            if i < header.count():
-                saved_width = settings.value(f"observation_table_columns/col_{i}", width, type=int)
-                self.table_view.setColumnWidth(i, saved_width if saved_width > 0 else width)
-
-        # Connect to save column widths when resized
-        header.sectionResized.connect(self._save_column_width)
+        """Column widths: saved per column and put back after every refill (column_widths)."""
+        from ..components.column_widths import ColumnWidthKeeper
+        self._widths = ColumnWidthKeeper(self.table_view, self.table_model.get_columns,
+                                         "observation_table_columns")
+        self._widths.apply()
 
     def _connect_signals(self):
         """Connect UI signals to handlers."""
@@ -312,6 +313,8 @@ class ObservationTab(
         # Table signals
         self.table_view.doubleClicked.connect(self._on_row_double_clicked)
         self.table_model.photo_count_provider = self._photo_counts      # the camera column
+        from ..dialogs.photos_window import follow_links
+        follow_links(lambda: self.table_model.set_photo_counts(self._photo_counts()), self)
         self.table_view.viewport().setCursor(Qt.CursorShape.PointingHandCursor)
         tick_column.install(self.table_view, "accent_observations")   # one tick style, click anywhere
 
@@ -468,11 +471,7 @@ class ObservationTab(
         self.table_model._update_columns()
         self.table_model.set_observations(observations)
         # Update column widths
-        header = self.table_view.horizontalHeader()
-        widths = self.table_model.get_column_widths()
-        for i, width in enumerate(widths):
-            if i < header.count():
-                self.table_view.setColumnWidth(i, width)
+        self._widths.apply()          # each column's own saved width
 
     def _update_selection_count(self):
         """Update toolbar with current selection count."""
@@ -629,11 +628,7 @@ class ObservationTab(
         self.filter_bar.setVisible(show_filters)
         
         if self.table_model.refresh_common_name_setting():
-            header = self.table_view.horizontalHeader()
-            widths = self.table_model.get_column_widths()
-            for i, width in enumerate(widths):
-                if i < header.count():
-                    self.table_view.setColumnWidth(i, width)
+            self._widths.apply()          # each column's own saved width
 
         self.table_model.refresh_date_format()
 

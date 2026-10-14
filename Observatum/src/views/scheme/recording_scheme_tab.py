@@ -24,6 +24,7 @@ from ...models.database import get_database
 from ...themes import theme
 from ...core.config import TabColors, scheme_families
 from ..components.filter_wizard import FilterWizard
+from shared.natural_sort import sort_key
 
 
 
@@ -54,17 +55,20 @@ class FastSortProxy(QSortFilterProxyModel):
         keys = []
         for i in range(n):
             record = source._records[i]
-            val = record.get(col_key, '') or ''
-            sort_val = str(val).lower()
+            val = record.get(col_key)
+            sort_val = '' if val is None else str(val).lower()
             # Convert DD/MM/YYYY to YYYY-MM-DD for chronological sort
             if is_date and '/' in sort_val:
                 parts = sort_val.split('/')
                 if len(parts) == 3 and len(parts[2]) == 4:
                     sort_val = f'{parts[2]}-{parts[1]}-{parts[0]}'
-            keys.append((sort_val, i))
+            keys.append((sort_key(sort_val), i))
 
         reverse = (order == Qt.SortOrder.DescendingOrder)
+        blanks = [k for k in keys if k[0] == (1,)]      # blanks stay last either way
+        keys = [k for k in keys if k[0] != (1,)]
         keys.sort(key=lambda x: x[0], reverse=reverse)
+        keys += blanks
 
         # Apply the sort order
         source.beginResetModel()

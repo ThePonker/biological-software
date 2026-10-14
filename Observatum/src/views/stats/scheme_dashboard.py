@@ -30,6 +30,8 @@ except ImportError:
 from shared.fit_to_screen import fit_to_screen, scroll_body
 from .stat_widgets import StatCard, MonthlyActivityChart
 from ..components.sort_items import date_item, number_item
+from ..components.natural_sort_proxy import NaturalItem
+from shared.natural_sort import less_than
 from ...themes import theme
 from ...core.config import TabColors
 from ...services.recording_scheme_stats_service import get_recording_scheme_stats
@@ -105,7 +107,7 @@ class NumericSortProxyModel(QSortFilterProxyModel):
         if isinstance(left_data, (int, float)) and isinstance(right_data, (int, float)):
             return left_data < right_data
         
-        return str(left_data).lower() < str(right_data).lower()
+        return less_than(left_data, right_data)
 
 
 class SortableTable(QFrame):
@@ -1458,7 +1460,7 @@ class SchemeDashboard(QScrollArea):
 
     def _show_species_vc_dialog(self, species_name: str):
         """Show a dialog listing all VCs where this species has been recorded."""
-        from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QHeaderView, QPushButton
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QTableWidget, QHeaderView, QPushButton
         from PySide6.QtCore import Qt
         from ...services.recording_scheme_stats_service import get_recording_scheme_stats
         from ...models.database import get_database
@@ -1558,8 +1560,8 @@ class SchemeDashboard(QScrollArea):
                 first_date = row['first_date'] or ''
                 last_date = row['last_date'] or ''
                 
-                table.setItem(row_idx, 0, QTableWidgetItem(f"VC{vc_num}"))
-                table.setItem(row_idx, 1, QTableWidgetItem(vc_name))
+                table.setItem(row_idx, 0, NaturalItem(f"VC{vc_num}"))
+                table.setItem(row_idx, 1, NaturalItem(vc_name))
                 
                 # Counts and dd/mm/yyyy dates sort by value, not as text (10 Oct)
                 count_item = number_item(record_count)
@@ -1645,7 +1647,7 @@ class SchemeDashboard(QScrollArea):
 
     def _show_species_vc_records_dialog(self, species_name: str, vc_number: int):
         """Show dialog with all records for a species in a specific VC."""
-        from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QHeaderView, QPushButton
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QTableWidget, QHeaderView, QPushButton
         from PySide6.QtCore import Qt
         from ...services.recording_scheme_stats_service import get_recording_scheme_stats
         from ...models.database import get_database
@@ -1750,11 +1752,11 @@ class SchemeDashboard(QScrollArea):
                 d_item = date_item(date_raw)          # sorts as a date, not as text (10 Oct)
                 d_item.setData(Qt.ItemDataRole.UserRole, record_id)
                 table.setItem(row_idx, 0, d_item)
-                table.setItem(row_idx, 1, QTableWidgetItem(location))
-                table.setItem(row_idx, 2, QTableWidgetItem(grid_ref))
-                table.setItem(row_idx, 3, QTableWidgetItem(recorder))
-                table.setItem(row_idx, 4, QTableWidgetItem(status))
-                table.setItem(row_idx, 5, QTableWidgetItem(source))
+                table.setItem(row_idx, 1, NaturalItem(location))
+                table.setItem(row_idx, 2, NaturalItem(grid_ref))
+                table.setItem(row_idx, 3, NaturalItem(recorder))
+                table.setItem(row_idx, 4, NaturalItem(status))
+                table.setItem(row_idx, 5, NaturalItem(source))
             
             table.setSortingEnabled(True)
             # Connect double-click to open record detail

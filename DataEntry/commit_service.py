@@ -212,6 +212,19 @@ def _photos_follow_row(conn, staging_id: int, new_id: int, problems: list, row: 
         return False
 
 
+def _out_of_staging(conn, row: Dict, new_id: int, release_photos: bool) -> Optional[str]:
+    """Take a committed row out of staging. If that fails the record IS written, so the commit
+    stops and says which row to delete by hand -- committing it again would write it twice
+    (review 14 Oct 2026). None when done."""
+    try:
+        repo.delete_row(conn, row["id"], release_photos=release_photos)
+        return None
+    except Exception as e:
+        return (f"{row.get('species_name')} was written (id {new_id}) but its row could not be "
+                f"taken out of staging ({e}). Delete that row by hand before committing again, "
+                "or it will be written twice")
+
+
 def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
                observation_cls=None, taxonomy: Optional[Dict] = None) -> Dict:
     """Write eligible staging rows into observations; delete the committed ones.
@@ -306,13 +319,18 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
                     f"fields or embargo were not: {e}"
             committed_rows.append((dict(row), new_id))
             safe = _photos_follow_row(conn, row["id"], new_id, photo_problems, row)
-            repo.delete_row(conn, row["id"], release_photos=safe)
+            gone = _out_of_staging(conn, row, new_id, safe)
+            if gone:
+                error += f"; also {gone}"
             committed += 1
             break
         committed_rows.append((dict(row), new_id))
         safe = _photos_follow_row(conn, row["id"], new_id, photo_problems, row)
-        repo.delete_row(conn, row["id"], release_photos=safe)
         committed += 1
+        gone = _out_of_staging(conn, row, new_id, safe)
+        if gone:
+            error = gone
+            break
 
     remaining = repo.row_count(conn, job["id"])
     if remaining == 0 and not repo.is_personal(job):

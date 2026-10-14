@@ -158,6 +158,13 @@ class ObservationExportMixin:
                     f"\n\n{len(observations)} record(s) will be exported."
                 )
 
+        # Exported before and not back from iRecord yet (14 Oct 2026): sending them again would
+        # put a second copy in iRecord, unless the earlier upload failed
+        if use_irecord:
+            observations = self._leave_out_exported(observations)
+            if not observations:
+                return
+
         # Get default export path from settings
         settings = QSettings()
         default_path = settings.value(Settings.EXPORT_DEFAULT_PATH, "")
@@ -174,6 +181,7 @@ class ObservationExportMixin:
             return
 
         # Export using service
+        stamped = None
         try:
             from ...services.export_service import ExportService
             export_service = ExportService()
@@ -182,18 +190,122 @@ class ObservationExportMixin:
                 export_service.export_to_excel(observations, file_path)
             else:
                 if use_irecord:
+                    # 14 Oct 2026: the External key must name one record, or iRecord's copy
+                    # cannot be matched back (the sync guard then holds it)
+                    shared = self._shared_keys(observations)
+                    if shared:
+                        QMessageBox.warning(
+                            self, "Export for iRecord",
+                            f"{len(shared)} of these records share their Observatum key with "
+                            "another record, so iRecord could not send them back to the right "
+                            "record. Nothing was exported.\n\nRun once (Observatum closed):\n"
+                            "py -3.14 scripts\\renumber_duplicate_keys.py --apply")
+                        return
                     columns, headers = export_service.get_irecord_columns()
                     export_service.export_to_csv(observations, file_path, columns, headers)
+                    stamped = self._stamp_exported(observations)
                 else:
                     export_service.export_to_csv(observations, file_path, columns=None, headers=None)
 
+            note = ""
+            if use_irecord and not file_path.endswith('.xlsx') and stamped is None:
+                note = ("\n\nObservatum could not note these records as exported, so a second "
+                        "export before the next sync would include them again. Run once "
+                        "(Observatum closed):\npy -3.14 scripts\\add_irecord_exported_column.py --apply")
             QMessageBox.information(
                 self,
                 "Export Complete",
-                f"Exported {len(observations)} observations to:\n{file_path}"
+                f"Exported {len(observations)} observations to:\n{file_path}{note}"
             )
         except Exception as e:
             QMessageBox.critical(self, "Export Error", f"Failed to export: {e}")
+
+    @staticmethod
+    def _main_db_path() -> str:
+        from ...models.database import get_database
+        return str(getattr(get_database(), 'main_db_path', '') or '')
+
+    def _leave_out_exported(self, observations: list) -> list:
+        """Records exported for iRecord before that have not come back with an iRecord ID:
+        left out unless Wil says the earlier upload failed. [] = stop."""
+        import sqlite3
+        from PySide6.QtWidgets import QMessageBox
+        from shared import irecord_exported
+        path = self._main_db_path()
+        if not path:
+            return observations
+        try:
+            conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+            try:
+                waiting = irecord_exported.waiting(conn, [o.get('id') for o in observations])
+            finally:
+                conn.close()
+        except sqlite3.Error:
+            return observations
+        if not waiting:
+            return observations
+        last = max(waiting.values())
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setWindowTitle("Exported before")
+        box.setText(f"{len(waiting)} of these records were exported for iRecord before (latest "
+                    f"{last}) and have not come back from iRecord yet.\n\nSending them again "
+                    "would put a second copy in iRecord. Upload the earlier file and run the "
+                    "iRecord sync first; include them again only if that upload failed.")
+        leave = box.addButton("Leave them out", QMessageBox.ButtonRole.AcceptRole)
+        again = box.addButton("Include them again", QMessageBox.ButtonRole.DestructiveRole)
+        box.addButton(QMessageBox.StandardButton.Cancel)
+        box.setDefaultButton(leave)
+        box.exec()
+        if box.clickedButton() is again:
+            return observations
+        if box.clickedButton() is not leave:
+            return []
+        keep = [o for o in observations if o.get('id') not in waiting]
+        if not keep:
+            QMessageBox.information(self, "Nothing to Export to iRecord",
+                                    "Every record was exported before, so no file has been written.")
+        return keep
+
+    def _stamp_exported(self, observations: list):
+        """Note the exported records (shared/irecord_exported). Rows stamped, or None when the
+        column is missing or the write failed."""
+        import sqlite3
+        from shared import irecord_exported
+        path = self._main_db_path()
+        if not path:
+            return None
+        try:
+            conn = sqlite3.connect(path)
+            try:
+                if not irecord_exported.has_column(conn):
+                    return None
+                with conn:
+                    return irecord_exported.stamp(conn, [o.get('id') for o in observations])
+            finally:
+                conn.close()
+        except sqlite3.Error as e:
+            print(f"[ObservationTab] exported records not noted: {e}")
+            return None
+
+    @staticmethod
+    def _shared_keys(observations: list) -> list:
+        """The keys among these records that more than one record in observatum.db holds."""
+        keys = [getattr(o, 'observatum_key', None) or (o.get('observatum_key') if isinstance(o, dict) else None)
+                for o in observations]
+        keys = [k for k in dict.fromkeys(keys) if k]
+        if not keys:
+            return []
+        from ...models.database import get_database
+        db = get_database()
+        out = []
+        for i in range(0, len(keys), 900):
+            part = keys[i:i + 900]
+            rows = db.execute_main(
+                f"SELECT observatum_key FROM observations WHERE observatum_key IN "
+                f"({','.join('?' * len(part))}) GROUP BY observatum_key HAVING COUNT(*) > 1", tuple(part))
+            out += [r[0] for r in rows]
+        return out
 
     @staticmethod
     def _irecord_export_filter(observations: list):

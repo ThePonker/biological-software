@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal, QMetaMethod
 from PySide6.QtGui import QFont
 
+from ..components.natural_sort_proxy import NaturalItem
 from ...themes import theme
 
 
@@ -1095,7 +1096,7 @@ class DataTable(QFrame):
         self.table.setRowCount(len(data))
 
         for row, item in enumerate(data):
-            name_item = QTableWidgetItem(str(item.get(key_field, '')))
+            name_item = NaturalItem(str(item.get(key_field, '')))
             self.table.setItem(row, 0, name_item)
 
             species_val = item.get('species', 0)

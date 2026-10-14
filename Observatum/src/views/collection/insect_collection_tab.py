@@ -128,16 +128,11 @@ class InsectCollectionTab(ICSidebarMixin, ICDataMixin, ICExportMixin, QWidget):
         self.sort_proxy = self._create_sort_proxy()
         self._proxy_connected = False
 
-        # Column widths (restore saved or use defaults)
-        header = self.table_view.horizontalHeader()
-        widths = self.table_model.get_column_widths()
-        settings = QSettings()
-        for i, width in enumerate(widths):
-            if i < header.count():
-                saved = settings.value(f"collection_table_columns/col_{i}", width, type=int)
-                self.table_view.setColumnWidth(i, saved if saved > 0 else width)
-
-        header.sectionResized.connect(self._save_column_width)
+        # Column widths: saved per column and put back after every refill (column_widths)
+        from ..components.column_widths import ColumnWidthKeeper
+        self._widths = ColumnWidthKeeper(self.table_view, self.table_model.get_columns,
+                                         "collection_table_columns")
+        self._widths.apply()
 
         card_layout.addWidget(self.table_view)
         content_layout.addWidget(table_card)
@@ -177,6 +172,8 @@ class InsectCollectionTab(ICSidebarMixin, ICDataMixin, ICExportMixin, QWidget):
         self.filters.special_view_selected.connect(self._on_special_view_selected)
         self.table_view.doubleClicked.connect(self._on_row_double_clicked)
         self.table_model.photo_count_provider = self._photo_counts      # the camera column
+        from ..dialogs.photos_window import follow_links
+        follow_links(lambda: self.table_model.refresh_photo_cells(self._photo_counts()), self)
         tick_column.install(self.table_view, "accent_collection")   # one tick style, click anywhere
 
         # Ctrl+Enter shortcut to open Add Specimen
@@ -293,6 +290,9 @@ class InsectCollectionTab(ICSidebarMixin, ICDataMixin, ICExportMixin, QWidget):
                 if old_species and new_species and new_species != old_species \
                         and species_now(db_path, "specimen", specimen_id) == new_species:
                     follow_redet(db_path, "specimen", specimen_id, old_species, new_species)
+                # its photos still in _Bench are filed once it has a species from UKSI
+                from shared.bench_photos import file_record_photos_at
+                file_record_photos_at(db_path, "specimen", [specimen_id])
             self._load_data()
             self.data_changed.emit()
 
@@ -308,11 +308,7 @@ class InsectCollectionTab(ICSidebarMixin, ICDataMixin, ICExportMixin, QWidget):
         specimens = self.table_model._specimens.copy()
         self.table_model._setup_headers()
         self.table_model.set_specimens(specimens)
-        header = self.table_view.horizontalHeader()
-        widths = self.table_model.get_column_widths()
-        for i, width in enumerate(widths):
-            if i < header.count():
-                self.table_view.setColumnWidth(i, width)
+        self._widths.apply()          # each column's own saved width
 
     def _on_import_specimens(self):
         """Open the specimen import wizard."""
@@ -386,8 +382,6 @@ class InsectCollectionTab(ICSidebarMixin, ICDataMixin, ICExportMixin, QWidget):
             conn.close()
         self._photos_window = PhotosWindow(value(specimen, 'species_name') or '', mine, parent=self,
                                            record_kind='specimen', record_id=sid, db_path=path or None)
-        self._photos_window.links_changed.connect(
-            lambda _n: self.table_model.set_specimens(list(self.table_model._specimens)))
         self._photos_window.show()
 
     # ── Lifecycle ───────────────────────────────────────────────────
@@ -442,11 +436,7 @@ class InsectCollectionTab(ICSidebarMixin, ICDataMixin, ICExportMixin, QWidget):
         self.filters.setVisible(show_filters)
 
         if self.table_model.refresh_common_name_setting():
-            header = self.table_view.horizontalHeader()
-            widths = self.table_model.get_column_widths()
-            for i, width in enumerate(widths):
-                if i < header.count():
-                    self.table_view.setColumnWidth(i, width)
+            self._widths.apply()          # each column's own saved width
 
         self.table_model.refresh_date_format()
 

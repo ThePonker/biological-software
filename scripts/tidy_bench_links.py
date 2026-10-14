@@ -1,14 +1,15 @@
-"""tidy_bench_links.py -- remove photo links that point at Data Entry rows that no longer exist
-(bench photos take 2, 14 Oct 2026).
+"""tidy_bench_links.py -- remove photo links that point at a Data Entry row, record or specimen
+that no longer exists (bench photos take 2; records and specimens added 14 Oct 2026 evening).
 
     py -3.14 scripts\\tidy_bench_links.py              # dry run: lists them
     py -3.14 scripts\\tidy_bench_links.py --apply      # backup, then remove those links
 
-Before take 2, deleting a staging row left its photo links behind (pointing at a row that is
-gone; row ids are never reused, so they could not attach to another row). Since take 2 a
-delete removes them itself. Only those link rows are removed -- never a photo file, never a
-link to a record or specimen. --apply backs observatum.db up first; close Observatum and
-Data Entry first.
+Deleting a staging row before take 2, or a record or specimen some other way than the apps'
+delete (which asks), left its photo links behind, pointing at something gone (ids are never
+reused, so they cannot attach to anything else). Only those link rows are removed -- never a
+photo file, never a link to something that exists. A photo left linked to nothing shows in
+the cleaning report (Photos > Waiting in _Bench, or in its species folder). --apply backs
+observatum.db up first; close Observatum and Data Entry first.
 """
 import argparse
 import os
@@ -33,17 +34,19 @@ def main(argv=None) -> int:
     ap.add_argument("--db", default=str(paths.OBSERVATUM_DB), help=argparse.SUPPRESS)
     ap.add_argument("--backup-dir", default=BACKUP_DIR, help=argparse.SUPPRESS)
     a = ap.parse_args(argv)
-    print("\nPhoto links to deleted Data Entry rows")
+    print("\nPhoto links to deleted Data Entry rows, records and specimens")
     print("=" * 40)
     ro = sqlite3.connect(f"file:{a.db}?mode=ro", uri=True)
     try:
-        orphans = pl.orphan_staging_links(ro)
+        orphans = [(i, p, f"Data Entry row {s}") for i, p, s in pl.orphan_staging_links(ro)]
+        orphans += pl.orphan_record_links(ro)
+        orphans = list({o[0]: o for o in orphans}.values())      # one line per link
         total = ro.execute(f"SELECT COUNT(*) FROM {pl.TABLE}").fetchone()[0] if pl.has_table(ro) else 0
     finally:
         ro.close()
-    print(f"  photo links: {total:,}; pointing at a deleted row: {len(orphans)}")
-    for lid, path, sid in orphans[:30]:
-        print(f"    link {lid}: row {sid}  {path}")
+    print(f"  photo links: {total:,}; pointing at something deleted: {len(orphans)}")
+    for lid, path, what in orphans[:30]:
+        print(f"    link {lid}: {what} (deleted)  {path}")
     if len(orphans) > 30:
         print(f"    ... and {len(orphans) - 30} more")
     if not a.apply:
@@ -68,14 +71,13 @@ def main(argv=None) -> int:
         with conn:
             for i in range(0, len(ids), 900):
                 part = ids[i:i + 900]
-                conn.execute(f"DELETE FROM {pl.TABLE} WHERE id IN ({','.join('?' * len(part))}) "
-                             f"AND {pl.STAGING} IS NOT NULL", part)
-        left = len(pl.orphan_staging_links(conn))
+                conn.execute(f"DELETE FROM {pl.TABLE} WHERE id IN ({','.join('?' * len(part))})", part)
+        left = len(pl.orphan_staging_links(conn)) + len(pl.orphan_record_links(conn))
         total2 = conn.execute(f"SELECT COUNT(*) FROM {pl.TABLE}").fetchone()[0]
     finally:
         conn.close()
     ok = left == 0 and total2 == total - len(orphans)
-    print(f"  removed {total - total2}; still pointing at a deleted row: {left}; links now {total2:,}")
+    print(f"  removed {total - total2}; still pointing at something deleted: {left}; links now {total2:,}")
     print("  done." if ok else "  NOT as expected -- check the database.")
     return 0 if ok else 1
 

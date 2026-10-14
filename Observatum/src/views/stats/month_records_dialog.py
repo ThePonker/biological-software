@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QHBoxLayout,
 )
 
+from ..components.natural_sort_proxy import NaturalItem
 from ...themes import theme
 
 MONTH_NAMES = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July',
@@ -122,7 +123,7 @@ class MonthRecordsDialog(QDialog):
             date_item.setData(Qt.ItemDataRole.UserRole + 1, r['date'])
             self.table.setItem(i, 0, date_item)
             for c, key in enumerate(('source', 'site', 'grid_ref', 'vc', 'recorder'), 1):
-                self.table.setItem(i, c, QTableWidgetItem(r[key]))
+                self.table.setItem(i, c, NaturalItem(r[key]))
         self.table.setSortingEnabled(True)
         self.table.doubleClicked.connect(self._open_record)
         layout.addWidget(self.table, 1)

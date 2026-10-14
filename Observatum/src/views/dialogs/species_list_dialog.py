@@ -9,6 +9,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 
 from shared.fit_to_screen import fit_to_screen
+from ..components.natural_sort_proxy import NaturalItem
 from ...themes import theme
 from ...utils.date_utils import format_date_display
 
@@ -355,7 +356,7 @@ class SpeciesListDialog(QDialog):
 
         for row, species in enumerate(self._species_data):
             name = species.get('species_name', '')
-            name_item = QTableWidgetItem(name)
+            name_item = NaturalItem(name)
             name_item.setFont(QFont(t.get('font_family', 'Segoe UI'), 10, QFont.Weight.Normal, italic=True))
             self.table.setItem(row, 0, name_item)
 
@@ -424,7 +425,7 @@ class SpeciesListDialog(QDialog):
 
             for row, sp in enumerate(species_sorted):
                 name = sp.get('species_name', '')
-                name_item = QTableWidgetItem(name)
+                name_item = NaturalItem(name)
                 name_item.setFont(QFont(t.get('font_family', 'Segoe UI'), 10, QFont.Weight.Normal, italic=True))
                 family_table.setItem(row, 0, name_item)
 

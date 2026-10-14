@@ -7,6 +7,7 @@ from typing import Any
 
 from PySide6.QtCore import Qt, QSortFilterProxyModel, QModelIndex
 
+from shared.natural_sort import less_than
 from ...models.database import get_database
 
 
@@ -32,7 +33,8 @@ class ICDataMixin:
                 right_data = self.sourceModel().data(right, Qt.ItemDataRole.UserRole + 1)
                 if left_data and right_data:
                     return left_data < right_data
-                return super().lessThan(left, right)
+                return less_than(left.data(Qt.ItemDataRole.DisplayRole),
+                                 right.data(Qt.ItemDataRole.DisplayRole))
 
         return DateAwareSortProxy()
 
@@ -45,6 +47,10 @@ class ICDataMixin:
         self.table_view.setModel(self.sort_proxy)
         self.sort_proxy.setDynamicSortFilter(True)
         self._proxy_connected = True
+        if getattr(self, '_widths', None) is not None:
+            self._widths.watch(self.table_model)
+            self._widths.watch(self.sort_proxy)
+            self._widths.apply()
         self.table_view.setSortingEnabled(True)
         self.table_view.horizontalHeader().setSectionsClickable(True)
         self.table_view.horizontalHeader().setSortIndicatorShown(True)
@@ -133,11 +139,7 @@ class ICDataMixin:
                 self.filter_wizard.refresh_tab_values()
 
             # Update column widths after data load
-            header = self.table_view.horizontalHeader()
-            widths = self.table_model.get_column_widths()
-            for i, width in enumerate(widths):
-                if i < header.count():
-                    self.table_view.setColumnWidth(i, width)
+            self._widths.apply()          # each column's own saved width
 
         except Exception as e:
             print(f"Error loading specimen data: {e}")

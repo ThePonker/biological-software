@@ -49,6 +49,7 @@ def folder_name(species: str) -> str:
     """'Drymus (Sylvadrymus) sylvaticus' -> 'Drymus sylvaticus'; drops '(=nigra auctt.)'."""
     n = re.sub(r"\s*\(=.*?\)", "", species or "")
     n = re.sub(r"\s+\([A-Z][a-z]+\)", "", n)
+    n = n.replace("/", "-").replace("\\", "-")       # 'Bombus terrestris/lucorum agg.'
     return " ".join(n.split())
 
 
@@ -176,7 +177,7 @@ def new_log_path() -> Path:
 
 def move_for_redet(conn, photo_paths: Iterable[str], old_species: str, new_species: str,
                    specimen_ids: Iterable[int] = (), observation_ids: Iterable[int] = (),
-                   log_path=None) -> RedetResult:
+                   log_path=None, staging_ids: Iterable[int] = ()) -> RedetResult:
     """Move and rename a re-determined record's photos (see the module note). `specimen_ids` /
     `observation_ids`: the record's own ids -- a link to anything else means 'shared'.
     Each moved photo's links are committed on `conn` as soon as it has moved."""
@@ -186,11 +187,14 @@ def move_for_redet(conn, photo_paths: Iterable[str], old_species: str, new_speci
     if not old or not new or old.casefold() == new.casefold():
         return res
     mine_s, mine_o = {int(i) for i in specimen_ids}, {int(i) for i in observation_ids}
+    mine_st = {int(i) for i in staging_ids}
+    st_col = pl.STAGING if pl.has_staging_column(conn) else "NULL"
     root, lroot = media_root(), life_root()
     for p in dict.fromkeys(pl.norm(x) for x in photo_paths):
         others = [r for r in conn.execute(
-            f"SELECT specimen_id, observation_id FROM {pl.TABLE} WHERE photo_path = ?", (p,))
-            if not ((r[0] is not None and r[0] in mine_s) or (r[1] is not None and r[1] in mine_o))]
+            f"SELECT specimen_id, observation_id, {st_col} FROM {pl.TABLE} WHERE photo_path = ?", (p,))
+            if not ((r[0] is not None and r[0] in mine_s) or (r[1] is not None and r[1] in mine_o)
+                    or (r[2] is not None and r[2] in mine_st))]
         if others:
             res.left.append((p, "linked to another record too"))
             continue
@@ -238,6 +242,67 @@ def move_for_redet(conn, photo_paths: Iterable[str], old_species: str, new_speci
     return res
 
 
+# --- bench photos and renames: one photo moved, never overwritten, logged, links follow ------
+def specimen_folder_for(species: str, family: str = "", order: str = "",
+                        root: Optional[Path] = None) -> Path:
+    """Where a new specimen photo of this species goes (agreed 13 Oct 2026): the species'
+    existing folder; else a new species folder in its family's folder; else a new family
+    folder in its order's folder; else Life/_New species/<species>. Always '.../Specimen'."""
+    root = root or life_root()
+    name = folder_name(species)
+    found = species_folders(name, root)
+    if len(found) == 1:
+        return found[0] / SPECIMEN
+    idx = _index(root)
+    fam = sorted(idx.get((family or "").casefold(), [])) if family else []
+    if len(fam) == 1:
+        return fam[0] / name / SPECIMEN
+    orders = sorted(idx.get((order or "").casefold(), [])) if order else []
+    if len(orders) == 1 and family:
+        return orders[0] / family / name / SPECIMEN
+    return root / "_New species" / name / SPECIMEN
+
+
+def free_path(folder: Path, stem: str, ext: str) -> Path:
+    """folder/stem.ext, or 'stem 2.ext', 'stem 3.ext'... -- the first not taken."""
+    p, n = folder / f"{stem}{ext}", 2
+    while p.exists():
+        p, n = folder / f"{stem} {n}{ext}", n + 1
+    return p
+
+
+def move_photo(conn, src: Path, dst: Path, log_path=None) -> str:
+    """Move one photo (os.rename: never a copy, never over another file), log it, and point
+    any links at its new place (committed at once). Returns the new stored path; raises
+    OSError / FileExistsError with nothing changed if it cannot."""
+    src, dst = Path(src), Path(dst)
+    if dst.exists():
+        raise FileExistsError(f"{dst.name} is already there")
+    if not src.is_file():
+        raise FileNotFoundError(str(src))
+    size = src.stat().st_size
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    os.rename(src, dst)                         # across drives this raises: nothing moved
+    new_rel = rel(dst)
+    try:
+        old_rel = rel(src)
+    except ValueError:                          # from outside the library (the capture folder)
+        old_rel = None
+    if conn is not None and old_rel and not old_rel.startswith(".."):
+        try:
+            pl.repoint(conn, old_rel, new_rel)
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            os.rename(dst, src)
+            raise
+    _log({"time": datetime.datetime.now().isoformat(timespec="seconds"),
+          "source": str(src) if not old_rel or old_rel.startswith("..") else old_rel,
+          "destination": new_rel, "size_bytes": size}, log_path or new_log_path())
+    refresh()
+    return new_rel
+
+
 # --- the hook the record models call after a save (B5) -------------------------------------
 _listeners: List = []          # callables(summary: str) -- the main window shows the note
 
@@ -252,10 +317,11 @@ def add_listener(fn) -> None:
         _listeners.append(ref)
 
 
-def follow_redet(db, kind: str, record_id: int, old_species: str, new_species: str
-                 ) -> Optional[RedetResult]:
-    """Called by ObservationModel.update / SpecimenModel.update when a save changed the
-    species. kind 'observation' or 'specimen'; db a DatabaseManager or a path. Never raises:
+def follow_redet(db, kind: str, record_id: int, old_species: str, new_species: str,
+                 notify: bool = True) -> Optional[RedetResult]:
+    """Called when a record's species changed: a hand edit (Observation tab, Insect
+    Collection) or an iRecord sync (notify=False: the sync shows one note for all).
+    kind 'observation' or 'specimen'; db a DatabaseManager or a path. Never raises:
     a photo problem must not undo or block the record's save (it is reported instead)."""
     try:
         if folder_name(old_species).casefold() == folder_name(new_species).casefold():
@@ -289,12 +355,22 @@ def follow_redet(db, kind: str, record_id: int, old_species: str, new_species: s
             res = move_for_redet(conn, photos, old_species, new_species, spec_ids, obs_ids)
             if kind != "specimen":
                 res.left += [(p, "its specimen still has the old name") for p in waiting]
+            # photos still in _Bench (committed before the species had a TVK) are filed now
+            from shared import bench_photos
+            filed, _notes = bench_photos.file_record_photos(
+                conn, obs_ids if kind != "specimen" else (), spec_ids or ([record_id] if kind == "specimen" else ()))
+            res.moved += filed
+            filed_from = {old for old, _new in filed}
+            res.left = [(p, why) for p, why in res.left if p not in filed_from]
+            res.left = [(p, "in _Bench: its species is not picked from the list yet" if
+                         bench_photos.in_bench(p) and "not inside a folder" in why else why)
+                        for p, why in res.left]
         finally:
             conn.close()
     except Exception as e:                          # report, never block the save
         res = RedetResult(left=[("", f"photos not moved: {e}")])
     note = res.summary(new_species)
-    if note:
+    if note and notify:
         for ref in list(_listeners):
             fn = ref()
             if fn is None:
@@ -323,5 +399,6 @@ def species_now(db, kind: str, record_id: int) -> str:
         return ""
 
 
-__all__ = ["add_listener", "follow_redet", "species_now", "new_log_path", "SPECIMEN", "media_root", "life_root", "folder_name", "rel", "absolute", "refresh",
+__all__ = ["add_listener", "follow_redet", "species_now", "new_log_path", "SPECIMEN",
+           "specimen_folder_for", "free_path", "move_photo", "media_root", "life_root", "folder_name", "rel", "absolute", "refresh",
            "species_folders", "species_photos", "RedetResult", "move_for_redet"]

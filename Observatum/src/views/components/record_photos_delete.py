@@ -18,13 +18,13 @@ def _nothing():
     return None
 
 
-def ask(parent, db_path: str, observation_ids, title: str = "Delete"):
+def ask(parent, db_path: str, observation_ids, title: str = "Delete", kind: str = "observation"):
     if not db_path:
         return _nothing
     try:
         conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
         try:
-            by_record = bench_photos.record_photos(conn, observation_ids)
+            by_record = bench_photos.record_photos(conn, observation_ids, kind)
         finally:
             conn.close()
     except Exception as e:
@@ -38,7 +38,7 @@ def ask(parent, db_path: str, observation_ids, title: str = "Delete"):
     box.setWindowTitle(title)
     it = "them" if n != 1 else "it"
     box.setText(f"{n} photo{'s are' if n != 1 else ' is'} linked to "
-                f"{'these records' if len(by_record) != 1 else 'this record'}.\n\n"
+                f"{'these records' if len(by_record) != 1 else ('this specimen' if kind == 'specimen' else 'this record')}.\n\n"
                 f"Photos are never deleted. Move {it} to {bench_photos.BENCH_REL} (listed in the "
                 f"cleaning report), or leave {it} in the species folder?")
     to_bench = box.addButton("Move to _Bench", QMessageBox.ButtonRole.AcceptRole)
@@ -54,7 +54,7 @@ def ask(parent, db_path: str, observation_ids, title: str = "Delete"):
         try:
             conn = sqlite3.connect(db_path)
             try:
-                _moved, notes = bench_photos.release_records(conn, by_record, move)
+                _moved, notes = bench_photos.release_records(conn, by_record, move, kind)
             finally:
                 conn.close()
         except Exception as e:

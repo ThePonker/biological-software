@@ -163,6 +163,33 @@ def rename_for_row(conn, staging_id: int, old: tuple, new: tuple) -> pf.RedetRes
     return res
 
 
+def name_for_commit(stem: str, row: dict) -> str:
+    """A bench photo whose name does not start with the row's species (its species was cleared
+    in an earlier session, so the rename could not follow) is named from the row at commit:
+    species, sex and date from the row; a one-word view kept from the old name (review 14 Oct
+    2026). A name that already starts with the species is kept as it is."""
+    import re
+    from shared.photo_names import specimen_photo_stem
+    species = pf.folder_name(row.get("species_name") or "")
+    if not species or stem.casefold() == species.casefold() or stem.casefold().startswith(species.casefold() + " "):
+        return stem
+    words = stem.split()
+    # only a name the Photo… dialog made: 'Genus epithet [agg.] [sex] [view] [date] [n]';
+    # anything else (a name typed by hand) is kept as it is -- nothing is guessed
+    if len(words) < 2 or not (words[0][:1].isupper() and words[0].isalpha()
+                              and words[1].islower() and words[1].isalpha()):
+        return stem
+    words = words[2:]
+    if words and words[0].casefold() in ("agg.", "agg", "s.l.", "s.s.", "sens.", "lat."):
+        words = words[1:]
+    view = [w for w in words if w.casefold() not in SEX_WORDS and not any(c.isdigit() for c in w)]
+    if len(view) > 1:
+        return stem
+    d = str(row.get("date") or "")
+    iso = d[:10] if re.fullmatch(r"\d{4}-\d{2}-\d{2}", d[:10]) else ""
+    return specimen_photo_stem(species, row.get("sex") or "", view[0] if len(view) == 1 else "", iso)
+
+
 def file_on_commit(conn, staging_id: int, row: dict, observation_id: int) -> Tuple[bool, List[str]]:
     """The row became record `observation_id`: its photo links become the record's FIRST
     (committed), then its _Bench photos go to the species' Specimen folder (only when the row
@@ -195,6 +222,7 @@ def file_on_commit(conn, staging_id: int, row: dict, observation_id: int) -> Tup
                              f"from the list, so it stays in {BENCH_REL}")
                 continue
             stem, ext = os.path.splitext(os.path.basename(p))
+            stem = name_for_commit(stem, row)
             folder = pf.specimen_folder_for(species, row.get("family") or "", row.get("order_name") or "")
             try:
                 _move_in_library(conn, p, pf.free_path(folder, stem, ext), log)
@@ -307,33 +335,122 @@ def send_back(conn, by_row: dict, to_folder: Path) -> Tuple[int, List[str]]:
     return back, notes
 
 
+# --- _Bench photos already on a record: filed once the record has a proper species ---------
+def _record(conn, kind: str, rid: int) -> Optional[dict]:
+    table, date_col = ("specimens", "date_collected") if kind == "specimen" else ("observations", "date")
+    row = conn.execute(f"SELECT species_name, species_tvk, family, order_name, sex, {date_col} "
+                       f"FROM {table} WHERE id = ?", (rid,)).fetchone()
+    if not row:
+        return None
+    return dict(zip(("species_name", "species_tvk", "family", "order_name", "sex", "date"), row))
+
+
+def file_record_photos(conn, observation_ids: Iterable[int] = (), specimen_ids: Iterable[int] = (),
+                       every: bool = False, only_paths: Iterable[str] = ()) -> Tuple[List[tuple], List[str]]:
+    """Photos in _Bench that belong to a record or specimen (its species had no TVK at commit,
+    or the move failed) go to the species' Specimen folder once the record has a species
+    picked from UKSI (a TVK); named from the record if their name no longer fits. Only these
+    records' photos, or with every=True all such photos; with only_paths, only those photos.
+    A photo linked to records of different species is left (reported). Returns
+    ([(old stored path, new stored path)], notes). Never raises."""
+    moved, notes = [], []
+    try:
+        if not pl.has_table(conn):
+            return moved, notes
+        if every:
+            rows = conn.execute(f"SELECT photo_path, specimen_id, observation_id FROM {pl.TABLE} "
+                                "WHERE specimen_id IS NOT NULL OR observation_id IS NOT NULL").fetchall()
+        else:
+            oids, sids = [int(i) for i in observation_ids], [int(i) for i in specimen_ids]
+            rows = []
+            for col, ids in (("observation_id", oids), ("specimen_id", sids)):
+                for i in range(0, len(ids), 900):
+                    part = ids[i:i + 900]
+                    paths = [r[0] for r in conn.execute(
+                        f"SELECT photo_path FROM {pl.TABLE} WHERE {col} IN ({','.join('?' * len(part))})", part)]
+                    for p in paths:
+                        rows += conn.execute(f"SELECT photo_path, specimen_id, observation_id FROM {pl.TABLE} "
+                                             "WHERE photo_path = ?", (p,)).fetchall()
+        owners: dict = {}
+        only = {pl.norm(x) for x in only_paths}
+        for p, sid, oid in rows:
+            if in_bench(p) and (not only or pl.norm(p) in only):
+                owners.setdefault(pl.norm(p), set()).add(("specimen", sid) if sid is not None else ("observation", oid))
+        log = pf.new_log_path()
+        for p, who in sorted(owners.items()):
+            recs = [r for r in (_record(conn, k, i) for k, i in who) if r]
+            if not recs:
+                continue                                       # links to deleted records only
+            species = {pf.folder_name(r["species_name"] or "").casefold() for r in recs}
+            if len(species) != 1:
+                notes.append(f"{os.path.basename(p)}: its records have different species -- left in {BENCH_REL}")
+                continue
+            rec = recs[0]
+            if not (rec.get("species_tvk") or "").strip():
+                continue                                       # still not picked from UKSI
+            src = pf.absolute(p)
+            if not src.is_file():
+                notes.append(f"{os.path.basename(p)}: file not found")
+                continue
+            stem, ext = os.path.splitext(src.name)
+            stem = name_for_commit(stem, rec)
+            folder = pf.specimen_folder_for(rec["species_name"], rec.get("family") or "", rec.get("order_name") or "")
+            try:
+                moved.append((p, _move_in_library(conn, p, pf.free_path(folder, stem, ext), log)))
+            except Exception as e:
+                notes.append(f"{os.path.basename(p)}: not moved ({e})")
+    except Exception as e:
+        notes.append(f"photos not filed: {e}")
+    return moved, notes
+
+
+def file_record_photos_at(db_path, kind: str, ids: Iterable[int]) -> Tuple[List[str], List[str]]:
+    """file_record_photos on a database path (the record dialogs call this after a save)."""
+    import sqlite3
+    try:
+        conn = sqlite3.connect(str(db_path))
+        try:
+            ids = list(ids)
+            return file_record_photos(conn, ids if kind == "observation" else (),
+                                      ids if kind == "specimen" else ())
+        finally:
+            conn.close()
+    except Exception as e:
+        return [], [f"photos not filed: {e}"]
+
+
 # --- records deleted in Observatum (14 Oct 2026) --------------------------------------------
-def record_photos(conn, observation_ids: Iterable[int]) -> dict:
-    """{observation id: [photos linked to the record itself]} -- read before a delete. Photos
-    linked through a specimen stay with the specimen and are not listed."""
+_KIND = {"observation": ("observations", "observation_id"), "specimen": ("specimens", "specimen_id")}
+
+
+def record_photos(conn, observation_ids: Iterable[int], kind: str = "observation") -> dict:
+    """{record id: [photos linked to the record itself]} -- read before a delete. kind
+    'observation' (a specimen's photos stay with the specimen) or 'specimen'."""
     out = {}
     if conn is None or not pl.has_table(conn):
         return out
+    _table, col = _KIND[kind]
     for oid in [int(i) for i in observation_ids if i is not None]:
         paths = [r[0] for r in conn.execute(
-            f"SELECT DISTINCT photo_path FROM {pl.TABLE} WHERE observation_id = ? ORDER BY photo_path", (oid,))]
+            f"SELECT DISTINCT photo_path FROM {pl.TABLE} WHERE {col} = ? ORDER BY photo_path", (oid,))]
         if paths:
             out[oid] = paths
     return out
 
 
-def release_records(conn, by_record: dict, to_bench: bool) -> Tuple[int, List[str]]:
+def release_records(conn, by_record: dict, to_bench: bool, kind: str = "observation") -> Tuple[int, List[str]]:
     """After the records were deleted: remove their photo links (only for records really gone)
     and, with to_bench, move each photo that is now linked to nothing into _Bench. The files
     are never deleted. Returns (moved to _Bench, notes). Commits."""
     moved, notes = 0, []
+    table, col = _KIND[kind]
     gone = [oid for oid in by_record
-            if not conn.execute("SELECT 1 FROM observations WHERE id = ?", (oid,)).fetchone()]
+            if not conn.execute(f"SELECT 1 FROM {table} WHERE id = ?", (oid,)).fetchone()]
     if not gone:
         return moved, notes
     for i in range(0, len(gone), 900):
         part = gone[i:i + 900]
-        conn.execute(f"DELETE FROM {pl.TABLE} WHERE observation_id IN ({','.join('?' * len(part))})", part)
+        conn.execute(f"DELETE FROM {pl.TABLE} WHERE {col} IN ({','.join('?' * len(part))})", part)
     conn.commit()
     if not to_bench:
         return moved, notes
@@ -351,5 +468,5 @@ def release_records(conn, by_record: dict, to_bench: bool) -> Tuple[int, List[st
     return moved, notes
 
 
-__all__ = ["detach", "record_photos", "release_records", "photos_by_row", "send_back", "BENCH_REL", "bench_root", "in_bench", "bench_files", "attach", "rename_for_species",
+__all__ = ["file_record_photos", "file_record_photos_at", "name_for_commit", "detach", "record_photos", "release_records", "photos_by_row", "send_back", "BENCH_REL", "bench_root", "in_bench", "bench_files", "attach", "rename_for_species",
            "file_on_commit", "rename_for_row", "count_for_rows", "release"]

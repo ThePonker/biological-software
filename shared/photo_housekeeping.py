@@ -98,8 +98,9 @@ def archive_empty_folders(folders: List[str], life: Optional[Path] = None,
 def bench_waiting(conn) -> List[Tuple[str, str]]:
     """(stored path, what it is waiting for) for every photo in _Bench."""
     out = []
+    dead = pl.orphan_record_links(conn) if conn is not None and pl.has_table(conn) else []
     for p in bp.bench_files():
-        why = "not linked to anything (its row was deleted)"
+        why = UNLINKED
         if conn is not None and pl.has_table(conn):
             st = pl.STAGING if pl.has_staging_column(conn) else "NULL"
             rows = conn.execute(f"SELECT {st}, observation_id, specimen_id FROM {pl.TABLE} WHERE photo_path = ?",
@@ -107,9 +108,68 @@ def bench_waiting(conn) -> List[Tuple[str, str]]:
             if any(r[0] is not None for r in rows):
                 why = "on a Data Entry row not yet committed"
             elif any(r[1] is not None or r[2] is not None for r in rows):
-                why = "on a record whose species was not picked from the list"
+                record_rows = [r for r in rows if r[1] is not None or r[2] is not None]
+                why = ON_DELETED if len(record_rows) == sum(1 for d in dead if d[1] == p) else ON_RECORD
         out.append((p, why))
     return out
+
+
+UNLINKED = "not linked to anything (its row was deleted)"
+ON_RECORD = "on a record whose species was not picked from the list"
+ON_DELETED = "linked only to a deleted record (scripts\\tidy_bench_links.py removes the link)"
+
+
+def dead_links(conn) -> List[Tuple[str, str]]:
+    """(stored path, 'record 12' / 'specimen 5' / 'Data Entry row 7') for links to something
+    deleted -- the cleaning report's tab; scripts/tidy_bench_links.py removes them."""
+    if conn is None or not pl.has_table(conn):
+        return []
+    out = [(p, f"Data Entry row {s}") for _i, p, s in pl.orphan_staging_links(conn)]
+    out += [(p, w) for _i, p, w in pl.orphan_record_links(conn)]
+    return sorted(out)
+
+
+def move_bench_photos(conn, stored_paths, to_folder: Path) -> Tuple[List[str], List[str]]:
+    """Move these _Bench photos to `to_folder` (the capture folder, or an _archive folder) --
+    only photos in _Bench that are linked to nothing; a photo still on a row or a record is
+    left (moving it would break that link). Never over another file; logged. Returns
+    (moved, notes)."""
+    import paths
+    moved, notes = [], []
+    if conn is None or not pl.has_table(conn):
+        return moved, ["the photo links could not be read, so nothing was moved"]
+    log = Path(paths.PHOTO_MOVES_DIR) / f"bench_out_{datetime.datetime.now():%Y%m%d_%H%M%S_%f}.csv"
+    for p in stored_paths:
+        p = pl.norm(p)
+        src = pf.absolute(p)
+        try:
+            if not bp.in_bench(p):
+                notes.append(f"{os.path.basename(p)}: not in {bp.BENCH_REL} -- left")
+                continue
+            if pl.link_count(conn, p):
+                notes.append(f"{os.path.basename(p)}: still linked to a row or record -- left")
+                continue
+            if not src.is_file():
+                notes.append(f"{os.path.basename(p)}: file not found")
+                continue
+            stem, ext = os.path.splitext(src.name)
+            dst = pf.free_path(Path(to_folder), stem, ext)
+            size = src.stat().st_size
+            Path(to_folder).mkdir(parents=True, exist_ok=True)
+            os.rename(src, dst)
+            pf._log({"time": datetime.datetime.now().isoformat(timespec="seconds"),
+                     "source": p, "destination": str(dst), "size_bytes": size}, log)
+            moved.append(p)
+        except OSError as e:
+            notes.append(f"{os.path.basename(p)}: not moved ({e})")
+    if moved:
+        pf.refresh()
+    return moved, notes
+
+
+def bench_archive_folder() -> Path:
+    import paths
+    return Path(paths.ROOT) / "_archive" / f"bench_photos_{datetime.date.today():%Y%m%d}"
 
 
 def missing_files(conn) -> List[Tuple[str, str]]:
@@ -145,5 +205,5 @@ def nonstandard_names(life: Optional[Path] = None) -> List[Tuple[Path, Path]]:
     return out
 
 
-__all__ = ["empty_folders", "archive_empty_folders", "bench_waiting", "missing_files",
+__all__ = ["dead_links", "ON_RECORD", "ON_DELETED", "move_bench_photos", "bench_archive_folder", "UNLINKED", "empty_folders", "archive_empty_folders", "bench_waiting", "missing_files",
            "nonstandard_names", "IGNORED_FILES"]

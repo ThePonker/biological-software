@@ -59,11 +59,12 @@ class _SortItem(QTableWidgetItem):
         a, b = self.data(_SORT_ROLE), other.data(_SORT_ROLE)
         if a is None or b is None or type(a) is not type(b):
             return super().__lt__(other)
-        return a < b
+        return less_than(a, b)          # text naturally: Project 2 before Project 10
 
 
 # Dates and mode labels come from one place, shared with the assessment workbook.
 from shared.display_format import dmy as _dmy, mode_label  # noqa: E402
+from shared.natural_sort import less_than  # noqa: E402
 
 
 class SiteAnalysisView(QWidget):

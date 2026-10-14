@@ -4,10 +4,11 @@ from typing import Dict, List, Optional, Tuple
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QDialog, QHBoxLayout, QHeaderView, QLabel, QPushButton,
-                               QTableWidget, QTableWidgetItem, QVBoxLayout)
+                               QTableWidget, QVBoxLayout)
 
 from ...themes import theme
 from ..components.irecord_button import IRecordButton
+from ..components.natural_sort_proxy import NaturalItem
 
 _COLUMNS = [("Source", "source"), ("Species", "species_name"), ("Date", "date"),
             ("Grid ref", "grid_ref"), ("Site", "site_name"), ("Recorder / collector", "person"),
@@ -40,7 +41,7 @@ class SquareRecordsDialog(QDialog):
         self._irecord = _irecord_ids(rows)
         for i, r in enumerate(rows):
             for j, (_c, key) in enumerate(_COLUMNS):
-                self.table.setItem(i, j, QTableWidgetItem(str(r.get(key) or "")))
+                self.table.setItem(i, j, NaturalItem(str(r.get(key) or "")))
             self.table.item(i, 0).setData(Qt.ItemDataRole.UserRole, (r.get("table"), r.get("id")))
         hdr = self.table.horizontalHeader()
         hdr.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
