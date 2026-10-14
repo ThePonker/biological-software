@@ -57,8 +57,8 @@ def test_test_set_found_and_added_once(tmp_path, capsys):
     rows = _run(tmp_path, _test_rows(3))
     text = capsys.readouterr().out
     assert "update (iRecord ID)" in text
-    assert "update (External key)" in text
-    assert "add as new (key names several records)" in text
+    assert "update (Observatum key)" in text                  # our own key, one record
+    assert "held for review (not added)" in text              # our own key on two records (A2)
     assert "3 found, 3 expected" in text and "missing numbers: none" in text
     assert "RESULT: all keys came back once" in text
     assert {r["outcome"] for r in rows} == {"add as new"} and len(rows) == 3

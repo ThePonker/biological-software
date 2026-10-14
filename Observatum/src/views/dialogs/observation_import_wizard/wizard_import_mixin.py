@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 
-from .validation_worker import COUNT_ZERO, ObservationImportRow, RowStatus, ImportMode
+from .validation_worker import COUNT_ZERO, SYNC_HOLD, ObservationImportRow, RowStatus, ImportMode
 
 from src.themes import theme
 
@@ -141,6 +141,21 @@ class WizardImportMixin:
             if answer != QMessageBox.StandardButton.Yes:
                 return
         self._import_errors = []
+        self._sync_conflicts = []          # A2: both sides changed -- Wil chooses afterwards
+        if import_mode == ImportMode.IRECORD_SYNC:
+            try:
+                from shared.sync_conflicts import has_column
+                with self.db.main_connection() as _c:
+                    ready = has_column(_c)
+            except Exception:
+                ready = True
+            if not ready:
+                QMessageBox.warning(
+                    self, "Sync guard not set up",
+                    "Edits made in Observatum are not yet protected from this sync: run\n"
+                    "py -3.14 scripts\\add_local_edited_column.py --apply\n(once, with "
+                    "Observatum closed). The sync will go ahead as before.")
+        self._sync_photo_notes = []        # B5: photos moved by re-dets that came from iRecord
 
         skip_duplicates = self.skip_duplicates_checkbox.isChecked() if import_mode in [ImportMode.PERSONAL_UPLOAD, ImportMode.COMMERCIAL_UPLOAD] else False
         never_upload = self.never_upload_checkbox.isChecked() if import_mode in [ImportMode.PERSONAL_UPLOAD, ImportMode.COMMERCIAL_UPLOAD] else False
@@ -155,7 +170,8 @@ class WizardImportMixin:
         rows_to_import = []
         for row in self.validated_rows:
             if row.status == RowStatus.ERROR and (handling != "everything"
-                                                  or COUNT_ZERO in (row.error_message or "")):
+                                                  or COUNT_ZERO in (row.error_message or "")
+                                                  or SYNC_HOLD in (row.error_message or "")):
                 counts["errors_left_out"] += 1     # a count of 0 is never stored (decision 8)
                 continue
             if row.status == RowStatus.WARNING and handling == "valid_only":
@@ -244,6 +260,10 @@ class WizardImportMixin:
                 result = self._update_observation(row.existing_record_id, obs_data)
                 if result == 'skipped':
                     counts["unchanged"] += 1
+                elif result == 'keep':
+                    counts["kept_local"] = counts.get("kept_local", 0) + 1
+                elif result == 'conflict':
+                    counts["conflicts"] = counts.get("conflicts", 0) + 1
                 elif result:
                     self.updated_count += 1
                 else:
@@ -280,6 +300,14 @@ class WizardImportMixin:
                     f"{self.error_count} row(s) could not be written.\n\n{shown}"
                     + (f"\n... and {more} more" if more > 0 else "")
                     + "\n\nA backup was taken before the import (pre-import).")
+
+            if self._sync_photo_notes:
+                QMessageBox.information(self, "Photos",
+                                        "Re-determinations from iRecord moved photos:\n\n"
+                                        + "\n".join(self._sync_photo_notes[:15]))
+            if self._sync_conflicts:
+                from ..sync_conflicts_dialog import SyncConflictsDialog
+                SyncConflictsDialog(self._sync_conflicts, self.db, parent=self).exec()
 
             # Auto-advance to summary page
             self._update_summary()
@@ -417,30 +445,14 @@ class WizardImportMixin:
         date_str = datetime.now().strftime('%Y%m%d')
         prefix = f"OBS-{initials}-{date_str}-"
         
-        # Find the current max sequence in the database
-        try:
-            result = self.db.execute_main(
-                """SELECT observatum_key FROM observations
-                WHERE observatum_key LIKE ?
-                ORDER BY observatum_key DESC
-                LIMIT 1""",
-                (f"{prefix}%",)
-            )
-            if result and len(result) > 0:
-                last_key = result[0]['observatum_key'] if isinstance(result[0], dict) else result[0][0]
-                if last_key:
-                    last_seq = int(last_key.split('-')[-1])
-                else:
-                    last_seq = 0
-            else:
-                last_seq = 0
-        except Exception:
-            last_seq = 0
-        
+        # The current maximum -- THE rule, shared/observatum_keys.py (numeric, not text order;
+        # a read failure raises rather than starting again at 1)
+        from shared.observatum_keys import last_sequence, make_key
+        last_seq = last_sequence(self.db, prefix)
+
         # Assign sequential keys to each row
         for i, row in enumerate(rows_needing_keys):
-            next_seq = last_seq + i + 1
-            row._pre_generated_key = f"{prefix}{next_seq:04d}"
+            row._pre_generated_key = make_key(prefix, last_seq + i + 1)
 
     def _combine_import_notes(self, row):
         """Combine import_notes with any error/warning messages."""
@@ -656,29 +668,14 @@ class WizardImportMixin:
 
         batch_key = f"{initials}-{date_str}"
 
+        from shared.observatum_keys import last_sequence, make_key
         if batch_key not in self._import_key_sequence:
-            # Query DB once for starting sequence
-            try:
-                result = self.db.execute_main(
-                    """SELECT observatum_key FROM observations
-                    WHERE observatum_key LIKE ?
-                    ORDER BY observatum_key DESC
-                    LIMIT 1""",
-                    (f"{prefix}%",)
-                )
-                if result and len(result) > 0 and result[0]['observatum_key']:
-                    last_key = result[0]['observatum_key']
-                    last_seq = int(last_key.split('-')[-1])
-                    self._import_key_sequence[batch_key] = last_seq
-                else:
-                    self._import_key_sequence[batch_key] = 0
-            except Exception:
-                self._import_key_sequence[batch_key] = 0
+            # Query DB once for the starting number (THE rule, shared/observatum_keys.py)
+            self._import_key_sequence[batch_key] = last_sequence(self.db, prefix)
 
         # Increment and return
         self._import_key_sequence[batch_key] += 1
-        next_seq = self._import_key_sequence[batch_key]
-        return f"{prefix}{next_seq:04d}"
+        return make_key(prefix, self._import_key_sequence[batch_key])
 
     def _insert_observation(self, obs_data: dict) -> bool:
         """Insert a new observation record."""
@@ -754,13 +751,52 @@ class WizardImportMixin:
                 return 'skipped'
             add_id = held_id is None and incoming_id is not None   # number was only in irecord_key
 
+            from shared import sync_conflicts as sc
+            with self.db.main_connection() as conn:
+                held = sc.held_row(conn, record_id)
+            edited_since = bool(held and held.get(sc.COLUMN) and (
+                not held.get('last_synced') or str(held[sc.COLUMN]) > str(held['last_synced'])))
+
             if not add_id and not self._has_changes(existing, update_data):
+                if edited_since:
+                    # the two copies agree again (Wil corrected iRecord to match): note it as
+                    # synced, so iRecord's next change is an update, not a conflict
+                    self.db.execute_main_write(
+                        "UPDATE observations SET last_synced = ?, last_edited_date = "
+                        "COALESCE(?, last_edited_date) WHERE id = ?",
+                        (sc.now(), update_data.get('last_edited_date') or None, record_id))
                 return 'skipped'
 
             # Write only the sync fields, and only those the import actually supplied --
             # this used to rewrite the whole record, blanking ~15 fields (F32, 9 Oct 2026)
             changes = {k: update_data[k] for k in SYNC_UPDATE_FIELDS
                        if k in update_data and update_data[k] not in (None, '')}
+
+            # A2 (14 Oct 2026): an edit made here since the last sync is never quietly
+            # overwritten -- shared/sync_conflicts.py is THE rule. 'keep': iRecord's copy has
+            # not changed, Observatum's edit stays. 'conflict': both changed; Wil chooses after
+            # the sync. Either way iRecord's own fields (verification...) and a newly learned
+            # iRecord ID are still written.
+            action, diff = sc.decide(held, update_data) if held else (sc.UPDATE, [])
+            if action != sc.UPDATE:
+                owned = {k: changes[k] for k in sc.IRECORD_OWNED if k in changes}
+                if add_id:
+                    owned['irecord_id'] = incoming_id
+                if owned:
+                    self.db.execute_main_write(
+                        f"UPDATE observations SET {', '.join(f'{k} = ?' for k in owned)} WHERE id = ?",
+                        tuple(owned.values()) + (record_id,))
+                if action == sc.CONFLICT:
+                    if not hasattr(self, '_sync_conflicts'):
+                        self._sync_conflicts = []
+                    self._sync_conflicts.append({
+                        'id': record_id, 'fields': diff,
+                        'observatum': {f: held.get(f) for f in diff},
+                        'irecord': {f: update_data.get(f) for f in sc.CONFLICT_FIELDS},
+                        'incoming_all': dict(changes),
+                        'last_edited_date': update_data.get('last_edited_date'),
+                        'species': held.get('species_name')})
+                return action
             if add_id:
                 changes['irecord_id'] = incoming_id
             if not changes:
@@ -768,6 +804,18 @@ class WizardImportMixin:
             set_clauses = ', '.join(f"{k} = ?" for k in changes)
             query = f"UPDATE observations SET {set_clauses} WHERE id = ?"
             result = self.db.execute_main_write(query, tuple(changes.values()) + (record_id,))
+            new_species = changes.get('species_name')
+            if result and new_species and existing.species_name and new_species != existing.species_name:
+                # a re-determination made in iRecord: the record's linked photos follow (B5),
+                # gathered into one note for the summary rather than a message per record
+                from shared.photo_files import follow_redet
+                res = follow_redet(self.db, "observation", record_id, existing.species_name,
+                                   new_species, notify=False)
+                if res is not None and (res.moved or res.left):
+                    if not hasattr(self, '_sync_photo_notes'):
+                        self._sync_photo_notes = []
+                    self._sync_photo_notes.append(f"{existing.species_name} -> {new_species}: "
+                                                  + res.summary(new_species))
             return bool(result)
 
         except Exception as e:
@@ -786,6 +834,8 @@ class WizardImportMixin:
 
     SUMMARY_ORDER = (("new", "New records"), ("updated", "Updated records"),
                      ("unchanged", "Already up to date (not changed)"),
+                     ("kept_local", "Edited here since the last sync, unchanged in iRecord (Observatum's edit kept)"),
+                     ("conflicts", "Changed both here and in iRecord (listed for you to choose)"),
                      ("came_back", "Removed here earlier, came back from iRecord (kept hidden; see the cleaning report)"),
                      ("duplicates_skipped", "Duplicates skipped"),
                      ("errors_left_out", "Rows with errors, not imported"),

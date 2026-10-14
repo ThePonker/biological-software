@@ -1,4 +1,12 @@
-"""irecord_export -- Personal jobs go to iRecord, then come back (review DE7, 9 Oct 2026).
+"""irecord_export -- Personal jobs and iRecord.
+
+A3 (14 Oct 2026): a Personal job is COMMITTED like a Commercial one -- each row becomes an
+Observatum record with its own Observatum key -- and the same step writes the CSV for iRecord's
+import with that key in an "External key" column (write_committed_csv). iRecord keeps the key
+(tested 13-14 Oct 2026: all 46 came back), so the next sync matches each record by it and
+fills in the iRecord ID. Nothing is held twice and nothing waits to be paired.
+
+The older route, below, is kept for jobs already exported that way (DE7, 9 Oct 2026):
 
 Personal records are iRecord-first: spreadsheet -> iRecord -> Observatum by the sync. A
 Personal job committed straight into Observatum would be held twice once iRecord sent it
@@ -90,6 +98,36 @@ def write_irecord_csv(rows: List[Dict], filepath: str, accepted: Optional[Set[st
         for r in recs:
             w.writerow(irecord_row(r, accepted))
     return len(recs)
+
+
+KEY_COLUMN = "External key"
+
+
+def write_committed_csv(db, committed_rows, filepath: str, accepted: Optional[Set[str]] = None) -> int:
+    """A3: the iRecord CSV for rows just committed: each staging row as irecord_row writes it,
+    plus its new record's Observatum key as "External key". db: anything with execute_main.
+    Returns how many were written. Raises if a committed record has no key."""
+    ids = [new_id for _row, new_id in committed_rows]
+    keys = {}
+    for i in range(0, len(ids), 900):
+        part = ids[i:i + 900]
+        for r in db.execute_main(f"SELECT id, observatum_key FROM observations WHERE id IN "
+                                 f"({','.join('?' * len(part))})", tuple(part)):
+            keys[r[0]] = r[1]
+    missing = [i for i in ids if not keys.get(i)]
+    if missing:
+        raise ValueError(f"{len(missing)} committed record(s) have no Observatum key (ids "
+                         f"{', '.join(map(str, missing[:10]))})")
+    seen = [keys[i] for i in ids]
+    if len(set(seen)) != len(seen):
+        raise ValueError("the committed records do not all have different Observatum keys -- "
+                         "iRecord could not match them back; nothing was written")
+    with open(filepath, "w", newline="", encoding="utf-8-sig") as f:   # BOM: Excel-safe
+        w = csv.writer(f)
+        w.writerow(IRECORD_COLUMNS + (KEY_COLUMN,))
+        for row, new_id in committed_rows:
+            w.writerow(irecord_row(row, accepted) + [keys[new_id]])
+    return len(committed_rows)
 
 
 def export_job(conn, job: Dict, filepath: str, uksi_path=None) -> Dict:

@@ -674,6 +674,9 @@ def create_tables(cursor):
         print(f"  ✓ {name}")
     for sql in _photo_links.INDEX_SQL:
         cursor.execute(sql)
+    # A2 (14 Oct 2026): observations.local_edited_at -- defined once in shared/sync_conflicts.py
+    from shared import sync_conflicts as _sync_conflicts
+    _sync_conflicts.ensure_schema(cursor.connection)
 
 
 def create_indexes(cursor):

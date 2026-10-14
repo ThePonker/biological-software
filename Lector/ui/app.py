@@ -343,6 +343,8 @@ def main(argv=None):
     app = QApplication.instance() or QApplication(sys.argv[:1])
     from shared.opaque_popups import install as solid_popups
     solid_popups(app, lambda: (S.c('surface'), S.c('text_primary')))   # F50: solid lists
+    from shared.dialog_geometry import install as remember_dialog_sizes
+    remember_dialog_sizes(app)                                   # every dialog keeps its size
     win = LectorWindow()
     win.show()
     ok = win.start()

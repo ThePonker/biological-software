@@ -186,25 +186,9 @@ class ObservationModel:
         
         # Find the next sequence number for today
         prefix = f'OBS-{initials}-{date_str}-'
-        query = """
-            SELECT observatum_key FROM observations
-            WHERE observatum_key LIKE ?
-            ORDER BY observatum_key DESC
-            LIMIT 1
-        """
-        result = self.db.execute_main(query, (f'{prefix}%',))
-        
-        if result and len(result) > 0 and result[0]['observatum_key']:
-            last_key = result[0]['observatum_key']
-            try:
-                last_seq = int(last_key.split('-')[-1])
-                next_seq = last_seq + 1
-            except (ValueError, IndexError):
-                next_seq = 1
-        else:
-            next_seq = 1
-        
-        return f'{prefix}{next_seq:06d}'
+        # THE rule (shared/observatum_keys.py): the numeric maximum, never the text order
+        from shared.observatum_keys import last_sequence, make_key
+        return make_key(prefix, last_sequence(self.db, prefix) + 1)
     
     def create(self, observation: Observation) -> int:
         """Create a new observation record."""

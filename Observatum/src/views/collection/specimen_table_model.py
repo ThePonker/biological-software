@@ -302,6 +302,23 @@ class SpecimenTableModel(QStandardItemModel):
             self.appendRow(row_items)
 
 
+    def refresh_photo_cells(self, counts: dict) -> None:
+        """New counts in the camera column only (a link changed): rows, selection and
+        scroll position stay as they are."""
+        self._photo_counts = dict(counts or {})
+        keys = [c[0] for c in self.get_columns()]
+        if 'photos' not in keys:
+            return
+        col = keys.index('photos')
+        for r, specimen in enumerate(self._specimens):
+            item = self.item(r, col)
+            if item is None:
+                continue
+            n = self.photo_count(specimen)
+            item.setText(f"\U0001F4F7 {n}" if n else "")
+            item.setData(f"{n:06d}", Qt.ItemDataRole.UserRole + 1)
+            item.setToolTip(f"{n} photo{'s' if n != 1 else ''} -- double-click to open" if n else "")
+
     def photo_count(self, specimen) -> int:
         return self._photo_counts.get(self._get_specimen_value(specimen, 'id'), 0)
 

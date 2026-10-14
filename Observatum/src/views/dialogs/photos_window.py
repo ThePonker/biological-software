@@ -14,7 +14,7 @@ Thumbnails are loaded a few at a time on a timer, so big JPEGs never block the w
 import os
 import sqlite3
 
-from PySide6.QtCore import QSize, Qt, QTimer, QUrl, Signal
+from PySide6.QtCore import QObject, QSize, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QColor, QDesktopServices, QFont, QIcon, QImageReader, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QDialog, QHBoxLayout, QLabel, QListView, QListWidget, QListWidgetItem,
@@ -30,7 +30,43 @@ from ...themes import theme
 THUMB = 180
 BATCH = 4          # thumbnails per timer tick: keeps the window responsive
 BAND = "THIS RECORD"
+OTHER_BAND = "OTHER RECORD"    # linked to a different record or specimen (orange, 14 Oct 2026)
 EMPTY_TEXT = "No photos of this species in the photo library yet."
+
+
+class _LinksHub(QObject):
+    """One signal for the whole app: a photo link changed somewhere (14 Oct 2026), so every
+    table's camera column re-reads its counts."""
+    changed = Signal()
+
+
+_hub = None
+
+
+def links_hub() -> _LinksHub:
+    global _hub
+    if _hub is None:
+        _hub = _LinksHub()
+    return _hub
+
+
+def follow_links(fn, owner=None) -> None:
+    """Call fn() whenever a photo link changes, while `owner` (a widget) exists: the
+    connection goes with it. A closed table is skipped quietly."""
+    def safe():
+        try:
+            fn()
+        except RuntimeError:                       # its widget has gone
+            pass
+    hub = links_hub()
+    hub.changed.connect(safe)
+    if owner is not None:
+        def _gone(*_):
+            try:
+                hub.changed.disconnect(safe)
+            except (RuntimeError, TypeError):
+                pass
+        owner.destroyed.connect(_gone)
 
 
 def _is_specimen_photo(stored: str) -> bool:
@@ -69,6 +105,7 @@ class PhotosWindow(QDialog):
         rest.sort(key=lambda p: (_is_specimen_photo(p) != specimen_first, p.casefold()))
         self.paths = mine + rest
         self.record_count = len(mine)
+        self._others = self._other_links(rest)
         self._abs = [photo_files.absolute(p) for p in self.paths]
         self._next = 0
         text = f"{len(self.paths)} photos of {self.species_name}"
@@ -82,6 +119,40 @@ class PhotosWindow(QDialog):
         self._update_link_buttons()
         if self.paths:
             self._timer.start()
+
+    def _other_links(self, paths) -> dict:
+        """{stored path: 'specimen 12, record 345'} for photos linked to a record or specimen
+        other than this one ({} with no database). Read only."""
+        if not self.db_path or not paths:
+            return {}
+        out = {}
+        try:
+            from shared.db_open import connect_ro
+            conn = connect_ro(self.db_path)
+            try:
+                if not photo_links.has_table(conn):
+                    return {}
+                own_specimens = set()
+                if self.record_kind == 'observation' and self.record_id is not None:
+                    own_specimens = {r[0] for r in conn.execute(
+                        "SELECT id FROM specimens WHERE observation_id = ?", (self.record_id,))}
+                wanted = set(paths)
+                for path, sid, oid in conn.execute(
+                        f"SELECT photo_path, specimen_id, observation_id FROM {photo_links.TABLE} "
+                        "WHERE specimen_id IS NOT NULL OR observation_id IS NOT NULL"):
+                    if path not in wanted:
+                        continue
+                    if self.record_kind == 'specimen' and sid == self.record_id:
+                        continue
+                    if self.record_kind == 'observation' and (oid == self.record_id or sid in own_specimens):
+                        continue
+                    what = f"specimen {sid}" if sid is not None else f"record {oid}"
+                    out[path] = f"{out[path]}, {what}" if path in out else what
+            finally:
+                conn.close()
+        except Exception as e:
+            print(f"[PhotosWindow] other links not read: {e}")
+        return out
 
     # -- layout ---------------------------------------------------------------------------
     def _build_ui(self):
@@ -154,20 +225,23 @@ class PhotosWindow(QDialog):
             if not path.is_file():
                 name = f"file not found · {name}"
             item = QListWidgetItem(name)
-            item.setToolTip(("This record's photo\n" if i < self.record_count else "") + stored)
+            other = self._others.get(stored)
+            item.setToolTip(("This record's photo\n" if i < self.record_count else "")
+                            + (f"Linked to another record: {other}\n" if other else "") + stored)
             item.setData(Qt.ItemDataRole.UserRole, i)
             item.setTextAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
             self.list.addItem(item)
 
-    def _thumb(self, img, mine: bool) -> QPixmap:
-        """The photo on a square canvas; a record photo gets a band and a frame in the accent."""
+    def _thumb(self, img, mine: bool, other: bool = False) -> QPixmap:
+        """The photo on a square canvas; a record photo gets a band and a frame in the accent,
+        a photo of another record or specimen an orange one."""
         canvas = QPixmap(THUMB, THUMB)
         canvas.fill(Qt.GlobalColor.transparent)
         p = QPainter(canvas)
         pix = QPixmap.fromImage(img)
         p.drawPixmap((THUMB - pix.width()) // 2, (THUMB - pix.height()) // 2, pix)
-        if mine:
-            accent = QColor(self._accent)
+        if mine or other:
+            accent = QColor(self._accent if mine else theme().get('warning'))
             p.setPen(QPen(accent, 6))
             p.drawRect(3, 3, THUMB - 6, THUMB - 6)
             p.fillRect(0, 0, THUMB, 24, accent)
@@ -176,7 +250,7 @@ class PhotosWindow(QDialog):
             f.setBold(True)
             f.setPointSize(9)
             p.setFont(f)
-            p.drawText(0, 0, THUMB, 24, Qt.AlignmentFlag.AlignCenter, BAND)
+            p.drawText(0, 0, THUMB, 24, Qt.AlignmentFlag.AlignCenter, BAND if mine else OTHER_BAND)
         p.end()
         return canvas
 
@@ -193,7 +267,8 @@ class PhotosWindow(QDialog):
                 reader.setScaledSize(size.scaled(THUMB, THUMB, Qt.AspectRatioMode.KeepAspectRatio))
             img = reader.read()
             if not img.isNull():
-                self.list.item(i).setIcon(QIcon(self._thumb(img, i < self.record_count)))
+                self.list.item(i).setIcon(QIcon(self._thumb(img, i < self.record_count,
+                                                            self.paths[i] in self._others)))
         self._next = end
         if end >= len(self.paths):
             self._timer.stop()
@@ -234,6 +309,7 @@ class PhotosWindow(QDialog):
         if stored in self.paths:
             self.list.setCurrentRow(self.paths.index(stored))
         self.links_changed.emit(len(mine))
+        links_hub().changed.emit()
 
     def _link(self):
         self._change_link(True)

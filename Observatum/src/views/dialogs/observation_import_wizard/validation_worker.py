@@ -238,6 +238,10 @@ from shared.species_lookup import lookup_names
 from shared.species_lookup_entries import entries
 
 COUNT_ZERO = "Count of 0 \u2014 fix the count"     # own data: an error (decision 8)
+# A2 (14 Oct 2026): a downloaded record whose Observatum key (OBS-...) names more than one held
+# record, or a record held under another iRecord ID, is held -- never added as new, whatever
+# the row handling. Listed on the check page with this text.
+SYNC_HOLD = "Held for review"
 
 # The taxon group rule is shared/taxon_groups.py (10 Oct 2026); this module's own
 # ORDER_TO_GROUP / CLASS_TO_GROUP copies are gone (they sent every butterfly to 'moth').
@@ -771,6 +775,28 @@ class ObservationValidationWorker(QThread):
                 ext_key = row.get("external_key", "")
                 ids = ext_key_lookup.get(ext_key) if ext_key else None
                 has_iid = irecord_id is not None and irecord_id == irecord_id and irecord_id != ""
+                if ext_key and str(ext_key).startswith("OBS-"):
+                    # Our own key: unique by design, so no guessing by species and date.
+                    # One record -> update it; more than one, or one that already has a
+                    # different iRecord ID -> hold; none -> a new record (A2, 14 Oct 2026)
+                    if ids and len(ids) > 1:
+                        df.at[idx, "sync_hold"] = (f"{SYNC_HOLD}: key {ext_key} is on "
+                                                   f"{len(ids)} records here ({', '.join(map(str, sorted(ids)))})")
+                    elif ids:
+                        rid, (existing_iid, _sp, _dt) = next(iter(ids.items()))
+                        try:
+                            other = (has_iid and existing_iid not in (None, "")
+                                     and int(float(existing_iid)) != int(float(irecord_id)))
+                        except (TypeError, ValueError):
+                            other = False
+                        if other:
+                            df.at[idx, "sync_hold"] = (f"{SYNC_HOLD}: key {ext_key} is on record {rid}, "
+                                                       f"which has iRecord ID {existing_iid}")
+                        else:
+                            df.at[idx, "is_duplicate"] = True
+                            df.at[idx, "existing_record_id"] = rid
+                            df.at[idx, "import_notes"] = f"Will update via Observatum key (ID: {rid})"
+                    continue
                 if ids and len(ids) > 1 and has_iid:
                     # Several records share the key (one per record of an app sample, or a
                     # sample iRecord holds twice). One already held with its own iRecord
@@ -971,6 +997,8 @@ class ObservationValidationWorker(QThread):
                 warnings.append(row_data["vc_warning"])
             if row_data.get("check_warning"):
                 warnings.append(row_data["check_warning"])
+            if _safe_get(row_data, "sync_hold", ""):
+                errors.append(row_data["sync_hold"])
 
             # IMP-3 (9 Oct 2026): an unreadable date was None in the table -- NaN to pandas,
             # which is truthy -- so the row passed as valid and was saved with no date

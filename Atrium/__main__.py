@@ -13,6 +13,8 @@ from Atrium.single_instance import SingleInstance
 
 def main():
     app = QApplication(sys.argv)
+    from shared.dialog_geometry import install as remember_dialog_sizes
+    remember_dialog_sizes(app)                                   # every dialog keeps its size
     app.setQuitOnLastWindowClosed(False)  # Keep running in tray
     # One copy only (L28): if Atrium is already open, bring it to the front and stop
     instance = SingleInstance()

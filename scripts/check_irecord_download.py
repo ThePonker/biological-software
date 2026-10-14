@@ -87,11 +87,16 @@ def run_matching(rows, db):
 
 def outcome(row, shared_keys=frozenset()):
     note = str(row.get("import_notes") or "")
+    hold = row.get("sync_hold")
+    if isinstance(hold, str) and hold:
+        return "held for review (not added)"
     if row.get("is_duplicate"):
         if note.startswith("Will update via iRecord ID"):
             return "update (iRecord ID)"
         if note.startswith("Will update via External key"):
             return "update (External key)"
+        if note.startswith("Will update via Observatum key"):
+            return "update (Observatum key)"
         if "holds this twice" in note:
             return "update held copy (iRecord holds it twice)"
         return "update (other)"

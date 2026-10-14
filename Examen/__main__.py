@@ -18,6 +18,8 @@ def main():
     from shared.opaque_popups import install as solid_popups
     from .examen_ui import SURFACE, TEXT_PRIMARY
     solid_popups(app, lambda: (SURFACE, TEXT_PRIMARY))           # F50: solid drop-down lists
+    from shared.dialog_geometry import install as remember_dialog_sizes
+    remember_dialog_sizes(app)                                   # every dialog keeps its size
     window = ExamenWindow()
     window.showMaximized()
     sys.exit(app.exec())

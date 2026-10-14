@@ -16,6 +16,8 @@ from Munia.munia_ui import MuniaWindow  # noqa: E402
 
 def main():
     app = QApplication(sys.argv)
+    from shared.dialog_geometry import install as remember_dialog_sizes
+    remember_dialog_sizes(app)                                   # every dialog keeps its size
     window = MuniaWindow()
     window.show()
     sys.exit(app.exec())

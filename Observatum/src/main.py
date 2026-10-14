@@ -65,6 +65,8 @@ def main():
     from shared.opaque_popups import install as solid_popups
     from src.themes import theme
     solid_popups(app, lambda: (theme().get('surface'), theme().get('text_primary')))
+    from shared.dialog_geometry import install as remember_dialog_sizes
+    remember_dialog_sizes(app)                                   # every dialog keeps its size
     # every date pop-up calendar readable and themed (F76, 13 Oct 2026)
     from shared.calendar_style import install as themed_calendars
     themed_calendars(app, lambda: theme().calendar_colours())

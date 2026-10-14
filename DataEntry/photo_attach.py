@@ -59,7 +59,7 @@ class PhotoAttachDialog(QDialog):
         self._conn, self._row = conn, row
         self.attached = 0
         self.setWindowTitle("Attach photos")
-        self.resize(760, 560)
+        self.resize(1100, 820)            # larger by default (14 Oct 2026); then the size Wil leaves it
         v = QVBoxLayout(self)
 
         bits = [row.get("species_name") or "no species", row.get("sex") or "",

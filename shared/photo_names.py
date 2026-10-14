@@ -292,6 +292,39 @@ def standard_photo_stem(stem: str) -> tuple:
     return spaced, changes
 
 
+def lower_after_genus(stem: str) -> str:
+    """Wil's rule for specimen photo names (14 Oct 2026): no capitals but the genus's first
+    letter -- 'Philonthus decorus GEN 16.iv.19' -> 'Philonthus decorus gen 16.iv.19'. A name
+    that does not start with 'Genus species' (a camera name) and a subgenus in brackets are
+    left as they are."""
+    if not re.match(r"^[A-Z][a-z]+ [a-z(]", stem):
+        return stem
+    words = stem.split(" ")
+    return " ".join(words[:1] + [w if re.fullmatch(r"\([A-Z][a-z]+\)", w) else w.lower()
+                                 for w in words[1:]])
+
+
+def specimen_stem(stem: str) -> str:
+    """The specimen-photo standard: dates '15.ix.17', sex and every other word lower case."""
+    return lower_after_genus(standard_photo_stem(stem)[0])
+
+
+def specimen_photo_stem(species: str, sex: str = "", view: str = "", iso_date: str = "") -> str:
+    """A new specimen photo's name, in Wil's order (14 Oct 2026): species, sex, view, date --
+    'Amara aenea male gen 5.vi.26'. Blank parts are left out; 'not recorded' is no sex."""
+    sex = (sex or "").strip()
+    if sex.casefold() in ("not recorded", "unknown", "u", "-"):
+        sex = ""
+    parts = [" ".join((species or "").split()), sex, (view or "").strip()]
+    if iso_date:
+        try:
+            parts.append(format_photo_date(iso_date))
+        except ValueError:
+            pass
+    return specimen_stem(" ".join(p for p in parts if p))
+
+
 __all__ = ["PhotoName", "parse_photo_path", "parse_date", "folder_binomial", "media_kind",
-           "format_photo_date", "standard_photo_stem", "ROMAN_OF",
+           "format_photo_date", "standard_photo_stem", "ROMAN_OF", "lower_after_genus",
+           "specimen_stem", "specimen_photo_stem",
            "LIFE", "MICROSCOPE", "AREA_LIFE", "AREA_MICROSCOPE", "IMAGE_EXTS", "VIDEO_EXTS"]

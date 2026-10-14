@@ -67,7 +67,8 @@ def main(argv=None) -> int:
         indexes = {r[0] for r in ro.execute(
             "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name=?", (pl.TABLE,))}
         present = present and all(f"idx_{pl.TABLE}_{k}" in indexes
-                                  for k in ("specimen", "observation", "path"))
+                                  for k in ("specimen", "observation", "path", "staging"))
+        present = present and pl.has_staging_column(ro)    # bench photos (14 Oct 2026)
         before = tables(ro)
     finally:
         ro.close()
