@@ -82,6 +82,17 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
         self._initialized_tabs = {0}
         self._ready = True  # Guard: only process tab changes after init complete
 
+        from shared.photo_files import add_listener
+        add_listener(self._show_photo_note)
+
+    def _show_photo_note(self, note: str):
+        """Show what happened to a re-determined record's photos."""
+        from shiboken6 import isValid
+        if not isValid(self) or not self.isVisible():   # a closed window: nothing to show on
+            return
+        from PySide6.QtWidgets import QMessageBox
+        QMessageBox.information(self, "Photos", note)
+
     def connect_tab_signal(self):
         """Connect tab change signal. Call after window is shown. (The tabs loaded under
         the splash screen stay marked as loaded: they are not initialised again.)"""

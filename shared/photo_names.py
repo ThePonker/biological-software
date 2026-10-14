@@ -223,5 +223,75 @@ def parse_photo_path(path: Union[str, PurePath], root: Union[str, PurePath, None
     return out
 
 
+# ---------------------------------------------------------------------------------------------
+# Writing names (13 Oct 2026): Wil's standard is day.roman month.2-digit year -- '15.ix.17' --
+# and sex in lower case after the species: 'Erigone dentipalpis male 30.ix.26 2'. Everything
+# that NAMES a photo writes through these; the reader above still reads the older forms.
+ROMAN_OF = {v: k for k, v in ROMAN.items()}
+_SEP_DATE = re.compile(r"(?<![\w.])(\d{1,2})\.{1,2}(\d{1,2}|[ivxIVX]{1,5})\.{1,2}(\d{4}|\d{2})"
+                       r"(?![\w.])(?!\s*(?:mm|cm|µm|um|x)\b)")    # '2.5.10 mm' is a size
+_PACKED_DATE = re.compile(r"(?<![\w.])(\d{2})(\d{2})((?:19|20)\d{2})(?![\w.])")
+_SEX = re.compile(r"(?<![\w])(male|female|males|females)(?![\w])", re.IGNORECASE)
+
+
+def format_photo_date(d: Union[datetime.date, str]) -> str:
+    """'15.ix.17' for 2017-09-15 (a date or an ISO string)."""
+    if isinstance(d, str):
+        d = datetime.date.fromisoformat(d[:10])
+    return f"{d.day}.{ROMAN_OF[d.month]}.{d.year % 100:02d}"
+
+
+def _as_date(day: str, month: str, year: str) -> Optional[datetime.date]:
+    m = int(month) if month.isdigit() else ROMAN.get(month.lower())
+    if not m:
+        return None
+    y = int(year) + 2000 if len(year) == 2 else int(year)
+    try:
+        return datetime.date(y, m, int(day))
+    except ValueError:
+        return None
+
+
+def standard_photo_stem(stem: str) -> tuple:
+    """(new stem, [what changed]) with every full date written '15.ix.17' and sex in lower case.
+
+    Converts '18.11.16' -> '18.xi.16', '29092026' -> '29.ix.26', '12..iii.23' -> '12.iii.23',
+    '14.VII.2023' -> '14.vii.23', 'Male' -> 'male'; collapses double spaces. A date that is not a
+    real day is left as it is (and so is a date with no year: '21.iii' -- nothing is guessed).
+    Measurements such as '5.5cm' are never read as dates."""
+    changes: List[str] = []
+
+    def sep(m):
+        d = _as_date(m.group(1), m.group(2), m.group(3))
+        if d is None:
+            return m.group(0)
+        new = format_photo_date(d)
+        if new != m.group(0):
+            changes.append(f"date {m.group(0)} -> {new}")
+        return new
+
+    def packed(m):
+        d = _as_date(m.group(1), m.group(2), m.group(3))
+        if d is None:
+            return m.group(0)
+        new = format_photo_date(d)
+        changes.append(f"date {m.group(0)} -> {new}")
+        return new
+
+    def sex(m):
+        if m.group(0) != m.group(0).lower():
+            changes.append(f"{m.group(0)} -> {m.group(0).lower()}")
+        return m.group(0).lower()
+
+    out = _SEP_DATE.sub(sep, stem)
+    out = _PACKED_DATE.sub(packed, out)
+    out = _SEX.sub(sex, out)
+    spaced = " ".join(out.split())
+    if spaced != out:
+        changes.append("double space")
+    return spaced, changes
+
+
 __all__ = ["PhotoName", "parse_photo_path", "parse_date", "folder_binomial", "media_kind",
+           "format_photo_date", "standard_photo_stem", "ROMAN_OF",
            "LIFE", "MICROSCOPE", "AREA_LIFE", "AREA_MICROSCOPE", "IMAGE_EXTS", "VIDEO_EXTS"]

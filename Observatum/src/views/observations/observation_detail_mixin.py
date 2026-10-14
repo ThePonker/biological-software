@@ -126,7 +126,11 @@ class ObservationDetailMixin:
                                'geodetic_datum', 'recorder', 'determiner', 'comment'}
                     updates = {k: v for k, v in obs_data.items() if k in allowed and v is not None}
                     updates.update(derived)         # may set NULLs: a VC that no longer applies
+                    old_species = ""
                     if updates:
+                        row = conn.execute("SELECT species_name FROM observations WHERE id = ?",
+                                           (record_id,)).fetchone()
+                        old_species = (row[0] if row else "") or ""
                         set_parts = [f"{k} = ?" for k in updates]
                         values = list(updates.values()) + [record_id]
                         conn.execute(
@@ -135,6 +139,12 @@ class ObservationDetailMixin:
                         )
                         conn.commit()
                     conn.close()
+                    # A re-determination: the record's linked photos follow (photos B5)
+                    if old_species and updates.get('species_name') \
+                            and updates['species_name'] != old_species:
+                        from shared.photo_files import follow_redet
+                        follow_redet(str(paths.OBSERVATUM_DB), "observation", record_id,
+                                     old_species, updates['species_name'])
                     self._load_data()
                     self.records_changed.emit()
                 except Exception as e:

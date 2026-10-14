@@ -27,6 +27,7 @@ import sys; sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve(
 import paths
 from pathlib import Path
 import sys
+from shared import photo_links as _photo_links
 
 
 # =============================================================================
@@ -664,11 +665,15 @@ def create_tables(cursor):
         ('entry_staging', CREATE_ENTRY_STAGING),
         ('contributed_observations', CREATE_CONTRIBUTED_OBSERVATIONS),
         ('hidden_irecord_ids', CREATE_HIDDEN_IRECORD_IDS),
+        # photos B2 (13 Oct 2026): the table's one definition lives in shared/photo_links.py
+        ('photo_links', _photo_links.CREATE_SQL),
     ]
     
     for name, sql in tables:
         cursor.execute(sql)
         print(f"  ✓ {name}")
+    for sql in _photo_links.INDEX_SQL:
+        cursor.execute(sql)
 
 
 def create_indexes(cursor):

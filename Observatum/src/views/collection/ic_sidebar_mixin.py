@@ -80,10 +80,19 @@ class ICSidebarMixin:
             specimen_data = dialog.get_specimen_data()
             specimen_id = specimen.get('id')
             if specimen_id:
+                import paths
+                from shared.photo_files import follow_redet, species_now
+                db_path = str(getattr(self._specimen_repo, '_db_path', '') or paths.OBSERVATUM_DB)
+                old_species = species_now(db_path, "specimen", specimen_id)
                 if self._specimen_repo:
                     self._specimen_repo.update(specimen_id, specimen_data)
                 elif self._specimen_model:
                     self._specimen_model.update_specimen(specimen_id, specimen_data)
+                # A re-determination: the specimen's linked photos follow (photos B5)
+                new_species = specimen_data.get('species_name') or ""
+                if old_species and new_species and new_species != old_species \
+                        and species_now(db_path, "specimen", specimen_id) == new_species:
+                    follow_redet(db_path, "specimen", specimen_id, old_species, new_species)
             self._load_data()
             self.data_changed.emit()
 

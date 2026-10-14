@@ -54,3 +54,11 @@ DOCS_DIR        = ROOT / 'docs'
 
 def db_path(filename):
     return DATA_DIR / filename
+
+
+# Photo library (13 Oct 2026, photos B2/B3). Paths inside it are stored relative to MEDIA_ROOT
+# with '/' separators. BIOSOFT_MEDIA_ROOT overrides it (tests, another PC).
+MEDIA_ROOT      = Path(os.environ.get('BIOSOFT_MEDIA_ROOT')
+                       or (Path.home() / 'OneDrive' / 'Documents' / 'Media'))
+PHOTOS_LIFE     = MEDIA_ROOT / 'Photos' / 'Life'
+PHOTO_MOVES_DIR = DATA_DIR / 'photo_moves'   # one log per re-det move (apps), reversible

@@ -698,6 +698,42 @@ class RecordDetailDialog(QDialog):
         delete_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         delete_btn.clicked.connect(self._on_delete)
         btn_layout.addWidget(delete_btn)
+
+        # Photos (n): navigate/view button in the tab accent (non-modal Photos window)
+        record_photos = self._record_photo_paths()
+        species = self.record.get('species_name') or self.record.get('species')
+        from shared import photo_files
+        try:
+            species_photos = photo_files.species_photos(species) if species else []
+        except Exception:
+            species_photos = []
+        n = len(set(record_photos) | set(species_photos))
+        self.photos_btn = QPushButton(f"Photos ({n})")
+        self.photos_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: transparent;
+                color: {self._accent};
+                border: 1px solid {self._accent};
+                border-radius: {t.get('radius_md')};
+                padding: 10px 24px;
+                font-size: 13px;
+                font-weight: 500;
+            }}
+            QPushButton:hover {{
+                background-color: {self._accent_light};
+            }}
+            QPushButton:disabled {{
+                color: {t.get('text_secondary')};
+                border-color: {t.get('border')};
+            }}
+        """)
+        if n == 0:
+            self.photos_btn.setEnabled(False)
+            self.photos_btn.setToolTip("No photos of this species in the photo library")
+        else:
+            self.photos_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.photos_btn.clicked.connect(self._on_photos)
+        btn_layout.addWidget(self.photos_btn)
         
         # A record that is also in iRecord (F72, 12 Oct 2026): Edit stays possible (Wil's
         # fallback) with a plain note; Delete asks (see components/irecord_delete.py)
@@ -720,6 +756,59 @@ class RecordDetailDialog(QDialog):
 
         layout.addWidget(btn_frame)
     
+    def _record_photo_paths(self) -> list:
+        """Stored paths of the photos linked to this record (empty on any problem)."""
+        conn = None
+        try:
+            from shared import photo_links
+            from shared.db_open import connect_ro
+            from ...models.database import get_database
+            path = get_database().main_db_path
+            rec_id = self.record.get('id')
+            if not path or rec_id is None:
+                return []
+            conn = connect_ro(path)
+            if self.record_type == 'observation':
+                return photo_links.photos_for_observation(conn, rec_id)
+            return photo_links.photos_for_specimen(conn, rec_id)
+        except Exception:
+            return []
+        finally:
+            if conn is not None:
+                conn.close()
+
+    def _on_photos(self):
+        """Open the (non-modal) Photos window for this record's species."""
+        from .photos_window import PhotosWindow
+        win = getattr(self, '_photos_window', None)
+        if win is not None and win.isVisible():
+            win.raise_()
+            win.activateWindow()
+            return
+        species = self.record.get('species_name') or self.record.get('species') or ''
+        try:
+            from ...models.database import get_database
+            db_path = str(get_database().main_db_path or '')
+        except Exception:
+            db_path = ''
+        kind = 'observation' if self.record_type == 'observation' else 'specimen'
+        self._photos_window = PhotosWindow(species, self._record_photo_paths(),
+                                           parent=self, accent=self._accent,
+                                           record_kind=kind, record_id=self.record.get('id'),
+                                           db_path=db_path or None)
+        self._photos_window.links_changed.connect(self._refresh_photo_count)
+        self._photos_window.show()
+
+    def _refresh_photo_count(self, _count=0):
+        """After a photo is linked or unlinked: the button's count follows."""
+        from shared import photo_files
+        species = self.record.get('species_name') or self.record.get('species')
+        try:
+            n = len(set(self._record_photo_paths()) | set(photo_files.species_photos(species) if species else []))
+        except Exception:
+            return
+        self.photos_btn.setText(f"Photos ({n})")
+
     def _add_label_value_row(self, layout, label: str, value: str, mono: bool = False):
         """Add a label-value row matching Species Info panel style."""
         t = theme()
