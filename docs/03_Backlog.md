@@ -68,8 +68,10 @@ districts**" (Q39; the source swap to Boundary-Line is in the map-layers job).
 ### Next (14 Oct, `claude/50`)
 
 Photos only until the photos job is finished (Wil, 14 Oct: "no more branches"). Built and on the
-PC: A1–A3, B1–B3, B5, bench photos and take 2 (below). What is left of photos, in order:
-1. **In-app photo viewer** -- click a photo in the Photos window, it opens large in Observatum (~20 min).
+PC: A1–A3, B1–B3, B5, bench photos, take 2 and photo rounds 2–4 (viewer, 📷 columns, OTHER
+RECORD, dialog sizes, column widths, _Bench clean-up; `02b` Session 49). What is left of photos:
+1. **Wil's review:** records/specimens with two photos that are different individuals -- sort 📷
+   descending in Insect Collection / Observation Data, "Not this record" on the wrong one.
 2. **Review spreadsheet for the 181 "several specimens" photos** -- 63 identical groups pair one to
    one by script; 28 differ and need Wil; a link per photo to open it.
 3. **B4 phone Inbox intake** (Mosaic photos now come through Data Entry's Photo… button instead).

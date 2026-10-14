@@ -21,7 +21,17 @@ renamed 30 old names. Wil's testing showed a typing slip left a species folder b
 from the list), asks before deleting rows with photos, and adds a Photos list to the cleaning
 report (empty folders to `_archive`, photos waiting, missing files, names). Personal jobs now
 commit plainly; records go to iRecord by Observatum's bulk export (External key), then the sync.
-An Opus review before each of the three deliveries found defects, all fixed before delivery. Pace: each sitting ran
+An Opus review before each of the three deliveries found defects, all fixed before delivery.
+**Afternoon, photo rounds 2–4** (Wil testing between each; full suite 1,464 passed at the end):
+bench photo names follow a sex or date change; a photo can be taken off a Data Entry row; the
+copy-context tick says when sorting has switched it off; a 📷 column in Observation Data and
+Insect Collection (count of linked photos, double-click opens them, sorts by count); deleting a
+record asks where its photos go (`_Bench` or left), never deleting a file; an in-app photo viewer
+(arrow keys, actual size); photos of another record marked OTHER RECORD in orange; column widths
+kept per column through searches and sorts (Insect Collection used to reset them on every
+search); every named dialog in the suite remembers its size (`shared/dialog_geometry.py`);
+the cleaning report's Waiting in _Bench tab moves unlinked photos back to the capture folder or
+to `_archive`. Pace: each sitting ran
 20–40 minutes against estimates of 1–2.5 hours.
 
 ### Session 48 — 13 October 2026
