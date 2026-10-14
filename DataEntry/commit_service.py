@@ -212,6 +212,16 @@ def _photos_follow_row(conn, staging_id: int, new_id: int, problems: list, row: 
         return False
 
 
+def _specimens_follow_row(conn, staging_id: int, new_id: int, problems: list) -> None:
+    """Records made from specimens (14 Oct 2026): the row's specimens are linked to its new
+    record (shared/specimen_staging.py). Never stops a commit; notes go in the summary."""
+    try:
+        from shared import specimen_staging
+        problems.extend(specimen_staging.link_on_commit(conn, staging_id, new_id))
+    except Exception as e:
+        problems.append(f"row {staging_id} -> record {new_id}: specimens not linked ({e})")
+
+
 def _out_of_staging(conn, row: Dict, new_id: int, release_photos: bool) -> Optional[str]:
     """Take a committed row out of staging. If that fails the record IS written, so the commit
     stops and says which row to delete by hand -- committing it again would write it twice
@@ -319,6 +329,7 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
                     f"fields or embargo were not: {e}"
             committed_rows.append((dict(row), new_id))
             safe = _photos_follow_row(conn, row["id"], new_id, photo_problems, row)
+            _specimens_follow_row(conn, row["id"], new_id, photo_problems)
             gone = _out_of_staging(conn, row, new_id, safe)
             if gone:
                 error += f"; also {gone}"
@@ -326,6 +337,7 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
             break
         committed_rows.append((dict(row), new_id))
         safe = _photos_follow_row(conn, row["id"], new_id, photo_problems, row)
+        _specimens_follow_row(conn, row["id"], new_id, photo_problems)
         committed += 1
         gone = _out_of_staging(conn, row, new_id, safe)
         if gone:

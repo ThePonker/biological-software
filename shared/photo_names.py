@@ -324,7 +324,26 @@ def specimen_photo_stem(species: str, sex: str = "", view: str = "", iso_date: s
     return specimen_stem(" ".join(p for p in parts if p))
 
 
-__all__ = ["PhotoName", "parse_photo_path", "parse_date", "folder_binomial", "media_kind",
+def field_photo_stem(species: str, common_name: str = "", iso_date: str = "") -> str:
+    """A field (phone) photo's name (14 Oct 2026): 'Amara aenea - Common Sun Beetle 14.x.26'.
+    No common name: 'Amara aenea 14.x.26'. The ' - ' marks it as a field photo: it is filed
+    in the species folder itself, not its Specimen folder (shared/bench_photos)."""
+    sp = " ".join((species or "").split())
+    common = " ".join((common_name or "").split())
+    date = ""
+    if iso_date:
+        try:
+            date = format_photo_date(iso_date)
+        except ValueError:
+            date = ""
+    return " ".join(b for b in (f"{sp} - {common}" if common else sp, date) if b)
+
+
+def is_field_photo(stem: str) -> bool:
+    return " - " in (stem or "")
+
+
+__all__ = ["field_photo_stem", "is_field_photo", "PhotoName", "parse_photo_path", "parse_date", "folder_binomial", "media_kind",
            "format_photo_date", "standard_photo_stem", "ROMAN_OF", "lower_after_genus",
            "specimen_stem", "specimen_photo_stem",
            "LIFE", "MICROSCOPE", "AREA_LIFE", "AREA_MICROSCOPE", "IMAGE_EXTS", "VIDEO_EXTS"]

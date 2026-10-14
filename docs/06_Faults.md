@@ -4,64 +4,11 @@
 ## Open faults carry an action. Closed ones are kept in brief, because knowing
 ## what has already gone wrong is how the rules in `05` were earned. Older closed
 ## faults are in `06b_Faults_Closed.md` (split out 12 Oct). New faults take the
-## next free number (F85 next).
+## next free number (F88 next).
 
 ---
 
 ## Open
-
-### F2. `stable` branch stale since June
-The Data Entry build and four months of work sit on `main` only. The branching
-discipline exists precisely so `stable` can be the field-season tool.
-**Action:** merge once the staging jobs are committed and proven — backlog D3.
-*12 Oct:* Rounds 2–8 are committed and pushed on `main`; Wil decided to merge into `stable` now (Q88).
-
-### F49. Species search lists: clipped rows, boxed names, odd group choices -- FIXED 12 Oct (Round 9 A, to test)
-*Found 12 Oct (outstanding Test 2, search "beetle").* The list's rows are cut at the bottom
-(descenders of *Aclypea opaca*, *Agabus brunneus*); each name and common name is drawn in a
-bordered box; a plant genus is offered as a group ("All Leptochloa (beetle-grass) — group");
-brackets are doubled ("All Curculionidae (beetles (weevils)) — group"). Wil also wants the
-group choices at the top when the typed word is a group word. **Action:** small-fixes round,
-item 1.
-**Fixed (Round 9 A):** Codex's list was a column of labels in a frame whose `QFrame { border }`
-rule reached every label (a QLabel is a QFrame) -- the boxes -- and 25 rows were squeezed
-into the space above the profile -- the cut tails. One shared row painter
-(`shared/species_list_delegate.py`: italic name, grey common name, small grey rank; row
-height from the font) now draws Codex, Examen's Species Database and Observatum's species
-box (its fixed 32 px rows gone). Group labels have one level of brackets ("All Curculionidae
-(weevils) — group"; "flies", not "flys"). The lists offer groups of animals only
-(`LIST_GROUP_KINGDOMS`); the filter boxes still see every kingdom, so what they select is
-unchanged. A typed group name ("beetle", "ladybird", "longhorn", "moth") lists its group(s)
-first; a species named exactly as typed ("Dor Beetle") still comes first.
-
-### F50. Drop-down popups are see-through -- FIXED 12 Oct (Round 9 A, to test)
-*Found 12 Oct (Test 3, Quick Entry).* The Project list's popup has no solid background: its
-items draw over the form behind (the hint, the iRecord tick, the Dropdown Options box) with a
-text shadow. Probably every styled combo popup. **Action:** small-fixes round, item 2.
-**Fixed (Round 9 A):** the cause was a panel style sheet with no selector
-(`background: transparent; border: none;` round the Project box) -- it reaches the combo's
-pop-up list too. 30 such sheets in the suite, 58 combo boxes. `shared/opaque_popups.install()`
-(called once at start-up in Observatum, Data Entry, Examen, Codex, Curator and Lector) gives
-any pop-up list that comes out see-through a solid theme background; lists already solid
-are left alone.
-
-### F51. Observation import: a species picked by double-click loses what the file had -- FIXED 12 Oct (Round 9 A, to test)
-*Found 12 Oct (import test files).* In the observation wizard a double-click pick keeps no
-"File had …" note and the original name is lost; the pick list says "resolved by you as",
-the double-click (scheme and specimen) "picked by you as"; the scheme wizard numbers rows
-from 1, the others from 2. **Action:** small-fixes round, item 3.
-**Fixed (Round 9 A):** the observation wizard's double-click applies the pick as the other two
-do (⚠ "File had 'Ab'; picked by you as …", note "Imported as 'Ab'; picked by you as …"), and
-a later revalidation of the row keeps the pick; the Species cell is no longer typed in.
-"picked by you" in all three wizards and the stored note. All three number rows as a
-spreadsheet does (heading = row 1, first record = row 2); the Row column's tooltip says so.
-
-### F52. Butterflies labelled "insect – moth"
-The importer's order → group map sent every Lepidoptera record to "insect – moth"; 42
-butterfly records carry it. The map has been the one in `shared/taxon_groups.py` since 10 Oct
-(butterfly families first). **Action (12 Oct, R9 B1):** Wil runs
-`backfill_taxon_groups.py --relabel-only --tables observations` (dry run: 42
-'insect - moth' → 'insect - butterfly', nothing else), then `--apply`.
 
 ### F53. Scheme records held twice (iRecord and NBN copies)
 34,121 pairs share an iRecord ID: NBN's "Longhorn beetle data from iRecord" is iRecord again
@@ -84,6 +31,13 @@ taxa: the Latin and the English-named nigrescens); strict key species −1 at si
 **Action:** find the newer assessment (Falk 1991 is loaded as internal reference only) and
 record it the usual way (`07_Codex.md` §8); check for other aculeates in the same state.
 
+*14 Oct:* checked: the RDB2 (pre-1994 IUCN) comes from the JNCC designations, source Falk 1991,
+and there is no newer GB aculeate review to replace it -- BWARS still calls Falk 1991 "the
+current source of conservation gradings for British aculeates". By the Codex rule (the newest
+review's verdict stands) it cannot be withdrawn by script. **Wil to decide (Q98):** keep it until
+a new review appears, or record a flagged local withdrawal ("now widespread", Wil's judgement)
+through `withdraw_statuses.py` -- that moves strict key-species figures, so the reference check
+and `reference_figures.json` would be updated with it.
 ### F56. 1 January placeholder dates in the Recording Scheme
 11,363 scheme records sat on exact 1 January dates (year-only records padded). **Fixed for
 18 padding datasets 11 Oct:** 11,149 records set to year-only (`fix_jan1_dates_20261011.py`,
@@ -129,17 +83,6 @@ such as the *Lamia* rows, which are excluded locally (`scripts/uksi_synonym_corr
 and must be reported to the NHM (F11). Lector holds such names back with a reason; on 12 Oct
 Wil decided his own "+" line in `data\lector_synonyms.txt` should win over the suite list (Q95,
 to build when Lector resumes). **Action:** backlog F14 (`03c`).
-
-### F34. Imports never store the taxonomic sort key, superfamily or subfamily
-*9 Oct (C4):* still open -- the observation worker reads `self.uksi_conn`, which is never set;
-left alone during the wizard merge because fixing it changes import outputs.
-
-*Found 8 October 2026 by the code sweep, §1.* The observation validation worker reads
-UKSI through `self.uksi_conn`, which is never set; the error is swallowed, and the
-row builder would not copy the values anyway. The specimen worker swallows the same
-lookup's failure -- a NULL sort key hides a specimen from the collection sidebar (the
-244-specimen fault below). **Action:** backlog I7b.
-*12 Oct:* the scheme and specimen halves were fixed with I7b on 9 Oct (`shared/import_core.py`; specimen sort keys from each row's final species). Left: the observation worker, which costs nothing because nothing reads these fields for observations. In C4, swap it for `taxonomy_for_tvks`.
 
 ### F41. The import wizards' Species Match Report never opened
 *Found and fixed 9 Oct 2026 (I8 import check).* `species_match_report_dialog.py` sits in
@@ -230,7 +173,45 @@ unconverted, so multi-line string anchors still fail unpredictably.
 
 ---
 
+### F86. Edit Specimen can link a specimen that is already on a Data Entry row
+*Found 14 Oct (writing up the workflows; first raised by the round 6 review).* Specimens to
+check refuses to link a specimen that a Data Entry row was made from, but Edit Specimen's
+Pick… does not. Linking it there and then committing the row would give one find two records
+(the commit notes it, after the record is written). **Action:** phase B: Pick… / save refuse a
+staged specimen, as `shared/specimens_to_check.link` does. No risk while no specimen jobs are
+in Data Entry.
+
+### F87. Change date of whole visit: a selection of several dates reported as possible
+*Found 14 Oct (round 6 test 15, Wil).* The rule (one site, one grid ref, one date) is in
+`shared/specimens_to_check.visit_problem`; Wil reports specimens of more than one date could be
+selected. Selecting is allowed; the check runs on the button. **Action:** phase B: confirm with
+Wil whether the button refused; fix if it did not.
+
 ## Closed since 10 October
+
+### F85. A second iRecord bulk export could send records already sent -- FIXED 14 Oct (round 5)
+*Found by the round 5 loophole review.* Until the sync brought iRecord IDs back, a second
+export re-sent every waiting record, so iRecord would hold them twice. Now
+`observations.irecord_exported_on` (`add_irecord_exported_column.py`, run on the PC: 25,008
+rows) is stamped on export and stamped records are left out until the sync
+(`shared/irecord_exported.py`).
+
+### F2. `stable` branch stale since June -- CLOSED 14 Oct
+`main` merged into `stable` by Wil on 14 Oct, after round 5 (Q88).
+
+### F49, F50, F51. Species lists, see-through pop-ups, double-click pick in the observation import -- CLOSED 14 Oct
+Fixed in Round 9 A (12 Oct: one row painter for the species lists; `shared/opaque_popups`;
+the double-click pick keeps "File had ..."). Tested and passed by Wil, 14 Oct.
+
+### F52. Butterflies labelled "insect – moth" -- CLOSED 14 Oct
+`backfill_taxon_groups.py --relabel-only` has been run: on the 14 Oct copy every observation
+of the five butterfly families is "insect - butterfly" (1,038), none "moth".
+
+### F34. Imports never stored the taxonomic sort key, superfamily or subfamily -- FIXED 14 Oct
+The last half (the observation wizard) now uses `shared/import_core.fill_sort_keys`, as the
+scheme wizard does: the values come from each row's final species. A sync row that updates a
+stored record keeps what it has, so a sync never counts it as changed. 42 observations on the
+14 Oct copy have no sort key (`backfill_sort_keys.py` fills them).
 
 ### F82. Observatum keys repeated across records -- FIXED 14 Oct
 *Found by the A2/A3 review.* Three key generators picked "the next number" by sorting the key

@@ -11,6 +11,7 @@ merging the three wizards (C4). The observation wizard keeps its own versions un
     chunked_select(db, sql, values)  -> rows                      (900 at a time; raises, never swallows)
     insert_rows(db, table, records, ref) -> (inserted, [(ref, error)])
     taxonomy_for_tvks(tvks)          -> {tvk: {sort_key, superfamily, subfamily, order_name, family}}
+    fill_sort_keys(rows)             -> rows given their FINAL species' sort key / superfamily / subfamily
 
 `db` is Observatum's database manager (execute_main / execute_main_write / execute_main_many).
 """
@@ -487,3 +488,25 @@ def taxonomy_for_tvks(tvks: Iterable[str], uksi_path=None) -> Dict[str, dict]:
     finally:
         conn.close()
     return out
+
+
+def fill_sort_keys(rows, uksi_path=None, label: str = "import") -> int:
+    """Each import row (any wizard's row objects with species_tvk, taxonomic_sort_key,
+    superfamily, subfamily) takes its FINAL species' sort key, superfamily and subfamily
+    (F34). Returns how many rows were found in UKSI; a lookup failure is printed and leaves
+    the rows as they were."""
+    rows = list(rows)
+    try:
+        tax = taxonomy_for_tvks((getattr(r, "species_tvk", "") for r in rows), uksi_path)
+    except Exception as e:
+        print(f"[{label}] Taxonomy lookup failed: {e}")
+        return 0
+    n = 0
+    for r in rows:
+        t = tax.get(getattr(r, "species_tvk", "") or "")
+        if t:
+            r.taxonomic_sort_key = t["sort_key"]
+            r.superfamily = t["superfamily"] or getattr(r, "superfamily", "")
+            r.subfamily = t["subfamily"] or getattr(r, "subfamily", "")
+            n += 1
+    return n

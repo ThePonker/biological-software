@@ -129,17 +129,8 @@ class WizardImportMixin:
 
         # Sort key, superfamily and subfamily from each row's FINAL species, including any
         # picked by hand during validation (those kept the old species' values, or none)
-        try:
-            from shared.import_core import taxonomy_for_tvks
-            tax = taxonomy_for_tvks(r.species_tvk for r in rows_to_import)
-            for r in rows_to_import:
-                t_ = tax.get(r.species_tvk)
-                if t_:
-                    r.taxonomic_sort_key = t_["sort_key"]
-                    r.superfamily = t_["superfamily"] or r.superfamily
-                    r.subfamily = t_["subfamily"] or r.subfamily
-        except Exception as e:
-            print(f"[SchemeImportWizard] Taxonomy lookup failed: {e}")
+        from shared.import_core import fill_sort_keys
+        fill_sort_keys(rows_to_import, label="SchemeImportWizard")
         # Taxon group (and kingdom) when blank, from the same final species (IMP-10; 68% of
         # scheme rows had none). A label from the file (iRecord/NBN) is kept.
         from shared.taxon_groups import fill_blank_groups

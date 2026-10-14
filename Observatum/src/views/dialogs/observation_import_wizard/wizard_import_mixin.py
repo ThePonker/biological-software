@@ -192,10 +192,16 @@ class WizardImportMixin:
         # Taxon group (and kingdom) from each row's FINAL species when blank -- a species
         # picked by hand came with none (IMP-10). A label from the file is kept, and a
         # re-sync never sends one of ours over the stored iRecord label.
+        new_rows = [r for r in rows_to_import
+                    if not (import_mode == ImportMode.IRECORD_SYNC and r.is_duplicate
+                            and r.existing_record_id)]
+        # Sort key, superfamily and subfamily from the same final species (F34, 14 Oct 2026):
+        # the validation worker's lookup never ran (no UKSI connection). As the scheme wizard;
+        # a re-sync of a stored record keeps what it has, so a sync never counts it as changed.
+        from shared.import_core import fill_sort_keys
+        fill_sort_keys(new_rows, label="ObservationImportWizard")
         from shared.taxon_groups import fill_blank_groups
-        fill_blank_groups(r for r in rows_to_import
-                          if not (import_mode == ImportMode.IRECORD_SYNC and r.is_duplicate
-                                  and r.existing_record_id))
+        fill_blank_groups(new_rows)
 
         self.imported_count = 0
         self.updated_count = 0
@@ -771,6 +777,22 @@ class WizardImportMixin:
             # this used to rewrite the whole record, blanking ~15 fields (F32, 9 Oct 2026)
             changes = {k: update_data[k] for k in SYNC_UPDATE_FIELDS
                        if k in update_data and update_data[k] not in (None, '')}
+            # A re-determination from iRecord: the sort key, superfamily and subfamily follow
+            # the new species (a record whose species is unchanged keeps its own, so a sync
+            # never counts it as changed; review 14 Oct 2026). Also carried into a conflict's
+            # "Take iRecord's".
+            new_tvk = changes.get('species_tvk')
+            if new_tvk and new_tvk != (getattr(existing, 'species_tvk', None) or ''):
+                try:
+                    from shared.import_core import taxonomy_for_tvks
+                    t = taxonomy_for_tvks([new_tvk]).get(new_tvk)
+                except Exception as e:
+                    print(f"[ObservationImportWizard] Taxonomy lookup failed: {e}")
+                    t = None
+                if t:
+                    changes['taxonomic_sort_key'] = t['sort_key']
+                    changes['superfamily'] = t['superfamily'] or None   # the old species' go
+                    changes['subfamily'] = t['subfamily'] or None
 
             # A2 (14 Oct 2026): an edit made here since the last sync is never quietly
             # overwritten -- shared/sync_conflicts.py is THE rule. 'keep': iRecord's copy has

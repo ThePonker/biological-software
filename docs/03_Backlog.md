@@ -7,7 +7,7 @@ This file is the working list: how we work, what is next, what is decided but no
 what is still Wil's to decide, and reminders. The area lists were split out on 12 Oct:
 `03b_Backlog_Observatum.md` (Insect Collection, Data Entry, imports, infrastructure,
 mapping, contributed records) and `03c_Backlog_Examen_Codex.md` (Examen, Codex, species
-profiles, code hygiene, closed decisions). Question numbers (Q1–Q97) are project note
+profiles, code hygiene, closed decisions). Question numbers (Q1–Q98) are project note
 `claude/45_Open_Questions_20261012.md`; Wil's answers are at its end and are applied here.
 
 ---
@@ -65,31 +65,76 @@ districts**" (Q39; the source swap to Boundary-Line is in the map-layers job).
 
 ---
 
-### Next (14 Oct, `claude/50`)
+### Next (14 Oct evening, `claude/50`)
 
-Photos only until the photos job is finished (Wil, 14 Oct: "no more branches"). Built and on the
-PC: A1–A3, B1–B3, B5, bench photos, take 2 and photo rounds 2–4 (viewer, 📷 columns, OTHER
-RECORD, dialog sizes, column widths, _Bench clean-up; `02b` Session 49). What is left of photos:
-1. **Wil's review:** records/specimens with two photos that are different individuals -- sort 📷
-   descending in Insect Collection / Observation Data, "Not this record" on the wrong one.
-2. **Review spreadsheet for the 181 "several specimens" photos** -- 63 identical groups pair one to
-   one by script; 28 differ and need Wil; a link per photo to open it.
-3. **B4 phone Inbox intake** (Mosaic photos now come through Data Entry's Photo… button instead).
-4. **Grid refs on photos** -- from the linked record; a box in intake; optional EXIF write.
-5. Later, if wanted: "exported on" stamp so a second bulk export before the sync skips records
-   already sent; main photo in the record dialog; photos in reports.
+**Round 6 (14 Oct evening), built, to test** (Wil asked for every remaining photo and
+specimen job in one round):
+1. **Records from phone photos** (Data Entry › Jobs › "Records from photos…"): JPEGs from the
+   capture folder (`Desktop\image`, Change folder… remembered); species picked from the list;
+   photos of one date within 100 m make one row (6-figure grid ref from the GPS, blank without);
+   job chosen each time (Personal first); an existing record of that species, date and place is
+   offered first; or "Species folder only". Photo names "Genus species - Common Name 14.x.26".
+2. **Review sheet** for the photos with several candidate specimens:
+   `photo_review_sheet.py` (identical groups paired one to one, sex matches suggested, the rest
+   for Wil; a link per photo) and `apply_photo_review.py` (dry run, then `--apply` with backup).
+3. **Grid refs on photos:** the Photos window's tooltip and the viewer's title show the grid ref
+   of the linked record (a specimen's field record, else the specimen). Display only.
+4. **Records from specimens:** `stage_records_from_specimens.py` makes Data Entry rows (dry run
+   on the 14 Oct copy: 540 records to stage, 87 season-only to check one by one, 167 held by
+   Q24/Q29/Q30); committing links the specimens. **Insect Collection › "Specimens to check…"**:
+   near misses (506) and possible re-IDs to link by hand, Make record, Checked, whole-visit date
+   change, Open in iRecord.
+5. **F34** (observation imports store the sort key, superfamily, subfamily). F52 and F2 closed;
+   F55 needs Wil (Q98, `06`).
 
-Later / parked: Specimens to check tab (design agreed; build after the Data Entry jobs Hook,
-Notts, Coedely, Scunthorpe, Warwick are entered and committed). Lector walkthrough and tests. Test 36 (Drawer in hand on the
-1280×720 laptop). F72's uncovered raw queries for hidden records: decide whether to sweep.
+Left of photos after round 6: Wil's review of two-photo records ("Not this record"); main photo
+in the record dialog and photos in reports, if wanted. Bicester Graven Hill: 2023 is not
+embargoed, 2025 is (Wil, 14 Oct; settles that part of Q60), and the jobs from specimens follow.
+Review fixes delivered with round 6: an iRecord re-det brings the new species' sort key;
+Records from photos backs up the database once before its first write.
+
+Round 6 tests (14 Oct evening): 1–8 and 12–14 passed; 9–11 (Records from photos) postponed
+until Wil's photos are sorted; 15 partly (F87); 16 left for the tidy-up; 17 optional.
+
+### The order of work from here (Wil, 14 Oct 21:41; Claude doc "Observatum Outstanding Work")
+
+**Reports first.** Development in the meantime is small fixes only; big features wait.
+
+- **A. Now:** finish the IDs in Hook, Notts, Coedely, Scunthorpe, Warwick (and Bugs of the
+  North); microscope photos onto their rows; commit; Examen; write the reports. **Decide F55
+  (Q98) before any report with *Philanthus triangulum*.** The specimen jobs come out of Data
+  Entry first (`stage_records_from_specimens.py --undo`).
+- **B. Small fixes in the gaps (each < 1 h):** commit round 6; tick boxes green when ticked +
+  audit of every tick box; dd/mm/yyyy everywhere (sweep; known: the photo review sheet); F86;
+  F87; Elmley upload decision.
+- **C. After the reports, in order:** (1) specimen photos shown on their field records (📷 count
+  in Observation Data, "via specimen" in the Photos window; display only; agreed 14 Oct);
+  (2) re-run `stage_records_from_specimens.py`; (3) check and commit those jobs, deciding whether
+  issued surveys take new species (Kent Deadwood +5 incl. *Paracorymbia fulva*, Graven Hill
+  2023 +2, Derby +1 on 14 Oct); (4) Specimens to check (503 near misses, 40 re-IDs, held);
+  (5) two-photo records; Records from photos tests; the first real iRecord round trip.
+- **D. Winter** — see below; then the big jobs.
+
+### Winter jobs (confirmed)
+
+- [ ] The 83 blank rows of the photo review sheet (`scripts\_oneoff\photo_review_20261014_202624.xlsx`):
+  which specimen each photo shows, then `apply_photo_review.py` again.
+- [ ] *Conops quadrifasciatus* 10.viii.22: photos "(1a)" and "(1.b)" were linked to specimens 1775
+  and 1776; probably one specimen. Also any other "(2)" pair that is two shots of one insect.
+
+To confirm as winter: the partner's laptop install (Q2 says winter); Specimens to check if it
+does not fit before; Records from photos testing if the photos are not sorted before.
+
+Later / parked: Lector walkthrough and tests. Test 36 (Drawer in hand on the 1280×720 laptop).
+F72's uncovered raw queries for hidden records: decide whether to sweep.
 
 ## Then: the big jobs (Q1 open; suggested order below, `04_Roadmap.md`)
 
 | Job | Size | State of the decisions |
 |---|---|---|
-| **Specimens → records** | about half a day | All answered 12 Oct (Q23–Q33, below). Recommended first |
+| **Specimens → records** | Wil's checking, 6–10 h | **Built 14 Oct (round 6)**: script, Data Entry jobs, Specimens to check. Left: Wil runs it, checks and commits the jobs, links the near misses by hand |
 | **Final Recording Scheme dataset** (M1) | 1 h of questions, 2 sessions | Q4: questions straight after the next big job. Q72/Q73 answered; Q57–Q59 feed it |
-| **iRecord round trip, then Photos** (lean plan below) | about 8 hours | A1–A3, B1–B3, B5 and bench photos done 13–14 Oct; left: viewer, review sheet, B4 intake, grid refs (Next, above) |
+| **iRecord round trip, then Photos** (lean plan below) | about 8 hours | A1–A3, B1–B3, B5, bench photos, viewer done 13–14 Oct; review sheet, intake, grid refs built in round 6 (to test). Left: the first real iRecord round trip |
 | **Partner's laptop install** | 8–11 days | **Winter**, after photos and the scheme dataset (Q2). Full suite (Q68). Separate databases, data moved by export/import (Q3). Her own empty database plus an optional practice database with sample data (Q69) |
 | Optional: **map background layers** | 3–4 days | Q6, Q34–Q40 answered |
 | Optional: **Atrium icons and restyle** | about 1 session | Q52/Q53: Claude drafts a silhouette for each app from the Observatum logo for Wil to approve; icon files in git are fine; Munia's look checked here |

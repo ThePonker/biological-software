@@ -2,7 +2,8 @@
 
 Fits the window by default; "Actual size" shows it 1:1 with scroll bars. Left / right arrow keys
 (or Previous / Next) step through the Photos window's photos; "Open in Windows" hands the file
-to the system viewer as before. Read only: nothing is moved or changed.
+to the system viewer as before. The title shows the grid ref of the record the photo is linked
+to, when the Photos window knows it (display only). Read only: nothing is moved or changed.
 """
 import os
 
@@ -16,10 +17,11 @@ from ...themes import theme
 
 
 class PhotoViewer(QDialog):
-    def __init__(self, paths, start: int = 0, parent=None):
+    def __init__(self, paths, start: int = 0, parent=None, places=None):
         super().__init__(parent)
         self.setModal(False)
         self.paths = [p for p in paths]
+        self.places = {str(k): v for k, v in (places or {}).items()}   # path -> grid ref
         self.index = max(0, min(start, len(self.paths) - 1)) if self.paths else 0
         self.fit = True
         self._pix = QPixmap()
@@ -71,7 +73,9 @@ class PhotoViewer(QDialog):
         img = rd.read()
         self._pix = QPixmap.fromImage(img) if not img.isNull() else QPixmap()
         name = os.path.basename(path)
+        place = self.places.get(path)
         self.title.setText(f"{name}    ({self.index + 1} of {len(self.paths)})"
+                           + (f"    Grid ref {place}" if place else "")
                            + ("" if not self._pix.isNull() else "  -- cannot be shown"))
         self.prev_btn.setEnabled(self.index > 0)
         self.next_btn.setEnabled(self.index < len(self.paths) - 1)

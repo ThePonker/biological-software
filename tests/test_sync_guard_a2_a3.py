@@ -312,3 +312,35 @@ def test_first_sync_of_a_committed_personal_record_fills_its_irecord_id(tmp_path
     c = sqlite3.connect(path)
     assert c.execute("SELECT irecord_id, species_name FROM observations").fetchone() == (
         555, "Rhinoncus pericarpius")
+
+
+def test_sync_redet_brings_the_new_species_sort_key(tmp_path, monkeypatch):
+    """Review 14 Oct: a re-determination from iRecord takes the new species' sort key,
+    superfamily and subfamily; the same species leaves them alone."""
+    import shared.import_core as ic
+    path = tmp_path / "o.db"
+    c = _obs_db(path)
+    for col in ("taxonomic_sort_key INTEGER", "superfamily TEXT", "subfamily TEXT"):
+        c.execute(f"ALTER TABLE observations ADD COLUMN {col}")
+    c.execute("UPDATE observations SET species_tvk='OLD', taxonomic_sort_key=11, superfamily='Curculionoidea', "
+              "subfamily='Ceutorhynchinae'")
+    c.commit()
+    sc.ensure_schema(c)
+    c.close()
+    looked = []
+
+    def fake(tvks, uksi_path=None):
+        tvks = list(tvks)
+        looked.extend(tvks)
+        return {"NEW": {"sort_key": 99, "superfamily": "Chrysomeloidea", "subfamily": ""}}
+    monkeypatch.setattr(ic, "taxonomy_for_tvks", fake)
+    update, w = _wizard(path)
+    w.observation_model.get_by_id = (lambda f: (lambda i: types.SimpleNamespace(
+        **vars(f(i)), species_tvk="OLD")))(w.observation_model.get_by_id)
+    inc = dict(_incoming("Rhinoncus pericarpius", "05/10/2026 10:00"), species_tvk="OLD", quantity=2)
+    assert update(1, inc) is True and looked == []           # same species: not looked up
+    inc = dict(_incoming("Other species", "06/10/2026 10:00"), species_tvk="NEW")
+    assert update(1, inc) is True and looked == ["NEW"]
+    c = sqlite3.connect(path)
+    assert c.execute("SELECT taxonomic_sort_key, superfamily, subfamily FROM observations").fetchone() == (
+        99, "Chrysomeloidea", None)

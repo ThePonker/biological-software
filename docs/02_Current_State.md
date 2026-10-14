@@ -208,13 +208,13 @@ likely a score differing between Pantheon 3.7.4 here and 3.7.6 on the website.
 **Until 2 October Examen gave Glory Park 134.** The September "validation" matched
 key species and never compared the SQI. See `06_Faults.md`.
 
-### Every survey, 9 October (frozen in `scripts/reference_figures.json`; Sundon and the strict key counts updated 12 Oct, below)
+### Every survey, 9 October (frozen in `scripts/reference_figures.json`; Sundon and the strict key counts updated 12 Oct, below; Alsager 191 → 192 species on 14 Oct: *Cerceris arenaria* from a collection specimen)
 
 Current scoring and Pantheon's published scores alone; key species after the jurisdiction and research-only rules. *Strict* = Examen's Pantheon Only mode.
 
 | Survey | Species | Key | SQI | SQI (Pantheon only) | Key (strict) |
 |---|---:|---:|---:|---:|---:|
-| Alsager 2026 | 191 | 5 | 109 | 109 | 5 |
+| Alsager 2026 | 192 | 5 | 109 | 109 | 5 |
 | BAM Glory Park 2024 | 128 | 8 | 117 | 117 | 9 |
 | Badshot Lea 2023 | 167 | 8 | 111 | 111 | 9 |
 | Bicester Graven Hill 2023 | 367 | 18 | 107 | 107 | 19 |

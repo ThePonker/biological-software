@@ -5,7 +5,7 @@
 
 ---
 
-### Session 49 — 13–14 October 2026 (night and morning)
+### Session 49 — 13–14 October 2026 (night to evening)
 
 **Photos B2, B3, B5 and the iRecord round trip.** Record ↔ photo links (`photo_links`, by
 script for the microscope photos with one matching specimen); a Photos window on the record
@@ -33,6 +33,16 @@ search); every named dialog in the suite remembers its size (`shared/dialog_geom
 the cleaning report's Waiting in _Bench tab moves unlinked photos back to the capture folder or
 to `_archive`. Pace: each sitting ran
 20–40 minutes against estimates of 1–2.5 hours.
+**Evening, round 5** (a review of the photo and iRecord work for loopholes; full suite 1,480
+passed on the PC): an "exported on" stamp so a second bulk export skips records already sent
+(F85; column added on the PC, 25,008 rows); Photo… only on the live database; a failed commit
+can no longer write a record twice; bench photos on a record filed with it; links to deleted
+records listed and tidied (0 left on the PC); clears count as edits for the sync; numbers sort
+as numbers in every table. Wil merged `main` into `stable` (F2). **Round 6** (built the same
+evening, to test): records from phone photos through Data Entry, the review sheet for photos
+with several candidate specimens, grid refs on photos, records from specimens as Data Entry
+rows (a dry run on the 14 Oct copy: 540 to stage, 87 season-only, 167 held) with an Insect
+Collection "Specimens to check" window, and the observation imports' sort keys (F34).
 
 ### Session 48 — 13 October 2026
 

@@ -49,7 +49,7 @@ def bench_files() -> List[str]:
                   if p.is_file() and p.suffix.lower() in IMAGE_EXTS)
 
 
-def attach(conn, src: Path, staging_id: int, stem: str) -> str:
+def attach(conn, src: Path, staging_id: int, stem: str, field: bool = False) -> str:
     """Move one capture-folder photo into _Bench as '<stem>.ext' (or '<stem> 2.ext'...) and link
     it to the staging row. Returns the stored path. Raises OSError with the photo left where it
     was if it cannot be moved or linked."""
@@ -57,7 +57,7 @@ def attach(conn, src: Path, staging_id: int, stem: str) -> str:
     dst = pf.free_path(bench_root(), stem, src.suffix)
     new_rel = pf.move_photo(conn, src, dst)
     try:
-        pl.add_staging_link(conn, new_rel, staging_id)
+        pl.add_staging_link(conn, new_rel, staging_id, pl.FIELD if field else pl.INTAKE)
         conn.commit()
     except Exception as e:
         conn.rollback()
@@ -99,11 +99,29 @@ def rename_for_species(conn, staging_id: int, old_species: str, new_species: str
     return res
 
 
-def _rebuilt(stem: str, old: tuple, new: tuple) -> Optional[str]:
+def _field_common(stem: str) -> str:
+    """'Amara aenea - Common Sun Beetle 14.x.26' -> 'Common Sun Beetle' ('' if none)."""
+    if " - " not in stem:
+        return ""
+    words = stem.split(" - ", 1)[1].split()
+    while words and (words[-1].isdigit() or any(c.isdigit() for c in words[-1])):
+        words.pop()                                   # the date and any ' 2' number
+    return " ".join(words)
+
+
+def _rebuilt(stem: str, old: tuple, new: tuple, field: bool = False) -> Optional[str]:
     """The name a bench photo gets when its row's (species, sex, iso date) change from `old` to
     `new`: the view and any ' 2' number are kept. None when the name is not the one the row
     would have given it (renamed by hand): nothing is guessed."""
     from shared.photo_names import format_photo_date, specimen_photo_stem
+    if field or " - " in stem:
+        # a field (phone) photo: species and date follow the row; the common name stays while
+        # the species does (a new species' common name is put back at commit, name_for_commit)
+        from shared.photo_names import field_photo_stem
+        if not stem.casefold().startswith(pf.folder_name(old[0]).casefold() + " "):
+            return None                               # renamed by hand: nothing is guessed
+        same = pf.folder_name(new[0]).casefold() == pf.folder_name(old[0]).casefold()
+        return field_photo_stem(pf.folder_name(new[0]), _field_common(stem) if same else "", new[2])
     o_sp, o_sex, o_iso = old
     head = specimen_photo_stem(pf.folder_name(o_sp), o_sex, "", "")
     if not head or not (stem.casefold() == head.casefold() or stem.casefold().startswith(head.casefold() + " ")):
@@ -141,7 +159,7 @@ def rename_for_row(conn, staging_id: int, old: tuple, new: tuple) -> pf.RedetRes
             res.left.append((p, "not in _Bench"))
             continue
         stem, ext = os.path.splitext(os.path.basename(p))
-        name = _rebuilt(stem, old, new)
+        name = _rebuilt(stem, old, new, pl.is_field_link(conn, p))
         if name is None:
             res.left.append((p, "its name is not the one the row gave it"))
             continue
@@ -163,7 +181,16 @@ def rename_for_row(conn, staging_id: int, old: tuple, new: tuple) -> pf.RedetRes
     return res
 
 
-def name_for_commit(stem: str, row: dict) -> str:
+def _folder_for(stem: str, species: str, family: str, order: str, field: bool = False) -> Path:
+    """A specimen photo goes to the species' Specimen folder; a field (phone) photo -- its link
+    says so, or it is named 'Genus species - Common name ...' -- to the species folder itself
+    (14 Oct 2026)."""
+    from shared.photo_names import is_field_photo
+    folder = pf.specimen_folder_for(species, family, order)
+    return folder.parent if field or is_field_photo(stem) else folder
+
+
+def name_for_commit(stem: str, row: dict, field: bool = False) -> str:
     """A bench photo whose name does not start with the row's species (its species was cleared
     in an earlier session, so the rename could not follow) is named from the row at commit:
     species, sex and date from the row; a one-word view kept from the old name (review 14 Oct
@@ -171,6 +198,14 @@ def name_for_commit(stem: str, row: dict) -> str:
     import re
     from shared.photo_names import specimen_photo_stem
     species = pf.folder_name(row.get("species_name") or "")
+    if field or " - " in stem:
+        # a field (phone) photo: named afresh from the record -- species, common name, date
+        from shared.photo_names import field_photo_stem
+        d = str(row.get("date") or "")
+        iso = d[:10] if len(d) >= 10 and d[4:5] == "-" and d[7:8] == "-" else ""
+        common = row.get("common_name") or (_field_common(stem) if stem.casefold().startswith(
+            species.casefold() + " - ") else "")
+        return field_photo_stem(species, common, iso) if species else stem
     if not species or stem.casefold() == species.casefold() or stem.casefold().startswith(species.casefold() + " "):
         return stem
     words = stem.split()
@@ -222,8 +257,9 @@ def file_on_commit(conn, staging_id: int, row: dict, observation_id: int) -> Tup
                              f"from the list, so it stays in {BENCH_REL}")
                 continue
             stem, ext = os.path.splitext(os.path.basename(p))
-            stem = name_for_commit(stem, row)
-            folder = pf.specimen_folder_for(species, row.get("family") or "", row.get("order_name") or "")
+            field = pl.is_field_link(conn, p)
+            stem = name_for_commit(stem, row, field)
+            folder = _folder_for(stem, species, row.get("family") or "", row.get("order_name") or "", field)
             try:
                 _move_in_library(conn, p, pf.free_path(folder, stem, ext), log)
             except Exception as e:
@@ -338,11 +374,12 @@ def send_back(conn, by_row: dict, to_folder: Path) -> Tuple[int, List[str]]:
 # --- _Bench photos already on a record: filed once the record has a proper species ---------
 def _record(conn, kind: str, rid: int) -> Optional[dict]:
     table, date_col = ("specimens", "date_collected") if kind == "specimen" else ("observations", "date")
-    row = conn.execute(f"SELECT species_name, species_tvk, family, order_name, sex, {date_col} "
-                       f"FROM {table} WHERE id = ?", (rid,)).fetchone()
+    has_common = "common_name" in {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+    row = conn.execute(f"SELECT species_name, species_tvk, family, order_name, sex, {date_col}, "
+                       f"{'common_name' if has_common else 'NULL'} FROM {table} WHERE id = ?", (rid,)).fetchone()
     if not row:
         return None
-    return dict(zip(("species_name", "species_tvk", "family", "order_name", "sex", "date"), row))
+    return dict(zip(("species_name", "species_tvk", "family", "order_name", "sex", "date", "common_name"), row))
 
 
 def file_record_photos(conn, observation_ids: Iterable[int] = (), specimen_ids: Iterable[int] = (),
@@ -393,8 +430,9 @@ def file_record_photos(conn, observation_ids: Iterable[int] = (), specimen_ids: 
                 notes.append(f"{os.path.basename(p)}: file not found")
                 continue
             stem, ext = os.path.splitext(src.name)
-            stem = name_for_commit(stem, rec)
-            folder = pf.specimen_folder_for(rec["species_name"], rec.get("family") or "", rec.get("order_name") or "")
+            field = pl.is_field_link(conn, p)
+            stem = name_for_commit(stem, rec, field)
+            folder = _folder_for(stem, rec["species_name"], rec.get("family") or "", rec.get("order_name") or "", field)
             try:
                 moved.append((p, _move_in_library(conn, p, pf.free_path(folder, stem, ext), log)))
             except Exception as e:

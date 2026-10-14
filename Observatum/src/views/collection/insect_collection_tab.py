@@ -155,6 +155,7 @@ class InsectCollectionTab(ICSidebarMixin, ICDataMixin, ICExportMixin, QWidget):
         self.toolbar.add_specimen_requested.connect(self._on_add_specimen)
         if hasattr(self.toolbar, "drawer_assign_requested"):
             self.toolbar.drawer_assign_requested.connect(self._on_drawer_assign)
+        self.toolbar.specimens_to_check_requested.connect(self._on_specimens_to_check)
         self.toolbar.import_requested.connect(self._on_import_specimens)
         self.toolbar.columns_requested.connect(self._on_columns_requested)
         self.toolbar.filters_toggled.connect(self._on_filters_toggled)
@@ -239,6 +240,20 @@ class InsectCollectionTab(ICSidebarMixin, ICDataMixin, ICExportMixin, QWidget):
         dlg = DrawerAssignDialog(self)
         dlg.saved.connect(lambda *_: (self.refresh(), self.data_changed.emit()))   # OBS-10
         dlg.exec()
+
+    def _on_specimens_to_check(self):
+        """Open "Specimens to check…" (non-modal; raised if already open)."""
+        win = getattr(self, "_specimens_to_check", None)
+        if win is not None and win.isVisible():
+            win.refresh()          # rows made, committed or deleted in Data Entry meanwhile
+            win.raise_()
+            win.activateWindow()
+            return
+        import paths
+        from ..dialogs.specimens_to_check_dialog import SpecimensToCheckDialog
+        path = getattr(get_database(), 'main_db_path', None) or paths.OBSERVATUM_DB
+        self._specimens_to_check = SpecimensToCheckDialog(str(path), str(paths.UKSI_DB), self)
+        self._specimens_to_check.show()
 
     def _on_add_specimen(self):
         """Open the add-specimen dialog."""

@@ -232,6 +232,12 @@ class JobsListPage(QWidget):
         self.btn_check.setStyleSheet(theme.button_secondary_qss())
         self.btn_check.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_check.clicked.connect(self._check_return)
+        self.btn_photos = QPushButton("Records from photos\u2026")
+        self.btn_photos.setToolTip("Make records from the phone photos in the capture folder")
+        self.btn_photos.setStyleSheet(theme.button_secondary_qss())
+        self.btn_photos.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_photos.clicked.connect(self._records_from_photos)
+        row.addWidget(self.btn_photos)
         row.addWidget(self.btn_check)
         self.btn_edit = QPushButton("Edit details")
         self.btn_edit.setToolTip("Change this job's name, project or client")
@@ -422,6 +428,11 @@ class JobsListPage(QWidget):
             self, "Safety copy failed",
             "The staging safety copy (staging_backup.csv) could not be written.\n\n"
             "Delete anyway?") == QMessageBox.StandardButton.Yes
+
+    def _records_from_photos(self):
+        from DataEntry.photo_intake_dialog import PhotoIntakeDialog
+        PhotoIntakeDialog(self._conn, self).exec()
+        self.refresh()
 
     def _check_return(self):
         _, job_id, _ = self._selected()

@@ -1989,7 +1989,7 @@ class EntryGridPage(QWidget):
         probs = summary.get("photo_problems") or []
         if probs:
             more = f"\n\u2026 and {len(probs) - 20} more" if len(probs) > 20 else ""
-            bits.append("\nPhotos:\n" + "\n".join(probs[:20]) + more)
+            bits.append("\nPhotos and specimens:\n" + "\n".join(probs[:20]) + more)
         if summary.get("remaining"):
             bits.append(f"\n{summary['remaining']} row(s) left in staging to fix \u2014 the job stays open.")
         QMessageBox.information(self, "Committed", "\n".join(bits))

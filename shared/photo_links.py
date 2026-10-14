@@ -24,6 +24,7 @@ from typing import Iterable, List, Optional
 
 TABLE = "photo_links"
 SPECIMEN_MATCH, BY_HAND, INTAKE = "specimen match", "by hand", "intake"
+FIELD = "field photo"   # a phone photo (Records from photos): filed in the species folder, not Specimen
 
 CREATE_SQL = f"""
 CREATE TABLE IF NOT EXISTS {TABLE} (
@@ -75,14 +76,23 @@ def ensure_schema(conn: sqlite3.Connection) -> bool:
 
 
 # --- bench photos: a Data Entry row's photos until the row is committed ----------------------
-def add_staging_link(conn, photo_path: str, staging_id: int) -> bool:
+def add_staging_link(conn, photo_path: str, staging_id: int, method: str = INTAKE) -> bool:
     p = norm(photo_path)
     if conn.execute(f"SELECT 1 FROM {TABLE} WHERE photo_path = ? AND {STAGING} = ?",
                     (p, staging_id)).fetchone():
         return False
     conn.execute(f"INSERT INTO {TABLE} (photo_path, {STAGING}, method, created_at) VALUES (?,?,?,?)",
-                 (p, staging_id, INTAKE, datetime.now().isoformat(timespec="seconds")))
+                 (p, staging_id, method, datetime.now().isoformat(timespec="seconds")))
     return True
+
+
+def is_field_link(conn, photo_path: str) -> bool:
+    """The photo came in as a field (phone) photo: its link says so (method FIELD), whatever
+    its name now is (14 Oct 2026 review)."""
+    if not has_table(conn):
+        return False
+    return bool(conn.execute(f"SELECT 1 FROM {TABLE} WHERE photo_path = ? AND method = ?",
+                             (norm(photo_path), FIELD)).fetchone())
 
 
 def photos_for_staging(conn, staging_id: int) -> List[str]:
@@ -260,7 +270,34 @@ def linked_specimen_ids(conn, ids: Iterable[int]) -> set:
     return out
 
 
-__all__ = ["TABLE", "CREATE_SQL", "INDEX_SQL", "SPECIMEN_MATCH", "BY_HAND", "INTAKE", "norm",
+def grid_refs(conn, paths: Iterable[str]) -> dict:
+    """{stored path: [grid ref, ...]} -- where each photo was taken, from what it is linked to
+    (14 Oct 2026): a record's grid ref; a specimen's field record's grid ref, else the
+    specimen's own. Display only; nothing is written to the photo. Photos linked to nothing,
+    or to records with no grid ref, are left out."""
+    wanted = {norm(p) for p in paths}
+    if not wanted or not has_table(conn):
+        return {}
+    out = {}
+    sql = (f"SELECT l.photo_path, o.grid_ref, so.grid_ref, s.grid_ref FROM {TABLE} l "
+           "LEFT JOIN observations o ON o.id = l.observation_id "
+           "LEFT JOIN specimens s ON s.id = l.specimen_id "
+           "LEFT JOIN observations so ON so.id = s.observation_id "
+           "WHERE l.observation_id IS NOT NULL OR l.specimen_id IS NOT NULL")
+    try:
+        rows = conn.execute(sql).fetchall()
+    except sqlite3.Error:                 # a database without the record tables
+        return {}
+    for path, obs_ref, field_ref, spec_ref in rows:
+        if path not in wanted:
+            continue
+        ref = next((r.strip() for r in (obs_ref, field_ref, spec_ref) if r and r.strip()), None)
+        if ref and ref not in out.setdefault(path, []):
+            out[path].append(ref)
+    return {p: refs for p, refs in out.items() if refs}
+
+
+__all__ = ["grid_refs", "FIELD", "is_field_link", "TABLE", "CREATE_SQL", "INDEX_SQL", "SPECIMEN_MATCH", "BY_HAND", "INTAKE", "norm",
            "has_table", "ensure_schema", "add_link", "remove_link", "STAGING", "has_staging_column",
            "add_staging_link", "photos_for_staging", "drop_staging_links", "orphan_staging_links", "orphan_record_links", "staging_counts", "promote_staging", "photos_for_specimen",
            "photos_for_observation", "observation_photo_counts", "specimen_photo_counts", "link_count", "repoint", "linked_specimen_ids"]

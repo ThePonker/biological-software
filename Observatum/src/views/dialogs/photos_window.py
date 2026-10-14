@@ -106,6 +106,7 @@ class PhotosWindow(QDialog):
         self.paths = mine + rest
         self.record_count = len(mine)
         self._others = self._other_links(rest)
+        self._places = self._grid_refs(self.paths)
         self._abs = [photo_files.absolute(p) for p in self.paths]
         self._next = 0
         text = f"{len(self.paths)} photos of {self.species_name}"
@@ -153,6 +154,22 @@ class PhotosWindow(QDialog):
         except Exception as e:
             print(f"[PhotosWindow] other links not read: {e}")
         return out
+
+    def _grid_refs(self, paths) -> dict:
+        """{stored path: 'SP512345'} where each photo was taken, from the record (or the
+        specimen's field record) it is linked to. Display only. Read only."""
+        if not self.db_path or not paths:
+            return {}
+        try:
+            from shared.db_open import connect_ro
+            conn = connect_ro(self.db_path)
+            try:
+                return {p: ", ".join(r) for p, r in photo_links.grid_refs(conn, paths).items()}
+            finally:
+                conn.close()
+        except Exception as e:
+            print(f"[PhotosWindow] grid refs not read: {e}")
+            return {}
 
     # -- layout ---------------------------------------------------------------------------
     def _build_ui(self):
@@ -226,8 +243,10 @@ class PhotosWindow(QDialog):
                 name = f"file not found · {name}"
             item = QListWidgetItem(name)
             other = self._others.get(stored)
+            place = self._places.get(stored)
             item.setToolTip(("This record's photo\n" if i < self.record_count else "")
-                            + (f"Linked to another record: {other}\n" if other else "") + stored)
+                            + (f"Linked to another record: {other}\n" if other else "")
+                            + (f"Grid ref: {place} (from its record)\n" if place else "") + stored)
             item.setData(Qt.ItemDataRole.UserRole, i)
             item.setTextAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
             self.list.addItem(item)
@@ -326,7 +345,10 @@ class PhotosWindow(QDialog):
             return
         from .photo_viewer import PhotoViewer
         there = [j for j, p in enumerate(self._abs) if p.is_file()]
-        self._viewer = PhotoViewer([self._abs[j] for j in there], there.index(i), parent=self)
+        places = {str(self._abs[j]): self._places[self.paths[j]] for j in there
+                  if self.paths[j] in self._places}
+        self._viewer = PhotoViewer([self._abs[j] for j in there], there.index(i), parent=self,
+                                   places=places)
         self._viewer.show()
 
     def _open_folder(self):

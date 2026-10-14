@@ -82,12 +82,14 @@ def ensure_personal_job(conn: sqlite3.Connection) -> int:
 
 
 def create_job(conn: sqlite3.Connection, name: str, mode: str,
-               client: Optional[str] = None, project: Optional[str] = None) -> int:
+               client: Optional[str] = None, project: Optional[str] = None,
+               commit: bool = True) -> int:
     cur = conn.execute(
         "INSERT INTO entry_jobs (name, mode, client, project) VALUES (?,?,?,?)",
         (name.strip(), mode.strip() or "Personal", (client or None), (project or None)),
     )
-    conn.commit()
+    if commit:
+        conn.commit()
     return cur.lastrowid
 
 
@@ -96,7 +98,7 @@ def get_job(conn: sqlite3.Connection, job_id: int) -> Optional[Dict]:
     return dict(r) if r else None
 
 
-def update_job(conn: sqlite3.Connection, job_id: int, **fields) -> None:
+def update_job(conn: sqlite3.Connection, job_id: int, commit: bool = True, **fields) -> None:
     allowed = {"name", "mode", "client", "project", "embargo_until", "status", "notes"}
     sets = {k: v for k, v in fields.items() if k in allowed}
     if not sets:
@@ -106,7 +108,8 @@ def update_job(conn: sqlite3.Connection, job_id: int, **fields) -> None:
         f"UPDATE entry_jobs SET {cols}, updated_at=CURRENT_TIMESTAMP WHERE id=?",
         (*sets.values(), job_id),
     )
-    conn.commit()
+    if commit:
+        conn.commit()
 
 
 def touch_job(conn: sqlite3.Connection, job_id: int) -> None:
@@ -120,7 +123,9 @@ def row_count(conn: sqlite3.Connection, job_id: int) -> int:
 
 def delete_job(conn: sqlite3.Connection, job_id: int) -> None:
     """Hard-delete a job and its staging rows."""
-    _release_photos(conn, [r[0] for r in conn.execute("SELECT id FROM entry_staging WHERE job_id=?", (job_id,))])
+    ids = [r[0] for r in conn.execute("SELECT id FROM entry_staging WHERE job_id=?", (job_id,))]
+    _release_photos(conn, ids)
+    _release_specimens(conn, ids)
     conn.execute("DELETE FROM entry_staging WHERE job_id=?", (job_id,))
     conn.execute("DELETE FROM entry_jobs WHERE id=?", (job_id,))
     conn.commit()
@@ -253,7 +258,8 @@ def fetch_rows(conn: sqlite3.Connection, job_id: int) -> List[Dict]:
     return [dict(r) for r in rows]
 
 
-def insert_row(conn: sqlite3.Connection, job_id: int, data: Optional[Dict] = None) -> int:
+def insert_row(conn: sqlite3.Connection, job_id: int, data: Optional[Dict] = None,
+               commit: bool = True) -> int:
     data = {k: v for k, v in (data or {}).items() if k in STAGING_EDITABLE}
     next_order = conn.execute(
         "SELECT COALESCE(MAX(row_order), 0) + 1 FROM entry_staging WHERE job_id=?", (job_id,)
@@ -262,7 +268,8 @@ def insert_row(conn: sqlite3.Connection, job_id: int, data: Optional[Dict] = Non
     vals = [job_id, next_order] + list(data.values())
     ph = ",".join("?" for _ in cols)
     cur = conn.execute(f"INSERT INTO entry_staging ({','.join(cols)}) VALUES ({ph})", vals)
-    conn.commit()
+    if commit:
+        conn.commit()
     return cur.lastrowid
 
 
@@ -288,10 +295,21 @@ def _release_photos(conn, row_ids) -> None:
         print(f"[DataEntry] photo links of rows {list(row_ids)[:5]} not removed: {e}")
 
 
+def _release_specimens(conn, row_ids) -> None:
+    """Specimens a deleted row was made from are free again (shared/specimen_staging.py; a
+    committed row's specimens were linked to its record before this)."""
+    try:
+        from shared import specimen_staging
+        specimen_staging.release(conn, row_ids)
+    except Exception as e:                       # never block a delete
+        print(f"[DataEntry] specimen list of rows {list(row_ids)[:5]} not removed: {e}")
+
+
 def delete_row(conn: sqlite3.Connection, row_id: int, release_photos: bool = True) -> None:
     """release_photos False: a commit whose photo links could not move to the record keeps
     them (pointing at this row id, never reused) so they can be put right."""
     if release_photos:
         _release_photos(conn, [row_id])
+    _release_specimens(conn, [row_id])
     conn.execute("DELETE FROM entry_staging WHERE id=?", (row_id,))
     conn.commit()

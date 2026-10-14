@@ -25,6 +25,7 @@ class CollectionToolbar(QFrame):
     wizard_toggled = Signal(bool)  # Placeholder for future
     sidebar_toggled = Signal()
     drawer_assign_requested = Signal()   # "Drawer in hand" (A1, 8 Oct 2026)
+    specimens_to_check_requested = Signal()   # "Specimens to check…" (14 Oct 2026)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -86,6 +87,13 @@ class CollectionToolbar(QFrame):
         self.drawer_btn.setStyleSheet(self._get_secondary_button_style())
         self.drawer_btn.clicked.connect(self.drawer_assign_requested.emit)
         layout.addWidget(self.drawer_btn)
+
+        # Specimens with no field record, to work through by hand
+        self.check_btn = QPushButton("Specimens to check…")
+        self.check_btn.setToolTip("Specimens with no field record: link, check or make records.")
+        self.check_btn.setStyleSheet(self._get_secondary_button_style())
+        self.check_btn.clicked.connect(self.specimens_to_check_requested.emit)
+        layout.addWidget(self.check_btn)
         
         layout.addStretch()
         
@@ -295,6 +303,7 @@ class CollectionToolbar(QFrame):
         self.count_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {t.font_size('sm')}; margin-right: 12px;")
         self.selection_info.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {t.font_size('sm')};")
         self.export_selected_btn.setStyleSheet(self._get_secondary_button_style())
+        self.check_btn.setStyleSheet(self._get_secondary_button_style())
         self.export_btn.setStyleSheet(self._get_secondary_button_style())
         self.import_btn.setStyleSheet(self._get_primary_button_style())
         self.add_btn.setStyleSheet(self._get_primary_button_style())
