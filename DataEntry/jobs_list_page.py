@@ -405,7 +405,13 @@ class JobsListPage(QWidget):
             return
         if not self._safety_copy():
             return
+        from DataEntry.photo_attach import ask_about_photos
+        after = ask_about_photos(self, self._conn, [r["id"] for r in repo.fetch_rows(self._conn, job_id)],
+                                 "Delete job")
+        if after is None:
+            return
         repo.delete_job(self._conn, job_id)
+        after()
         self.refresh()
 
     def _safety_copy(self) -> bool:

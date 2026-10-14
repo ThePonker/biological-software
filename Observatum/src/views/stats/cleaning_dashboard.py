@@ -93,6 +93,11 @@ class CleaningDashboard(QWidget):
         self.btn_export = QPushButton("Export…")
         self.btn_export.clicked.connect(self._on_export)
         top.addWidget(self.btn_export)
+        self.btn_photos = QPushButton("Photos…")
+        self.btn_photos.setToolTip("The photo library's loose ends: empty species folders, bench "
+                                   "photos waiting, links to missing files, names to standardise.")
+        self.btn_photos.clicked.connect(self._on_photos)
+        top.addWidget(self.btn_photos)
         root.addLayout(top)
 
         self.lbl_summary = QLabel("")
@@ -349,6 +354,10 @@ class CleaningDashboard(QWidget):
         QMessageBox.information(self, "Export", f"Saved:\n{path}")
 
     # ------------------------------------------------------------------ theme
+    def _on_photos(self):
+        from .photo_housekeeping_dialog import PhotoHousekeepingDialog
+        PhotoHousekeepingDialog(self._paths()[0], self).exec()
+
     def apply_theme(self):
         t = theme()
         self.setStyleSheet(f"CleaningDashboard {{ background-color: {t.get('background')}; }}")
@@ -359,6 +368,7 @@ class CleaningDashboard(QWidget):
         self.chk_copies.setStyleSheet(f"color: {t.get('text_secondary')};")
         self.btn_export.setStyleSheet(t.button_primary_style())
         self.btn_refresh.setStyleSheet(t.button_secondary_style())
+        self.btn_photos.setStyleSheet(t.button_secondary_style())
         self.btn_show_again.setStyleSheet(t.button_secondary_style())
         for b in (self.btn_irecord, self.btn_observatum):
             b.setStyleSheet(t.button_tab_style("observation"))

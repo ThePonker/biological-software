@@ -55,13 +55,88 @@ def has_table(conn: sqlite3.Connection) -> bool:
                         (TABLE,)).fetchone() is not None
 
 
+STAGING = "staging_id"        # a Data Entry row's photo, before the row becomes a record
+
+
+def has_staging_column(conn) -> bool:
+    return has_table(conn) and STAGING in {r[1] for r in conn.execute(f"PRAGMA table_info({TABLE})")}
+
+
 def ensure_schema(conn: sqlite3.Connection) -> bool:
-    """Create the table and its indexes if missing. True when something was created."""
-    had = has_table(conn)
+    """Create the table and its indexes if missing, and the staging_id column (bench photos,
+    14 Oct 2026). True when something was created."""
+    had, had_staging = has_table(conn), has_staging_column(conn)
     conn.execute(CREATE_SQL)
-    for sql in INDEX_SQL:
+    if not had_staging:
+        conn.execute(f"ALTER TABLE {TABLE} ADD COLUMN {STAGING} INTEGER")
+    for sql in INDEX_SQL + (f"CREATE INDEX IF NOT EXISTS idx_{TABLE}_staging ON {TABLE}({STAGING})",):
         conn.execute(sql)
-    return not had
+    return not (had and had_staging)
+
+
+# --- bench photos: a Data Entry row's photos until the row is committed ----------------------
+def add_staging_link(conn, photo_path: str, staging_id: int) -> bool:
+    p = norm(photo_path)
+    if conn.execute(f"SELECT 1 FROM {TABLE} WHERE photo_path = ? AND {STAGING} = ?",
+                    (p, staging_id)).fetchone():
+        return False
+    conn.execute(f"INSERT INTO {TABLE} (photo_path, {STAGING}, method, created_at) VALUES (?,?,?,?)",
+                 (p, staging_id, INTAKE, datetime.now().isoformat(timespec="seconds")))
+    return True
+
+
+def photos_for_staging(conn, staging_id: int) -> List[str]:
+    if not has_staging_column(conn):
+        return []
+    return _paths(conn.execute(f"SELECT photo_path FROM {TABLE} WHERE {STAGING} = ? ORDER BY photo_path",
+                               (staging_id,)))
+
+
+def staging_counts(conn, staging_ids: Iterable[int]) -> dict:
+    """{staging row id: number of photos} for the rows that have any."""
+    ids = [int(i) for i in staging_ids if i is not None]
+    if not ids or not has_staging_column(conn):
+        return {}
+    out = {}
+    for i in range(0, len(ids), 900):
+        part = ids[i:i + 900]
+        for sid, n in conn.execute(f"SELECT {STAGING}, COUNT(*) FROM {TABLE} WHERE {STAGING} IN "
+                                   f"({','.join('?' * len(part))}) GROUP BY {STAGING}", part):
+            out[sid] = n
+    return out
+
+
+def promote_staging(conn, staging_id: int, observation_id: int) -> int:
+    """The row became a record: its photos now belong to the record. Returns rows changed."""
+    if not has_staging_column(conn):
+        return 0
+    return conn.execute(f"UPDATE {TABLE} SET observation_id = ?, {STAGING} = NULL WHERE {STAGING} = ?",
+                        (observation_id, staging_id)).rowcount
+
+
+def drop_staging_links(conn, staging_ids: Iterable[int]) -> int:
+    """The staging rows are being deleted: remove their photo links (never the photo files;
+    shared/bench_photos.release). Returns the rows removed. The caller commits."""
+    ids = [int(i) for i in staging_ids if i is not None]
+    if not ids or not has_staging_column(conn):
+        return 0
+    n = 0
+    for i in range(0, len(ids), 900):
+        part = ids[i:i + 900]
+        n += conn.execute(f"DELETE FROM {TABLE} WHERE {STAGING} IN ({','.join('?' * len(part))})",
+                          part).rowcount
+    return n
+
+
+def orphan_staging_links(conn) -> List[tuple]:
+    """(link id, photo path, staging id) for links whose staging row no longer exists (rows
+    deleted before 14 Oct take 2). Empty on a database without the column or staging table."""
+    if not has_staging_column(conn) or not conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='entry_staging'").fetchone():
+        return []
+    return [tuple(r) for r in conn.execute(
+        f"SELECT l.id, l.photo_path, l.{STAGING} FROM {TABLE} l WHERE l.{STAGING} IS NOT NULL "
+        f"AND NOT EXISTS (SELECT 1 FROM entry_staging s WHERE s.id = l.{STAGING}) ORDER BY l.id")]
 
 
 def add_link(conn, photo_path: str, specimen_id: Optional[int] = None,
@@ -113,6 +188,28 @@ def photos_for_observation(conn, observation_id: int) -> List[str]:
         "WHERE s.observation_id = ? ORDER BY 1", (observation_id, observation_id)))
 
 
+def observation_photo_counts(conn) -> dict:
+    """{observation id: number of photos} -- its own links and its specimens' (the Observation
+    Data table's camera column). Empty on a database without the table."""
+    if not has_table(conn):
+        return {}
+    has_specimens = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='specimens'").fetchone()
+    sql = f"SELECT observation_id AS oid, photo_path FROM {TABLE} WHERE observation_id IS NOT NULL"
+    if has_specimens:
+        sql += (f" UNION SELECT s.observation_id, l.photo_path FROM {TABLE} l JOIN specimens s "
+                "ON s.id = l.specimen_id WHERE s.observation_id IS NOT NULL")
+    return dict(conn.execute(f"SELECT oid, COUNT(DISTINCT photo_path) FROM ({sql}) GROUP BY oid").fetchall())
+
+
+def specimen_photo_counts(conn) -> dict:
+    """{specimen id: number of photos linked to the specimen itself} (Insect Collection's
+    camera column). Empty on a database without the table."""
+    if not has_table(conn):
+        return {}
+    return dict(conn.execute(f"SELECT specimen_id, COUNT(DISTINCT photo_path) FROM {TABLE} "
+                             "WHERE specimen_id IS NOT NULL GROUP BY specimen_id").fetchall())
+
+
 def link_count(conn, photo_path: str) -> int:
     """How many records/specimens this photo is linked to."""
     if not has_table(conn):
@@ -145,5 +242,6 @@ def linked_specimen_ids(conn, ids: Iterable[int]) -> set:
 
 
 __all__ = ["TABLE", "CREATE_SQL", "INDEX_SQL", "SPECIMEN_MATCH", "BY_HAND", "INTAKE", "norm",
-           "has_table", "ensure_schema", "add_link", "remove_link", "photos_for_specimen",
-           "photos_for_observation", "link_count", "repoint", "linked_specimen_ids"]
+           "has_table", "ensure_schema", "add_link", "remove_link", "STAGING", "has_staging_column",
+           "add_staging_link", "photos_for_staging", "drop_staging_links", "orphan_staging_links", "staging_counts", "promote_staging", "photos_for_specimen",
+           "photos_for_observation", "observation_photo_counts", "specimen_photo_counts", "link_count", "repoint", "linked_specimen_ids"]

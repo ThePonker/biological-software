@@ -5,6 +5,25 @@
 
 ---
 
+### Session 49 — 13–14 October 2026 (night and morning)
+
+**Photos B2, B3, B5 and the iRecord round trip.** Record ↔ photo links (`photo_links`, by
+script for the microscope photos with one matching specimen); a Photos window on the record
+(the species folder's photos, this record's first, link / unlink); a re-det moves the record's
+linked photos (logged, reversible). The download returned all 46 IRTEST keys (A1). A2: the
+sync keeps local edits, lists real conflicts, holds an Observatum key that names several records
+(F83). The A2/A3 review found the Observatum keys repeating since 25 Mar (F82): one key rule,
+`renumber_duplicate_keys.py` run on the PC (2,719 records), the export refuses shared keys.
+**Bench photos:** a Photo… button on a Data Entry row (capture folder `Desktop\image`, views
+head / gen / your own, names "Amara aenea male gen 5.vi.26"); `standardise_specimen_names.py`
+renamed 30 old names. Wil's testing showed a typing slip left a species folder behind, so
+**take 2** holds bench photos in `Photos\_Bench` until commit (filed only for a species picked
+from the list), asks before deleting rows with photos, and adds a Photos list to the cleaning
+report (empty folders to `_archive`, photos waiting, missing files, names). Personal jobs now
+commit plainly; records go to iRecord by Observatum's bulk export (External key), then the sync.
+An Opus review before each of the three deliveries found defects, all fixed before delivery. Pace: each sitting ran
+20–40 minutes against estimates of 1–2.5 hours.
+
 ### Session 48 — 13 October 2026
 
 **Handover tasks 1–4 and a faster way of working.** (1) One place for saved filters: the

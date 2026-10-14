@@ -341,6 +341,24 @@ class ObservationFilterMixin:
     def _counting_db(self):
         return getattr(getattr(self, '_obs_repo', None), '_db', None) or default_db()
 
+    def _photo_counts(self) -> dict:
+        """{record id: linked photos} for the camera column; {} on any problem."""
+        try:
+            from shared import photo_links
+            from shared.db_open import connect_ro
+            from ...models.database import get_database
+            path = get_database().main_db_path
+            if not path:
+                return {}
+            conn = connect_ro(path)
+            try:
+                return photo_links.observation_photo_counts(conn)
+            finally:
+                conn.close()
+        except Exception as e:
+            print(f"[ObservationTab] photo counts unavailable: {e}")
+            return {}
+
     def _only_excluded(self) -> bool:
         chk = getattr(getattr(self, 'filter_bar', None), 'only_excluded_chk', None)
         return bool(chk is not None and chk.isChecked())

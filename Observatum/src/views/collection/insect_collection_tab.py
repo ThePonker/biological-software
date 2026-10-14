@@ -176,6 +176,7 @@ class InsectCollectionTab(ICSidebarMixin, ICDataMixin, ICExportMixin, QWidget):
         self.filters.filters_changed.connect(self._on_filters_changed)
         self.filters.special_view_selected.connect(self._on_special_view_selected)
         self.table_view.doubleClicked.connect(self._on_row_double_clicked)
+        self.table_model.photo_count_provider = self._photo_counts      # the camera column
         tick_column.install(self.table_view, "accent_collection")   # one tick style, click anywhere
 
         # Ctrl+Enter shortcut to open Add Specimen
@@ -342,8 +343,52 @@ class InsectCollectionTab(ICSidebarMixin, ICDataMixin, ICExportMixin, QWidget):
         """Open detail dialog on double-click."""
         source_index = self.sort_proxy.mapToSource(index)
         specimen = self.table_model.get_specimen_at_row(source_index.row())
-        if specimen:
-            self._show_specimen_detail(specimen)
+        if not specimen:
+            return
+        cols = self.table_model.get_columns()
+        if (0 <= index.column() < len(cols) and cols[index.column()][0] == 'photos'
+                and self.table_model.photo_count(specimen)):
+            self._open_specimen_photos(specimen)       # the camera column: straight to the photos
+            return
+        self._show_specimen_detail(specimen)
+
+    def _photo_counts(self) -> dict:
+        """{specimen id: linked photos} for the camera column; {} on any problem."""
+        try:
+            from shared import photo_links
+            from shared.db_open import connect_ro
+            from ...models.database import get_database
+            path = getattr(get_database(), 'main_db_path', None)
+            if not path:
+                return {}
+            conn = connect_ro(path)
+            try:
+                return photo_links.specimen_photo_counts(conn)
+            finally:
+                conn.close()
+        except Exception as e:
+            print(f"[InsectCollection] photo counts unavailable: {e}")
+            return {}
+
+    def _open_specimen_photos(self, specimen):
+        """The camera column was double-clicked: the specimen's Photos window (14 Oct 2026)."""
+        from ..dialogs.photos_window import PhotosWindow
+        from shared import photo_links
+        from shared.db_open import connect_ro
+        from ...models.database import get_database
+        value = self.table_model._get_specimen_value
+        sid = value(specimen, 'id')
+        path = str(getattr(get_database(), 'main_db_path', '') or '')
+        conn = connect_ro(path)
+        try:
+            mine = photo_links.photos_for_specimen(conn, sid)
+        finally:
+            conn.close()
+        self._photos_window = PhotosWindow(value(specimen, 'species_name') or '', mine, parent=self,
+                                           record_kind='specimen', record_id=sid, db_path=path or None)
+        self._photos_window.links_changed.connect(
+            lambda _n: self.table_model.set_specimens(list(self.table_model._specimens)))
+        self._photos_window.show()
 
     # ── Lifecycle ───────────────────────────────────────────────────
 

@@ -120,6 +120,7 @@ def row_count(conn: sqlite3.Connection, job_id: int) -> int:
 
 def delete_job(conn: sqlite3.Connection, job_id: int) -> None:
     """Hard-delete a job and its staging rows."""
+    _release_photos(conn, [r[0] for r in conn.execute("SELECT id FROM entry_staging WHERE job_id=?", (job_id,))])
     conn.execute("DELETE FROM entry_staging WHERE job_id=?", (job_id,))
     conn.execute("DELETE FROM entry_jobs WHERE id=?", (job_id,))
     conn.commit()
@@ -277,6 +278,20 @@ def update_row(conn: sqlite3.Connection, row_id: int, data: Dict) -> None:
     conn.commit()
 
 
-def delete_row(conn: sqlite3.Connection, row_id: int) -> None:
+def _release_photos(conn, row_ids) -> None:
+    """Bench photos of rows being deleted stay in _Bench, unlinked (the files are never
+    deleted; the grid has already offered to send them back to the capture folder)."""
+    try:
+        from shared import bench_photos
+        bench_photos.release(conn, row_ids, None)
+    except Exception as e:                       # never block a delete; the link is just left
+        print(f"[DataEntry] photo links of rows {list(row_ids)[:5]} not removed: {e}")
+
+
+def delete_row(conn: sqlite3.Connection, row_id: int, release_photos: bool = True) -> None:
+    """release_photos False: a commit whose photo links could not move to the record keeps
+    them (pointing at this row id, never reused) so they can be put right."""
+    if release_photos:
+        _release_photos(conn, [row_id])
     conn.execute("DELETE FROM entry_staging WHERE id=?", (row_id,))
     conn.commit()

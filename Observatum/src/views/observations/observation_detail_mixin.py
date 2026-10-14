@@ -15,8 +15,35 @@ class ObservationDetailMixin:
         # Map from proxy to source
         source_index = self.sort_proxy.mapToSource(index)
         record = self.table_model.get_observation_at_row(source_index.row())
-        if record:
-            self._show_record_detail(record)
+        if not record:
+            return
+        cols = self.table_model.get_columns()
+        if (0 <= index.column() < len(cols) and cols[index.column()][0] == 'photos'
+                and self.table_model.photo_count(record)):
+            self._open_record_photos(record)          # the camera column: straight to the photos
+            return
+        self._show_record_detail(record)
+
+    def _open_record_photos(self, record: Dict):
+        """The camera column was double-clicked: the record's Photos window (14 Oct 2026)."""
+        from ..dialogs.photos_window import PhotosWindow
+        from shared import photo_links
+        from shared.db_open import connect_ro
+        from ...models.database import get_database
+        value = (lambda k: record.get(k) if isinstance(record, dict) else getattr(record, k, None))
+        rid = value('id')
+        path = str(getattr(get_database(), 'main_db_path', '') or '')
+        conn = connect_ro(path)
+        try:
+            mine = photo_links.photos_for_observation(conn, rid)
+        finally:
+            conn.close()
+        self._photos_window = PhotosWindow(value('species_name') or '', mine, parent=self,
+                                           record_kind='observation', record_id=rid,
+                                           db_path=path or None)
+        self._photos_window.links_changed.connect(
+            lambda _n: self.table_model.set_photo_counts(self._photo_counts()))
+        self._photos_window.show()
 
     def _show_record_detail(self, record: Dict):
         """Show the observation detail dialog."""
@@ -137,6 +164,11 @@ class ObservationDetailMixin:
                             f"UPDATE observations SET {', '.join(set_parts)} WHERE id = ?",
                             values
                         )
+                        # an edit made here: the next iRecord sync will not quietly undo it (A2).
+                        # Only a real change counts (saving unchanged is not an edit).
+                        from shared.sync_conflicts import differing, mark_edited
+                        if differing(dict(record), updates):
+                            mark_edited(conn, [record_id])
                         conn.commit()
                     conn.close()
                     # A re-determination: the record's linked photos follow (photos B5)
@@ -228,12 +260,21 @@ class ObservationDetailMixin:
             elif choice == irecord_delete.HIDE:
                 self._on_detail_hide_requested(record)
             return
-        if record_id and backup_before_delete(self, "Delete Observation"):
+        if not record_id:
+            return
+        from ..components import record_photos_delete
+        from ...models.database import get_database
+        db_path = str(getattr(get_database(), 'main_db_path', '') or '')
+        after = record_photos_delete.ask(self, db_path, [record_id], "Delete Observation")
+        if after is None:
+            return
+        if backup_before_delete(self, "Delete Observation"):
             try:
                 if self._obs_repo:
                     self._obs_repo.delete(record_id)
                 elif self._observation_model:
                     self._observation_model.delete(record_id)
+                after()
                 self._load_data()
                 self.records_changed.emit()
             except Exception as e:

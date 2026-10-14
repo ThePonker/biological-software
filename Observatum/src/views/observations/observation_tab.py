@@ -229,6 +229,9 @@ class ObservationTab(
                 keys = []
                 for i in range(n):
                     record = source._observations[i]
+                    if col_key == 'photos':          # the camera column: by count, as a number
+                        keys.append((source.photo_count(record), i))
+                        continue
                     if isinstance(record, dict):
                         val = record.get(col_key, '') or ''
                     else:
@@ -308,6 +311,7 @@ class ObservationTab(
 
         # Table signals
         self.table_view.doubleClicked.connect(self._on_row_double_clicked)
+        self.table_model.photo_count_provider = self._photo_counts      # the camera column
         self.table_view.viewport().setCursor(Qt.CursorShape.PointingHandCursor)
         tick_column.install(self.table_view, "accent_observations")   # one tick style, click anywhere
 
@@ -686,6 +690,11 @@ class ObservationTab(
             )
             if reply != QMessageBox.StandardButton.Yes:
                 return
+        from ..components import record_photos_delete
+        after = (record_photos_delete.ask(self, str(getattr(get_database(), 'main_db_path', '') or ''), checked_ids,
+                                          "Delete Selected") if count else (lambda: None))
+        if after is None:
+            return
         if to_hide:
             hidden = irecord_delete.hide_records(self, to_hide, title="Remove here")
             if hidden is None:
@@ -716,6 +725,7 @@ class ObservationTab(
                 tuple(checked_ids),
             )
             print(f"[ObservationTab] Deleted {count} records: ids {checked_ids[:20]}")
+            after()
             self.table_model.set_all_checked(False)
             self._load_data()
             self._update_selection_count()

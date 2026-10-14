@@ -35,6 +35,7 @@ class ObservationTableModel(CheckedByIdMixin, QAbstractTableModel):
         ('id', 'ID', 50, False),
         ('date', 'Date', 85, True),
         ('species_name', 'Species', 180, True),
+        ('photos', '\U0001F4F7', 44, False),       # linked photos (14 Oct 2026); double-click opens them
         ('common_name', 'Common Name', 130, False),
         ('species_tvk', 'TVK', 120, False),
 
@@ -119,7 +120,7 @@ class ObservationTableModel(CheckedByIdMixin, QAbstractTableModel):
 
     # Default visible columns (non-mandatory columns shown by default)
     DEFAULT_VISIBLE = [
-        'date', 'species_name', 'common_name', 'taxon_group', 'taxon_rank',
+        'date', 'species_name', 'photos', 'common_name', 'taxon_group', 'taxon_rank',
         'order_name', 'family', 'kingdom', 'species_tvk',
         'site_name', 'grid_ref', 'vice_county', 'vc_number',
         'latitude', 'longitude',
@@ -142,6 +143,8 @@ class ObservationTableModel(CheckedByIdMixin, QAbstractTableModel):
         self._observations: List[Dict] = []
         self._init_checked()
         self._dimmed: Dict[int, str] = {}   # record id -> why it is not counted
+        self._photo_counts: Dict[int, int] = {}   # record id -> linked photos (camera column)
+        self.photo_count_provider = None          # callable -> {id: n}; read on every fill
         self._visible_columns: set = set()
         self._column_order: List[str] = []
         self._columns: List[tuple] = []
@@ -170,6 +173,19 @@ class ObservationTableModel(CheckedByIdMixin, QAbstractTableModel):
             self._column_order = list(saved_order)
         else:
             self._column_order = [c[0] for c in self.ALL_COLUMNS if c[0] != 'checkbox']
+
+        # the photos column (14 Oct 2026) is shown once, beside Species, on a saved layout;
+        # after that it is Wil's to hide or move like any other
+        if not settings.value("observations/photos_column_added", False, type=bool):
+            if saved:
+                self._visible_columns.add('photos')
+                if 'photos' not in self._column_order:
+                    at = (self._column_order.index('species_name') + 1
+                          if 'species_name' in self._column_order else len(self._column_order))
+                    self._column_order.insert(at, 'photos')
+                    settings.setValue("observations/column_order", self._column_order)
+                settings.setValue("observations/visible_columns", list(self._visible_columns))
+            settings.setValue("observations/photos_column_added", True)
 
     def _load_common_name_setting(self):
         """Load common name visibility from settings."""
@@ -260,6 +276,18 @@ class ObservationTableModel(CheckedByIdMixin, QAbstractTableModel):
                     return QColor("#e8f0ea")
             if role == Qt.ItemDataRole.TextAlignmentRole:
                 return Qt.AlignmentFlag.AlignCenter
+            return None
+
+        if col_key == 'photos':
+            n = self._photo_counts.get(self._get_record_value(record, 'id'), 0)
+            if role == Qt.ItemDataRole.DisplayRole:
+                return f"\U0001F4F7 {n}" if n else ""
+            if role == Qt.ItemDataRole.ToolTipRole and n:
+                return f"{n} photo{'s' if n != 1 else ''} -- double-click to open"
+            if role == Qt.ItemDataRole.TextAlignmentRole:
+                return Qt.AlignmentFlag.AlignCenter
+            if role == Qt.ItemDataRole.BackgroundRole and self.is_row_checked(row):
+                return QColor("#e8f0ea")
             return None
 
         # Records the species-counting switches leave out: shown, dimmed (backlog A)
@@ -376,6 +404,13 @@ class ObservationTableModel(CheckedByIdMixin, QAbstractTableModel):
 
     # ── Public API ──────────────────────────────────────────────
 
+    def set_photo_counts(self, counts: Dict[int, int]):
+        """{record id: linked photos} for the camera column."""
+        self._photo_counts = dict(counts or {})
+        if self._observations:
+            self.dataChanged.emit(self.index(0, 0),
+                                  self.index(len(self._observations) - 1, len(self._columns) - 1))
+
     def set_dimmed(self, dimmed: Dict[int, str]):
         """Rows to dim: {record id: why it is not counted}."""
         self._dimmed = dict(dimmed or {})
@@ -383,8 +418,20 @@ class ObservationTableModel(CheckedByIdMixin, QAbstractTableModel):
             self.dataChanged.emit(self.index(0, 0),
                                   self.index(len(self._observations) - 1, len(self._columns) - 1))
 
+    def _refresh_photo_counts(self):
+        """Every way the table is filled reads the camera column's counts afresh."""
+        if self.photo_count_provider is not None:
+            try:
+                self._photo_counts = dict(self.photo_count_provider() or {})
+            except Exception as e:
+                print(f"[ObservationTableModel] photo counts unavailable: {e}")
+
+    def photo_count(self, record) -> int:
+        return self._photo_counts.get(self._get_record_value(record, 'id'), 0)
+
     def set_observations(self, observations: List):
         """Set observation data."""
+        self._refresh_photo_counts()
         self.beginResetModel()
         self._observations = observations
         self._clear_checked()
@@ -392,7 +439,7 @@ class ObservationTableModel(CheckedByIdMixin, QAbstractTableModel):
 
     def set_observations_fast(self, observations: List, table_view=None, sort_proxy=None):
         """Set observation data. If first_load, assumes proxy is not yet connected."""
-
+        self._refresh_photo_counts()
         self.beginResetModel()
         self._observations = observations
         self._clear_checked()

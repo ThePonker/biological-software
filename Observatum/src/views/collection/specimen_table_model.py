@@ -27,6 +27,7 @@ class SpecimenTableModel(QStandardItemModel):
         ('specimen_code', 'Specimen Code', 100, False),
         ('date_collected', 'Date', 85, True),
         ('species_name', 'Species', 160, True),
+        ('photos', '\U0001F4F7', 44, False),       # photos linked to the specimen (14 Oct 2026)
         ('species_tvk', 'TVK', 120, False),
         ('common_name', 'Common Name', 130, False),
         ('order_name', 'Order', 90, False),
@@ -56,7 +57,7 @@ class SpecimenTableModel(QStandardItemModel):
     # Default visible columns (non-mandatory columns that show by default)
     # Default: show all columns initially (user can hide via settings)
     DEFAULT_VISIBLE = [
-        'id', 'specimen_code', 'species_tvk', 'common_name', 'order_name', 
+        'id', 'specimen_code', 'photos', 'species_tvk', 'common_name', 'order_name', 
         'family', 'subfamily', 'vice_county', 'vc_number', 'sex', 
         'preparation_type', 'storage_location', 'drawer_number', 'condition',
         'label_data', 'notes', 'import_notes', 'observation_id', 
@@ -66,6 +67,8 @@ class SpecimenTableModel(QStandardItemModel):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._specimens: List[Any] = []
+        self._photo_counts: dict = {}                 # specimen id -> linked photos
+        self.photo_count_provider = None              # callable -> {id: n}; read on every fill
         self._visible_columns: set = set()
         self._column_order: List[str] = []
         self._load_column_settings()
@@ -97,6 +100,19 @@ class SpecimenTableModel(QStandardItemModel):
         else:
             # Default order from ALL_COLUMNS (excluding checkbox)
             self._column_order = [c[0] for c in self.ALL_COLUMNS if c[0] != 'checkbox']
+
+        # the photos column (14 Oct 2026) is shown once, beside Species, on a saved layout;
+        # after that it is Wil's to hide or move like any other
+        if not settings.value("collection/photos_column_added", False, type=bool):
+            if saved:
+                self._visible_columns.add('photos')
+                if 'photos' not in self._column_order:
+                    at = (self._column_order.index('species_name') + 1
+                          if 'species_name' in self._column_order else len(self._column_order))
+                    self._column_order.insert(at, 'photos')
+                    settings.setValue("collection/column_order", self._column_order)
+                settings.setValue("collection/visible_columns", list(self._visible_columns))
+            settings.setValue("collection/photos_column_added", True)
 
 
     def _load_common_name_setting(self):
@@ -196,6 +212,11 @@ class SpecimenTableModel(QStandardItemModel):
         each appendRow told the sort proxy and the view about one row, and the proxy
         re-sorted as it went (0.5-0.9 s of each reload for 2,745 specimens -- speed
         review 10 Oct 2026). The proxy re-sorts once, on its current column, after it."""
+        if self.photo_count_provider is not None:
+            try:
+                self._photo_counts = dict(self.photo_count_provider() or {})
+            except Exception as e:
+                print(f"[SpecimenTableModel] photo counts unavailable: {e}")
         was_blocked = self.blockSignals(True)
         try:
             self._fill_rows(specimens)
@@ -218,6 +239,13 @@ class SpecimenTableModel(QStandardItemModel):
                     item = QStandardItem()
                     item.setCheckable(True)
                     item.setCheckState(Qt.CheckState.Unchecked)
+                elif col_key == 'photos':
+                    n = self.photo_count(specimen)
+                    item = QStandardItem(f"\U0001F4F7 {n}" if n else "")
+                    item.setData(f"{n:06d}", Qt.ItemDataRole.UserRole + 1)   # sorts as a number
+                    item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                    if n:
+                        item.setToolTip(f"{n} photo{'s' if n != 1 else ''} -- double-click to open")
                 else:
                     # Map specimen keys to column keys
                     value = self._get_specimen_value(specimen, col_key)
@@ -273,6 +301,9 @@ class SpecimenTableModel(QStandardItemModel):
 
             self.appendRow(row_items)
 
+
+    def photo_count(self, specimen) -> int:
+        return self._photo_counts.get(self._get_specimen_value(specimen, 'id'), 0)
 
     def add_specimen(self, specimen):
         """Add a single specimen to the table without clearing existing data."""

@@ -60,6 +60,8 @@ class StagingTableModel(QAbstractTableModel):
         self._job_id = job_id
         self._vc_service = vc_service
         self._rows: List[Dict] = repo.fetch_rows(conn, job_id)
+        self._photo_counts: Dict[int, int] = {}
+        self.refresh_photo_counts()
         self._min_display = DEFAULT_DISPLAY_ROWS
         self._copy_context = True  # tickbox: fill empty context cells from the nearest row above
         self._sorted = False       # view sorted by a column: 'row above' is not the entry order
@@ -148,7 +150,13 @@ class StagingTableModel(QAbstractTableModel):
         removed = 0
         def _empty(row):
             return not any((row.get(k) not in (None, "")) for k in self._MEANINGFUL)
-        while self._rows and _empty(self._rows[-1]):
+        def _has_photos(rid):
+            try:
+                from shared import bench_photos
+                return bench_photos.count_for_rows(self._conn, [rid]) > 0
+            except Exception:
+                return True                    # unsure: keep the row
+        while self._rows and _empty(self._rows[-1]) and not _has_photos(self._rows[-1]["id"]):
             old_total = self.rowCount()
             rid = self._rows[-1]["id"]
             new_total = max(len(self._rows), self._min_display)  # after pop, len-1+1
@@ -174,7 +182,20 @@ class StagingTableModel(QAbstractTableModel):
             return COLUMNS[section][1]
         if section == len(self._rows):
             return "*"  # the new-row marker, spreadsheet-style
-        return str(section + 1)
+        n = self._photo_counts.get((self._rows[section] or {}).get("id")) if section < len(self._rows) else None
+        return f"{section + 1}  \U0001F4F7{n}" if n else str(section + 1)
+
+    def refresh_photo_counts(self) -> None:
+        """Re-read how many bench photos each row has (shown in the row header)."""
+        try:
+            from shared import photo_links
+            self._photo_counts = photo_links.staging_counts(
+                self._conn, [r.get("id") for r in self._rows])
+        except Exception as e:
+            print(f"photo counts: {e}")
+            self._photo_counts = {}
+        if self._rows:
+            self.headerDataChanged.emit(Qt.Orientation.Vertical, 0, len(self._rows) - 1)
 
     def flags(self, index):
         if not index.isValid():
@@ -301,6 +322,7 @@ class StagingTableModel(QAbstractTableModel):
         self.beginResetModel()
         self._rows = repo.fetch_rows(self._conn, self._job_id)
         self._sorted = False
+        self.refresh_photo_counts()
         self.endResetModel()
 
     def _is_virtual(self, r: int) -> bool:
@@ -410,6 +432,66 @@ class StagingTableModel(QAbstractTableModel):
             self.endInsertRows()
 
     def setData(self, index, value, role=Qt.ItemDataRole.EditRole):
+        r = index.row() if index.isValid() else -1
+        old = self._rows[r] if 0 <= r < len(self._rows) else None
+        old_id, old_key = (old.get("id"), self._photo_key(old)) if old else (None, None)
+        ok = self._set_data(index, value, role)
+        if ok and old_id is not None and 0 <= r < len(self._rows):
+            new_key = self._photo_key(self._rows[r])
+            if new_key != old_key:
+                self._photos_follow_row(old_id, old_key, new_key)
+        return ok
+
+    @staticmethod
+    def _photo_key(row) -> tuple:
+        """(species, sex, ISO date or '') -- what a bench photo's name is made from
+        (photo_attach.name_for: the date only when it is a full day)."""
+        from DataEntry import date_utils
+        date = row.get("date")
+        iso = (date_utils.start_iso(date) or "") if date and date_utils.date_type(date) == "D" else ""
+        return ((row.get("species_name") or "").strip(), (row.get("sex") or "").strip(), iso)
+
+    def _photos_follow_row(self, row_id, old_key, new_key) -> None:
+        """A row's species, sex or date changed: its bench photos are renamed inside _Bench
+        (no species folder is made until commit). A paste or fill over many rows gives one
+        note at the end, not one per row."""
+        try:
+            from shared import bench_photos, photo_files, photo_links
+            if not photo_links.photos_for_staging(self._conn, row_id):
+                return
+            named = getattr(self, "_photo_names_from", None)
+            if named is None:
+                named = self._photo_names_from = {}
+            if not new_key[0]:
+                if old_key[0]:
+                    named.setdefault(row_id, old_key)   # cleared: the photos keep this name
+                return
+            if not old_key[0]:
+                old_key = named.pop(row_id, None)
+            if old_key is None:
+                # cleared in an earlier session: the old name is not known, nothing guessed
+                res = photo_files.RedetResult(left=[
+                    (p, "the species was cleared earlier, so its old name is not known: rename it by hand")
+                    for p in photo_links.photos_for_staging(self._conn, row_id)])
+            else:
+                res = bench_photos.rename_for_row(self._conn, row_id, old_key, new_key)
+            if res.left:
+                if not getattr(self, "_photo_notes", None):
+                    self._photo_notes = []
+                    from PySide6.QtCore import QTimer
+                    QTimer.singleShot(0, self._show_photo_notes)
+                import os
+                self._photo_notes.append(f"Photos not renamed for {new_key[0]}: " + "; ".join(
+                    f"{os.path.basename(p)} ({why})" for p, why in res.left))
+        except Exception as e:
+            print(f"photos follow row: {e}")
+
+    def _show_photo_notes(self) -> None:
+        notes, self._photo_notes = getattr(self, "_photo_notes", []) or [], []
+        if notes:
+            QMessageBox.information(None, "Photos", "\n".join(notes[:20]))
+
+    def _set_data(self, index, value, role=Qt.ItemDataRole.EditRole):
         if role != Qt.ItemDataRole.EditRole or not index.isValid():
             return False
         r = index.row()
@@ -1053,7 +1135,12 @@ class EntryTableView(QTableView):
                 QMessageBox.StandardButton.No,
             ) != QMessageBox.StandardButton.Yes:
                 return
+        from DataEntry.photo_attach import ask_about_photos
+        after = ask_about_photos(self, m._conn, [m._rows[r].get("id") for r in real], "Delete rows")
+        if after is None:
+            return
         n = m.delete_rows(real)
+        after()
         print(f"[DataEntry] deleted {n} row(s)")
 
     def _insert_selected_rows(self):
@@ -1537,6 +1624,12 @@ class EntryGridPage(QWidget):
         self._count_btn.toggled.connect(
             lambda on: (None if on else self._count_btn.setText("Count mode (F9)")))
         cnt_row.addWidget(self._count_btn)
+        self._photo_btn = QPushButton("Photo\u2026")
+        self._photo_btn.setStyleSheet(theme.button_secondary_qss(compact=True))
+        self._photo_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._photo_btn.setToolTip("Attach photos from the capture folder to the current row.")
+        self._photo_btn.clicked.connect(self._attach_photos)
+        cnt_row.addWidget(self._photo_btn)
         self._counter = QLabel("")
         self._counter.setStyleSheet(f"color: {theme.INK}; font-size: 26px; font-weight: 700;")
         self._counter.setVisible(False)
@@ -1559,18 +1652,18 @@ class EntryGridPage(QWidget):
         self._commit_btn = QPushButton("Commit to Observatum")
         self._commit_btn.setStyleSheet(theme.button_primary_qss(compact=True))
         self._commit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        if not self._is_commercial():
-            # Personal records go to iRecord first and come back by the sync (DE7)
-            self._commit_btn.setText("Export for iRecord")
-            self._commit_btn.setToolTip("Write a CSV for iRecord's import. The job is kept until "
-                                        "Check iRecord return finds every record back.")
-            self._commit_btn.clicked.connect(self._do_irecord_export)
+        if not self._is_commercial() and str(self._job.get("notes") or "").startswith("Exported for iRecord"):
+            # exported the old way (no keys): its records come back by Check iRecord
+            # return; committing them here as well would hold them twice
+            self._commit_btn.setEnabled(False)
+            self._commit_btn.setToolTip("This job was exported for iRecord before keys were "
+                                        "used. Use Check iRecord return on the Jobs page.")
         elif self._commit_cb is None:
             self._commit_btn.setEnabled(False)
-            pass  # disabled look handled by button_primary_qss :disabled
             self._commit_btn.setToolTip("Commit is disabled here (preview / not launched against Observatum)")
-        if self._is_commercial():
-            self._commit_btn.clicked.connect(self._do_commit)
+        # Personal jobs commit like commercial ones (14 Oct 2026, take 2): records go to iRecord
+        # later, in bulk, from Observatum's export (it sends each record's key as External key)
+        self._commit_btn.clicked.connect(self._do_commit)
         fin_row.addWidget(self._commit_btn)
         self._export_btn = QPushButton("Export\u2026")
         self._export_btn.setStyleSheet(theme.button_secondary_qss(compact=True))
@@ -1647,6 +1740,15 @@ class EntryGridPage(QWidget):
         self._view.setFocus()
         self._show_counter(self._view.currentIndex().row())
 
+    def _attach_photos(self):
+        row = self._model.row_dict(self._view.currentIndex().row())
+        if not row or not row.get("id") or not (row.get("species_name") or "").strip():
+            QMessageBox.information(self, "Photo", "Enter the species first.")
+            return
+        from DataEntry.photo_attach import PhotoAttachDialog
+        PhotoAttachDialog(self._conn, row, self).exec()
+        self._model.refresh_photo_counts()
+
     def _show_counter(self, r):
         if not self._view.count_mode:
             return
@@ -1693,6 +1795,11 @@ class EntryGridPage(QWidget):
         """Say which order the grid shows: the label, and the 'Back to entry order'
         button (shown only while sorted). View only (L21). No heading arrow: the style
         draws ascending as a down arrow on some platforms, against the label's."""
+        # the copy-context tick says when sorting has switched it off (14 Oct 2026)
+        ctx = getattr(self, "_copy_ctx", None)
+        if ctx is not None:
+            ctx.setText("Copy context from row above" if column is None else
+                        "Copy context from row above \u2014 off while sorted (Back to entry order)")
         if column is None:
             self._order_lbl.setText("Showing: entry order")
             self._order_lbl.setStyleSheet(f"color: {theme.MUTED}; font-size: 12px;")
@@ -1861,6 +1968,10 @@ class EntryGridPage(QWidget):
             detail.append(f"{summary['future']} have a future date \u2014 worth checking")
         if detail:
             bits.append("; ".join(detail))
+        probs = summary.get("photo_problems") or []
+        if probs:
+            more = f"\n\u2026 and {len(probs) - 20} more" if len(probs) > 20 else ""
+            bits.append("\nPhotos:\n" + "\n".join(probs[:20]) + more)
         if summary.get("remaining"):
             bits.append(f"\n{summary['remaining']} row(s) left in staging to fix \u2014 the job stays open.")
         QMessageBox.information(self, "Committed", "\n".join(bits))
@@ -1926,9 +2037,13 @@ class EntryGridPage(QWidget):
             return
         if clear_after and not self._safety_copy("Export and clear"):
             return
+        after = self._ask_photos("Export and clear") if clear_after else (lambda: None)
+        if after is None:
+            return
         try:
             if clear_after:
                 n = cs.export_and_discard(self._conn, self._job, path, COLUMNS)
+                after()
             else:
                 n = cs.export_job(self._conn, self._job, path, COLUMNS)
         except Exception as e:
@@ -1952,8 +2067,18 @@ class EntryGridPage(QWidget):
             return
         if not self._safety_copy("Discard"):
             return
+        after = self._ask_photos("Discard job")
+        if after is None:
+            return
         cs.discard_job(self._conn, self._job)
+        after()
         self.finished.emit()
+
+    def _ask_photos(self, what: str):
+        """The job's rows are about to be cleared: where do their bench photos go? None = stop,
+        else call the result once the rows are gone (photo_attach.ask_about_photos)."""
+        from DataEntry.photo_attach import ask_about_photos
+        return ask_about_photos(self, self._conn, [r["id"] for r in repo.fetch_rows(self._conn, self._job_id)], what)
 
     def _safety_copy(self, what: str) -> bool:
         """Staging CSV before rows are cleared (DE8). False = stop."""

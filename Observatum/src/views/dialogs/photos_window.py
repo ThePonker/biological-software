@@ -6,6 +6,7 @@ A separate, non-modal window opened from the record detail dialog.
 - Then, for a specimen, the other specimen photos ('Specimen' folder) before the field photos;
   for an observation, field photos before specimen photos.
 - Every thumbnail has its file name underneath (the date is in the name).
+- Double-click a photo: it opens large in the photo viewer (arrow keys step through).
 - "Link to this record" / "Not this record" change which photos belong to the record (only
   the link is changed; the photo file is never touched).
 Thumbnails are loaded a few at a time on a timer, so big JPEGs never block the window.
@@ -242,9 +243,15 @@ class PhotosWindow(QDialog):
 
     # -- actions --------------------------------------------------------------------------
     def _open_item(self, item):
-        path = self._abs[item.data(Qt.ItemDataRole.UserRole)]
-        if path.is_file():
-            QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
+        """Double-click: the photo large in Observatum's viewer (14 Oct 2026), stepping through
+        the photos that are there; "Open in Windows" in the viewer opens the system viewer."""
+        i = item.data(Qt.ItemDataRole.UserRole)
+        if not self._abs[i].is_file():
+            return
+        from .photo_viewer import PhotoViewer
+        there = [j for j, p in enumerate(self._abs) if p.is_file()]
+        self._viewer = PhotoViewer([self._abs[j] for j in there], there.index(i), parent=self)
+        self._viewer.show()
 
     def _open_folder(self):
         if not self.paths:

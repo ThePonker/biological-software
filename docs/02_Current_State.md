@@ -149,6 +149,7 @@ current TVKs through the bridge. The other 10 are treated as ordinary S41
 | | |
 |---|---:|
 | Observations | **24,962** (measured 10 Oct on the 9 Oct copy). Counted with the default switches on the PC, 12 Oct: **24,827 records, 3,163 species** (Personal 19,043 + Commercial 5,784; Home's All card matches Observation Data) |
+| Changed on the PC 14 Oct | **25,008** observations after the 14 Oct sync check. **2,719** records given new Observatum keys (F82; 0 repeated after). Columns added: `observations.local_edited_at` (A2), `photo_links` table with `staging_id` (bench photos). 30 specimen photos renamed to the standard (`… gen 16.iv.19`) |
 | Changed on the PC 11 Oct | *Melanotus* 10 records to the click-beetle genus (F43); 16 records off TVKs not in UKSI (28 left with no match, Q61); 39 iRecord-format sort keys recomputed (10/11 Oct) |
 | Recording Scheme | **110,510**; 35,104 with an iRecord ID (restored 9 Oct, F40); taxon groups backfilled 10 Oct (75,406 rows). **11 Oct:** 11,149 records from 18 padding datasets moved from exact 1 January dates to year-only (`fix_jan1_dates_20261011.py`; the January bar 11,648 → 499); 39 "unclear" iRecord-longhorn and 173 small-dataset 1 January dates left for the final dataset (Q57/58). Counted with the default switches: 108,577 records, 82 species (12 Oct) |
 | On TVKs not in UKSI July 2025 | 28 records left after the 11 Oct remap (*Astur gentilis*, redpolls, *Collybia*, *Cnephaeus*, the earwig agg.); waiting for the next UKSI (Q61) |

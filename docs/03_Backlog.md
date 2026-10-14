@@ -1,6 +1,6 @@
 # Backlog
 
-## Updated 12 October 2026 (after Round 8, the outstanding tests and Wil's answers to the 97 questions)
+## Updated 14 October 2026 (photos and the iRecord round trip; see "Next")
 ## Check this before starting a session.
 
 This file is the working list: how we work, what is next, what is decided but not built,
@@ -65,11 +65,20 @@ districts**" (Q39; the source swap to Boundary-Line is in the map-layers job).
 
 ---
 
-### Next (from the 13 Oct handover, `claude/47`)
+### Next (14 Oct, `claude/50`)
+
+Photos only until the photos job is finished (Wil, 14 Oct: "no more branches"). Built and on the
+PC: A1–A3, B1–B3, B5, bench photos and take 2 (below). What is left of photos, in order:
+1. **In-app photo viewer** -- click a photo in the Photos window, it opens large in Observatum (~20 min).
+2. **Review spreadsheet for the 181 "several specimens" photos** -- 63 identical groups pair one to
+   one by script; 28 differ and need Wil; a link per photo to open it.
+3. **B4 phone Inbox intake** (Mosaic photos now come through Data Entry's Photo… button instead).
+4. **Grid refs on photos** -- from the linked record; a box in intake; optional EXIF write.
+5. Later, if wanted: "exported on" stamp so a second bulk export before the sync skips records
+   already sent; main photo in the record dialog; photos in reports.
 
 Later / parked: Specimens to check tab (design agreed; build after the Data Entry jobs Hook,
-Notts, Coedely, Scunthorpe, Warwick are entered and committed). Photos and the iRecord round trip: staged plan
-A1–A3, B1–B4 below (discussion only; nothing built). Lector walkthrough and tests. Test 36 (Drawer in hand on the
+Notts, Coedely, Scunthorpe, Warwick are entered and committed). Lector walkthrough and tests. Test 36 (Drawer in hand on the
 1280×720 laptop). F72's uncovered raw queries for hidden records: decide whether to sweep.
 
 ## Then: the big jobs (Q1 open; suggested order below, `04_Roadmap.md`)
@@ -78,7 +87,7 @@ A1–A3, B1–B4 below (discussion only; nothing built). Lector walkthrough and 
 |---|---|---|
 | **Specimens → records** | about half a day | All answered 12 Oct (Q23–Q33, below). Recommended first |
 | **Final Recording Scheme dataset** (M1) | 1 h of questions, 2 sessions | Q4: questions straight after the next big job. Q72/Q73 answered; Q57–Q59 feed it |
-| **iRecord round trip, then Photos** (lean plan below) | about 8 hours | B1 done 13 Oct; A1 script built; Wil says when to start the rest |
+| **iRecord round trip, then Photos** (lean plan below) | about 8 hours | A1–A3, B1–B3, B5 and bench photos done 13–14 Oct; left: viewer, review sheet, B4 intake, grid refs (Next, above) |
 | **Partner's laptop install** | 8–11 days | **Winter**, after photos and the scheme dataset (Q2). Full suite (Q68). Separate databases, data moved by export/import (Q3). Her own empty database plus an optional practice database with sample data (Q69) |
 | Optional: **map background layers** | 3–4 days | Q6, Q34–Q40 answered |
 | Optional: **Atrium icons and restyle** | about 1 session | Q52/Q53: Claude drafts a silhouette for each app from the Observatum logo for Wil to approve; icon files in git are fine; Munia's look checked here |
@@ -109,14 +118,15 @@ A determination history is left until wanted.
 
 | # | Stage | Est. | Notes |
 |---|---|---|---|
-| A1 | **Test the sync's matching** with the returned IRTEST records | ~5 min | ✅ *Script built 13 Oct:* `scripts\check_irecord_download.py` (read only). Waiting for a download that holds the 46 |
-| A2 | **Sync guard:** key or ID naming several records held, not added; backup before every sync; **conflict check** (re-dets, local edits); the iRecord note on edit | ~1.5 h | Data change: Opus review |
-| A3 | **Personal jobs work like commercial:** Data Entry creates the record and its key at commit; the CSV carries it as External key; the sync pairs by key. "Check iRecord return" pairing retires | ~1 h | Changes DE7. After A1 |
+| A1 | **Test the sync's matching** with the returned IRTEST records | ~5 min | ✅ *Done 14 Oct:* all 46 keys returned and matched (`check_irecord_download.py`) |
+| A2 | **Sync guard:** key or ID naming several records held, not added; backup before every sync; **conflict check** (re-dets, local edits); the iRecord note on edit | ~1.5 h | ✅ *Done 14 Oct* (F83; `add_local_edited_column.py` run). Keys made unique first (F82) |
+| A3 | **Personal jobs work like commercial:** Data Entry creates the record and its key at commit; the CSV carries it as External key; the sync pairs by key. "Check iRecord return" pairing retires | ~1 h | ✅ *Done 14 Oct; changed same day:* personal jobs just **Commit**; records go to iRecord in bulk from Observatum's export (External key), then the sync. Routine: export → upload → sync before the next export |
 | B1 | **Consolidate specimen photos into Life** | -- | ✅ *Done 13 Oct 23:44* (below) |
-| B2 | **Record ↔ photo links:** one small table (migration, dry run, backup); the 987 microscope photos with exactly one matching specimen linked by script. **No index of the library**: the species folder is the index | ~1 h | Schema change: Opus review |
-| B3 | **Photos button and window:** the species folder's photos, this record's first; "file not found" shown if a linked file is gone | ~1 h | |
+| B2 | **Record ↔ photo links:** one small table (migration, dry run, backup); the 987 microscope photos with exactly one matching specimen linked by script. **No index of the library**: the species folder is the index | ~1 h | ✅ *Done 13–14 Oct* |
+| B3 | **Photos button and window:** the species folder's photos, this record's first; "file not found" shown if a linked file is gone | ~1 h | ✅ *Done 13–14 Oct* (link / unlink by hand) |
 | B4 | **Photo intake** -- one screen for the Mosaic folder and a phone Inbox folder: thumbnails with date and GPS grid ref; type the species once for a selection; then species only / attach to a record (suggested by species, date, place) / make a record (Data Entry row) / leave. Move and rename to the standard, log, undo | ~3.5 h | After A3. Check Pixel motion photos/RAW and phone GPS first |
-| B5 | **Re-det moves the record's photos** (same move code) | ~30 min | With A2 |
+| B5 | **Re-det moves the record's photos** (same move code) | ~30 min | ✅ *Done 13–14 Oct*, also for a re-det that arrives by sync |
+| B6 | **Bench photos in Data Entry:** Photo… on a row (capture folder `Desktop\image`, setting; views head / gen / add your own); names "Amara aenea male gen 5.vi.26" (no capitals but the genus); photos wait in `Media\Photos\_Bench` and go to the species' Specimen folder at commit (species picked from the list only); a species change renames them in `_Bench`; deleting rows asks "back to capture folder / leave in _Bench". A specimen is never made from a record (added to the Insect Collection by hand) | -- | ✅ *Done 14 Oct* (take 2 after Wil's test; F84) |
 | | **Total** | **~8 h** | Later, when wanted: main photo in the record dialog, determination history, photos in reports, stacking |
 
 ### Decided, waiting for its build
@@ -234,6 +244,13 @@ titles (Entomologist's Monthly Magazine apostrophe; Scottish Naturalist); re-exp
   raise `SIMPLIFY_KEEP_EVERY` (now 5) in the script and re-run.
 - `fix1_lector_years_dupes.py` can go from the project root (copy in `_archive\lector_fix1_20261011\`).
 - Photos: before the Inbox build, check how the OneDrive app handles Pixel motion photos and RAW.
+- Photos, 14 Oct: 30 specimen names standardised (log `data\photo_moves\redet_20261014_113022_938260.csv`;
+  "Stenus similis B" became "b" -- check). `Philonthus laminatus gen 31.iii` has no year.
+  Cleaning report > Photos… lists empty folders, `_Bench`, missing files and names to fix.
+- Keys renumbered 14 Oct (2,719): old -> new in `scripts\_oneoff\renumbered_keys_20261014.csv`;
+  backup `observatum_pre_renumber_keys_20261014_113137_100438.db`.
+- 47 Elmley records (8 Oct entry, OBS-WJH-20261008-000001…047) not yet in iRecord: include
+  four non-invertebrates (Cattle Egret, Mediterranean Gull, *Ballota nigra*, *Rumex crispus* ×2).
 - Read NERR005 Table 17, p. 86, from Wil's copy before settling the report template.
 - Slade Green: waiting for Wil's instruction.
 - Photos moved 13 Oct 23:44 (1,469; log `scripts\_oneoff\photo_moves_log_20261013_234407.csv`;
@@ -301,4 +318,5 @@ From the sweep of notes 30–46, the repo docs, the drafts, the agent briefs and
 | Round 8 (12 Oct) | Lector L1–L16, Observatum O1 (pause) and O2 (square opacity), Lector manual, review fixes | Outstanding tests, all passed 12 Oct |
 | Tests only (12 Oct) | B8 Check before commit; E3 Examen PDF; import test files (`tests/manual_import_files/`) | passed |
 | Handover tasks (13 Oct) | One place for saved filters; cleaning report rows open Record Detail + Hidden here tile; disabled look on every button style; Species Lookup list painter; tests in parallel (`-n 6`) | all passed 13 Oct |
+| 13–14 Oct | B2 links, B3 Photos window, B5 re-det moves; A2 sync guard (F83), A3; one key rule and renumber (F82); bench photos and take 2 (F84); cleaning report Photos | Wil, 14 Oct: tests and full suite 1,431 passed (bench photos); take 2 being tested |
 | 13 Oct (night) | A1 download check; B1 plan, review sheet, standard photo names (`15.ix.17`, sex lower case), move list, mover with log and reverse; 1,469 photos moved into Life | Wil, 13 Oct: tests, full suite 1,386, dry run 0 problems, move checked |

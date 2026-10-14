@@ -1,10 +1,10 @@
 # Faults
 
-## Updated 13 October 2026
+## Updated 14 October 2026
 ## Open faults carry an action. Closed ones are kept in brief, because knowing
 ## what has already gone wrong is how the rules in `05` were earned. Older closed
 ## faults are in `06b_Faults_Closed.md` (split out 12 Oct). New faults take the
-## next free number (F82 next).
+## next free number (F85 next).
 
 ---
 
@@ -231,6 +231,32 @@ unconverted, so multi-line string anchors still fail unpredictably.
 ---
 
 ## Closed since 10 October
+
+### F82. Observatum keys repeated across records -- FIXED 14 Oct
+*Found by the A2/A3 review.* Three key generators picked "the next number" by sorting the key
+as text, so from 25 Mar 2026 new keys repeated (3,712 records under 993 keys on the 13 Oct
+copy). The key goes to iRecord as the External key and must name one record. None had reached
+iRecord (the download held only the 46 IRTEST keys) and no figure depended on them. One rule
+now (`shared/observatum_keys.py`: numeric MAX, six digits); `renumber_duplicate_keys.py` gave
+2,719 records new keys on the PC (14 Oct, 0 repeated after, 25,008 records; old -> new list in
+`scripts\_oneoff\renumbered_keys_20261014.csv`); the iRecord export refuses while any key is shared.
+
+### F83. An iRecord sync could undo an edit made in Observatum -- FIXED 14 Oct (A2)
+The sync wrote iRecord's species, determiner and other fields over the record, so a re-det made
+only in Observatum was put back. Now (`shared/sync_conflicts.py`): a record edited here since
+its last sync keeps its edit when iRecord's copy is unchanged; when both changed and differ,
+nothing is written and the record is listed to choose (Keep Observatum's / Take iRecord's).
+Verification and other iRecord-owned fields are always written. Needs the `local_edited_at`
+column (`add_local_edited_column.py`, run on the PC). An Observatum key that names several
+records, or another iRecord ID, is held for review, never guessed.
+
+### F84. Bench photos left empty folders and loose links -- FIXED 14 Oct (take 2)
+*Found by Wil testing the first bench-photo build.* Attaching moved a photo straight into the
+species' Specimen folder, so a typing slip or a later species change made a folder ("sde eff")
+that stayed behind, and deleting a row left its photo links pointing at nothing. Now the photos
+wait in `Media\Photos\_Bench` until commit and go to the species folder only for a species
+picked from the list; deleting rows asks whether the photos go back to the capture folder; old
+loose links: `tidy_bench_links.py`; empty folders: cleaning report > Photos > Move to _archive.
 
 ### F79. Layout tests passed or failed with test order -- FIXED 13 Oct
 Offscreen Qt on Windows finds no fonts, so the 1280 px window tests measured with no glyphs

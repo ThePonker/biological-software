@@ -54,9 +54,9 @@ def _open(w, job_id):
     return _grid(w)
 
 
-def test_personal_job_exports_for_irecord_commercial_commits(widget):
+def test_personal_and_commercial_jobs_both_commit(widget):
     pid = repo.ensure_personal_job(widget._conn)
-    assert _open(widget, pid)._commit_btn.text() == "Export for iRecord"
+    assert _open(widget, pid)._commit_btn.text() == "Commit to Observatum"   # take 2: plain commit
     cid = repo.create_job(widget._conn, "Glory Park", "Commercial", "BAM", "Glory Park")
     assert _open(widget, cid)._commit_btn.text() == "Commit to Observatum"
 
@@ -71,13 +71,19 @@ def test_export_for_irecord_then_check_return(widget, tmp_path, monkeypatch):
     out = tmp_path / "out.csv"
     monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *a, **k: (str(out), ""))
     monkeypatch.setattr(ie, "accepted_tvks", lambda tvks, uksi_path=None: {"T1"})
-    grid = _open(widget, pid)
-    grid._commit_btn.click()
+    # the older route (before A3) for a job already exported that way: export_job, then
+    # Check iRecord return. A3's grid commits instead; a job exported like this is not
+    # committable again (its commit button is disabled).
+    ie.export_job(conn, repo.get_job(conn, pid), str(out))
     assert out.exists()
     job = repo.get_job(conn, pid)
     assert job["status"] == repo.AWAITING_IRECORD and repo.row_count(conn, pid) == 1
-    assert widget._stack.currentIndex() == 0                     # back on the jobs list
+    repo.reopen_job(conn, pid)
+    assert not _open(widget, pid)._commit_btn.isEnabled()
+    widget._back_to_jobs()
+    repo.update_job(conn, pid, status=repo.AWAITING_IRECORD)
     jobs = widget._jobs
+    jobs.refresh()
     jobs._select_job(pid)
     assert jobs.btn_check.isVisible() or not jobs.isVisible()
     assert jobs.btn_check.isEnabled()
@@ -160,3 +166,11 @@ def test_part_failed_commit_says_how_many_and_refreshes(widget, monkeypatch):
     assert got == [4]
     title, text = widget._shown[-1]
     assert title == "Commit stopped" and "Committed 4" in text and "disk full" in text
+
+
+def test_copy_context_tick_says_when_sorting_switches_it_off(widget):
+    g = _open(widget, repo.ensure_personal_job(widget._conn))
+    g._show_order(0, False)
+    assert "off while sorted" in g._copy_ctx.text()
+    g._show_order(None, False)
+    assert g._copy_ctx.text() == "Copy context from row above"

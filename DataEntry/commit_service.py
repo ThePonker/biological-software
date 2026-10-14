@@ -195,6 +195,23 @@ def precommit_issues(rows) -> Dict[str, list]:
     return {k: v for k, v in issues.items() if v}
 
 
+def _photos_follow_row(conn, staging_id: int, new_id: int, problems: list, row: Dict) -> bool:
+    """Bench photos (take 2, 14 Oct 2026): the row's photos leave _Bench for the species'
+    Specimen folder and belong to its record (shared/bench_photos.file_on_commit). Never stops
+    a commit (the record is already written); anything not done is listed in the summary
+    ('photo_problems').
+    True when the row's photo links are safe to let go of with the row (they are the record's
+    now); False keeps them on the row (its delete must not drop them)."""
+    try:
+        from shared import bench_photos
+        safe, notes = bench_photos.file_on_commit(conn, staging_id, row, new_id)
+        problems.extend(notes)
+        return safe
+    except Exception as e:
+        problems.append(f"row {staging_id} -> record {new_id}: {e}")
+        return False
+
+
 def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
                observation_cls=None, taxonomy: Optional[Dict] = None) -> Dict:
     """Write eligible staging rows into observations; delete the committed ones.
@@ -227,6 +244,8 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
     from datetime import datetime
     batch = 'DataEntry batch ' + datetime.now().isoformat(timespec='seconds')
     rows = repo.fetch_rows(conn, job["id"])
+    committed_rows = []            # (staging row, new observation id) -- A3's iRecord file
+    photo_problems = []            # bench photos whose link could not follow (row -> record)
     if taxonomy is None:
         try:
             from shared.taxon_groups import taxonomy_for_tvks
@@ -285,10 +304,14 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
             # the record IS written: take it out of staging so a retry cannot double it
             error = f"{row.get('species_name')} was written (id {new_id}) but its survey " \
                     f"fields or embargo were not: {e}"
-            repo.delete_row(conn, row["id"])
+            committed_rows.append((dict(row), new_id))
+            safe = _photos_follow_row(conn, row["id"], new_id, photo_problems, row)
+            repo.delete_row(conn, row["id"], release_photos=safe)
             committed += 1
             break
-        repo.delete_row(conn, row["id"])
+        committed_rows.append((dict(row), new_id))
+        safe = _photos_follow_row(conn, row["id"], new_id, photo_problems, row)
+        repo.delete_row(conn, row["id"], release_photos=safe)
         committed += 1
 
     remaining = repo.row_count(conn, job["id"])
@@ -308,6 +331,8 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
         "batch": batch,
         "error": error,
         "taxonomy_error": taxonomy_error,
+        "committed_rows": committed_rows,
+        "photo_problems": photo_problems,
     }
 
 
