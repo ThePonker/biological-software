@@ -15,7 +15,7 @@
 | **Examen** | Reproduces an issued report's SQI exactly (Glory Park, 117). Reads `assessment_records`, so contributed records count. Excel, PDF and Word reports; compartments (E6), saproxylic SQI + IEC (E7), taxonomic summary (E8b). **PDF passed Wil's review 12 Oct (E3)**; style changes wait for the report-contents work. "1 sp." singular. Fits a laptop screen (minimum 1000×560, toolbar scrolls sideways). |
 | **Codex** | Rebuilt 9 October (D5) on **JNCC June 2026** and **UKSI July 2025**. **63 reviews** (35 status reviews + 28 atlases, accounts only), 6,566 review accounts. Known stale status: *Philanthus triangulum* still carries RDB2 (12 Oct). |
 | **UKSI** | NHM July 2025 release since 6 Oct; the December 2023 file kept as `uksi_2023.db`. Synonym fix applied 9 Oct (98,415 → 98,013). |
-| **Contributed records** | `contributed_observations`, **757 records** from J. Moore: Birmingham 162, Slade Green 339, **Sundon 256** (11 Oct). Read-only Contributed tab. On Mapping only when chosen. |
+| **Contributed records** | `contributed_observations`, **917 records** from J. Moore: Birmingham 162, Slade Green 339, Sundon 256 (11 Oct), **Bristol 160** (15 Oct). Read-only Contributed tab. On Mapping only when chosen. |
 | **Insect Collection** | 2,745 specimens. Field record links: the Edit Specimen box, link / unlink scripts and `specimens.no_field_record_checked` (added on the PC 11 Oct). Read-only breakdown of specimens with no field record (§2). |
 | **Curator** | Working. Genus-only specimens get their own "<Genus> sp." row (Leiopus 3 = *L. nebulosus* 2 + Leiopus sp. 1). Does not write curatorial fields. |
 | **Lector** | **In the suite with a desktop window (Round 7, 12 Oct)**: saved searches, search builder with name checks and a preview, runs and what changed, reading list, exports (Word dossier, Excel index, PDF, text). Atrium tile; console in Atrium's Tools row. `lector.db` schema v3 (Round 8). Lector tests 9 of 9 passed; the user manual's ~130-item checklist not started. **Paused by Wil 12 Oct** (Q7). |
@@ -153,7 +153,7 @@ current TVKs through the bridge. The other 10 are treated as ordinary S41
 | Changed on the PC 11 Oct | *Melanotus* 10 records to the click-beetle genus (F43); 16 records off TVKs not in UKSI (28 left with no match, Q61); 39 iRecord-format sort keys recomputed (10/11 Oct) |
 | Recording Scheme | **110,510**; 35,104 with an iRecord ID (restored 9 Oct, F40); taxon groups backfilled 10 Oct (75,406 rows). **11 Oct:** 11,149 records from 18 padding datasets moved from exact 1 January dates to year-only (`fix_jan1_dates_20261011.py`; the January bar 11,648 → 499); 39 "unclear" iRecord-longhorn and 173 small-dataset 1 January dates left for the final dataset (Q57/58). Counted with the default switches: 108,577 records, 82 species (12 Oct) |
 | On TVKs not in UKSI July 2025 | 28 records left after the 11 Oct remap (*Astur gentilis*, redpolls, *Collybia*, *Cnephaeus*, the earwig agg.); waiting for the next UKSI (Q61) |
-| Contributed observations | **757** (J. Moore: Birmingham – Wheels Park 162, Slade Green 339, Sundon 256 on 11 Oct) |
+| Contributed observations | **917** (J. Moore: Birmingham – Wheels Park 162, Slade Green 339, Sundon 256 on 11 Oct, Bristol 160 on 15 Oct) |
 | Vice-county filled | 4,169 backfilled 26 September; 0 missing where a grid ref exists |
 | species_profiles (your own) | **141** -- 70 Kent Deadwood, 71 from seven other reports (6 Oct), keyed on TVK |
 | Remapped to current TVKs, 6 Oct | 12 observations, 1 specimen, 1 own profile (`remap_record_tvks.py`) |
@@ -208,7 +208,7 @@ likely a score differing between Pantheon 3.7.4 here and 3.7.6 on the website.
 **Until 2 October Examen gave Glory Park 134.** The September "validation" matched
 key species and never compared the SQI. See `06_Faults.md`.
 
-### Every survey, 9 October (frozen in `scripts/reference_figures.json`; Sundon and the strict key counts updated 12 Oct, below; Alsager 191 → 192 species on 14 Oct: *Cerceris arenaria* from a collection specimen)
+### Every survey, 9 October (frozen in `scripts/reference_figures.json`; Sundon and the strict key counts updated 12 Oct, below; Alsager 191 → 192 species on 14 Oct: *Cerceris arenaria* from a collection specimen; Bristol with Jon Moore's 160 records on 15 Oct: 122/4/106 → 196/5/105, strict key 5 → 6, adding *Pseudocistela ceramboides*; Pantheon SQI unchanged)
 
 Current scoring and Pantheon's published scores alone; key species after the jurisdiction and research-only rules. *Strict* = Examen's Pantheon Only mode.
 
@@ -220,7 +220,7 @@ Current scoring and Pantheon's published scores alone; key species after the jur
 | Bicester Graven Hill 2023 | 367 | 18 | 107 | 107 | 19 |
 | Bicester Graven Hill 2025 | 254 | 19 | 126 | 125 | 21 |
 | Birmingham - Wheels Park 2026 | 195 | 7 | 116 | 105 | 8 |
-| Bristol 2026 | 122 | 4 | 106 | 105 | 5 |
+| Bristol 2026 (with Jon Moore's records, 15 Oct) | 196 | 5 | 105 | 105 | 6 |
 | Derby 2025 | 230 | 4 | 100 | 99 | 6 |
 | Elmley 2026 | 44 | 7 | 182 | 184 | 7 |
 | Fermyn Hall Wood Deadwood 2024 | 49 | 7 | 157 | 153 | 8 |
