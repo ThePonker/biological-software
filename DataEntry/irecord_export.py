@@ -143,7 +143,7 @@ def export_job(conn, job: Dict, filepath: str, uksi_path=None) -> Dict:
     rows = [r for r in all_rows if not is_flagged(r)]      # "To check" rows are not sent
     held = len(all_rows) - len(rows)
     if held:
-        raise ValueError(f"{held} row(s) are marked To check. Settle them (or take the mark off) "
+        raise ValueError(f"{held} row(s) are marked to check. Settle them (or take the mark off) "
                          "before exporting this job for iRecord: an exported job would keep "
                          "them where nothing later picks them up.")
     bad = blocking_rows(rows)

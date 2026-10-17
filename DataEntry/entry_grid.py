@@ -53,6 +53,8 @@ COLUMNS = [
 
 COLIDX = {key: i for i, (key, _, _, _) in enumerate(COLUMNS)}
 CHECK_HINT = "Run scripts\\add_staging_check_columns.py once"
+# what typed or pasted into the Check cell marks a row (anything else clears it)
+CHECK_YES = ("1", "x", "yes", "y", "t", "true", "to check", "check")
 LAST_ROW_KEY = "DataEntry/lastRow/{}"       # per job: the staging row id last inserted or edited
 
 # the plain CSV export is unchanged: it does not carry the To check columns
@@ -441,9 +443,10 @@ class StagingTableModel(QAbstractTableModel):
         if not self._has_check:
             return CHECK_HINT if role == Qt.ItemDataRole.ToolTipRole else None
         if not self.is_flagged(r):
-            return None
+            return ("Not marked. Type \"to check\" (or x), press Space, or Ctrl+T from any "
+                    "column." if role == Qt.ItemDataRole.ToolTipRole else None)
         if role == Qt.ItemDataRole.DisplayRole:
-            return "To check"
+            return "to check"
         from PySide6.QtGui import QColor
         if role == Qt.ItemDataRole.BackgroundRole:
             return QColor(theme.GOLD_BG)
@@ -451,7 +454,7 @@ class StagingTableModel(QAbstractTableModel):
             return QColor(theme.GOLD)
         if role == Qt.ItemDataRole.ToolTipRole:
             note = (self._rows[r].get("check_note") or "").strip()
-            return note or "Marked To check. Double-click or press Space to clear."
+            return note or "Marked to check. Ctrl+T, Space or double-click to clear."
         return None
 
     @staticmethod
@@ -582,7 +585,7 @@ class StagingTableModel(QAbstractTableModel):
         if kind == "check":
             # only an explicit value switches it on (a pasted number or word does not)
             on = value is True or (isinstance(value, int) and value == 1) or \
-                str(value if value is not None else "").strip().lower() in ("1", "x", "yes", "y", "true", "to check")
+                str(value if value is not None else "").strip().lower() in CHECK_YES
             if virtual:
                 if not on:
                     return True
@@ -865,10 +868,22 @@ class _OptionDelegate(_EnterMovesDown, QStyledItemDelegate):
         model.setData(index, editor.currentText(), Qt.ItemDataRole.EditRole)
 
 
-class _CheckDelegate(QStyledItemDelegate):
-    """The Check cell has no editor: double-click or Space toggles it (EntryTableView)."""
+class _CheckDelegate(_EnterMovesDown, QStyledItemDelegate):
+    """The Check cell: double-click, Space or Ctrl+T toggles it (EntryTableView); typing opens
+    a small editor -- "to check" (or x, y, t) marks the row, anything else clears it."""
     def createEditor(self, parent, option, index):
-        return None
+        from PySide6.QtWidgets import QCompleter, QLineEdit
+        ed = QLineEdit(parent)
+        comp = QCompleter(["to check"], ed)
+        comp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        ed.setCompleter(comp)
+        return ed
+
+    def setEditorData(self, editor, index):
+        editor.setText("")
+
+    def setModelData(self, editor, model, index):
+        model.setData(index, editor.text(), Qt.ItemDataRole.EditRole)
 
 
 class _NumberDelegate(_TextDelegate):
@@ -1068,6 +1083,8 @@ class EntryTableView(QTableView):
         if mods & Qt.KeyboardModifier.ControlModifier:
             if k == Qt.Key.Key_R:
                 self._repeat_row(); return
+            if k == Qt.Key.Key_T and not editing:
+                self._toggle_check_selected(); return
             if k == Qt.Key.Key_D:
                 self._fill_down(); return
             if k == Qt.Key.Key_I and not editing:
@@ -1142,6 +1159,21 @@ class EntryTableView(QTableView):
                             event.type(), event.key(), event.modifiers(), event.text()))
                     return
         super().keyPressEvent(event)
+
+    def _toggle_check_selected(self):
+        """Ctrl+T, from any column: mark the selected rows to check -- or, if every one is
+        marked already, take the mark off. Rows hidden by "To check only" are left out."""
+        m = self.model()
+        rows = [r for r in self._selected_rows() if r < m.real_count()]
+        if not rows:
+            cur = self.currentIndex()
+            rows = [cur.row()] if cur.isValid() and cur.row() < m.real_count() else []
+        if not rows or not m.has_check_columns():
+            return
+        mark = not all(m.is_flagged(r) for r in rows)
+        for r in rows:
+            if m.is_flagged(r) != mark:
+                m.toggle_check(r)
 
     def mouseDoubleClickEvent(self, event):
         ix = self.indexAt(event.position().toPoint())
@@ -1779,7 +1811,7 @@ class EntryGridPage(QWidget):
         self._check_export_btn.setStyleSheet(theme.button_secondary_qss(compact=True))
         self._check_export_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._check_export_btn.setToolTip("A spreadsheet and a folder of photo copies for the rows "
-                                          "marked To check (or the selected rows), to send to be checked.")
+                                          "marked to check (or the selected rows), to send to be checked.")
         self._check_export_btn.clicked.connect(self._export_for_checking)
         cnt_row.addWidget(self._check_export_btn)
         self._counter = QLabel("")
@@ -1916,7 +1948,7 @@ class EntryGridPage(QWidget):
         has = self._model.has_check_columns()
         self._check_only_btn.setEnabled(has)
         self._check_only_btn.setToolTip(
-            "Show only the rows marked To check (view only; the other rows stay)." if has
+            "Show only the rows marked to check (view only; the other rows stay)." if has
             else CHECK_HINT)
         if self._check_only_btn.isChecked():
             self._apply_check_filter()
@@ -2186,7 +2218,7 @@ class EntryGridPage(QWidget):
         if summary.get("skipped_bad_vc"):
             detail.append(f"{summary['skipped_bad_vc']} skipped (VC No. unreadable)")
         if summary.get("skipped_check"):
-            detail.append(f"{summary['skipped_check']} row(s) marked To check stay in Data Entry")
+            detail.append(f"{summary['skipped_check']} row(s) marked to check stay in Data Entry")
         if summary.get("taxonomy_error"):
             detail.append("taxon group and sort key not written (UKSI unreadable: "
                           f"{summary['taxonomy_error']})")
@@ -2242,7 +2274,7 @@ class EntryGridPage(QWidget):
             lines.append(f"\u2022 {len(pairs)} possible double entr{'y' if len(pairs) == 1 else 'ies'} "
                          f"(same species, date, grid ref, method, trap, sex and stage): rows {rows_text(pairs, 10)}")
         if held:
-            lines.append(f"\u2022 {len(held)} marked To check (held back, they stay in Data Entry): "
+            lines.append(f"\u2022 {len(held)} marked to check (held back, they stay in Data Entry): "
                          f"rows {rows_text(held)}")
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.Warning)

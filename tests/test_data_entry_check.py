@@ -165,7 +165,7 @@ def test_irecord_export_refuses_while_rows_are_marked(lib):
     _row(conn, repo, jid)
     _row(conn, repo, jid, species_name="Badister sodalis", check_flag=1)
     out = tmp / "ir.csv"
-    with pytest.raises(ValueError, match="marked To check"):
+    with pytest.raises(ValueError, match="marked to check"):
         ie.export_job(conn, repo.get_job(conn, jid), str(out), uksi_path=tmp / "none.db")
     assert not out.exists() and repo.get_job(conn, jid)["status"] == "active"
 
@@ -282,7 +282,7 @@ def test_check_toggle_and_last_row_in_the_model(lib, named_app):
     flag = m.index(0, eg.COLIDX["check_flag"])
     assert m.data(flag) is None
     m.toggle_check(0)
-    assert m.data(flag) == "To check" and m.flagged_count() == 1
+    assert m.data(flag) == "to check" and m.flagged_count() == 1
     assert conn.execute("SELECT check_flag FROM entry_staging WHERE id=?", (a,)).fetchone()[0] == 1
     m.setData(m.index(0, eg.COLIDX["check_note"]), "legs?", Qt.ItemDataRole.EditRole)
     assert m.data(flag, Qt.ItemDataRole.ToolTipRole) == "legs?"
@@ -346,3 +346,46 @@ def test_filter_hides_rows_from_selection_and_paste(lib, named_app):
     for val, on in (("maybe", False), ("x", True), ("0", False), ("To check", True)):
         m.setData(m.index(0, flag), val, Qt.ItemDataRole.EditRole)
         assert bool(m.is_flagged(0)) is on, val
+
+
+def test_ctrl_t_and_typing_mark_rows(lib, named_app):
+    """17 Oct: Ctrl+T marks the selected rows from any column (again: off when all are
+    marked); typing "to check" (or x, y, t) in the Check cell marks, anything else clears."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QKeyEvent
+    from PySide6.QtCore import QEvent
+    from DataEntry import entry_grid as eg
+    tmp, conn, repo = lib
+    jid = _job(conn, repo)
+    for name in ("Aa", "Bb", "Cc"):
+        _row(conn, repo, jid, species_name=name)
+    m = eg.StagingTableModel(conn, jid)
+    v = eg.EntryTableView()
+    v.setModel(m)
+    v.setItemDelegateForColumn(eg.COLIDX["check_flag"], eg._CheckDelegate(v))
+
+    def ctrl_t():
+        v.keyPressEvent(QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_T,
+                                  Qt.KeyboardModifier.ControlModifier))
+
+    v.setCurrentIndex(m.index(0, eg.COLIDX["comment"]))
+    v.selectRow(0)
+    m.toggle_check(1)
+    from PySide6.QtCore import QItemSelectionModel
+    v.selectionModel().select(m.index(1, 0), QItemSelectionModel.SelectionFlag.Select
+                              | QItemSelectionModel.SelectionFlag.Rows)
+    ctrl_t()                                  # one of two marked: both marked
+    assert [m.is_flagged(r) for r in range(3)] == [True, True, False]
+    ctrl_t()                                  # both marked: both cleared
+    assert [m.is_flagged(r) for r in range(3)] == [False, False, False]
+    # typing in the Check cell: the delegate's editor writes what was typed
+    d = v.itemDelegateForColumn(eg.COLIDX["check_flag"])
+    ix = m.index(2, eg.COLIDX["check_flag"])
+    ed = d.createEditor(v.viewport(), None, ix)
+    d.setEditorData(ed, ix)
+    assert ed.text() == ""
+    for typed, on in (("to check", True), ("", False), ("T", True), ("no", False)):
+        ed.setText(typed)
+        d.setModelData(ed, m, ix)
+        assert m.is_flagged(2) is on, typed
+    assert m.data(ix, Qt.ItemDataRole.ToolTipRole).startswith("Not marked")

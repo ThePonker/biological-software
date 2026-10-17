@@ -228,6 +228,8 @@ class LabelsView(QWidget):
         self.tree.setHeaderHidden(True)
         self.tree.setIndentation(16)
         self.tree.itemChanged.connect(self._on_item_checked)
+        from shared.tick_style import style_item_view
+        style_item_view(self.tree)         # the suite's green tick (17 Oct 2026)
         ml.addWidget(self.tree, 1)
 
         splitter.addWidget(middle)

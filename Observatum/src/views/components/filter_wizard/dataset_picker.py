@@ -104,6 +104,8 @@ class DatasetPicker(QWidget):
                 color: {t.get('text_primary')};
             }}
         """)
+        from shared.tick_style import style_item_view
+        style_item_view(self.list)         # the suite's green tick (17 Oct 2026)
         counts = dict(datasets)
         order, self._parent = dataset_tree(counts)
         self._children: Dict[str, List[str]] = {}

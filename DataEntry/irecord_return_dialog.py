@@ -39,7 +39,7 @@ def export_for_irecord(parent, conn, job) -> bool:
     QMessageBox.information(
         parent, "Exported for iRecord",
         f"Wrote {res['written']} record(s) to:\n{path}\n\nTVKs {res['tvk_check']}.\n\n"
-        + (f"{res['left_out']} row(s) marked To check were left out of the file.\n\n"
+        + (f"{res['left_out']} row(s) marked to check were left out of the file.\n\n"
            if res.get("left_out") else "") +
         "Import the file into iRecord. The job is kept, marked “exported – awaiting "
         "iRecord”. After the next iRecord sync, select it on the Jobs page and choose "

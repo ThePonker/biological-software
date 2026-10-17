@@ -58,7 +58,7 @@ class CheckExportDialog(QDialog):
         intro.setStyleSheet(f"color: {theme.INK}; font-size: 13px;")
         v.addWidget(intro)
 
-        self.rb_flagged = QRadioButton(f"Rows marked To check ({len(self._flagged)})")
+        self.rb_flagged = QRadioButton(f"Rows marked to check ({len(self._flagged)})")
         self.rb_selected = QRadioButton(f"Selected rows ({len(self._selected)})")
         grp = QButtonGroup(self)
         for rb in (self.rb_flagged, self.rb_selected):
@@ -131,7 +131,7 @@ class CheckExportDialog(QDialog):
         ids = self.chosen_ids()
         if not ids:
             QMessageBox.information(self, "Export for checking",
-                                    "No rows to export: mark rows To check, or select some rows.")
+                                    "No rows to export: mark rows to check, or select some rows.")
             return
         cols = self.chosen_columns()
         try:

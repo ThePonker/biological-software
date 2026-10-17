@@ -116,3 +116,45 @@ def test_a_box_with_its_own_indicator_style_is_left_alone(db):
     app.processEvents()
     assert cb.styleSheet() == own
     cb.close()
+
+
+GREEN = dict(fill="#4a7c59", mark="#ffffff", border="#9ca3af", background="#ffffff")
+
+
+def test_radio_buttons_get_the_suite_dot():
+    """17 Oct: radio buttons too (Export for checking's 'Rows marked to check')."""
+    app = QApplication.instance() or QApplication([])
+    tick_style.install(app, lambda: GREEN)
+    from PySide6.QtWidgets import QRadioButton, QWidget
+    panel = QWidget()
+    panel.setStyleSheet("QCheckBox::indicator { width: 20px; }")   # a check-box rule only
+    rb = QRadioButton("Rows marked to check", panel)
+    panel.show()
+    app.processEvents()
+    qss = rb.styleSheet()
+    assert "QRadioButton::indicator:checked" in qss and "#4a7c59" in qss
+    panel.close()
+
+
+def test_a_radio_with_its_own_indicator_style_is_left_alone():
+    app = QApplication.instance() or QApplication([])
+    tick_style.install(app, lambda: GREEN)
+    from PySide6.QtWidgets import QRadioButton
+    own = "QRadioButton::indicator:checked { background-color: #123456; }"
+    rb = QRadioButton("x")
+    rb.setStyleSheet(own)
+    rb.show()
+    app.processEvents()
+    assert rb.styleSheet() == own
+    rb.close()
+
+
+def test_checkable_list_items_get_the_tick():
+    QApplication.instance() or QApplication([])
+    from PySide6.QtWidgets import QListWidget, QTreeWidget
+    for view in (QListWidget(), QTreeWidget()):
+        tick_style.style_item_view(view, GREEN)
+        sheet = view.styleSheet()
+        name = type(view).__name__
+        assert f"{name}::indicator:checked" in sheet and "tick_4a7c59_ffffff" in sheet
+        assert f"{name}::indicator:indeterminate" in sheet
