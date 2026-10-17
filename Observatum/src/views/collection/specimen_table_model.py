@@ -10,6 +10,8 @@ from typing import Optional, List, Any
 from PySide6.QtCore import Qt, QSettings
 from PySide6.QtGui import QStandardItemModel, QStandardItem, QColor
 
+from shared.display_format import RECORD_DATE_COLUMNS, dmy_time
+
 from ...themes import theme
 from ...utils.date_utils import format_date_display
 from ...services.vc_lookup_service import VCLookupService
@@ -255,6 +257,9 @@ class SpecimenTableModel(QStandardItemModel):
                     if col_key == 'date_collected' and value:
                         raw_date = str(value)  # Keep ISO for sorting
                         value = format_date_display(str(value), "user")
+                    elif col_key in RECORD_DATE_COLUMNS and value:     # Created / Updated
+                        raw_date = str(value)
+                        value = dmy_time(raw_date)
                     
                     # Look up VC full name for display
                     if col_key == 'vc_number' and value:
@@ -269,6 +274,8 @@ class SpecimenTableModel(QStandardItemModel):
                     item = QStandardItem(str(value) if value else '')
 
                     # Store ISO date for correct chronological sorting
+                    if col_key in RECORD_DATE_COLUMNS and raw_date:
+                        item.setData(raw_date, Qt.ItemDataRole.UserRole + 1)
                     if col_key == 'date_collected' and raw_date:
                         # Convert DD/MM/YYYY to YYYY-MM-DD for sort
                         iso = raw_date
@@ -330,16 +337,19 @@ class SpecimenTableModel(QStandardItemModel):
         
         row_items = []
         for col_key, _, _, _ in columns:
+            raw_date = None
             if col_key == 'checkbox':
                 item = QStandardItem()
                 item.setCheckable(True)
                 item.setCheckState(Qt.CheckState.Unchecked)
             else:
                 value = self._get_specimen_value(specimen, col_key)
-                raw_date = None
                 if col_key == 'date_collected' and value:
                     raw_date = str(value)
                     value = format_date_display(str(value), "user")
+                elif col_key in RECORD_DATE_COLUMNS and value:     # Created / Updated
+                    raw_date = str(value)
+                    value = dmy_time(raw_date)
                 if col_key == 'vc_number' and value:
                     try:
                         vc_num = int(value)
@@ -352,8 +362,8 @@ class SpecimenTableModel(QStandardItemModel):
             item.setEditable(False)
             if col_key == 'id':
                 item.setData(specimen, Qt.ItemDataRole.UserRole)
-                if col_key == 'date_collected' and raw_date:
-                    item.setData(raw_date, Qt.ItemDataRole.UserRole + 1)
+            if col_key in ('date_collected', *RECORD_DATE_COLUMNS) and raw_date:
+                item.setData(raw_date, Qt.ItemDataRole.UserRole + 1)    # sorts by the ISO date
             if col_key == 'species_name':
                 font = item.font()
                 font.setItalic(True)

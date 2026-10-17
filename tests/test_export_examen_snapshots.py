@@ -71,7 +71,7 @@ def test_write_one_workbook_per_assessment(tmp_path):
     wb = load_workbook(out / files[0])
     assert wb.sheetnames == ["About", "Assessment", "Species", "Log"]
     about = {r[0]: r[1] for r in wb["About"].iter_rows(values_only=True)}
-    assert about["Site"] == "Glory Park" and about["Date frozen"] == "2025-01-02T10:00"
+    assert about["Site"] == "Glory Park" and about["Date frozen"] == "02/01/2025 10:00"      # read dd/mm/yyyy (16 Oct 2026)
     assert "archived frozen assessment" in about["Note"]
     species = list(wb["Species"].iter_rows(values_only=True))
     assert len(species) == 3 and species[1][3] == "Lamia textor"

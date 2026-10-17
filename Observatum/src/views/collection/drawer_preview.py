@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from shared import drawer_assign as da
+from shared.display_format import dmy
 from shared.fit_to_screen import fit_to_screen
 
 from ...themes import theme
@@ -56,7 +57,7 @@ class PreviewDialog(QDialog):
         tbl.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         for i, (sid, field, before, after) in enumerate(changes):
             s = specs_by_id.get(sid, {})
-            who = QTableWidgetItem(f"{s.get('species_name', '')}  {s.get('date_collected') or ''}")
+            who = QTableWidgetItem(f"{s.get('species_name', '')}  {dmy(s.get('date_collected'))}")
             f = who.font(); f.setItalic(True); who.setFont(f)
             tbl.setItem(i, 0, who)
             tbl.setItem(i, 1, QTableWidgetItem(FIELD_NAMES.get(field, field)))

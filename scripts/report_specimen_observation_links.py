@@ -37,6 +37,7 @@ except ImportError:                       # run as py scripts\<name>.py
     import report_common as rc
 
 import paths  # noqa: E402
+from shared.display_format import dmy  # noqa: E402
 # the matching itself lives in shared/specimen_links.py (the Edit Specimen dialog uses it);
 # links.load / links.match / links.certain_links / links.TIERS keep working for the scripts
 from shared.specimen_links import (  # noqa: E402,F401
@@ -51,7 +52,7 @@ HEADER = ["tier", "specimen_id", "specimen_code", "observation_id", "species_nam
 def csv_rows(found):
     for s in found["specimens"]:
         for o, same in s["cands"]:
-            yield [s["tier"], s["id"], s["code"], o[0], s["name"], s["tvk"], s["date"], s["ref"],
+            yield [s["tier"], s["id"], s["code"], o[0], s["name"], s["tvk"], dmy(s["date"]), s["ref"],
                    o[3], s["collector"], o[4], {True: "yes", False: "no", None: ""}[same],
                    s["sex"], o[8],
                    o[5], o[6], s["site"], o[7], len(s["cands"])]
@@ -117,8 +118,8 @@ def progress(found) -> None:
     print(f"    no matching observation:        {tiers['no match']:>7,}")
     for s in off_rule[:10]:
         o = s["cands"][0][0] if s["cands"] else None
-        what = (f"observation {o[0]} ({o[2]}, {o[3]})" if o else "an observation that no longer exists")
-        print(f"      specimen {s['id']} {str(s['name'] or '')[:30]} {s['date']} {s['ref']} -> {what}")
+        what = (f"observation {o[0]} ({dmy(o[2])}, {o[3]})" if o else "an observation that no longer exists")
+        print(f"      specimen {s['id']} {str(s['name'] or '')[:30]} {dmy(s['date'])} {s['ref']} -> {what}")
     if len(off_rule) > 10:
         print(f"      ... and {len(off_rule) - 10:,} more (tier 'linked' in the CSV)")
 

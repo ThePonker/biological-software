@@ -17,6 +17,7 @@ from .validation_worker import (
     COUNT_ZERO, SYNC_HOLD, ObservationImportRow, ObservationValidationWorker, RowStatus, ImportMode
 )
 
+from shared.display_format import dmy
 from src.themes import theme
 
 
@@ -208,8 +209,8 @@ class WizardValidationMixin:
             species_item.setFlags(species_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             self.validation_table.setItem(table_row, 3, species_item)
             
-            # Date (not editable)
-            date_item = QTableWidgetItem(row.date)
+            # Date (not editable): shown dd/mm/yyyy, held as ISO
+            date_item = QTableWidgetItem(dmy(row.date))
             date_item.setFlags(date_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             self.validation_table.setItem(table_row, 4, date_item)
             

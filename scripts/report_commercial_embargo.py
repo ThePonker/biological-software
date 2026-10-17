@@ -25,6 +25,7 @@ except ImportError:                       # run as py scripts\<name>.py
     import report_common as rc
 
 import paths  # noqa: E402
+from shared.display_format import dmy  # noqa: E402
 
 BY_CHOICE = ("elmley",)                   # project names (lower case, contains) Wil left open
 REVIEW_FIGURE = 1226                      # un-embargoed commercial records, review OBS-12
@@ -88,7 +89,7 @@ def gather(conn, today: str) -> list:
 
 def report(projects: list, today: str) -> None:
     w = max([len(p["project"]) for p in projects] + [7])
-    print(f"  today: {today}")
+    print(f"  today: {dmy(today)}")
     print("")
     print(f"  {'project':<{w}}  {'client':<16}{'records':>8}{'embargoed':>10}{'not':>6}"
           f"  {'until':<11}{'dates':<24}note")
@@ -97,8 +98,8 @@ def report(projects: list, today: str) -> None:
         for k in ("records", "embargoed", "not", "none", "expired", "other"):
             t[k] += p[k]
         print(f"  {p['project']:<{w}}  {p['client'][:15]:<16}{p['records']:>8,}"
-              f"{p['embargoed']:>10,}{p['not']:>6,}  {p['until'][:10]:<11}"
-              f"{p['first']} - {p['last']:<11}{p['note']}")
+              f"{p['embargoed']:>10,}{p['not']:>6,}  {dmy(p['until'][:10]):<11}"
+              f"{dmy(p['first'])} - {dmy(p['last']):<11}{p['note']}")
     for p in projects:
         if "mixed" in p["note"]:
             print(f"    {p['project']} by year -- {p['years']}")
@@ -135,8 +136,9 @@ def main(argv=None) -> int:
         conn.close()
     report(projects, a.today)
     n = rc.write_csv(a.csv, HEADER, ([p["project"], p["client"], p["records"], p["embargoed"],
-                                      p["not"], p["none"], p["expired"], p["other"], p["until"],
-                                      p["first"], p["last"], p["note"], p["years"]] for p in projects))
+                                      p["not"], p["none"], p["expired"], p["other"],
+                                      ", ".join(dmy(u) for u in p["until"].split(", ")),
+                                      dmy(p["first"]), dmy(p["last"]), p["note"], p["years"]] for p in projects))
     print("")
     print(f"  CSV: {n:,} projects -> {a.csv}")
     print("")

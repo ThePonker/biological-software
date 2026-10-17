@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 
+from shared.display_format import dmy
 from shared.fit_to_screen import fit_to_screen
 from ..components.natural_sort_proxy import NaturalItem
 from ...themes import theme
@@ -198,8 +199,8 @@ class SpeciesListDialog(QDialog):
                 for sp in self._species_data:
                     writer.writerow([
                         sp.get("species_name", ""),
-                        sp.get("first_date", ""),
-                        sp.get("last_date", "")
+                        dmy(sp.get("first_date", "")),
+                        dmy(sp.get("last_date", ""))
                     ])
             from PySide6.QtWidgets import QMessageBox
             QMessageBox.information(self, "Exported", f"Exported {len(self._species_data)} species to:\n{path}")

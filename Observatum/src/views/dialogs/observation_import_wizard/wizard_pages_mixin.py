@@ -164,6 +164,7 @@ class WizardPagesMixin(ImportProgressPagesMixin):
         self.commercial_embargo_date.setCalendarPopup(True)
         self.commercial_embargo_date.calendarWidget().setMinimumWidth(280)
         self.commercial_embargo_date.setMinimumWidth(120)
+        self.commercial_embargo_date.setDisplayFormat("dd/MM/yyyy")
         self.commercial_embargo_date.setDate(QDate.currentDate().addYears(1))
         self.commercial_embargo_date.setStyleSheet(f"background-color: {t.get('surface')}; color: {t.get('text_primary')}; border: 1px solid {t.get('border')}; border-radius: 4px; padding: 6px;")
         embargo_layout.addWidget(self.commercial_embargo_date)

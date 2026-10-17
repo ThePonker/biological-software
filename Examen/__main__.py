@@ -20,6 +20,9 @@ def main():
     solid_popups(app, lambda: (SURFACE, TEXT_PRIMARY))           # F50: solid drop-down lists
     from shared.dialog_geometry import install as remember_dialog_sizes
     remember_dialog_sizes(app)                                   # every dialog keeps its size
+    from shared.tick_style import install as green_ticks, theme_colours
+    from src.themes import theme
+    green_ticks(app, lambda: theme_colours(theme()))             # check boxes ticked in green
     window = ExamenWindow()
     window.showMaximized()
     sys.exit(app.exec())

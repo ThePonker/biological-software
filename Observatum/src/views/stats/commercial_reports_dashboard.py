@@ -22,6 +22,8 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QFont
 
+from shared.display_format import dmy
+
 from ...themes import theme
 from ...core.config import TabColors, ButtonColors
 from ...models.database import get_database
@@ -500,10 +502,6 @@ class CommercialReportsDashboard(QScrollArea):
         except sqlite3.Error as e:
             print(f"[CommercialReports] project detail failed: {e}")
             return
-
-        def dmy(s):
-            s = str(s or "")
-            return f"{s[8:10]}/{s[5:7]}/{s[:4]}" if len(s) >= 10 and s[4] == "-" else s
 
         self._selected_project = (project, client, emb or "")
         self._detail_title.setText((project or "(no project)") + (f"  \u2014  {client}" if client else ""))

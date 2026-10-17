@@ -547,4 +547,4 @@ def write_projects_csv(path, projects):
         for s in projects:
             w.writerow([s.project_name, s.survey_year or "all", s.client, s.site_count, s.visit_count, s.species_count,
                         s.key_species_count, s.key_species_pct, int(s.sqi) if s.sqi else "",
-                        "Yes" if s.sqi_reliable else "No", s.rare_count, s.scarce_count, s.priority_count, s.first_date, s.last_date])
+                        "Yes" if s.sqi_reliable else "No", s.rare_count, s.scarce_count, s.priority_count, _dmy(s.first_date), _dmy(s.last_date)])

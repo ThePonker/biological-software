@@ -10,6 +10,8 @@ from typing import Optional, List, Dict
 from PySide6.QtCore import Qt, QSettings, QAbstractTableModel, QModelIndex
 from PySide6.QtGui import QColor, QFont
 
+from shared.display_format import RECORD_DATE_COLUMNS, dmy_time
+
 from ...themes import theme
 from ...utils.date_utils import format_date_display
 from ...services.vc_lookup_service import VCLookupService
@@ -241,6 +243,8 @@ class SchemeRecordModel(CheckedByIdMixin, QAbstractTableModel):
         # Format date
         if col_key == 'date' and value:
             value = format_date_display(str(value), "user")
+        elif col_key in RECORD_DATE_COLUMNS and value:     # stored ISO, read dd/mm/yyyy [hh:mm]
+            value = dmy_time(str(value))
 
         # Format VC number
         if col_key == 'vc_number' and value:

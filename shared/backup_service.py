@@ -395,7 +395,7 @@ def status() -> str:
             if not os.path.isfile(p):
                 continue                  # the _expired folder
             mb = os.path.getsize(p) / 1048576
-            when = datetime.fromtimestamp(os.path.getmtime(p)).strftime("%Y-%m-%d %H:%M")
+            when = datetime.fromtimestamp(os.path.getmtime(p)).strftime("%d/%m/%Y %H:%M")
             lines.append(f"  {sub:9} {f:22} {mb:8.1f} MB   {when}")
     return "\n".join(lines) if lines else "  (no backups yet)"
 

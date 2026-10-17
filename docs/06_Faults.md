@@ -173,21 +173,18 @@ unconverted, so multi-line string anchors still fail unpredictably.
 
 ---
 
-### F86. Edit Specimen can link a specimen that is already on a Data Entry row
-*Found 14 Oct (writing up the workflows; first raised by the round 6 review).* Specimens to
-check refuses to link a specimen that a Data Entry row was made from, but Edit Specimen's
-Pick… does not. Linking it there and then committing the row would give one find two records
-(the commit notes it, after the record is written). **Action:** phase B: Pick… / save refuse a
-staged specimen, as `shared/specimens_to_check.link` does. No risk while no specimen jobs are
-in Data Entry.
-
-### F87. Change date of whole visit: a selection of several dates reported as possible
-*Found 14 Oct (round 6 test 15, Wil).* The rule (one site, one grid ref, one date) is in
-`shared/specimens_to_check.visit_problem`; Wil reports specimens of more than one date could be
-selected. Selecting is allowed; the check runs on the button. **Action:** phase B: confirm with
-Wil whether the button refused; fix if it did not.
-
 ## Closed since 10 October
+
+### F86. Edit Specimen could link a specimen already on a Data Entry row -- FIXED 16 Oct (round 7)
+The Field record box shows "On a Data Entry row (job '…'): it will be linked when that row is
+committed", with Pick… and "Checked: no field record exists" disabled; `set_link` ignores a
+staged specimen; `link_specimens_to_observations.py` leaves staged specimens alone.
+(`tests/test_field_record_staged.py`.)
+
+### F87. Change date of whole visit with several dates -- CONFIRMED REFUSED 16 Oct (round 7)
+The button refuses a selection of more than one date ("more than one date"), as it does for
+more than one site; selecting is allowed, the check runs on the button. Test added in
+`tests/test_specimens_to_check.py`.
 
 ### F85. A second iRecord bulk export could send records already sent -- FIXED 14 Oct (round 5)
 *Found by the round 5 loophole review.* Until the sync brought iRecord IDs back, a second

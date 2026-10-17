@@ -30,6 +30,7 @@ except ImportError:                       # run as py scripts\<name>.py
     import specimen_breakdown as sb
 
 import paths  # noqa: E402
+from shared.display_format import dmy  # noqa: E402
 from shared.specimen_links import load, match  # noqa: E402
 
 HEADER = ["group", "sub_group", "reason", "tier", "specimen_id", "specimen_code",
@@ -170,7 +171,7 @@ def near_kind(s, near):
 
 def _obs_text(r, dd, d):
     where = f"{d / 1000:.1f} km" if d is not None else "same site"
-    return (f"{r['id']} {r.get('species_name') or ''} {r.get('date')} {r.get('grid_ref')} "
+    return (f"{r['id']} {r.get('species_name') or ''} {dmy(r.get('date'))} {r.get('grid_ref')} "
             f"({dd} d, {where}, {r.get('recorder') or ''})")
 
 
@@ -187,13 +188,13 @@ def csv_rows(g):
             rec["sub"] == "Commercial" else {}
         rtype = {1: rec["sub"] if rec else "", 4: "contributed"}.get(s["group"], "")
         yield [s["group"], s["sub"], s["reason"], s["tier"], s["id"], s["code"], s["name"],
-               s["tvk"], s["date"], s["ref"], s["site"], s["collector"], s["determiner"],
+               s["tvk"], dmy(s["date"]), s["ref"], s["site"], s["collector"], s["determiner"],
                key, rec["quantity"] if rec else "", rtype,
                rec["project"] if rec and s["group"] == 1 else "", terms.get("client"),
-               terms.get("embargo_status"), terms.get("embargo_until"),
+               terms.get("embargo_status"), dmy(terms.get("embargo_until")),
                rec["recorder"] if rec else "", rec["determiner"] if rec else "",
                " | ".join(_obs_text(*n) for n in s["near"][:5]),
-               " | ".join(f"{t} {k} {r['id']} {r.get('date')} {r.get('grid_ref')} "
+               " | ".join(f"{t} {k} {r['id']} {dmy(r.get('date'))} {r.get('grid_ref')} "
                           f"{r.get('recorder') or ''}" for t, k, r, _dd, _d in s["elsewhere"][:5])]
 
 
@@ -225,7 +226,7 @@ def report(g, examples=3) -> None:
         if gid == 4:
             _collectors(ss, g["roll"])
         for s in ss[:examples]:
-            print(f"        e.g. specimen {s['id']} {s['name']} {s['date']} {s['ref']} "
+            print(f"        e.g. specimen {s['id']} {s['name']} {dmy(s['date'])} {s['ref']} "
                   f"{s['site'] or ''} [{s['collector']}] -- {s['reason']}")
             for n in s["near"][:2]:
                 print(f"             near: observation {_obs_text(*n)}")
@@ -238,8 +239,8 @@ def report(g, examples=3) -> None:
         print(f"      {n:>6,}  group {gid}, {k}, in {t}")
     for s in el[:examples]:
         t, k, r, _dd, _d = s["elsewhere"][0]
-        print(f"        e.g. specimen {s['id']} {s['name']} {s['date']} {s['ref']} -> {t} {k} "
-              f"{r['id']} {r.get('date')} {r.get('grid_ref')} {r.get('recorder') or ''}")
+        print(f"        e.g. specimen {s['id']} {s['name']} {dmy(s['date'])} {s['ref']} -> {t} {k} "
+              f"{r['id']} {dmy(r.get('date'))} {r.get('grid_ref')} {r.get('recorder') or ''}")
 
 
 def _records_summary(g, ss):
@@ -254,7 +255,7 @@ def _records_summary(g, ss):
           f"largest {max((r['quantity'] for r in recs.values()), default=0)})")
     for lab, (n, q) in sorted(by.items(), key=lambda x: -x[1][0]):
         t = g["rule"].terms.get(lab.split(" - ", 1)[1], {}) if " - " in lab else {}
-        emb = (f"; embargo {t.get('embargo_status')} {t.get('embargo_until') or ''}"
+        emb = (f"; embargo {t.get('embargo_status')} {dmy(t.get('embargo_until'))}"
                f"{' (project mixed)' if t.get('mixed_embargo') else ''}") if t else ""
         print(f"         {n:>6,} records / {q:,} specimens  {lab}{emb}")
     conf = [r for r in recs.values() if r["conflict"]]

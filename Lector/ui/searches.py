@@ -138,7 +138,7 @@ class SearchesScreen(Screen):
                                                  f"{escape(s['years'])}"))
             last = s["last_run"]
             if last:
-                when = S.fmt_when(last["started"]).split(",")[0]
+                when = S.fmt_when(last["started"], day_only=True)
                 runs = s["runs"]
                 status = "" if last["status"] in ("done", "migrated") else f" ({last['status']})"
                 self.table.setCellWidget(r, 2, _cell(

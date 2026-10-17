@@ -24,6 +24,7 @@ from collections import defaultdict
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 import paths  # noqa: E402
+from shared.display_format import dmy  # noqa: E402
 
 SINCE = sys.argv[sys.argv.index("--since") + 1] if "--since" in sys.argv else ""
 BLANK = lambda c: f"COALESCE(TRIM(CAST({c} AS TEXT)),'')=''"   # noqa: E731
@@ -74,7 +75,7 @@ def main():
         for k, ids in dups:
             qty = [str(q) for (q,) in db.execute(
                 f"SELECT quantity FROM observations WHERE id IN ({','.join('?' * len(ids))}) ORDER BY id", ids)]
-            detail.append((batch, "double", [f"{k[0]} {k[1]} {k[3] or ''}: ids {', '.join(map(str, ids))} "
+            detail.append((batch, "double", [f"{k[0]} {dmy(k[1])} {k[3] or ''}: ids {', '.join(map(str, ids))} "
                                              f"(qty {' + '.join(qty)}; sex {k[5] or '-'})"]))
         site_txt = ", ".join(s for s in (sites or "").split(",") if s.strip())[:24]
         print(f"{batch[16:]:20} {site_txt:24} {(rtype or '')[:10]:10} {n:>5} "

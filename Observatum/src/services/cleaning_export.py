@@ -9,6 +9,8 @@ import datetime as _dt
 import os
 from typing import List
 
+from shared.display_format import DATE_NUMBER_FORMAT, date_cell, dmy, dmy_time
+
 from .cleaning_report import IRECORD_URL, OBSERVATION_ONLY, PROBLEMS, CleaningReport, irecord_url
 
 # Sheet names: Excel allows 31 characters and no / \ ? * [ ] :
@@ -23,15 +25,18 @@ HEADERS = ["Species", "Rank", "Date", "Grid ref", "Site", "Recorder", "Problem",
            "iRecord ID", "iRecord link", "Observatum ID", "Source"]
 
 
-def _row(r) -> list:
-    return [r.species, r.rank, r.date, r.grid_ref, r.site, r.recorder, r.detail,
+def _row(r, real_dates: bool = False) -> list:
+    """One problem row for a person to read: the date as dd/mm/yyyy (mm/yyyy for a month). In
+    the workbook a whole day is a real date cell, so the column sorts and filters as dates."""
+    when = date_cell(r.date) if real_dates else dmy(r.date)
+    return [r.species, r.rank, when, r.grid_ref, r.site, r.recorder, r.detail,
             r.irecord_id if r.irecord_id else "", irecord_url(r.irecord_id) or "", r.record_id,
             r.dataset]
 
 
 def summary_rows(report: CleaningReport) -> List[list]:
     out = [["Cleaning report", report.source_label],
-           ["Made", _dt.datetime.now().strftime("%Y-%m-%d %H:%M")],
+           ["Made", dmy_time(_dt.datetime.now().isoformat(timespec="minutes"))],
            ["Records checked", report.total_records],
            ["Records with at least one problem", report.records_with_problem]]
     if report.source == "recording_scheme":
@@ -70,7 +75,8 @@ def export_xlsx(report: CleaningReport, path: str) -> str:
         for c in sh[1]:
             c.font = Font(bold=True)
         for r in report.rows.get(k, []):
-            sh.append(_row(r))
+            sh.append(_row(r, real_dates=True))
+            sh.cell(row=sh.max_row, column=3).number_format = DATE_NUMBER_FORMAT
         sh.freeze_panes = "A2"
         for col, width in zip("ABCDEFGHIJK", (34, 18, 12, 14, 30, 24, 40, 12, 52, 12, 40)):
             sh.column_dimensions[col].width = width

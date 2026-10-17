@@ -33,6 +33,7 @@ sys.path[:0] = [ROOT, os.path.join(ROOT, "Observatum")]
 
 import paths  # noqa: E402
 from shared.db_open import connect_ro  # noqa: E402
+from shared.display_format import dmy_time  # noqa: E402
 
 MAIN = "site_snapshots"
 CHILD_SHEETS = {"snapshot_species": "Species", "snapshot_log": "Log"}
@@ -178,7 +179,7 @@ def write_assessment(path, a, db_path, exported):
         ("Project", r.get("project_name") or ""),
         ("Client", r.get("client") or ""),
         ("Survey year", r.get("survey_year") or ""),
-        ("Date frozen", r.get("frozen_date") or ""),
+        ("Date frozen", dmy_time(r.get("frozen_date"))),
         ("Analysis mode", r.get("analysis_mode") or ""),
         ("Codex version", r.get("codex_version") or ""),
         ("Pantheon version", r.get("pantheon_version") or ""),
@@ -213,7 +214,7 @@ def write_index(path, planned):
                 sp = payload["children"].get("snapshot_species", ((), []))[1]
                 w.writerow([os.path.basename(p), r.get("id"), r.get("site_name"),
                             r.get("project_name"), r.get("client"), r.get("survey_year"),
-                            r.get("analysis_mode"), r.get("frozen_date"), len(sp), r.get("sqi")])
+                            r.get("analysis_mode"), dmy_time(r.get("frozen_date")), len(sp), r.get("sqi")])
             elif kind == "other":
                 w.writerow([os.path.basename(p), "", "(rows tied to no assessment)",
                             "", "", "", "", "", "", ""])
@@ -231,7 +232,7 @@ def export(db_path, out_dir, write=False):
         r = a["row"]
         sp = a["children"].get("snapshot_species", ((), []))[1]
         print(f"  id {r.get('id')}: {r.get('site_name')} | {r.get('project_name')} | "
-              f"{r.get('survey_year')} | {r.get('analysis_mode')} | frozen {r.get('frozen_date')} | "
+              f"{r.get('survey_year')} | {r.get('analysis_mode')} | frozen {dmy_time(r.get('frozen_date'))} | "
               f"{len(sp)} species | SQI {r.get('sqi')}")
     for label, (_, rows) in leftovers.items():
         print(f"  NOT IN ANY ASSESSMENT: {label}: {len(rows)} row(s)")

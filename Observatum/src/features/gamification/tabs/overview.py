@@ -13,6 +13,8 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QByteArray
 from PySide6.QtSvgWidgets import QSvgWidget
 
+from shared.display_format import dmy
+
 from ..theme import BACKGROUND, TEXT, SEAL_COLOURS
 
 
@@ -380,7 +382,7 @@ class OverviewTab:
                 if best_daily:
                     self.best_daily_card.value_label.setText(f"{best_daily['best_count']}")
                     if best_daily.get("best_date"):
-                        self.best_daily_card.subtitle_label.setText(f"species on {best_daily['best_date']}")
+                        self.best_daily_card.subtitle_label.setText(f"species on {dmy(best_daily['best_date'])}")
                     else:
                         self.best_daily_card.subtitle_label.setText("species in one day")
             

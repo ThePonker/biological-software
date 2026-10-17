@@ -13,6 +13,7 @@ from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import QAbstractItemView, QHeaderView, QTableView
 
+from shared.display_format import dmy
 from shared.irecord_links import irecord_url
 
 from ...services.cleaning_report import CleaningRow
@@ -64,8 +65,10 @@ class CleaningRowModel(QAbstractTableModel):
             return r
         value = getattr(r, _FIELDS[index.column()])
         if role == Qt.ItemDataRole.DisplayRole:
+            if _FIELDS[index.column()] == "date":        # stored ISO, read dd/mm/yyyy (month: mm/yyyy)
+                return dmy(value)
             return "" if value is None else str(value)
-        if role == Qt.ItemDataRole.EditRole:            # sort key: iRecord IDs as numbers
+        if role == Qt.ItemDataRole.EditRole:            # sort key: ISO dates; iRecord IDs as numbers
             return value
         if index.column() == IRECORD_COLUMN and irecord_url(value):
             if role == Qt.ItemDataRole.ForegroundRole:

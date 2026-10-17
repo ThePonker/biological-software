@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS entry_staging (
     date TEXT, site_name TEXT, grid_ref TEXT, vice_county TEXT, vc_number INTEGER,
     recorder TEXT, method TEXT, certainty TEXT, comment TEXT,
     project_name TEXT, client TEXT, embargo_until TEXT,
+    check_flag INTEGER, check_note TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (job_id) REFERENCES entry_jobs(id)
 );
@@ -247,7 +248,18 @@ STAGING_EDITABLE = [
     "determiner", "sub_location", "trap_number", "visit_number",
     "date", "site_name", "grid_ref", "vice_county", "vc_number",
     "recorder", "method", "certainty", "comment",
+    "check_flag", "check_note",          # "not determined yet" (scripts/add_staging_check_columns.py)
 ]
+
+
+def has_check_columns(conn: sqlite3.Connection) -> bool:
+    """Does entry_staging have check_flag and check_note? (An older database lacks them
+    until scripts/add_staging_check_columns.py is run.)"""
+    try:
+        have = {r[1] for r in conn.execute("PRAGMA table_info(entry_staging)")}
+    except sqlite3.Error:
+        return False
+    return {"check_flag", "check_note"} <= have
 
 
 def fetch_rows(conn: sqlite3.Connection, job_id: int) -> List[Dict]:

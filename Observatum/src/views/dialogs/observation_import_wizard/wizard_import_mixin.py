@@ -17,6 +17,7 @@ from PySide6.QtCore import Qt
 
 from .validation_worker import COUNT_ZERO, SYNC_HOLD, ObservationImportRow, RowStatus, ImportMode
 
+from shared.display_format import dmy
 from src.themes import theme
 
 # The fields an iRecord re-sync may change on a record it already holds (F32, 9 Oct 2026).
@@ -74,7 +75,7 @@ class UpdatePreviewDialog(QDialog):
         for i, row in enumerate(self.rows):
             table.setItem(i, 0, QTableWidgetItem(str(row.irecord_id or "")))
             table.setItem(i, 1, QTableWidgetItem(row.species_name))
-            table.setItem(i, 2, QTableWidgetItem(row.date))
+            table.setItem(i, 2, QTableWidgetItem(dmy(row.date)))
             table.setItem(i, 3, QTableWidgetItem(row.grid_ref))
             table.setItem(i, 4, QTableWidgetItem(row.verification_status))
             table.setItem(i, 5, QTableWidgetItem(str(row.existing_record_id or "")))

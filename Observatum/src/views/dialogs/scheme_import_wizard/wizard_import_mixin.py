@@ -17,6 +17,7 @@ from PySide6.QtCore import Qt
 
 from .validation_worker import SchemeImportRow, RowStatus
 
+from shared.display_format import dmy
 from src.themes import theme
 
 # What re-importing a record already held may change (9 Oct 2026). Verification, names
@@ -65,7 +66,7 @@ class DuplicatePreviewDialog(QDialog):
         for i, row in enumerate(self.rows):
             table.setItem(i, 0, QTableWidgetItem(str(row.row_number)))
             table.setItem(i, 1, QTableWidgetItem(row.species_name))
-            table.setItem(i, 2, QTableWidgetItem(row.date))
+            table.setItem(i, 2, QTableWidgetItem(dmy(row.date)))
             table.setItem(i, 3, QTableWidgetItem(row.grid_ref))
             table.setItem(i, 4, QTableWidgetItem(row.source_type))
             table.setItem(i, 5, QTableWidgetItem(str(row.existing_record_id or "")))

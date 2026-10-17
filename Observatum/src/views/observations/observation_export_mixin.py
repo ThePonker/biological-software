@@ -231,6 +231,7 @@ class ObservationExportMixin:
         import sqlite3
         from PySide6.QtWidgets import QMessageBox
         from shared import irecord_exported
+        from shared.display_format import dmy
         path = self._main_db_path()
         if not path:
             return observations
@@ -249,7 +250,7 @@ class ObservationExportMixin:
         box.setIcon(QMessageBox.Icon.Warning)
         box.setWindowTitle("Exported before")
         box.setText(f"{len(waiting)} of these records were exported for iRecord before (latest "
-                    f"{last}) and have not come back from iRecord yet.\n\nSending them again "
+                    f"{dmy(last)}) and have not come back from iRecord yet.\n\nSending them again "
                     "would put a second copy in iRecord. Upload the earlier file and run the "
                     "iRecord sync first; include them again only if that upload failed.")
         leave = box.addButton("Leave them out", QMessageBox.ButtonRole.AcceptRole)

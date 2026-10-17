@@ -10,6 +10,8 @@ from typing import Optional, List, Dict
 from PySide6.QtCore import Qt, QSettings, QAbstractTableModel, QModelIndex, Signal
 from PySide6.QtGui import QColor, QFont
 
+from shared.display_format import RECORD_DATE_COLUMNS, dmy_time
+
 from ...themes import theme
 from ...core.config import TabColors
 from ...utils.date_utils import format_date_display
@@ -306,6 +308,8 @@ class ObservationTableModel(CheckedByIdMixin, QAbstractTableModel):
             if role == DATE_SORT_ROLE:
                 return str(value)
             value = format_date_display(str(value), "user")
+        elif col_key in RECORD_DATE_COLUMNS and value:     # stored ISO, read dd/mm/yyyy [hh:mm]
+            value = dmy_time(str(value))
 
         # Format VC number with name
         if col_key == 'vc_number' and value:

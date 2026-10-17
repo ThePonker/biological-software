@@ -132,6 +132,7 @@ class MarkCommercialDialog(QDialog):
         self.embargo_date.setCalendarPopup(True)
         self.embargo_date.calendarWidget().setMinimumWidth(280)
         self.embargo_date.setMinimumWidth(120)
+        self.embargo_date.setDisplayFormat("dd/MM/yyyy")
         self.embargo_date.setDate(QDate.currentDate().addYears(1))
         self.embargo_date.setStyleSheet(input_style)
         self.embargo_date.setEnabled(False)

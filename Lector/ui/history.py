@@ -147,7 +147,7 @@ class HistoryScreen(Screen):
         self.search = s
         self.title.setText(s["name"])
         self.subtitle.setText(f"{s['target_tvk'] or s['kind']} · created "
-                              f"{S.fmt_when(s['created']).split(',')[0]} · "
+                              f"{S.fmt_when(s['created'], day_only=True)} · "
                               f"{'draft' if s['status'] == 'draft' else 'active'}")
         self._fill_summary(s)
         self.runs = self.win.call(self.svc.list_runs, self.search_id) or []

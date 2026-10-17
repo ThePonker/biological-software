@@ -126,9 +126,20 @@ def read_vc(value) -> tuple:
     return True, int(f)
 
 
+def is_flagged(row: Dict) -> bool:
+    """Is the row marked "To check" (not determined yet)? A database without the column
+    has no flags."""
+    try:
+        return int(row.get("check_flag") or 0) == 1
+    except (TypeError, ValueError):
+        return False
+
+
 def _eligibility(row: Dict) -> Optional[str]:
     """Return None if committable, else a reason string."""
     from DataEntry import date_utils
+    if is_flagged(row):
+        return "to_check"          # marked "To check": held back on purpose, stays in staging
     if not (row.get("species_name") or "").strip():
         return "no_species"
     if not (row.get("date") or "").strip():
@@ -157,15 +168,20 @@ def precommit_issues(rows) -> Dict[str, list]:
     and a date that cannot be read (those stay in staging). Returns {issue: [grid row
     numbers]} for 'unreadable date', 'count of 0', 'unreadable No.', 'unreadable VC No.', 'future date', 'no site', 'no grid ref', 'no VC',
     'no recorder', 'no TVK', and 'double' (each later copy of a repeated entry, with the
-    row it repeats), leaving out issues with no rows.
+    row it repeats), and 'to check (held back)' (rows marked To check, which commit leaves in
+    staging on purpose and which are not checked for gaps), leaving out issues with no rows.
     """
     from DataEntry import date_utils
     issues = {"unreadable date": [], "count of 0": [], "unreadable No.": [], "unreadable VC No.": [],
               "future date": [], "no site": [], "no grid ref": [],
-              "no VC": [], "no recorder": [], "no TVK": [], "double": []}
+              "no VC": [], "no recorder": [], "no TVK": [], "double": [],
+              "to check (held back)": []}
     seen = {}
     for n, row in enumerate(rows, start=1):
         why = _eligibility(row)
+        if why == "to_check":
+            issues["to check (held back)"].append(n)     # deliberate: not a problem, but said
+            continue
         if why == "bad_date":
             issues["unreadable date"].append(n)
         if why == "bad_qty":
@@ -259,6 +275,7 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
     skipped_bad_qty = 0
     skipped_zero_qty = 0           # a No. of 0: left in staging (decision 8)
     skipped_bad_vc = 0
+    skipped_check = 0              # marked "To check": held back on purpose
     unresolved = 0
     future = 0
     error = None
@@ -277,6 +294,9 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
             taxonomy, taxonomy_error = {}, str(e)
     for row in rows:
         reason = _eligibility(row)
+        if reason == "to_check":
+            skipped_check += 1
+            continue
         if reason == "no_species":
             skipped_species += 1
             continue
@@ -355,6 +375,7 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
         "skipped_bad_qty": skipped_bad_qty,
         "skipped_zero_qty": skipped_zero_qty,
         "skipped_bad_vc": skipped_bad_vc,
+        "skipped_check": skipped_check,
         "unresolved": unresolved,
         "future": future,
         "remaining": remaining,

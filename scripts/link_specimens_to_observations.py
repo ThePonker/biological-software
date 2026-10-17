@@ -36,6 +36,7 @@ except ImportError:                       # run as py scripts\<name>.py
     import report_specimen_observation_links as links
 
 import paths  # noqa: E402
+from shared.display_format import dmy  # noqa: E402
 
 SAMPLES = 10
 
@@ -44,13 +45,26 @@ SET_HEADER = ["specimen_id", "specimen_code", "observation_id", "species_name", 
               "grid_ref", "set_at", "backup"]
 
 
+def staged_on_rows(conn) -> set:
+    """Specimens on a Data Entry row: that row links them when it is committed (F86)."""
+    from shared import specimen_staging
+    try:
+        return specimen_staging.staged_ids(conn)
+    except rc.sqlite3.Error:                # no staging tables yet
+        return set()
+
+
 def apply(conn, pairs) -> list:
-    """Write the links; returns the (specimen id, observation id) pairs actually set."""
+    """Write the links; returns the (specimen id, observation id) pairs actually set.
+    Specimens on a Data Entry row are skipped."""
     from shared.specimen_links import CHECK_COLUMN, has_check_column
     guard = f" AND {CHECK_COLUMN} IS NULL" if has_check_column(conn) else ""
+    on_rows = staged_on_rows(conn)
     done = []
     with conn:
         for sid, oid in pairs:
+            if sid in on_rows:
+                continue
             if conn.execute("UPDATE specimens SET observation_id = ? WHERE id = ? "
                             "AND observation_id IS NULL" + guard, (oid, sid)).rowcount:
                 done.append((sid, oid))
@@ -81,17 +95,20 @@ def main(argv=None) -> int:
         found = links.match(*links.load(ro))
         before = ro.execute("SELECT COUNT(*) FROM specimens WHERE observation_id IS NOT NULL"
                             ).fetchone()[0]
+        on_rows = staged_on_rows(ro)
     finally:
         ro.close()
     links.report(found)
-    pairs = links.certain_links(found)
+    pairs = [(sid, oid) for sid, oid in links.certain_links(found) if sid not in on_rows]
+    if on_rows:
+        print(f"  left alone (on a Data Entry row, linked when it is committed): {len(on_rows):,}")
     print("")
     print(f"  specimens linked now: {before:,}")
     print(f"  links to set (certain tier only): {len(pairs):,}")
     by_id = {s["id"]: s for s in found["specimens"]}
     for sid, oid in pairs[:SAMPLES]:
         s = by_id[sid]
-        print(f"    specimen {sid:<6} {str(s['name'] or '')[:30]:<30} {s['date']} {s['ref']:<12} "
+        print(f"    specimen {sid:<6} {str(s['name'] or '')[:30]:<30} {dmy(s['date'])} {s['ref']:<12} "
               f"-> observation {oid}")
 
     if not a.apply:

@@ -34,6 +34,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 import paths  # noqa: E402,F401
+from shared.display_format import dmy  # noqa: E402
 from shared.photo_names import AREA_LIFE, AREA_MICROSCOPE, PhotoName, parse_photo_path  # noqa: E402
 
 RECALL_ON_DATA_ACCESS = 0x00400000
@@ -144,7 +145,8 @@ def write_csv(rows: List[dict], path: Path) -> None:
     with open(path, "w", newline="", encoding="utf-8-sig") as fh:
         w = csv.DictWriter(fh, fieldnames=cols)
         w.writeheader()
-        w.writerows(rows)
+        # the CSV is for Wil to read: the photo's date as dd/mm/yyyy (rows keep the ISO date)
+        w.writerows({**r, "date": dmy(r.get("date"))} if "date" in r else r for r in rows)
 
 
 def _gb(n: int) -> str:

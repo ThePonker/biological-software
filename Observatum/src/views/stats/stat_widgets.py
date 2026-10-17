@@ -18,6 +18,8 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal, QMetaMethod
 from PySide6.QtGui import QFont
 
+from shared.display_format import dmy
+
 from ..components.natural_sort_proxy import NaturalItem
 from ...themes import theme
 
@@ -834,7 +836,7 @@ class RecentSpeciesList(QFrame):
             card_layout.addLayout(info_layout)
             card_layout.addStretch()
 
-            date_label = QLabel(item['date'])
+            date_label = QLabel(dmy(item['date']))
             date_label.setStyleSheet(f"color: {t.get('text_muted')}; font-size: {t.font_size('sm')};")
             date_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
             card_layout.addWidget(date_label)

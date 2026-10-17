@@ -135,8 +135,17 @@ def export_job(conn, job: Dict, filepath: str, uksi_path=None) -> Dict:
 
     Refuses (ValueError) while any row has a species without a readable date. The standing
     'Personal' job is renamed 'Personal - exported <date>' so a fresh standing job takes
-    its place (ensure_personal_job). Returns {written, tvk_check, name}."""
-    rows = repo.fetch_rows(conn, job["id"])
+    its place (ensure_personal_job). Refuses while any row is marked To check: the exported job
+    would hold them where no later step reaches them (review 16 Oct 2026). Returns {written,
+    tvk_check, name, left_out (always 0)}."""
+    from DataEntry.commit_service import is_flagged
+    all_rows = repo.fetch_rows(conn, job["id"])
+    rows = [r for r in all_rows if not is_flagged(r)]      # "To check" rows are not sent
+    held = len(all_rows) - len(rows)
+    if held:
+        raise ValueError(f"{held} row(s) are marked To check. Settle them (or take the mark off) "
+                         "before exporting this job for iRecord: an exported job would keep "
+                         "them where nothing later picks them up.")
     bad = blocking_rows(rows)
     if bad:
         raise ValueError(f"{len(bad)} row(s) have no readable date or No. (rows "
@@ -157,7 +166,7 @@ def export_job(conn, job: Dict, filepath: str, uksi_path=None) -> Dict:
         name = f"{repo.PERSONAL_JOB_NAME} – exported {date_utils.to_display(today)}"
         fields["name"] = name
     repo.update_job(conn, job["id"], **fields)
-    return {"written": n, "tvk_check": tvk_check, "name": name}
+    return {"written": n, "tvk_check": tvk_check, "name": name, "left_out": held}
 
 
 # ---------------------------------------------------------------- the return check

@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from shared import sync_conflicts as sc
+from shared.display_format import dmy
 
 from ...core.config import ButtonColors
 from ...themes import theme
@@ -55,8 +56,9 @@ class SyncConflictsDialog(QDialog):
                 self.table.setItem(r, 0, QTableWidgetItem(
                     f"{c.get('species') or ''} (id {c['id']})" if r == first else ""))
                 self.table.setItem(r, 1, QTableWidgetItem(sc.LABELS.get(f, f)))
-                self.table.setItem(r, 2, QTableWidgetItem(str(c["observatum"].get(f) or "")))
-                self.table.setItem(r, 3, QTableWidgetItem(str(c["irecord"].get(f) or "")))
+                show = dmy if f == "date" else str          # dates read dd/mm/yyyy; stored ISO
+                self.table.setItem(r, 2, QTableWidgetItem(show(c["observatum"].get(f) or "")))
+                self.table.setItem(r, 3, QTableWidgetItem(show(c["irecord"].get(f) or "")))
             box = QComboBox()
             box.addItems([KEEP_OBS, TAKE_IREC])
             self.table.setCellWidget(first, 4, box)

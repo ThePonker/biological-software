@@ -53,6 +53,7 @@ except ImportError:                       # run as py scripts\<name>.py
     import report_common as rc
 
 import paths  # noqa: E402
+from shared.display_format import dmy  # noqa: E402
 from shared.species_filter import current_tvk_map  # noqa: E402
 from shared.irecord_links import irecord_url  # noqa: E402
 from shared.record_kinds import classify  # noqa: E402
@@ -244,7 +245,7 @@ def hybrid_rows(items):
     for d in items:
         yield [d["table"], d["id"], d["species_name"], d["taxon_rank"], d["species_tvk"],
                d["uksi_name"], d["uksi_rank"], d["source"], d["dataset_name"],
-               d["import_notes"], d["date"], d["site_name"], d["irecord_id"],
+               d["import_notes"], dmy(d["date"]), d["site_name"], d["irecord_id"],
                irecord_url(d["irecord_id"]) or ""]
 
 
@@ -259,7 +260,7 @@ def report_hybrids(items) -> None:
         print(f"  {d['table']:<13} id {d['id']:<7} {str(d['species_name'])[:22]:<22} "
               f"rank {d['taxon_rank']!r:<17} {d['species_tvk']} = UKSI {d['uksi_name']} "
               f"({d['uksi_rank'] or 'not in UKSI'})")
-        print(f"      {d['date'] or ''}  {str(d['site_name'] or '')[:40]}  "
+        print(f"      {dmy(d['date'])}  {str(d['site_name'] or '')[:40]}  "
               f"[{d['source'] or d['dataset_name'] or ''}]  iRecord {d['irecord_id'] or '-'}"
               + (f"  notes: {d['import_notes']}" if d["import_notes"] else ""))
     print(f"  {len(items)} record{'s' if len(items) != 1 else ''}: the name is the genus and so "

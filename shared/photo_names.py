@@ -111,7 +111,7 @@ def parse_date(d: str, m: str, y: str, today: datetime.date):
     except ValueError:
         return None, [f"no such date '{raw}'"]
     if dt > today:
-        warns.append(f"date {dt.isoformat()} is in the future ('{raw}')")
+        warns.append(f"date {dt:%d/%m/%Y} is in the future ('{raw}')")
     return dt.isoformat(), warns
 
 

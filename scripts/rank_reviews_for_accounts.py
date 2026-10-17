@@ -16,6 +16,7 @@ from collections import defaultdict
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path[:0] = [ROOT, os.path.join(ROOT, "Observatum")]
 import paths
+from shared.display_format import dmy
 from shared.repositories.pantheon_repository import PantheonRepository
 from shared.repositories.codex_repository import CodexRepository
 from shared.services.pantheon_analysis_service import PantheonAnalysisService
@@ -86,7 +87,7 @@ print(f"  with an account already: {len(have)}   without: {len(key) - len(have)}
       f"   of those, no review behind their status: {len(nothing)}\n")
 print(f"  {'fills':>5} {'your spp':>8}  {'date':10}  review")
 for src, ts in sorted(fill.items(), key=lambda kv: (-len(kv[1]), -breadth[kv[0]])):
-    print(f"  {len(ts):>5} {breadth[src]:>8}  {latest_date[src] or '':10}  {src[:72]}")
+    print(f"  {len(ts):>5} {breadth[src]:>8}  {dmy(latest_date[src]):10}  {src[:72]}")
     print(f"  {'':27}e.g. {', '.join(sorted(names[t] for t in ts)[:4])[:66]}")
 if nothing:
     print(f"\n  Key species with no review behind their status (priority/legal only, or unbridged):")

@@ -29,6 +29,7 @@ for _p in (_ROOT, os.path.join(_ROOT, "Observatum")):
 
 import paths  # noqa: E402
 from shared import photo_links as pl  # noqa: E402
+from shared.display_format import DATE_NUMBER_FORMAT, date_cell  # noqa: E402
 
 SHEET, SUMMARY = "Review", "Summary"
 COLS = ["Species", "Photo date", "Photo", "Photo sex", "Photo view", "Candidates",
@@ -152,8 +153,13 @@ def write_xlsx(rows, summary, path):
         c.font = Font(bold=True, color="FFFFFF")
         c.fill = PatternFill("solid", fgColor="44546A")
         c.alignment = Alignment(wrap_text=True, vertical="center")
+    date_col = COLS.index("Photo date") + 1
     for r in rows:
         ws.append([r[c] for c in COLS])
+        # a real date, shown dd/mm/yyyy, so the column sorts and filters as dates (an odd
+        # value such as a month stays text); the rows themselves keep the ISO date
+        ws.cell(row=ws.max_row, column=date_col).value = date_cell(r["Photo date"])
+        ws.cell(row=ws.max_row, column=date_col).number_format = DATE_NUMBER_FORMAT
         cell = ws.cell(row=ws.max_row, column=COLS.index("Photo") + 1)
         cell.hyperlink = r["_uri"]
         cell.font = Font(color="0563C1", underline="single")

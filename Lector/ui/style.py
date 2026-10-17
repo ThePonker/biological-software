@@ -11,6 +11,7 @@ from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QFrame, QLabel, QPushButton, QVBoxLayout
 from src.themes import theme
 
+from shared.display_format import dmy, dmy_time
 from shared.tick_mark import checkbox_qss
 
 T = theme()
@@ -208,17 +209,9 @@ STATUS_DOT = {"unreviewed": "text_muted", "relevant": "success", "not_relevant":
               "record_extracted": "info"}
 
 
-def fmt_when(iso):
-    """'2026-10-12T10:41:48' -> '12 Oct 2026, 10:41'."""
-    if not iso:
-        return ""
-    months = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split()
-    try:
-        y, m, d = iso[:10].split("-")
-        out = f"{int(d)} {months[int(m) - 1]} {y}"
-        return out + (f", {iso[11:16]}" if len(iso) >= 16 else "")
-    except (ValueError, IndexError):
-        return iso
+def fmt_when(iso, day_only=False):
+    """'2026-10-12T10:41:48' -> '12/10/2026 10:41' (day_only: '12/10/2026')."""
+    return dmy(iso) if day_only else dmy_time(iso)
 
 
 def fmt_seconds(s):

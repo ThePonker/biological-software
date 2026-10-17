@@ -5,6 +5,24 @@
 
 ---
 
+### Session 50 — 15–16 October 2026
+
+**Bristol and round 7.** Jon Moore's 160 Bristol records imported (names corrected first,
+`Bristol_corrected.xlsx`); reference figures 196/5/105, strict key 6, committed by Wil. The
+specimen jobs were taken out of Data Entry (`stage_records_from_specimens.py --undo`). **Round 7**
+(Wil: "make it a big one"): a **Check** mark and note on Data Entry rows ("not determined yet";
+`add_staging_check_columns.py` adds `entry_staging.check_flag`/`check_note`), a "To check only"
+filter, commit holds marked rows back and Data Entry's iRecord export refuses while any are
+marked; **Export for checking** (marked or selected rows, chosen columns, a spreadsheet with
+reply columns and a `photos` folder of linked copies, in `Documents\Observatum exports\`,
+never inside the photo library); **Last entered row**; the grid's column layout now saved by
+column key (the old layout migrated); F86 fixed and F87 confirmed; tick boxes app-wide get the
+suite's green tick (`shared/tick_style.py`); dates shown dd/mm/yyyy across the suite (display
+only, about 40 files; stored values unchanged). An Opus review found nine points; the five that
+mattered (actions reaching rows hidden by the filter, pasting shifted by the new columns,
+stranded rows on iRecord export, Export-and-discard dropping marks, the photo-library folder)
+were fixed before delivery. Full suite 1,481 passed; the remaining failures are the known ones.
+
 ### Session 49 — 13–14 October 2026 (night to evening)
 
 **Photos B2, B3, B5 and the iRecord round trip.** Record ↔ photo links (`photo_links`, by

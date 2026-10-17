@@ -35,6 +35,7 @@ for p in (ROOT, os.path.join(ROOT, "Observatum")):
     if p not in sys.path:
         sys.path.insert(0, p)
 import paths  # noqa: E402
+from shared.display_format import dmy  # noqa: E402
 
 FINAL = "READ ONLY. Nothing has been changed."
 DEFAULT_TAG = "OBS-WJH-IRTEST-20261013-"
@@ -186,7 +187,9 @@ def main(argv=None):
     cols = ["row_number", "irecord_id", "external_key", "species_name", "date", "grid_ref",
             "site_name", "input_on_date", "outcome", "existing_record_id", "import_notes"]
     os.makedirs(os.path.dirname(out), exist_ok=True)
-    pick[cols].to_csv(out, index=False, encoding="utf-8-sig")
+    show = pick[cols].copy()                  # for Wil to read: the record date as dd/mm/yyyy
+    show["date"] = show["date"].map(lambda v: dmy(v) if isinstance(v, str) else v)
+    show.to_csv(out, index=False, encoding="utf-8-sig")
     print(f"\nRows written: {len(pick)} -> {out}")
     print(FINAL)
     return 0

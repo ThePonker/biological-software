@@ -12,6 +12,9 @@ existing save path (SpecimenRepository.create / update) writes them with the res
 fields that changed are returned, so a specimen whose link could not be read is never
 overwritten.
 
+A specimen that is already on a Data Entry row (shared/specimen_staging.py) is linked when
+that row is committed: the box says so and Pick... is disabled (F86).
+
 Before scripts/add_specimen_link_check_column.py has run, the tick box is hidden and a
 one-line hint says to run it; linking still works.
 """
@@ -26,6 +29,7 @@ from PySide6.QtWidgets import (
 
 from src.utils.date_utils import format_date_display
 from shared.specimen_links import CHECK_COLUMN, get_observation, has_check_column
+from shared.specimen_staging import staged
 
 from ...themes import theme
 from ...core.config import TabColors, ButtonColors
@@ -67,6 +71,7 @@ class FieldRecordBox(QFrame):
         self._checked = self._orig_checked = None
         self._obs = None
         self._others = 0
+        self._staged_job = None          # job name, when the specimen is on a Data Entry row
         self._build()
         self._load()
         self._refresh()
@@ -113,6 +118,10 @@ class FieldRecordBox(QFrame):
         self.check = QCheckBox("Checked: no field record exists")
         self.check.toggled.connect(self._on_check)
         lay.addWidget(self.check)
+        self.staged_note = QLabel("")
+        self.staged_note.setWordWrap(True)
+        self.staged_note.setStyleSheet(f"font-size: 11px; color: {t.get('text_muted')};")
+        lay.addWidget(self.staged_note)
         self.hint = QLabel("")
         self.hint.setWordWrap(True)
         self.hint.setStyleSheet(f"font-size: 11px; color: {t.get('text_muted')};")
@@ -139,11 +148,27 @@ class FieldRecordBox(QFrame):
                     if self._has_col:
                         self._checked = self._orig_checked = r[1] or None
             self._describe(conn)
+            self._staged_job = self._find_staged_job(conn)
             self._loaded = True
         except sqlite3.Error as e:
             self.summary.setText(f"Could not read the field record link: {e}")
         finally:
             conn.close()
+
+    def _find_staged_job(self, conn) -> Optional[str]:
+        """The Data Entry job this specimen is on (None if it is on no row, or the database
+        has no staging_specimens table)."""
+        if not self._sid:
+            return None
+        row_id = staged(conn).get(int(self._sid))
+        if row_id is None:
+            return None
+        try:
+            r = conn.execute("SELECT j.name FROM entry_staging s JOIN entry_jobs j "
+                             "ON j.id = s.job_id WHERE s.id = ?", (row_id,)).fetchone()
+        except sqlite3.Error:
+            r = None
+        return (r[0] if r and r[0] else None) or "unknown"
 
     def _describe(self, conn):
         self._obs = get_observation(conn, self._obs_id) if self._obs_id is not None else None
@@ -173,10 +198,16 @@ class FieldRecordBox(QFrame):
             text += "  (Saved when you save the specimen.)"
         self.summary.setText(text)
         self.clear_btn.setEnabled(self._obs_id is not None)
+        self.pick_btn.setEnabled(self._staged_job is None)
+        self.staged_note.setText(
+            "" if self._staged_job is None else
+            f"On a Data Entry row (job '{self._staged_job}'): it will be linked when that row is committed.")
+        self.staged_note.setVisible(self._staged_job is not None)
         self.check.blockSignals(True)
         self.check.setChecked(bool(self._checked))
         self.check.blockSignals(False)
         self.check.setVisible(self._has_col)
+        self.check.setEnabled(self._staged_job is None or bool(self._checked))
         self.hint.setText("" if self._has_col else SCRIPT_HINT)
         self.hint.setVisible(not self._has_col)
 
@@ -190,7 +221,10 @@ class FieldRecordBox(QFrame):
             self.set_link(dlg.chosen()["id"])
 
     def set_link(self, obs_id):
-        """Link to this observation (clears the 'checked, none' mark)."""
+        """Link to this observation (clears the 'checked, none' mark). Ignored for a specimen
+        that is on a Data Entry row."""
+        if self._staged_job is not None and obs_id is not None:
+            return
         self._obs_id = int(obs_id) if obs_id is not None else None
         if self._obs_id is not None:
             self._checked = None

@@ -53,6 +53,7 @@ from dataclasses import dataclass, field
 from typing import Dict, Iterable, List, Optional, Tuple
 
 from shared.db_open import connect_ro
+from shared.display_format import dmy_time
 from shared.hidden_records import RETURNED_LABEL
 from shared.record_kinds import KIND_LABELS, classify, ranks_for_tvks
 from shared.species_filter import current_tvk_map
@@ -343,13 +344,13 @@ def build_report(main_db, uksi_db, source: str, include_copies: bool = False) ->
         name, tvk = name or "", tvk or ""
         if rid in hidden_at:                 # hidden: listed under "hidden" / "returned" only
             h, r = hidden_at[rid]
-            stamp = h[:16].replace("T", " ")
+            stamp = dmy_time(h)
             base = dict(record_id=rid, species=name, rank=(rank or "").strip(),
                         date=display_date(date, dtype), grid_ref=grid or "", site=site or "",
                         recorder=recorder or "", irecord_id=irec, dataset=ds or "")
             detail = f"Removed here {stamp}"
             if r:
-                detail += f"; came back from iRecord {r[:16].replace('T', ' ')}"
+                detail += f"; came back from iRecord {dmy_time(r)}"
             report.rows["hidden"].append(CleaningRow(problem="hidden", detail=detail, **base))
             if rid in returned_at:
                 h, r = returned_at[rid]

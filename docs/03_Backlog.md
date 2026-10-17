@@ -104,9 +104,10 @@ until Wil's photos are sorted; 15 partly (F87); 16 left for the tidy-up; 17 opti
   North); microscope photos onto their rows; commit; Examen; write the reports. **Decide F55
   (Q98) before any report with *Philanthus triangulum*.** The specimen jobs come out of Data
   Entry first (`stage_records_from_specimens.py --undo`).
-- **B. Small fixes in the gaps (each < 1 h):** commit round 6; tick boxes green when ticked +
-  audit of every tick box; dd/mm/yyyy everywhere (sweep; known: the photo review sheet); F86;
-  F87; Elmley upload decision.
+- **B. Small fixes in the gaps (each < 1 h):** ~~commit round 6; tick boxes green + audit;
+  dd/mm/yyyy everywhere; F86; F87~~ (done, round 7, 16 Oct; with the Data Entry Check mark,
+  Export for checking and Last entered row). Left: Elmley upload decision; reading back a
+  checker's returned spreadsheet (not built).
 - **C. After the reports, in order:** (1) specimen photos shown on their field records (📷 count
   in Observation Data, "via specimen" in the Photos window; display only; agreed 14 Oct);
   (2) re-run `stage_records_from_specimens.py`; (3) check and commit those jobs, deciding whether

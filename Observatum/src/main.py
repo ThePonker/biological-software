@@ -70,6 +70,9 @@ def main():
     # every date pop-up calendar readable and themed (F76, 13 Oct 2026)
     from shared.calendar_style import install as themed_calendars
     themed_calendars(app, lambda: theme().calendar_colours())
+    # every check box ticked in the suite's green, with the suite's tick (16 Oct 2026)
+    from shared.tick_style import install as green_ticks, theme_colours
+    green_ticks(app, lambda: theme_colours(theme()))
 
     # Show splash screen immediately; its bar follows the startup steps
     # (src/views/splash_progress.py) and keeps moving while records load in threads

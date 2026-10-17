@@ -69,6 +69,9 @@ def main(argv=None) -> int:
     remember_dialog_sizes(app)                                   # every dialog keeps its size
     from shared.calendar_style import install as themed_calendars
     themed_calendars(app, de_theme.calendar_colours)                 # F76: readable date calendars
+    from shared.tick_style import install as green_ticks          # check boxes ticked in green
+    green_ticks(app, lambda: dict(fill=de_theme.MOSS, mark=de_theme.calendar_colours()['accent_text'],
+                                  border=de_theme.LINE, background=de_theme.CARD))
 
     from shared.fit_to_screen import fit_to_screen
     widget = DataEntryWidget(main_db)

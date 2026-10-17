@@ -48,6 +48,7 @@ except ImportError:                       # run as py scripts\<name>.py
     import specimen_breakdown as sb
 
 import paths  # noqa: E402
+from shared.display_format import dmy  # noqa: E402
 
 HEADER = ["action", "job", "why", "species_name", "date", "grid_ref", "site_name", "quantity",
           "recorder", "determiner", "project", "client", "embargo_until", "specimen_ids", "record_key"]
@@ -190,9 +191,9 @@ def csv_rows(items):
     for p in items:
         r, t = p["rec"], p["terms"]
         yield [p["action"], job_name(p["kind"], p["project"], p["year"]) if p["kind"] else "", p["why"],
-               r["species_name"], r["date"], r["grid_ref"], r["site_name"], r["quantity"],
+               r["species_name"], dmy(r["date"]), r["grid_ref"], r["site_name"], r["quantity"],
                r["recorder"], r["determiner"], p["project"], t.get("client"),
-               t.get("embargo_until"), " ".join(str(i) for i in p["ids"]), p["key"]]
+               dmy(t.get("embargo_until")), " ".join(str(i) for i in p["ids"]), p["key"]]
 
 
 def summary(items) -> None:

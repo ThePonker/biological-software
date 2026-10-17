@@ -10,6 +10,7 @@ Write-through: edits persist to entry_staging immediately.
 """
 from __future__ import annotations
 
+import json
 import sqlite3
 from typing import List, Dict, Optional
 
@@ -38,6 +39,8 @@ COLUMNS = [
     ("trap_number", "Trap", "text", 70),
     ("visit_number", "Visit", "text", 60),
     ("comment", "Comment", "text", 100),
+    ("check_flag", "Check", "check", 70),          # "not determined yet" (see check_export.py)
+    ("check_note", "Check note", "text", 140),
     ("vc_number", "VC No.", "number", 60),
     ("vice_county", "VC", "text", 60),
     ("recorder", "Recorder", "text", 110),
@@ -49,6 +52,11 @@ COLUMNS = [
 ]
 
 COLIDX = {key: i for i, (key, _, _, _) in enumerate(COLUMNS)}
+CHECK_HINT = "Run scripts\\add_staging_check_columns.py once"
+LAST_ROW_KEY = "DataEntry/lastRow/{}"       # per job: the staging row id last inserted or edited
+
+# the plain CSV export is unchanged: it does not carry the To check columns
+_CSV_COLUMNS = [c for c in COLUMNS if not c[0].startswith("check_")]
 
 DEFAULT_DISPLAY_ROWS = 1000  # blank rows shown when a job opens (spreadsheet-style canvas)
 
@@ -63,6 +71,8 @@ class StagingTableModel(QAbstractTableModel):
         self._photo_counts: Dict[int, int] = {}
         self.refresh_photo_counts()
         self._min_display = DEFAULT_DISPLAY_ROWS
+        self._has_check = repo.has_check_columns(conn)   # False until the script has been run
+        self._last_row_id = None
         self._copy_context = True  # tickbox: fill empty context cells from the nearest row above
         self._sorted = False       # view sorted by a column: 'row above' is not the entry order
         self._entry_recorder = ""   # from the Recorder box (applied on species match)
@@ -143,7 +153,7 @@ class StagingTableModel(QAbstractTableModel):
 
     _MEANINGFUL = ("species_name", "quantity", "sex", "stage", "determiner", "sub_location",
                    "trap_number", "visit_number", "date", "site_name", "grid_ref",
-                   "vice_county", "recorder", "method", "comment")
+                   "vice_county", "recorder", "method", "comment", "check_flag", "check_note")
 
     def trim_empty_tail(self) -> int:
         """Delete trailing real rows that are completely empty (e.g. from over-scrolling)."""
@@ -197,6 +207,51 @@ class StagingTableModel(QAbstractTableModel):
         if self._rows:
             self.headerDataChanged.emit(Qt.Orientation.Vertical, 0, len(self._rows) - 1)
 
+    # -- "To check" mark (not determined yet) ---------------------------------
+    def has_check_columns(self) -> bool:
+        return self._has_check
+
+    def is_flagged(self, r: int) -> bool:
+        from DataEntry.commit_service import is_flagged
+        return 0 <= r < len(self._rows) and is_flagged(self._rows[r])
+
+    def flagged_count(self) -> int:
+        from DataEntry.commit_service import is_flagged
+        return sum(1 for row in self._rows if is_flagged(row))
+
+    def toggle_check(self, r: int) -> None:
+        """Flip the To check mark of view row r (nothing without the database columns)."""
+        if self._has_check:
+            self.setData(self.index(r, COLIDX["check_flag"]),
+                         "" if self.is_flagged(r) else "1", Qt.ItemDataRole.EditRole)
+
+    # -- the last row entered or edited, remembered per job ---------------------
+    def _remember_last(self, row_id) -> None:
+        if row_id is None or row_id == self._last_row_id:
+            return
+        self._last_row_id = row_id
+        try:
+            QSettings().setValue(LAST_ROW_KEY.format(self._job_id), int(row_id))
+        except Exception:
+            pass
+
+    def last_row_index(self) -> Optional[int]:
+        """View row of the staging row last inserted or edited in this job (also from an
+        earlier session); if it is gone, the last row with any data; None if there is none."""
+        rid = self._last_row_id
+        if rid is None:
+            try:
+                rid = int(QSettings().value(LAST_ROW_KEY.format(self._job_id), 0) or 0) or None
+            except (TypeError, ValueError):
+                rid = None
+        for i, row in enumerate(self._rows):
+            if rid is not None and row.get("id") == rid:
+                return i
+        for i in range(len(self._rows) - 1, -1, -1):
+            if any(self._rows[i].get(k) not in (None, "") for k in self._MEANINGFUL):
+                return i
+        return None
+
     def flags(self, index):
         if not index.isValid():
             return Qt.ItemFlag.NoItemFlags
@@ -236,6 +291,8 @@ class StagingTableModel(QAbstractTableModel):
         self._renumber_entry_order([r["id"] for r in made], at)
         self._conn.commit()
         self.endResetModel()
+        if made:
+            self._remember_last(made[-1]["id"])
         return len(made)
 
     def _renumber_entry_order(self, new_ids, at: int) -> None:
@@ -366,6 +423,8 @@ class StagingTableModel(QAbstractTableModel):
                         "The row stays in staging and is not committed until it is fixed.")
             return ("Can't read this number -- type a whole number of 1 or more. "
                     "The row stays in staging until it can be read.")
+        if index.isValid() and COLUMNS[index.column()][2] == "check":
+            return self._check_data(index.row(), role)
         if not index.isValid() or role not in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole):
             return None
         if self._is_virtual(index.row()):
@@ -376,6 +435,24 @@ class StagingTableModel(QAbstractTableModel):
             from DataEntry import date_utils
             return date_utils.to_display(val)  # show/edit as dd/mm/yyyy; stored as ISO
         return "" if val is None else str(val)
+
+    def _check_data(self, r: int, role):
+        """The Check cell: a coloured 'To check' tag when marked, the note in its tooltip."""
+        if not self._has_check:
+            return CHECK_HINT if role == Qt.ItemDataRole.ToolTipRole else None
+        if not self.is_flagged(r):
+            return None
+        if role == Qt.ItemDataRole.DisplayRole:
+            return "To check"
+        from PySide6.QtGui import QColor
+        if role == Qt.ItemDataRole.BackgroundRole:
+            return QColor(theme.GOLD_BG)
+        if role == Qt.ItemDataRole.ForegroundRole:
+            return QColor(theme.GOLD)
+        if role == Qt.ItemDataRole.ToolTipRole:
+            note = (self._rows[r].get("check_note") or "").strip()
+            return note or "Marked To check. Double-click or press Space to clear."
+        return None
 
     @staticmethod
     def _date_flag(value, role):
@@ -436,6 +513,8 @@ class StagingTableModel(QAbstractTableModel):
         old = self._rows[r] if 0 <= r < len(self._rows) else None
         old_id, old_key = (old.get("id"), self._photo_key(old)) if old else (None, None)
         ok = self._set_data(index, value, role)
+        if ok and 0 <= r < len(self._rows):
+            self._remember_last(self._rows[r].get("id"))
         if ok and old_id is not None and 0 <= r < len(self._rows):
             new_key = self._photo_key(self._rows[r])
             if new_key != old_key:
@@ -497,6 +576,25 @@ class StagingTableModel(QAbstractTableModel):
         r = index.row()
         key, _, kind, _ = COLUMNS[index.column()]
         virtual = self._is_virtual(r)
+
+        if key in ("check_flag", "check_note") and not self._has_check:
+            return True            # the database has no such columns yet: nothing to write
+        if kind == "check":
+            # only an explicit value switches it on (a pasted number or word does not)
+            on = value is True or (isinstance(value, int) and value == 1) or \
+                str(value if value is not None else "").strip().lower() in ("1", "x", "yes", "y", "true", "to check")
+            if virtual:
+                if not on:
+                    return True
+                self._materialize_to(r)
+            row = self._rows[r]
+            newv = 1 if on else None
+            if row.get(key) != newv:
+                row[key] = newv
+                repo.update_row(self._conn, row["id"], {key: newv})
+                self.dataChanged.emit(index, index, [Qt.ItemDataRole.DisplayRole,
+                                                     Qt.ItemDataRole.EditRole])
+            return True
 
         # species picked from the popup arrives as a dict -> expand all taxon fields at once
         if kind == "species" and isinstance(value, dict):
@@ -642,6 +740,7 @@ class StagingTableModel(QAbstractTableModel):
         self.beginInsertRows(QModelIndex(), r, r)
         self._rows.append(fresh)
         self.endInsertRows()
+        self._remember_last(new_id)
         return new_id
 
     def remove_row(self, r: int) -> None:
@@ -764,6 +863,12 @@ class _OptionDelegate(_EnterMovesDown, QStyledItemDelegate):
 
     def setModelData(self, editor, model, index):
         model.setData(index, editor.currentText(), Qt.ItemDataRole.EditRole)
+
+
+class _CheckDelegate(QStyledItemDelegate):
+    """The Check cell has no editor: double-click or Space toggles it (EntryTableView)."""
+    def createEditor(self, parent, option, index):
+        return None
 
 
 class _NumberDelegate(_TextDelegate):
@@ -1009,10 +1114,17 @@ class EntryTableView(QTableView):
                 self._go(cur.row() + step, 0)
             return
 
+        if not editing and k == Qt.Key.Key_Space and not (mods & (
+                Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier)):
+            cur = self.currentIndex()
+            if cur.isValid() and COLUMNS[cur.column()][2] == "check":
+                self.model().toggle_check(cur.row())        # Space on the Check cell
+                return
+
         if not editing:
             # Delete/Backspace clears the selected cell(s)
             if k in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
-                for ix in (self.selectionModel().selectedIndexes() or [self.currentIndex()]):
+                for ix in (self.selectedIndexes() or [self.currentIndex()]):   # visible rows only
                     if ix.isValid():
                         self.model().setData(ix, "", Qt.ItemDataRole.EditRole)
                 return
@@ -1030,6 +1142,13 @@ class EntryTableView(QTableView):
                             event.type(), event.key(), event.modifiers(), event.text()))
                     return
         super().keyPressEvent(event)
+
+    def mouseDoubleClickEvent(self, event):
+        ix = self.indexAt(event.position().toPoint())
+        if ix.isValid() and COLUMNS[ix.column()][2] == "check":
+            self.model().toggle_check(ix.row())              # double-click on the Check cell
+            return
+        super().mouseDoubleClickEvent(event)
 
     def _repeat_row(self):
         """B2 (Ctrl+R): repeat this row's species below it and land on Sex -- for sex splits."""
@@ -1081,11 +1200,18 @@ class EntryTableView(QTableView):
                 rr += dr; cc += dc
         self._go(rr, cc)
 
+    def _next_visible(self, row: int) -> int:
+        """The first row at or after `row` that is not hidden ("To check only")."""
+        n = self.model().rowCount()
+        while row < n - 1 and self.isRowHidden(row):
+            row += 1
+        return row
+
     def move_down_from_editor(self):
         """After an editor commits via Enter, wrap to the first column (Species) of the next row."""
         cur = self.currentIndex()
         if cur.isValid():
-            self._go(cur.row() + 1, 0)
+            self._go(self._next_visible(cur.row() + 1), 0)
 
     # -- copy the value of one cell (species carries its whole payload) -------
     def _copy_cell(self, sr, sc, tr, tc):
@@ -1099,7 +1225,7 @@ class EntryTableView(QTableView):
     # -- Ctrl+D: fill each selected column from its top selected cell ---------
     def _fill_down(self):
         m = self.model()
-        idxs = self.selectionModel().selectedIndexes()
+        idxs = self.selectedIndexes()          # rows hidden by "To check only" are left out
         if len(idxs) <= 1:
             cur = idxs[0] if idxs else self.currentIndex()
             if cur.isValid() and cur.row() > 0:
@@ -1116,7 +1242,7 @@ class EntryTableView(QTableView):
 
     # -- Ctrl+C: bounding box of the selection -> clipboard (+ rich buffer) ---
     def _selected_rows(self):
-        return sorted({i.row() for i in self.selectionModel().selectedIndexes()})
+        return sorted({i.row() for i in self.selectedIndexes()})   # visible rows only
 
     def _delete_selected_rows(self):
         """Remove whole rows (Ctrl+-). Rows below shift up; confirms for more than one."""
@@ -1220,7 +1346,7 @@ class EntryTableView(QTableView):
             QMessageBox.warning(self, "Species account", f"Could not open the species account:\n\n{e}")
 
     def _copy(self):
-        idxs = self.selectionModel().selectedIndexes()
+        idxs = self.selectedIndexes()          # rows hidden by "To check only" are left out
         if not idxs:
             cur = self.currentIndex()
             if not cur.isValid():
@@ -1317,15 +1443,26 @@ class EntryTableView(QTableView):
                 return
             r0, c0 = cur.row(), cur.column()
 
-        m.ensure_rows(r0 + len(grid))
+        # the rows it lands on: visible ones only, so "To check only" never pastes into rows
+        # it hides; the columns: a block that starts outside Check / Check note skips them, so
+        # a block copied from a sheet laid out like the grid before 16 Oct lands where it did
+        rows, r = [], r0
+        while len(rows) < len(grid):
+            m.ensure_rows(r + 1)
+            if not self.isRowHidden(r):
+                rows.append(r)
+            r += 1
+        check_keys = ("check_flag", "check_note")
+        cols = [c for c in range(c0, m.columnCount())
+                if c == c0 or COLUMNS[c0][0] in check_keys or COLUMNS[c][0] not in check_keys]
         unresolved = []
         for i, rowvals in enumerate(grid):
             for j, val in enumerate(rowvals):
-                c = c0 + j
-                if c >= m.columnCount():
+                if j >= len(cols):
                     break
+                c = cols[j]
                 val = self._resolve_pasted(c, val, unresolved)
-                m.setData(m.index(r0 + i, c), val, Qt.ItemDataRole.EditRole)
+                m.setData(m.index(rows[i], c), val, Qt.ItemDataRole.EditRole)
         self._report_unresolved(unresolved)
 
     def _resolve_pasted(self, c, val, unresolved):
@@ -1412,7 +1549,7 @@ class EmbargoDialog(QDialog):
         row.addWidget(self.rb_embargo)
         self.date = QDateEdit()
         self.date.setCalendarPopup(True)
-        self.date.setDisplayFormat("yyyy-MM-dd")
+        self.date.setDisplayFormat("dd/MM/yyyy")   # shown day first; stored ISO (value())
         self.date.setDate(QDate.currentDate().addYears(2))
         row.addWidget(self.date)
         row.addStretch(1)
@@ -1535,6 +1672,8 @@ class EntryGridPage(QWidget):
                 self._view.setItemDelegateForColumn(c, _OptionDelegate(self._methods, self._view))
             elif kind == "number":
                 self._view.setItemDelegateForColumn(c, _NumberDelegate(self._view))
+            elif kind == "check":
+                self._view.setItemDelegateForColumn(c, _CheckDelegate(self._view))
             else:
                 self._view.setItemDelegateForColumn(c, _TextDelegate(self._view))
         v.addWidget(self._view, 1)
@@ -1636,6 +1775,13 @@ class EntryGridPage(QWidget):
             self._photo_btn.setToolTip("Photos can only be attached in the live database "
                                        "(observatum.db), not a dev or test copy.")
         cnt_row.addWidget(self._photo_btn)
+        self._check_export_btn = QPushButton("Export for checking\u2026")
+        self._check_export_btn.setStyleSheet(theme.button_secondary_qss(compact=True))
+        self._check_export_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._check_export_btn.setToolTip("A spreadsheet and a folder of photo copies for the rows "
+                                          "marked To check (or the selected rows), to send to be checked.")
+        self._check_export_btn.clicked.connect(self._export_for_checking)
+        cnt_row.addWidget(self._check_export_btn)
         self._counter = QLabel("")
         self._counter.setStyleSheet(f"color: {theme.INK}; font-size: 26px; font-weight: 700;")
         self._counter.setVisible(False)
@@ -1647,6 +1793,28 @@ class EntryGridPage(QWidget):
                              self._count_btn.sizeHint().height()))
         self._counter.setText("")
         cv.addLayout(cnt_row)
+        # To check only (view filter) and Last entered row
+        nav_row = QHBoxLayout(); nav_row.setSpacing(8)
+        self._check_only_btn = QPushButton("To check only (0)")
+        self._check_only_btn.setCheckable(True)
+        self._check_only_btn.setStyleSheet(
+            theme.button_secondary_qss(compact=True)
+            + f"QPushButton:checked {{ background-color: {theme.GOLD_BG}; font-weight: 600; }}")
+        self._check_only_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._check_only_btn.toggled.connect(lambda on: self._apply_check_filter())
+        nav_row.addWidget(self._check_only_btn)
+        self._last_btn = QPushButton("Last entered row")
+        self._last_btn.setStyleSheet(theme.button_secondary_qss(compact=True))
+        self._last_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._last_btn.setToolTip("Go to the row you last entered or edited in this job.")
+        self._last_btn.clicked.connect(self._go_to_last_row)
+        nav_row.addWidget(self._last_btn)
+        nav_row.addStretch(1)
+        cv.addLayout(nav_row)
+        for sig in (self._model.dataChanged, self._model.rowsInserted, self._model.rowsRemoved,
+                    self._model.modelReset):
+            sig.connect(lambda *a: self._check_changed())
+        self._check_changed()
         self._view.on_toggle_count = self._count_btn.toggle
         self._view.on_count_done = lambda: self._count_btn.setChecked(False)
         self._view.on_count = lambda r, n: self._show_counter(r)
@@ -1739,6 +1907,46 @@ class EntryGridPage(QWidget):
         self._view.selectionModel().currentChanged.connect(lambda cur, prev: self._show_counter(cur.row()))
         self._model.dataChanged.connect(self._on_data_changed)
         self._refresh_info(self._view.currentIndex())
+
+    # -- To check: filter, button text, export; Last entered row ----------------
+    def _check_changed(self):
+        """Keep the 'To check only (n)' text and, while it is on, the hidden rows current."""
+        n = self._model.flagged_count()
+        self._check_only_btn.setText(f"To check only ({n})")
+        has = self._model.has_check_columns()
+        self._check_only_btn.setEnabled(has)
+        self._check_only_btn.setToolTip(
+            "Show only the rows marked To check (view only; the other rows stay)." if has
+            else CHECK_HINT)
+        if self._check_only_btn.isChecked():
+            self._apply_check_filter()
+
+    def _apply_check_filter(self):
+        on = self._check_only_btn.isChecked()
+        for r in range(self._model.rowCount()):
+            self._view.setRowHidden(r, on and not self._model.is_flagged(r))
+
+    def _export_for_checking(self):
+        from DataEntry.check_export_dialog import CheckExportDialog
+        m = self._model
+        selected = [m.row_id(r) for r in self._view._selected_rows()]
+        selected = [i for i in selected if i is not None]
+        flagged = [m.row_id(r) for r in range(m.real_count()) if m.is_flagged(r)]
+        job = repo.get_job(self._conn, self._job_id) or self._job
+        CheckExportDialog(self._conn, job, selected, flagged, self).exec()
+
+    def _go_to_last_row(self):
+        r = self._model.last_row_index()
+        if r is None:
+            QMessageBox.information(self, "Last entered row", "No rows have been entered yet.")
+            return
+        if self._view.isRowHidden(r):
+            self._check_only_btn.setChecked(False)       # the filter would hide it
+        ix = self._model.index(r, COLIDX["species_name"])
+        self._view.clearSelection()
+        self._view.setCurrentIndex(ix)
+        self._view.scrollTo(ix, QAbstractItemView.ScrollHint.PositionAtCenter)
+        self._view.setFocus()
 
     def _set_count_mode(self, on: bool):
         self._view.count_mode = bool(on)
@@ -1977,6 +2185,8 @@ class EntryGridPage(QWidget):
             detail.append(f"{summary['skipped_zero_qty']} not committed (count of 0 \u2014 fix the count)")
         if summary.get("skipped_bad_vc"):
             detail.append(f"{summary['skipped_bad_vc']} skipped (VC No. unreadable)")
+        if summary.get("skipped_check"):
+            detail.append(f"{summary['skipped_check']} row(s) marked To check stay in Data Entry")
         if summary.get("taxonomy_error"):
             detail.append("taxon group and sort key not written (UKSI unreadable: "
                           f"{summary['taxonomy_error']})")
@@ -2004,8 +2214,9 @@ class EntryGridPage(QWidget):
         except Exception as e:  # a failed check must not block a commit silently
             print(f"[DataEntry] pre-commit check skipped: {e}")
             return True
+        held = found.pop("to check (held back)", None)
         if not found:
-            return True
+            return True                # only rows held back on purpose: the summary says so
 
         def rows_text(v, limit=15):
             shown = ", ".join(str(x) for x in v[:limit])
@@ -2030,6 +2241,9 @@ class EntryGridPage(QWidget):
             pairs = [f"{a} (= {b})" for a, b in found["double"]]
             lines.append(f"\u2022 {len(pairs)} possible double entr{'y' if len(pairs) == 1 else 'ies'} "
                          f"(same species, date, grid ref, method, trap, sex and stage): rows {rows_text(pairs, 10)}")
+        if held:
+            lines.append(f"\u2022 {len(held)} marked To check (held back, they stay in Data Entry): "
+                         f"rows {rows_text(held)}")
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.Warning)
         box.setWindowTitle("Check before commit")
@@ -2060,10 +2274,10 @@ class EntryGridPage(QWidget):
             return
         try:
             if clear_after:
-                n = cs.export_and_discard(self._conn, self._job, path, COLUMNS)
+                n = cs.export_and_discard(self._conn, self._job, path, COLUMNS)   # keeps the To check marks
                 after()
             else:
-                n = cs.export_job(self._conn, self._job, path, COLUMNS)
+                n = cs.export_job(self._conn, self._job, path, _CSV_COLUMNS)
         except Exception as e:
             QMessageBox.warning(self, "Export failed", str(e))
             return
@@ -2119,10 +2333,56 @@ class EntryGridPage(QWidget):
     def _settings(self) -> QSettings:
         return QSettings("Flauna", "Observatum")
 
+    # Before 16 Oct 2026 the grid had these columns (no Check / Check note): a layout saved
+    # then is read through them, so adding columns keeps Wil's order, widths and hidden set
+    _LEGACY_KEYS = tuple(k for k, _, _, _ in COLUMNS if k not in ("check_flag", "check_note"))
+
     def _save_header_state(self):
         s = self._settings()
-        s.setValue(self._HEADER_KEY, self._view.horizontalHeader().saveState())
+        hh = self._view.horizontalHeader()
+        s.setValue(self._HEADER_KEY, hh.saveState())
         s.setValue(self._HEADER_KEY + "Cols", len(COLUMNS))
+        # the same layout by column key, so a later change to COLUMNS keeps it (16 Oct 2026)
+        layout = [{"key": k, "pos": hh.visualIndex(c), "width": hh.sectionSize(c),
+                   "hidden": bool(self._view.isColumnHidden(c))} for c, (k, _, _, _) in enumerate(COLUMNS)]
+        s.setValue(self._HEADER_KEY + "Keys", json.dumps(layout))
+
+    @staticmethod
+    def _legacy_layout(state, keys):
+        """[{key, pos, width, hidden}] read from a header state saved with columns `keys`."""
+        from PySide6.QtGui import QStandardItemModel
+        from PySide6.QtWidgets import QTableView
+        model = QStandardItemModel(0, len(keys))
+        view = QTableView()
+        view.setModel(model)
+        hh = view.horizontalHeader()
+        if not hh.restoreState(state):
+            return []
+        return [{"key": k, "pos": hh.visualIndex(i), "width": hh.sectionSize(i),
+                 "hidden": hh.isSectionHidden(i)} for i, k in enumerate(keys)]
+
+    def _apply_layout(self, layout) -> bool:
+        """Order, widths and hidden columns by key; columns the layout does not know keep
+        their default place after the column they follow in COLUMNS."""
+        hh = self._view.horizontalHeader()
+        known = {d["key"]: d for d in layout if d.get("key") in COLIDX}
+        if not known:
+            return False
+        order = sorted(known, key=lambda k: known[k]["pos"])
+        for k, _, _, _ in COLUMNS:                       # new columns after their neighbour
+            if k not in known:
+                i = COLIDX[k]
+                prev = next((COLUMNS[j][0] for j in range(i - 1, -1, -1) if COLUMNS[j][0] in order), None)
+                order.insert(order.index(prev) + 1 if prev else 0, k)
+        for want, k in enumerate(order):
+            c = COLIDX[k]
+            hh.moveSection(hh.visualIndex(c), want)
+            if k in known:
+                d = known[k]
+                if d.get("width"):
+                    hh.resizeSection(c, int(d["width"]))
+                self._view.setColumnHidden(c, bool(d.get("hidden")))
+        return True
 
     def _restore_header_state(self):
         s = self._settings()
@@ -2131,9 +2391,16 @@ class EntryGridPage(QWidget):
             saved_cols = int(s.value(self._HEADER_KEY + "Cols", 0))
         except (TypeError, ValueError):
             saved_cols = 0
-        if saved_cols != len(COLUMNS):
-            st = None   # column set changed -- fall back to the default order
-        if st is not None:
+        done = False
+        try:
+            keys = s.value(self._HEADER_KEY + "Keys")
+            if keys:
+                done = self._apply_layout(json.loads(keys))
+            elif st is not None and saved_cols == len(self._LEGACY_KEYS) != len(COLUMNS):
+                done = self._apply_layout(self._legacy_layout(st, self._LEGACY_KEYS))
+        except Exception as e:                           # a broken layout: defaults
+            print(f"[DataEntry] column layout not restored: {e}")
+        if not done and st is not None and saved_cols == len(COLUMNS):
             try:
                 self._view.horizontalHeader().restoreState(st)
             except Exception:

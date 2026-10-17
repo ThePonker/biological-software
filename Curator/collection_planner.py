@@ -34,6 +34,12 @@ def main():
     solid_popups(app)                    # F50: solid drop-down lists (the palette's colours)
     from shared.dialog_geometry import install as remember_dialog_sizes
     remember_dialog_sizes(app)                                   # every dialog keeps its size
+    import paths
+    if str(paths.OBSERVATUM_DIR) not in sys.path:
+        sys.path.insert(0, str(paths.OBSERVATUM_DIR))
+    from src.themes import theme
+    from shared.tick_style import install as green_ticks, theme_colours
+    green_ticks(app, lambda: theme_colours(theme()))             # check boxes ticked in green
 
     window = PlannerWindow()
     window.showMaximized()

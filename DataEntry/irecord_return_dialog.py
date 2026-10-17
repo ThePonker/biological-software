@@ -11,7 +11,8 @@ from DataEntry import staging_repo as repo
 
 def export_for_irecord(parent, conn, job) -> bool:
     """Ask for a file, write the iRecord CSV and mark the job awaiting. True when done."""
-    rows = repo.fetch_rows(conn, job["id"])
+    from DataEntry.commit_service import is_flagged
+    rows = [r for r in repo.fetch_rows(conn, job["id"]) if not is_flagged(r)]   # To check: not sent
     bad = ie.blocking_rows(rows)
     if bad:
         more = " …" if len(bad) > 20 else ""
@@ -38,6 +39,8 @@ def export_for_irecord(parent, conn, job) -> bool:
     QMessageBox.information(
         parent, "Exported for iRecord",
         f"Wrote {res['written']} record(s) to:\n{path}\n\nTVKs {res['tvk_check']}.\n\n"
+        + (f"{res['left_out']} row(s) marked To check were left out of the file.\n\n"
+           if res.get("left_out") else "") +
         "Import the file into iRecord. The job is kept, marked “exported – awaiting "
         "iRecord”. After the next iRecord sync, select it on the Jobs page and choose "
         "“Check iRecord return” to confirm every record came back, then close it.")

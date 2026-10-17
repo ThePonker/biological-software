@@ -38,6 +38,7 @@ except ImportError:                       # run as py scripts\<name>.py
     import report_common as rc
 
 import paths  # noqa: E402  (report_common has set sys.path)
+from shared.display_format import dmy  # noqa: E402
 from shared.scheme_duplicates import match_pairs  # noqa: E402
 
 TIERS = ("same iRecord id", "exact", "likely", "possible")
@@ -143,7 +144,7 @@ def csv_rows(pairs: dict):
         yield [tier, a["species_name"], a["species_tvk"], ia, ib, route(a), route(b),
                dataset(a), dataset(b), a["irecord_id"], b["irecord_id"],
                a["nbn_atlas_id"], b["nbn_atlas_id"], a["occurrence_id"], b["occurrence_id"],
-               a["date"], b["date"], a["grid_ref"], b["grid_ref"], a["site_name"],
+               dmy(a["date"]), dmy(b["date"]), a["grid_ref"], b["grid_ref"], a["site_name"],
                b["site_name"], a["recorder"], b["recorder"]]
 
 
@@ -179,7 +180,7 @@ def report(s: dict, pairs: dict) -> None:
     print("")
     print(f"  {SAMPLES} sample pairs:")
     for tier, a, b in samples(pairs):
-        print(f"    [{tier}] {str(a['species_name'] or '')[:28]:<28} {a['date']}  "
+        print(f"    [{tier}] {str(a['species_name'] or '')[:28]:<28} {dmy(a['date'])}  "
               f"id {a['id']} {route(a)} {str(a['grid_ref'])} '{a['recorder'] or ''}'  |  "
               f"id {b['id']} {route(b)} {str(b['grid_ref'])} '{b['recorder'] or ''}'"
               f"  ({dataset(b)[:40]})")

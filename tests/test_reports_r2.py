@@ -327,7 +327,7 @@ def test_commercial_embargo(tmp_path, capsys):
     rows = {r["project"]: r for r in _csv(out)}
     assert rows["Bicester"]["note"] == "mixed" and rows["Bicester"]["embargoed"] == "1"
     assert rows["Elmley"]["note"] == "unembargoed by choice"
-    assert rows["Elmley"]["records"] == "2" and rows["Elmley"]["earliest_date"] == "2026-05-18"
+    assert rows["Elmley"]["records"] == "2" and rows["Elmley"]["earliest_date"] == "18/05/2026"   # CSV read by Wil: dd/mm/yyyy
     assert "name stored with spaces" in rows["Derby"]["note"]
     assert emb.classify("Active", "2026-10-11", "2026-10-10") == "embargoed"
     assert emb.classify("Active", "2026-10-10", "2026-10-10") == "expired"

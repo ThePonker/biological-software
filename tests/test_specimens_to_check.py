@@ -131,6 +131,19 @@ def test_change_date_only_selected_and_refuses_mixed(win, db):
     win.change_visit_date()
     assert "more than one site" in win.messages[-1]
     assert _q(db, "SELECT date_collected FROM specimens WHERE id IN (3,5)") == [("2025-06-01",)] * 2
+    # F87: one site and grid ref but two dates (two visits): refused too
+    import sqlite3 as _sq
+    c = _sq.connect(db)
+    c.execute("UPDATE specimens SET site_name = (SELECT site_name FROM specimens WHERE id = 3), "
+              "grid_ref = (SELECT grid_ref FROM specimens WHERE id = 3) WHERE id = 6")
+    c.commit()
+    c.close()
+    win._rows["missing"][0]["ids"] = [3, 6]
+    _tab(win, "missing").selectRow(0)
+    win.change_visit_date()
+    assert "more than one date" in win.messages[-1]
+    assert _q(db, "SELECT date_collected FROM specimens WHERE id IN (3,6) ORDER BY id") == [
+        ("2025-06-01",), ("2025-07-01",)]
 
 
 def test_checked_sets_column(win, db):

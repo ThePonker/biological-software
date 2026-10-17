@@ -4,6 +4,7 @@ only on a live Observation row; the "Hidden here" tile; Show again stays on its 
 Small purpose-made databases; offscreen; dialogs never block (exec is replaced).
 """
 import os
+import re
 import sqlite3
 
 import pytest
@@ -76,8 +77,10 @@ def test_hidden_tile_lists_every_hidden_row(tmp_path):
     rep = build_report(main, uksi, "observations")
     assert [r.record_id for r in rep.rows["hidden"]] == [3, 4]
     plain, back = rep.rows["hidden"]
-    assert plain.detail.startswith("Removed here 20") and "came back" not in plain.detail
-    assert "; came back from iRecord 2026-10-12 09:30" in back.detail
+    # times read dd/mm/yyyy hh:mm (16 Oct 2026); the stored stamps stay ISO
+    assert re.match(r"Removed here \d\d/\d\d/20\d\d \d\d:\d\d", plain.detail)
+    assert "came back" not in plain.detail
+    assert "; came back from iRecord 12/10/2026 09:30" in back.detail
     assert [r.record_id for r in rep.rows["returned"]] == [4]            # unchanged subset
     assert "(still hidden)" in rep.rows["returned"][0].detail
     # hidden rows are not checked: totals cover the two live records only
