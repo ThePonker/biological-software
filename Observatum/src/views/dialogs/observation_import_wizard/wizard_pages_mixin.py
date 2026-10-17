@@ -483,20 +483,6 @@ class WizardPagesMixin(ImportProgressPagesMixin):
                 font-weight: 500;
                 spacing: 8px;
             }}
-            QRadioButton::indicator {{
-                width: 16px;
-                height: 16px;
-            }}
-            QRadioButton::indicator:unchecked {{
-                border: 2px solid {t.get('border_strong')};
-                border-radius: 8px;
-                background-color: {t.get('surface')};
-            }}
-            QRadioButton::indicator:checked {{
-                border: 2px solid {self._accent};
-                border-radius: 8px;
-                background-color: {self._accent};
-            }}
         """
         
         self.filter_all_radio = QRadioButton("Show All")
@@ -634,17 +620,6 @@ class WizardPagesMixin(ImportProgressPagesMixin):
         radio_style = f"""
             QRadioButton {{
                 spacing: 8px; font-size: 12px; color: {t.get('text_primary')};
-            }}
-            QRadioButton::indicator {{
-                width: 16px; height: 16px; border-radius: 8px;
-                border: 2px solid {t.get('border_strong')};
-            }}
-            QRadioButton::indicator:checked {{
-                background-color: {t.get('accent_observations', '#5f8575')};
-                border-color: {t.get('accent_observations', '#5f8575')};
-            }}
-            QRadioButton::indicator:unchecked {{
-                background-color: {t.get('surface')};
             }}
         """
         self.import_all_checkbox = QRadioButton("Import all valid and warning rows (skip errors)")

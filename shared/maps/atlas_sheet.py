@@ -16,6 +16,7 @@ from PySide6.QtGui import QBrush, QColor, QFont, QImage, QPainter, QPen, QPolygo
 
 from shared.maps import grid_squares as gs
 from shared.maps._theme import theme
+from shared.maps.layers import OS_CREDIT
 from shared.maps.species_dist_map import _SEA_C
 
 
@@ -121,10 +122,12 @@ class AtlasSheetMixin:
         return img
 
     def credit_line(self, footer: str = "") -> str:
-        """The page's last line(s): the footer, then the data credits for what is drawn."""
+        """The page's last line(s): the footer, then the data credits for what is drawn: the OS
+        line once if any layers-folder file is drawn, the ONS one only while gb_outline.json is."""
         return (footer + "   " if footer else "") + \
             ("Vice-county boundaries: BRC. " if self._vc_rings else "") + \
-            (COAST_CREDIT + " " if self.has_districts() else "") + \
+            (OS_CREDIT + " " if self.layers_drawn() else "") + \
+            (COAST_CREDIT + " " if self.outline_drawn() else "") + \
             f"Produced {date.today():%d %B %Y} with Observatum."
 
     @staticmethod

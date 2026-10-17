@@ -202,16 +202,16 @@ def test_export_for_checking_writes_folder_sheet_and_photos(lib):
         "R001 a.jpg", "R002 b.jpg", "R002 c.jpg"]
     ws = load_workbook(folder / f"{folder.name}.xlsx").active
     head = [c.value for c in ws[1]]
-    assert head == ["Ref", "Species", "Date", "Sex", "Check note", "Photos", "Photo 2",
+    assert head == ["Ref", "Row id", "Species", "Date", "Sex", "Check note", "Photos", "Photo 2",
                     "Agree?", "Their ID", "Notes"]
     assert ws[1][0].font.bold and ws.freeze_panes == "A2"
     row2, row3 = [c.value for c in ws[2]], [c.value for c in ws[3]]
-    assert row2[:6] == ["R001", "Amara aenea", "05/06/2026", "Male", "legs?", "R001 a.jpg"]
-    assert ws.cell(2, 6).hyperlink.target == "photos/R001%20a.jpg"
-    assert unquote(ws.cell(2, 6).hyperlink.target) == "photos/R001 a.jpg"
-    assert row3[0] == "R002" and row3[5] == "R002 b.jpg\nR002 c.jpg"
-    assert unquote(ws.cell(3, 6).hyperlink.target) == "photos/R002 b.jpg"
-    assert ws.cell(3, 7).value == "R002 c.jpg" and unquote(ws.cell(3, 7).hyperlink.target) == "photos/R002 c.jpg"
+    assert row2[:7] == ["R001", r1, "Amara aenea", "05/06/2026", "Male", "legs?", "R001 a.jpg"]
+    assert ws.cell(2, 7).hyperlink.target == "photos/R001%20a.jpg"
+    assert unquote(ws.cell(2, 7).hyperlink.target) == "photos/R001 a.jpg"
+    assert row3[0] == "R002" and row3[6] == "R002 b.jpg\nR002 c.jpg"
+    assert unquote(ws.cell(3, 7).hyperlink.target) == "photos/R002 b.jpg"
+    assert ws.cell(3, 8).value == "R002 c.jpg" and unquote(ws.cell(3, 8).hyperlink.target) == "photos/R002 c.jpg"
     assert row2[-3:] == [None, None, None] and row3[-3:] == [None, None, None]
     # the library is untouched and the database not written
     assert (tmp / "Media" / "Photos" / "_Bench" / "a.jpg").read_bytes() == b"a.jpg"
@@ -251,7 +251,8 @@ def test_export_with_no_photo_has_no_extra_photo_columns(lib):
     r = _row(conn, repo, jid)
     res = ce.export_for_checking(conn, repo.get_job(conn, jid), [r], ["Species"], tmp / "out")
     ws = load_workbook(res["xlsx"]).active
-    assert [c.value for c in ws[1]] == ["Ref", "Species", "Photos", "Agree?", "Their ID", "Notes"]
+    assert [c.value for c in ws[1]] == ["Ref", "Row id", "Species", "Photos", "Agree?", "Their ID",
+                                        "Notes"]
     assert res["photos_copied"] == 0 and not list((tmp / "out").glob("*/photos"))
 
 

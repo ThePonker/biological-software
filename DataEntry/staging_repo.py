@@ -132,6 +132,18 @@ def delete_job(conn: sqlite3.Connection, job_id: int) -> None:
     conn.commit()
 
 
+# a job made by scripts/copy_job_for_test.py: for trying features on real rows; it can never be
+# committed or exported to iRecord (commit_service / irecord_export refuse it), only discarded
+TEST_COPY_PREFIX = "TEST copy of "
+TEST_COPY_NOTE = "TEST COPY (scripts/copy_job_for_test.py): never commit"   # in entry_jobs.notes
+
+
+def is_test_copy(job: Optional[Dict]) -> bool:
+    """By name or by the note (the note stays if the job is renamed; review 17 Oct)."""
+    return bool(job) and (str(job.get("name") or "").startswith(TEST_COPY_PREFIX)
+                          or str(job.get("notes") or "").startswith(TEST_COPY_NOTE))
+
+
 def is_personal(job: Dict) -> bool:
     return (job.get("name") == PERSONAL_JOB_NAME) and (job.get("mode") == "Personal")
 

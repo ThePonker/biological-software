@@ -370,20 +370,6 @@ class WhenFilterDialog(QDialog):
                 spacing: 10px;
                 background: transparent;
             }}
-            QRadioButton::indicator {{
-                width: 18px;
-                height: 18px;
-                border-radius: 9px;
-                border: 2px solid {t.get('border')};
-                background-color: {t.get('surface')};
-            }}
-            QRadioButton::indicator:hover {{
-                border-color: {self._accent_color};
-            }}
-            QRadioButton::indicator:checked {{
-                background-color: {self._accent_color};
-                border-color: {self._accent_color};
-            }}
         """)
     
     def _style_date_edit(self, widget: QDateEdit):

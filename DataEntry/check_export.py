@@ -27,6 +27,13 @@ CHECK_COLUMNS = [
 ]
 DEFAULT_COLUMNS = ["Species", "Common name", "Date", "Sex", "Stage", "No.", "Check note"]
 REPLY_COLUMNS = ["Agree?", "Their ID", "Notes"]       # left empty, for the reply
+# which Data Entry row each Ref stands for (17 Oct 2026): a hidden sheet in the workbook, which
+# travels with the checker's reply, and the same list in refs.json in the export's folder, for
+# a reply that comes back as a CSV. check_readback.py reads them.
+REFS_SHEET = "_rows"
+DATA_SHEET = "For checking"
+REFS_FILE = "refs.json"
+REFS_HEAD = ["Ref", "row_id", "job_id", "species"]
 
 
 def default_out_root() -> Path:
@@ -118,17 +125,18 @@ def export_for_checking(conn, job: Dict, row_ids: Iterable[int], columns: Iterab
         lines.append((ref, row, _copy_photos(conn, ref, row["id"], photos_dir, counts)))
     extra = max([len(p) for _r, _w, p in lines] + [1]) - 1          # "Photo 2", "Photo 3" ...
 
-    head = ["Ref"] + chosen + ["Photos"] + [f"Photo {i}" for i in range(2, extra + 2)] + REPLY_COLUMNS
+    # Row id: Data Entry's own number for the row; the read-back checks it against the list
+    head = ["Ref", "Row id"] + chosen + ["Photos"] + [f"Photo {i}" for i in range(2, extra + 2)] + REPLY_COLUMNS
     wb = Workbook()
     ws = wb.active
-    ws.title = "For checking"
+    ws.title = DATA_SHEET
     ws.append(head)
     link_font = Font(color="0563C1", underline="single")
     for ref, row, photos in lines:
-        ws.append([ref] + [_cell(row, keys[c]) for c in chosen]
+        ws.append([ref, row["id"]] + [_cell(row, keys[c]) for c in chosen]
                   + ["\n".join(photos)] + [""] * extra + [""] * len(REPLY_COLUMNS))
         r = ws.max_row
-        first = 2 + len(chosen)                                      # the Photos column
+        first = 3 + len(chosen)                                      # the Photos column
         for i, name in enumerate(photos):
             c = ws.cell(row=r, column=first + i)
             if i > 0:
@@ -143,7 +151,17 @@ def export_for_checking(conn, job: Dict, row_ids: Iterable[int], columns: Iterab
         ws.column_dimensions[col[0].column_letter].width = min(max(width + 2, 10), 50)
         for cell in col:
             cell.alignment = Alignment(wrap_text=True, vertical="top")
+    refs = wb.create_sheet(REFS_SHEET)
+    refs.append(REFS_HEAD)
+    for ref, row, _photos in lines:
+        refs.append([ref, row["id"], job["id"], row.get("species_name") or ""])
+    refs.sheet_state = "hidden"
     xlsx = folder / f"{folder.name}.xlsx"
     wb.save(xlsx)
+    import json
+    (folder / REFS_FILE).write_text(json.dumps(
+        {"job_id": job["id"], "job": job.get("name") or "",
+         "rows": [{"ref": ref, "row_id": row["id"], "species": row.get("species_name") or ""}
+                  for ref, row, _p in lines]}, indent=1), encoding="utf-8")
     return {"rows": len(rows), "photos_copied": counts["copied"],
             "photos_missing": counts["missing"], "folder": str(folder), "xlsx": str(xlsx)}

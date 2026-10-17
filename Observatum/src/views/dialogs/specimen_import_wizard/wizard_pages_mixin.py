@@ -408,20 +408,6 @@ class WizardPagesMixin:
             QRadioButton {{
                 spacing: 6px;
             }}
-            QRadioButton::indicator {{
-                width: 14px;
-                height: 14px;
-                border-radius: 6px;
-                border: 2px solid {t.get('text_primary')};
-            }}
-            QRadioButton::indicator:checked {{
-                background-color: {t.get('text_primary')};
-                border: 2px solid {t.get('text_primary')};
-            }}
-            QRadioButton::indicator:unchecked {{
-                background-color: {t.get('surface')};
-                border: 2px solid {t.get('text_primary')};
-            }}
         """
     
     def _get_checkbox_style(self) -> str:

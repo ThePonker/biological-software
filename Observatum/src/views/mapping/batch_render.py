@@ -24,6 +24,7 @@ from ...services import batch_spread as spread
 from ...services import map_square_service as squares_svc
 from ...services.batch_maps import BatchSettings, TaxonMap, area_label, file_name
 from ...themes import theme
+from .display_bar import saved_layers
 from .header import selection_title
 from .map_notes import map_note
 from .source_picker import sources_label
@@ -50,6 +51,7 @@ class BatchRenderer:
         geojson = str(paths.VC_GEOJSON) if paths.VC_GEOJSON.exists() else None
         self.map = GridMap(geojson_path=geojson, maps_dir=str(paths.MAPS_DIR))
         self.map.resize(900, 1100)
+        self.map.set_layers(saved_layers())      # the Layers menu's remembered choices
 
     # ---------------------------------------------------------------- words
     def extent(self, vcs: Sequence[int]):

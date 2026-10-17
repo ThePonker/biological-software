@@ -1814,6 +1814,13 @@ class EntryGridPage(QWidget):
                                           "marked to check (or the selected rows), to send to be checked.")
         self._check_export_btn.clicked.connect(self._export_for_checking)
         cnt_row.addWidget(self._check_export_btn)
+        self._readback_btn = QPushButton("Read back checking\u2026")
+        self._readback_btn.setStyleSheet(theme.button_secondary_qss(compact=True))
+        self._readback_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._readback_btn.setToolTip("Read a checker's reply to Export for checking: see each "
+                                      "answer beside its row and accept the ones you want.")
+        self._readback_btn.clicked.connect(self._read_back_checking)
+        cnt_row.addWidget(self._readback_btn)
         self._counter = QLabel("")
         self._counter.setStyleSheet(f"color: {theme.INK}; font-size: 26px; font-weight: 700;")
         self._counter.setVisible(False)
@@ -1858,7 +1865,13 @@ class EntryGridPage(QWidget):
         self._commit_btn = QPushButton("Commit to Observatum")
         self._commit_btn.setStyleSheet(theme.button_primary_qss(compact=True))
         self._commit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        if not self._is_commercial() and str(self._job.get("notes") or "").startswith("Exported for iRecord"):
+        if repo.is_test_copy(self._job):
+            # a copy made by scripts/copy_job_for_test.py: committing it would record every
+            # row twice (17 Oct 2026, Wil's test: the guard in commit_job came after the question)
+            self._commit_btn.setEnabled(False)
+            self._commit_btn.setToolTip("This is a test copy of a job: it cannot be committed. "
+                                        "Discard it when you have finished with it.")
+        elif not self._is_commercial() and str(self._job.get("notes") or "").startswith("Exported for iRecord"):
             # exported the old way (no keys): its records come back by Check iRecord
             # return; committing them here as well would hold them twice
             self._commit_btn.setEnabled(False)
@@ -1966,6 +1979,23 @@ class EntryGridPage(QWidget):
         flagged = [m.row_id(r) for r in range(m.real_count()) if m.is_flagged(r)]
         job = repo.get_job(self._conn, self._job_id) or self._job
         CheckExportDialog(self._conn, job, selected, flagged, self).exec()
+
+    def _read_back_checking(self):
+        from DataEntry.check_readback_dialog import (
+            CheckReadbackDialog, apply_through_grid, resolver_from)
+        job = repo.get_job(self._conn, self._job_id) or self._job
+
+        def apply(items, checker):
+            if self._on_live_db():
+                from shared import backup_service
+                if not backup_service.backup_main_only("pre-checking-readback"):
+                    raise ValueError("the backup failed, so nothing was changed")
+            try:
+                return apply_through_grid(self._model, items, checker)
+            finally:
+                self._check_changed()
+        resolve = resolver_from(self._view.itemDelegateForColumn(COLIDX["species_name"]))
+        CheckReadbackDialog(self._conn, job, apply, self, resolve=resolve).exec()
 
     def _go_to_last_row(self):
         r = self._model.last_row_index()
@@ -2149,6 +2179,10 @@ class EntryGridPage(QWidget):
 
     def _do_commit(self):
         from DataEntry import commit_service as cs  # noqa: F401 (kept for symmetry/tests)
+        if repo.is_test_copy(self._job):
+            QMessageBox.information(self, "Commit", "This is a test copy of a job: it cannot be "
+                                    "committed. Discard it when you have finished with it.")
+            return
         if self._commit_cb is None:
             QMessageBox.information(self, "Commit",
                                    "Commit needs Observatum \u2014 launch via run_entry.bat.")

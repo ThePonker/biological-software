@@ -22,6 +22,16 @@ only, about 40 files; stored values unchanged). An Opus review found nine points
 mattered (actions reaching rows hidden by the filter, pasting shifted by the new columns,
 stranded rows on iRecord export, Export-and-discard dropping marks, the photo-library folder)
 were fixed before delivery. Full suite 1,481 passed; the remaining failures are the known ones.
+**17 Oct (round 7 follow-up and round 8):** Ctrl+T and typing in the Check cell; "to check" in
+lower case; radio buttons and checkable list items green. **Read back checking**: the export
+now carries a hidden row list (and refs.json) and a Row id column; a checker's reply is shown
+line by line and only ticked answers are applied (agree: mark off, "conf."; a new ID only when
+it matches one species for certain, Determiner = checker; doubtful or unsure names go to Check
+note). The Opus review found six points (any Their ID text replacing the species, a repeated
+Ref, a reply matched to another export, a renamed test copy escaping its guard, partial
+failure, the sheet found by position), all fixed. `copy_job_for_test.py` makes a job that can
+never be committed or exported. **Map layers phase 1** (two Sonnet builders): build script for
+OS Zoomstack and Boundary-Line, Layers menu, layer land and districts; not yet run on real data.
 
 ### Session 49 — 13–14 October 2026 (night to evening)
 

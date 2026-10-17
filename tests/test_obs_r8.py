@@ -321,7 +321,9 @@ def test_opacity_slider_default_remembered_and_beside_the_switches(settings_sand
     s = bar.opacity_slider
     assert (s.minimum(), s.maximum()) == (0, 100)
     lay = bar.layout()
-    assert lay.indexOf(bar.opacity_label) == lay.indexOf(bar.districts_check) + 1
+    # 17 Oct 2026: the Layers menu button sits with the switches, so the slider follows it
+    assert lay.indexOf(bar.layers_button) == lay.indexOf(bar.districts_check) + 1
+    assert lay.indexOf(bar.opacity_label) == lay.indexOf(bar.layers_button) + 1
     assert lay.indexOf(bar.opacity_slider) == lay.indexOf(bar.opacity_label) + 1
     got = []
     bar.square_opacity_changed.connect(got.append)

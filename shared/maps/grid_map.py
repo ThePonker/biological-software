@@ -27,6 +27,7 @@ from PySide6.QtGui import QBrush, QColor, QPainter, QPen
 from PySide6.QtWidgets import QToolTip, QWidget
 
 from shared.maps import grid_squares as gs
+from shared.maps import layers
 from shared.maps.atlas_sheet import AtlasSheetMixin, draw_split  # noqa: F401 (draw_split: old import path)
 from shared.maps._theme import theme
 from shared.maps.panzoom import PanZoomMixin
@@ -73,7 +74,10 @@ class GridMap(AtlasSheetMixin, BasemapLayersMixin, PanZoomMixin, QWidget):
         self._message = ""
         self._press = None
         self._geojson = geojson_path
-        self._districts_on = False                # R4: modern district lines (outline only)
+        self._districts_on = False                # R4: modern district lines
+        self._maps_dir = maps_dir
+        self._layer_files = layers.available(maps_dir)   # data/maps/layers/: what is installed
+        self._layers_on = layers.defaults()       # the Layers menu's ticked switches
         self._square_opacity = 1.0                # R8: the recorded squares' opacity (a slider)
         self._init_layers()
         self._init_panzoom(True)
@@ -82,11 +86,40 @@ class GridMap(AtlasSheetMixin, BasemapLayersMixin, PanZoomMixin, QWidget):
 
     # ---------------------------------------------------------------- data in
     def has_basemap(self) -> bool:
-        return bool(self._land)
+        return bool(self._land) or self._use_layer_land()
+
+    def _outline_source(self) -> bool:
+        return bool(self._land_source) and self._land_source[0] == "outline"
 
     def has_districts(self) -> bool:
-        """True when the land is gb_outline.json (whose inland edges are modern districts)."""
-        return bool(self._land_source) and self._land_source[0] == "outline"
+        """True when there is a district layer file, or the land is gb_outline.json (whose
+        inland edges are the districts)."""
+        return "districts" in self._layer_files or self._outline_source()
+
+    def set_layers(self, keys):
+        """The ticked Layers menu switches (layers.TOGGLES keys); those without a file draw nothing."""
+        self._layers_on = set(keys or ())
+        self.update()
+
+    def layer_toggles_available(self) -> set:
+        """The Layers menu switches that have a file installed."""
+        return {t.key for t in layers.TOGGLES if layers.toggle_available(self._layer_files, t)}
+
+    def layers_drawn(self) -> list:
+        """Layer keys drawn from data/maps/layers/ now (the credit line is built from them)."""
+        out = ["land"] if self._use_layer_land() else []
+        out += [lay.key for lay in layers.LAYERS if lay.toggle in self._layers_on
+                and lay.key in self._layer_files]
+        if self._districts_on and "districts" in self._layer_files:
+            out.append("districts")
+        return out
+
+    def outline_drawn(self) -> bool:
+        """True when gb_outline.json is the land, or its inland edges are the districts drawn."""
+        if not self._outline_source():
+            return False
+        return not self._use_layer_land() or (self._districts_on
+                                              and "districts" not in self._layer_files)
 
     def set_districts(self, on: bool):
         """Modern district borders (gb_outline.json's inland edges), light, or none (R4)."""
@@ -190,6 +223,9 @@ class GridMap(AtlasSheetMixin, BasemapLayersMixin, PanZoomMixin, QWidget):
         VC labels through `fit` (R5 order, map_layers.py). k scales line widths (print > 1). selected=False leaves out the clicked
         square's outline (the atlas page, L13/L31). zoom: the screen's zoom (the labels' scale
         rule). Labels are drawn in device pixels whatever the painter's zoom (vc_labels)."""
+        # what is on screen (for the layers' level of detail): the zoomed view, or the page
+        self._layer_view = (gs.visible_extent(fit, (self._pan.x(), self._pan.y()), zoom)
+                            if zoom > 1.0 else fit.extent)
         self.draw_base(p, fit, k)                  # land .. VC boundaries, districts (R5)
         self._draw_squares(p, fit, k, selected)   # R5: squares over the boundaries (Wil)
         vc_polys = self._polygons(fit)[1]
@@ -274,7 +310,7 @@ class GridMap(AtlasSheetMixin, BasemapLayersMixin, PanZoomMixin, QWidget):
         if self._message:
             p.drawText(QRectF(8, 6, self.width() - 16, 40),
                        int(Qt.AlignmentFlag.AlignLeft | Qt.TextFlag.TextWordWrap), self._message)
-        if not self._land:
+        if not self.has_basemap():
             p.drawText(8, self.height() - 22, "No coastline file found -- grid squares only.")
         p.drawText(8, self.height() - 8, "Scroll to zoom, drag to pan, double-click to reset.")
 

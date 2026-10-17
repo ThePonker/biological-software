@@ -264,6 +264,10 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
     if observation_cls is None:
         from src.models.observation import Observation as observation_cls  # noqa: N806
 
+    from DataEntry.staging_repo import is_test_copy
+    if is_test_copy(job):
+        raise ValueError("this is a test copy of a job: it cannot be committed (discard it when "
+                         "you have finished with it)")
     if (job.get("mode") or "").lower().startswith("comm") and not (job.get("project") or "").strip():
         # backstop for the grid's own check: no project means "(no project)" everywhere
         raise ValueError("this commercial job has no Project -- set it with Jobs > Edit details")

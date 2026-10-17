@@ -106,8 +106,8 @@ until Wil's photos are sorted; 15 partly (F87); 16 left for the tidy-up; 17 opti
   Entry first (`stage_records_from_specimens.py --undo`).
 - **B. Small fixes in the gaps (each < 1 h):** ~~commit round 6; tick boxes green + audit;
   dd/mm/yyyy everywhere; F86; F87~~ (done, round 7, 16 Oct; with the Data Entry Check mark,
-  Export for checking and Last entered row). Left: Elmley upload decision; reading back a
-  checker's returned spreadsheet (not built).
+  Export for checking and Last entered row). Left: Elmley upload decision. *Read back checking built 17 Oct (round 8), to test with the
+  Coedely test copy (`scripts/copy_job_for_test.py`); then discard the test job.*
 - **C. After the reports, in order:** (1) specimen photos shown on their field records (📷 count
   in Observation Data, "via specimen" in the Photos window; display only; agreed 14 Oct);
   (2) re-run `stage_records_from_specimens.py`; (3) check and commit those jobs, deciding whether
@@ -137,7 +137,7 @@ F72's uncovered raw queries for hidden records: decide whether to sweep.
 | **Final Recording Scheme dataset** (M1) | 1 h of questions, 2 sessions | Q4: questions straight after the next big job. Q72/Q73 answered; Q57–Q59 feed it |
 | **iRecord round trip, then Photos** (lean plan below) | about 8 hours | A1–A3, B1–B3, B5, bench photos, viewer done 13–14 Oct; review sheet, intake, grid refs built in round 6 (to test). Left: the first real iRecord round trip |
 | **Partner's laptop install** | 8–11 days | **Winter**, after photos and the scheme dataset (Q2). Full suite (Q68). Separate databases, data moved by export/import (Q3). Her own empty database plus an optional practice database with sample data (Q69) |
-| Optional: **map background layers** | 3–4 days | Q6, Q34–Q40 answered |
+| Optional: **map background layers** | 3–4 days | **Phase 1 built 17 Oct (round 8)**: `build_map_layers.py`, Layers menu, layer land and districts. Left: Wil downloads Zoomstack + Boundary-Line to `~\OS data`, runs the build, judges the look and paint speed; relief (Terrain 50) not built (not in Q6); phase 2 (SSSI/NNR, ancient woodland) later (Q37) |
 | Optional: **Atrium icons and restyle** | about 1 session | Q52/Q53: Claude drafts a silhouette for each app from the Observatum logo for Wil to approve; icon files in git are fine; Munia's look checked here |
 | Optional: **splash and loading redesign** | about 1 session | Q51: after the Round 8 `--timing` (done): the bar follows the real steps, smooth animation |
 | Winter: **C4 import wizard merge** | 4–7 days | Q84–Q87 answered (Q85 to confirm) |

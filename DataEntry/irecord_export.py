@@ -139,6 +139,8 @@ def export_job(conn, job: Dict, filepath: str, uksi_path=None) -> Dict:
     would hold them where no later step reaches them (review 16 Oct 2026). Returns {written,
     tvk_check, name, left_out (always 0)}."""
     from DataEntry.commit_service import is_flagged
+    if repo.is_test_copy(job):
+        raise ValueError("this is a test copy of a job: it cannot be exported for iRecord.")
     all_rows = repo.fetch_rows(conn, job["id"])
     rows = [r for r in all_rows if not is_flagged(r)]      # "To check" rows are not sent
     held = len(all_rows) - len(rows)

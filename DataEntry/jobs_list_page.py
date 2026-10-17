@@ -336,6 +336,10 @@ class JobsListPage(QWidget):
         _, job_id, is_personal = self._selected()
         if job_id is None or is_personal:
             return
+        if repo.is_test_copy(repo.get_job(self._conn, job_id)):
+            QMessageBox.information(self, "Edit details", "This is a test copy of a job: its "
+                                    "details cannot be changed. Discard it when you have finished.")
+            return
         dlg = NewJobDialog(self, repo.known_projects(self._conn), job=repo.get_job(self._conn, job_id))
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return

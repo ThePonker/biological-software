@@ -14,8 +14,11 @@ from the tab follows it (the same map draws the page); batch maps are always sol
 from typing import List, Tuple
 
 from PySide6.QtCore import QSettings, Qt, Signal
-from PySide6.QtWidgets import (QCheckBox, QComboBox, QFrame, QHBoxLayout, QLabel, QSizePolicy,
-                               QSlider, QWidget)
+from PySide6.QtGui import QAction
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QFrame, QHBoxLayout, QLabel, QMenu,
+                               QSizePolicy, QSlider, QToolButton, QWidget)
+
+from shared.maps import layers as map_layers
 
 from ...services.map_square_service import BAND_PRESET_LABELS
 from ...themes import theme
@@ -25,6 +28,7 @@ VC_LABELS_SETTING = "mapping/vc_labels"      # R9-5: VC numbers / names on the m
 VC_BOUNDS_SETTING = "mapping/vc_boundaries"  # R4: VC boundary lines on the map (default on)
 DISTRICTS_SETTING = "mapping/districts"      # R4: modern district lines (default off)
 OPACITY_SETTING = "mapping/square_opacity"   # R8: recorded squares' opacity, % (default 100)
+LAYERS_SETTING = "mapping/layers/"           # + the layer switch's key: Layers menu (17 Oct 2026)
 
 
 def _saved(key: str, default: bool = True) -> bool:
@@ -52,6 +56,12 @@ def saved_square_opacity() -> int:
     except Exception:             # missing or unreadable: the squares as before (solid)
         return 100
     return max(0, min(100, value))
+
+
+def saved_layers() -> set:
+    """The Layers menu switches that are ticked (layers.TOGGLES keys): remembered, else the
+    defaults. The batch maps use this too."""
+    return {t.key for t in map_layers.TOGGLES if _saved(LAYERS_SETTING + t.key, t.default)}
 
 
 def _save(key: str, on: bool):
@@ -83,6 +93,7 @@ class MapDisplayBar(QFrame):
     vc_boundaries_changed = Signal(bool)
     districts_changed = Signal(bool)
     square_opacity_changed = Signal(int)      # percent
+    layers_changed = Signal(object)           # the ticked Layers switches (a set of keys)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -142,6 +153,7 @@ class MapDisplayBar(QFrame):
         self.districts_check.toggled.connect(self._on_districts)
         lay.addWidget(self.districts_check)
 
+        self._add_layers_menu(lay, lab_style)
         self._add_opacity_slider(lay, lab_style)
         # R8: the slider made the bar wider; on a narrow (laptop, 1280 px) window the two
         # lists may now give up some width (their text cut short) rather than make the
@@ -187,6 +199,62 @@ class MapDisplayBar(QFrame):
     def _on_vc_bounds(self, on: bool):
         _save(VC_BOUNDS_SETTING, on)
         self.vc_boundaries_changed.emit(bool(on))
+
+    def _add_layers_menu(self, lay, lab_style: str):
+        """"Layers ▾": the map's background layers (woodland, towns, rivers and lakes, main
+        roads), each ticked or not and remembered; "Reset to defaults" at the bottom."""
+        t = theme()
+        self.layers_button = QToolButton()
+        self.layers_button.setText("Layers \u25be")
+        self.layers_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.layers_button.setStyleSheet(
+            f"QToolButton {{ {lab_style} border: 1px solid {t.get('border')}; "
+            f"border-radius: 4px; padding: 2px 8px; background: {t.get('surface')}; }}"
+            "QToolButton::menu-indicator { image: none; width: 0px; }")
+        self.layers_button.setToolTip("Background layers under the squares, on the map and on "
+                                      "the atlas PNG. Remembered.")
+        self.layers_menu = QMenu(self.layers_button)
+        self.layers_menu.setToolTipsVisible(True)
+        self.layer_actions = {}
+        ticked = saved_layers()
+        for tg in map_layers.TOGGLES:
+            act = QAction(tg.label, self.layers_menu)
+            act.setCheckable(True)
+            act.setChecked(tg.key in ticked)
+            act.toggled.connect(lambda on, key=tg.key: self._on_layer(key, on))
+            self.layers_menu.addAction(act)
+            self.layer_actions[tg.key] = act
+        self.layers_menu.addSeparator()
+        self.layers_reset = self.layers_menu.addAction("Reset to defaults")
+        self.layers_reset.triggered.connect(self.reset_layers)
+        self.layers_button.setMenu(self.layers_menu)
+        lay.addWidget(self.layers_button)
+
+    def layers(self) -> set:
+        """The ticked Layers switches."""
+        return {k for k, a in self.layer_actions.items() if a.isChecked()}
+
+    def _on_layer(self, key: str, on: bool):
+        _save(LAYERS_SETTING + key, on)
+        self.layers_changed.emit(self.layers())
+
+    def reset_layers(self):
+        """Every Layers switch back to its default (rivers and lakes on, the rest off)."""
+        for tg in map_layers.TOGGLES:
+            act = self.layer_actions[tg.key]
+            act.blockSignals(True)
+            act.setChecked(tg.default)
+            act.blockSignals(False)
+            _save(LAYERS_SETTING + tg.key, tg.default)
+        self.layers_changed.emit(self.layers())
+
+    def set_layers_available(self, keys):
+        """An item whose layer file is not installed is greyed out, with the reason."""
+        for tg in map_layers.TOGGLES:
+            act = self.layer_actions[tg.key]
+            ok = tg.key in keys
+            act.setEnabled(ok)
+            act.setToolTip("" if ok else map_layers.NOT_INSTALLED)
 
     def _add_opacity_slider(self, lay, lab_style: str):
         """"Square opacity" 0-100 % (R8), remembered."""
@@ -245,6 +313,10 @@ class MapDisplayBar(QFrame):
         self.districts_changed.connect(m.set_districts)
         m.set_districts(self.districts())
         self.set_districts_available(m.has_districts())
+        if hasattr(m, "set_layers"):
+            self.layers_changed.connect(m.set_layers)
+            m.set_layers(self.layers())
+            self.set_layers_available(m.layer_toggles_available())
         if hasattr(m, "set_square_opacity"):
             self.square_opacity_changed.connect(m.set_square_opacity)
             m.set_square_opacity(self.square_opacity())

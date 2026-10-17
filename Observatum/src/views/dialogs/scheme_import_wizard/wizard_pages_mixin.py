@@ -34,20 +34,6 @@ class WizardPagesMixin(ImportProgressPagesMixin):
                 color: {t.get('text_primary')};
                 spacing: 8px;
             }}
-            QRadioButton::indicator {{
-                width: 18px;
-                height: 18px;
-            }}
-            QRadioButton::indicator:checked {{
-                background-color: {self._accent};
-                border: 2px solid {self._accent};
-                border-radius: 6px;
-            }}
-            QRadioButton::indicator:unchecked {{
-                background-color: {t.get('surface')};
-                border: 2px solid {t.get('border')};
-                border-radius: 6px;
-            }}
         """
 
     def _get_checkbox_style(self) -> str:
@@ -434,20 +420,6 @@ class WizardPagesMixin(ImportProgressPagesMixin):
                 font-size: 13px;
                 font-weight: 500;
                 spacing: 8px;
-            }}
-            QRadioButton::indicator {{
-                width: 16px;
-                height: 16px;
-            }}
-            QRadioButton::indicator:unchecked {{
-                border: 2px solid {t.get('border_strong')};
-                border-radius: 8px;
-                background-color: {t.get('surface')};
-            }}
-            QRadioButton::indicator:checked {{
-                border: 2px solid {self._accent};
-                border-radius: 8px;
-                background-color: {self._accent};
             }}
         """
 
