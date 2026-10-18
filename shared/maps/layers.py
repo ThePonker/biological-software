@@ -11,6 +11,7 @@ the Layers menu's "Colours..." can override each toggle's colour (QSettings, hex
 from __future__ import annotations
 
 import json
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Set, Tuple
@@ -103,6 +104,7 @@ def toggle_available(avail: Set[str], toggle: Toggle) -> bool:
 
 
 _CACHE: Dict[tuple, List[dict]] = {}
+_LOCK = threading.RLock()
 
 
 def load(maps_dir, key: str, lod: str) -> List[dict]:
@@ -113,12 +115,13 @@ def load(maps_dir, key: str, lod: str) -> List[dict]:
         return []
     try:
         ck = (str(path), path.stat().st_mtime_ns)
-        if ck not in _CACHE:
-            with open(path, encoding="utf-8") as fh:
-                data = json.load(fh)
-            _CACHE[ck] = [f for f in data.get("features", [])
-                          if isinstance(f, dict) and (f.get("rings") or f.get("line"))]
-        return _CACHE[ck]
+        with _LOCK:             # the map's warm-up may be reading it: wait, do not read twice
+            if ck not in _CACHE:
+                with open(path, encoding="utf-8") as fh:
+                    data = json.load(fh)
+                _CACHE[ck] = [f for f in data.get("features", [])
+                              if isinstance(f, dict) and (f.get("rings") or f.get("line"))]
+            return _CACHE[ck]
     except Exception:
         return []
 

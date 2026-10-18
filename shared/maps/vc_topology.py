@@ -19,6 +19,7 @@ Worked out once per (geojson, simplification), the first time it is needed. Disp
 from __future__ import annotations
 
 import math
+import threading
 from typing import Dict, Iterable, List, Tuple
 
 
@@ -186,13 +187,15 @@ def _meet(a, b) -> bool:
 
 
 _SNAP_CACHE: Dict[tuple, dict] = {}
+_LOCK = threading.RLock()
 
 
 def snap_rings_cached(key, vc_rings):
     """snap_rings, kept per key (the geojson and its simplification) for the process."""
-    if key not in _SNAP_CACHE:
-        _SNAP_CACHE[key] = snap_rings(vc_rings)
-    return _SNAP_CACHE[key]
+    with _LOCK:         # the map's warm-up may be working it out: wait for it, not do it twice
+        if key not in _SNAP_CACHE:
+            _SNAP_CACHE[key] = snap_rings(vc_rings)
+        return _SNAP_CACHE[key]
 
 
 def unique_chains(rings: Iterable[List[Point]]) -> List[List[Point]]:

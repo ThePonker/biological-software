@@ -13,8 +13,10 @@ _ZOOM_MAX = 8.0
 
 
 class PanZoomMixin:
-    def _init_panzoom(self, enabled):
+    def _init_panzoom(self, enabled, zoom_max=_ZOOM_MAX):
+        """zoom_max: this widget's own limit (the Mapping tab's GridMap passes 40)."""
         self._zoomable = enabled
+        self._zoom_max = float(zoom_max)
         self._zoom = 1.0
         self._pan = QPointF(0, 0)
         self._drag = None
@@ -46,7 +48,7 @@ class PanZoomMixin:
             return
         old = self._zoom
         step = e.angleDelta().y() / 120.0
-        new = max(_ZOOM_MIN, min(_ZOOM_MAX, old * (1.25 ** step)))
+        new = max(_ZOOM_MIN, min(getattr(self, "_zoom_max", _ZOOM_MAX), old * (1.25 ** step)))
         if new == old:
             return
         c = self._epos(e)

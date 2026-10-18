@@ -32,15 +32,17 @@ from shared.maps.atlas_sheet import AtlasSheetMixin, draw_split  # noqa: F401 (d
 from shared.maps._theme import theme
 from shared.maps.panzoom import PanZoomMixin
 from shared.maps.map_layers import BasemapLayersMixin
+from shared.maps.map_picture import StaticPictureMixin
 from shared.maps.map_timing import timed
 from shared.maps.species_dist_map import _load_gb_outline
 from shared.maps.vc_labels import draw_labels, draw_outline, label_points, point_in_ring
 from shared.maps.vc_map import load_vc_polygons, vc_names
 
+ZOOM_MAX = 40.0          # R10 (18 Oct 2026): this map zooms further than the mini-maps' 8x
 _CLICK_SLOP = 4          # px of movement still counted as a click, not a drag
 
 
-class GridMap(AtlasSheetMixin, BasemapLayersMixin, PanZoomMixin, QWidget):
+class GridMap(AtlasSheetMixin, BasemapLayersMixin, StaticPictureMixin, PanZoomMixin, QWidget):
     """GB basemap with coloured grid squares. Scroll to zoom, drag to pan, double-click resets.
 
     Signals:
@@ -80,8 +82,10 @@ class GridMap(AtlasSheetMixin, BasemapLayersMixin, PanZoomMixin, QWidget):
         self._layer_files = layers.available(maps_dir)   # data/maps/layers/: what is installed
         self._layers_on = layers.defaults()       # the Layers menu's ticked switches
         self._square_opacity = 1.0                # R8: the recorded squares' opacity (a slider)
+        self._sq_ver = 0                          # bumped when the squares change (the kept picture)
         self._init_layers()
-        self._init_panzoom(True)
+        self._init_picture()
+        self._init_panzoom(True, zoom_max=ZOOM_MAX)
         self.setMouseTracking(True)
         self.setMinimumSize(300, 360)
 
@@ -131,6 +135,7 @@ class GridMap(AtlasSheetMixin, BasemapLayersMixin, PanZoomMixin, QWidget):
         """squares: label -> dict with at least 'count' and 'fill' (a colour hex)."""
         self._squares = dict(squares)
         self._size = size
+        self._sq_ver += 1
         if self._selected not in self._squares:
             self._selected = None
         self.update()
@@ -210,13 +215,8 @@ class GridMap(AtlasSheetMixin, BasemapLayersMixin, PanZoomMixin, QWidget):
     def paintEvent(self, ev):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        fit, k = self.fit(), 1.0 / max(self._zoom, 1.0)
         with timed("paint", "whole map"):
-            p.drawPixmap(0, 0, self.base_pixmap(fit, k, self._zoom))   # sea .. districts, kept
-            p.save()
-            self._apply_pan_zoom(p)
-            self.draw(p, fit, k=k, zoom=self._zoom, base=False)
-            p.restore()
+            self._paint_map(p)            # the kept picture + the clicked square (map_picture.py)
         self._draw_overlay(p)
         p.end()
 
@@ -235,8 +235,7 @@ class GridMap(AtlasSheetMixin, BasemapLayersMixin, PanZoomMixin, QWidget):
         VC labels through `fit` (R5 order, map_layers.py). k scales line widths (print > 1). selected=False leaves out the clicked
         square's outline (the atlas page, L13/L31). zoom: the screen's zoom (the labels' scale
         rule). Labels are drawn in device pixels whatever the painter's zoom (vc_labels).
-        base=False: the background (land .. districts) is already on the painter's device
-        (the screen draws it from base_pixmap)."""
+        base=False: the background (land .. districts) is already on the painter's device."""
         self.set_layer_view(fit, zoom)
         if base:
             self.draw_base(p, fit, k)              # land .. VC boundaries, districts (R5)
@@ -310,12 +309,16 @@ class GridMap(AtlasSheetMixin, BasemapLayersMixin, PanZoomMixin, QWidget):
                     p.setBrush(QBrush(QColor(sq.get("fill") or theme.CLAY)))
                     p.drawRect(r)
         p.restore()
-        if self._selected and selected:
-            r = self._square_rect(fit, self._selected)
-            if r is not None:
-                p.setBrush(Qt.BrushStyle.NoBrush)
-                p.setPen(QPen(QColor(theme.INK), 2.0 * k))
-                p.drawRect(r.adjusted(-1.5 * k, -1.5 * k, 1.5 * k, 1.5 * k))
+        if selected:
+            self._draw_selected_outline(p, fit, k)
+
+    def _draw_selected_outline(self, p, fit, k):
+        """The clicked square's outline: the one thing the screen draws live over its picture."""
+        r = self._square_rect(fit, self._selected) if self._selected else None
+        if r is not None:
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            p.setPen(QPen(QColor(theme.INK), 2.0 * k))
+            p.drawRect(r.adjusted(-1.5 * k, -1.5 * k, 1.5 * k, 1.5 * k))
 
     def _draw_overlay(self, p):
         f = p.font(); f.setPointSize(8); p.setFont(f)

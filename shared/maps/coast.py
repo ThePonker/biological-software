@@ -14,6 +14,7 @@ Display only.
 from __future__ import annotations
 
 import math
+import threading
 from typing import Dict, List, Optional, Tuple
 
 from PySide6.QtCore import QPointF
@@ -24,16 +25,10 @@ CELL = 250.0                 # metres per pixel of the land raster
 GB_E, GB_N = 700000.0, 1300000.0
 
 
-def split_edges(rings: List[List[Point]], cell: float = CELL,
-                lines: Optional[List[List[Point]]] = None):
-    """(coast, inland): runs of consecutive ring edges with sea on one side, and the rest
-    (OSGB metres). An edge whose two sides, 2.4 cells out from its middle, are both land is
-    an inland border. Used for the land's coast (inland: the modern districts of
-    gb_outline.json, or the VC borders again) and for the VC boundary lines (R4).
-
-    lines: the polylines to split, if not the rings' own edges (R5: the rings' edges each
-    once, vc_topology.unique_chains, so a border two rings share is not split out twice);
-    the land is always the rings."""
+def land_raster(rings: List[List[Point]], cell: float = CELL):
+    """The land as a raster at `cell` metres a pixel: (bytes, bytes per line, width, height).
+    The one step of split_edges that uses Qt painting (the map's warm-up runs it on the GUI
+    thread and hands the result to the geometry in classify)."""
     w, h = int(GB_E / cell) + 2, int(GB_N / cell) + 2
     img = QImage(w, h, QImage.Format.Format_Grayscale8)
     img.fill(0)
@@ -45,7 +40,14 @@ def split_edges(rings: List[List[Point]], cell: float = CELL,
     for r in rings:
         p.drawPolygon(QPolygonF([QPointF(e, n) for e, n in r]))
     p.end()
-    bits, bpl = bytes(img.constBits()), img.bytesPerLine()
+    return bytes(img.constBits()), img.bytesPerLine(), w, h
+
+
+def classify(raster, rings: List[List[Point]], cell: float = CELL,
+             lines: Optional[List[List[Point]]] = None):
+    """split_edges' second step, pure Python (safe off the GUI thread): (coast, inland) from
+    the land raster."""
+    bits, bpl, w, h = raster
 
     def land(e: float, n: float) -> bool:
         x, y = int(e / cell), int((GB_N - n) / cell)
@@ -73,16 +75,39 @@ def split_edges(rings: List[List[Point]], cell: float = CELL,
     return out
 
 
+def split_edges(rings: List[List[Point]], cell: float = CELL,
+                lines: Optional[List[List[Point]]] = None):
+    """(coast, inland): runs of consecutive ring edges with sea on one side, and the rest
+    (OSGB metres). An edge whose two sides, 2.4 cells out from its middle, are both land is
+    an inland border. Used for the land's coast (inland: the modern districts of
+    gb_outline.json, or the VC borders again) and for the VC boundary lines (R4).
+
+    lines: the polylines to split, if not the rings' own edges (R5: the rings' edges each
+    once, vc_topology.unique_chains, so a border two rings share is not split out twice);
+    the land is always the rings."""
+    return classify(land_raster(rings, cell), rings, cell, lines)
+
+
 _SPLIT_CACHE: Dict[tuple, tuple] = {}
+_LOCK = threading.RLock()
 
 
-def split_edges_cached(key, rings: List[List[Point]], lines=None):
+def has_split(key) -> bool:
+    return key in _SPLIT_CACHE
+
+
+def split_edges_cached(key, rings: List[List[Point]], lines=None, raster=None):
     """split_edges, kept per key (the source file and its simplification) for the process:
     the Mapping tab and the batch renderer share one result. lines: a callable giving the
-    polylines to split (split_edges' `lines`), called only when the key is new."""
-    if key not in _SPLIT_CACHE:
-        _SPLIT_CACHE[key] = split_edges(rings, lines=lines() if lines else None)
-    return _SPLIT_CACHE[key]
+    polylines to split (split_edges' `lines`), called only when the key is new. raster: the
+    land_raster already made. A lock makes a paint that needs it while the map's warm-up is
+    still working it out wait for that result, not work it out twice."""
+    with _LOCK:
+        if key not in _SPLIT_CACHE:
+            ln = lines() if lines else None
+            _SPLIT_CACHE[key] = (split_edges(rings, lines=ln) if raster is None
+                                 else classify(raster, rings, CELL, ln))
+        return _SPLIT_CACHE[key]
 
 
 def coast_chains(rings: List[List[Point]], cell: float = CELL) -> List[List[Point]]:

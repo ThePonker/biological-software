@@ -28,7 +28,8 @@ projecting every point again whenever the view changed; line widths are divided 
 so they stay in screen pixels (x k on the page). The finished background (everything under
 the squares) is kept as a pixmap for as long as the view and the switches are unchanged, so a
 hover or a selection repaints from it. BIOSOFT_MAP_TIMING=1 prints each layer's build and paint
-time (map_timing.py).
+time (map_timing.py). (18 Oct, later: the screen now keeps the whole static picture, squares and
+labels too, with a margin, map_picture.py; this file only draws the layers.)
 
 Display only.
 """
@@ -37,14 +38,14 @@ from __future__ import annotations
 from typing import Dict, List
 
 from PySide6.QtCore import QPointF, Qt
-from PySide6.QtGui import (QBrush, QColor, QPainter, QPainterPath, QPen, QPixmap, QPolygonF,
+from PySide6.QtGui import (QBrush, QColor, QPainter, QPainterPath, QPen, QPolygonF,
                            QTransform)
 
 from shared.maps import layers
-from shared.maps.map_timing import note, timed
+from shared.maps.map_timing import timed
 from shared.maps._theme import theme
 from shared.maps.coast import split_edges_cached
-from shared.maps.species_dist_map import _SEA_C, _COAST_C, _GRID10_C, _GRID100_C, _LAND_C
+from shared.maps.species_dist_map import _COAST_C, _GRID10_C, _GRID100_C, _LAND_C
 from shared.maps.vc_labels import draw_boundaries
 from shared.maps.vc_map import _SIMPLIFY_TOL
 from shared.maps.vc_topology import snap_rings_cached, unique_chains
@@ -81,13 +82,13 @@ class BasemapLayersMixin:
     def _init_layers(self):
         self._poly_cache = None                    # (fit key, land polygons, {vc: polygons})
         self._line_cache: Dict[str, tuple] = {}    # name -> (fit key, projected polylines)
+        self._fast_fill = False                    # the screen's picture only (not the atlas page)
         self._layer_cache: Dict[tuple, QPainterPath] = {}   # (layer, lod, area) -> path in metres
-        self._base_cache: tuple = (None, None)     # (view state, the background's pixmap)
 
     def _use_layer_land(self) -> bool:
         return "land" in self._layer_files
 
-    def _layer_shape(self, fit, key: str) -> QPainterPath:
+    def _layer_shape(self, fit, key: str, view=None) -> QPainterPath:
         """A layer round the view as one QPainterPath in OSGB metres (draw it through
         layer_transform(fit)), kept per (layer, level of detail, area): a polygon layer
         (WindingFill, so holes are holes), a line layer (one subpath per line) or the
@@ -96,7 +97,7 @@ class BasemapLayersMixin:
         # the level of detail follows what is on screen (zoomed in on the GB view: county
         # detail); county detail is only taken for the area round the view, snapped to 25 km
         # so panning reuses it (17 Oct 2026)
-        view = getattr(self, "_layer_view", None) or fit.extent
+        view = view or getattr(self, "_layer_view", None) or fit.extent
         lod = layers.lod_for_extent(view)
         if lod == "county":
             e0, n0, e1, n1 = view
@@ -144,9 +145,21 @@ class BasemapLayersMixin:
         with timed("paint", label):
             p.save()
             p.setWorldTransform(layer_transform(fit), True)
-            p.setPen(pen)
-            p.setBrush(brush)
-            p.drawPath(path)
+            if self._fast_fill and brush != Qt.BrushStyle.NoBrush:
+                # screen only: the fill without antialiasing (about 3x faster for woodland;
+                # measured: no pixel differs by more than 7/255), the outline antialiased
+                p.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+                p.setPen(Qt.PenStyle.NoPen)
+                p.setBrush(brush)
+                p.drawPath(path)
+                p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+                p.setBrush(Qt.BrushStyle.NoBrush)
+                p.setPen(pen)
+                p.drawPath(path)
+            else:
+                p.setPen(pen)
+                p.setBrush(brush)
+                p.drawPath(path)
             p.restore()
 
     def _topo(self) -> Dict[int, list]:
@@ -284,7 +297,9 @@ class BasemapLayersMixin:
 
     def _draw_grid(self, p, fit, k):
         minE, minN, maxE, maxN = fit.extent
-        span = max(maxE - minE, maxN - minN)
+        # the 10 km lines follow what is on screen (zoomed in on the GB view too; 18 Oct 2026)
+        v = getattr(self, "_layer_view", None) or fit.extent
+        span = max(v[2] - v[0], v[3] - v[1])
         steps = [(100000, QColor(_GRID100_C), 0.5)]
         if span <= layers.COUNTY_SPAN:
             steps.append((10000, QColor(_GRID10_C), 0.3))
@@ -304,33 +319,3 @@ class BasemapLayersMixin:
                     x1, y1 = fit.to_px(min(maxE, 700000), n)
                     p.drawLine(QPointF(x0, y0), QPointF(x1, y1))
                 n += step
-
-    # ---------------------------------------------------------------- the kept background
-    def _base_key(self, fit, k: float, zoom: float):
-        """Everything the background (land .. districts, under the squares) depends on."""
-        return (self._fit_key(fit), self._pan.x(), self._pan.y(), zoom, k,
-                self.devicePixelRatioF(), self.width(), self.height(),
-                frozenset(self._layers_on), self._districts_on, self._vc_bounds_on,
-                frozenset(self._vc_highlight), layers.saved_colours())
-
-    def base_pixmap(self, fit, k: float, zoom: float) -> QPixmap:
-        """The background drawn as the screen shows it (pan and zoom applied), kept until the
-        view, a switch, the highlighted VCs or a layer colour changes: a hover or a selected
-        square repaints from it (the squares, outline and labels are drawn over it)."""
-        key = self._base_key(fit, k, zoom)
-        if self._base_cache[0] == key:
-            note("base", "reused")
-            return self._base_cache[1]
-        dpr = self.devicePixelRatioF()
-        pm = QPixmap(max(1, round(self.width() * dpr)), max(1, round(self.height() * dpr)))
-        pm.setDevicePixelRatio(dpr)
-        pm.fill(QColor(_SEA_C))
-        q = QPainter(pm)
-        q.setRenderHint(QPainter.RenderHint.Antialiasing)
-        self._apply_pan_zoom(q)
-        self.set_layer_view(fit, zoom)
-        with timed("base", "all layers drawn"):
-            self.draw_base(q, fit, k)
-        q.end()
-        self._base_cache = (key, pm)
-        return pm

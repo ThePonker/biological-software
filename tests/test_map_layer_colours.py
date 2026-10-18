@@ -172,23 +172,28 @@ def test_the_kept_background_is_reused_while_the_view_is_unchanged(qapp, tmp_pat
     monkeypatch.setattr(m, "draw_base", lambda *a, **k: (calls.append(1), real(*a, **k))[1])
     m.grab()
     assert len(calls) == 1
-    m.set_squares({"SP5020": {"count": 1, "fill": "#a63d40"}}, 10000)     # hover / selection ...
-    m.set_selected("SP5020")
+    m.set_selected(None)                                    # hover / selection ...
     m.update()
     m.grab()
-    assert len(calls) == 1                                  # ... repaint from the kept background
+    assert len(calls) == 1                                  # ... repaint from the kept picture
+    m.set_squares({"SP5020": {"count": 1, "fill": "#a63d40"}}, 10000)     # squares are in it (R10)
+    m.grab()
+    assert len(calls) == 2
+    m.set_selected("SP5020")                                # the clicked outline is drawn live
+    m.grab()
+    assert len(calls) == 2
     assert _pixel(m, 25500, 25500) != _pixel(m, 55500, 55500)
     m.set_layers({"woodland", "water"})                     # a switch changes it
     m.grab()
-    assert len(calls) == 2
+    assert len(calls) == 3
     m.highlight_vcs([23])                                   # so does the tint ...
     m.grab()
-    assert len(calls) == 3
+    assert len(calls) == 4
     layers.set_colour("woodland", "#ff0000")                # ... and a colour
     m.grab()
-    assert len(calls) == 4
-    m.grab()
-    assert len(calls) == 4
-    m.resize(320, 310)                                      # ... and the size
+    assert len(calls) == 5
     m.grab()
     assert len(calls) == 5
+    m.resize(320, 310)                                      # ... and the size
+    m.grab()
+    assert len(calls) == 6
