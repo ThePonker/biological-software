@@ -69,6 +69,8 @@ def rings_of(geom, e0, n0):
 
 
 def main():
+    sys.path.insert(0, ROOT)
+    from shared.away_mode import refuse_if_away; refuse_if_away("build_vc_splits")     # writes data: not on an away laptop
     if os.path.exists(OUT):
         sys.exit(f"{OUT} already exists -- move it to _archive first; nothing changed.")
     t0 = time.time()

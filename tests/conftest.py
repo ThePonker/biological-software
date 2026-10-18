@@ -12,6 +12,9 @@ for p in (ROOT, os.path.join(ROOT, "Observatum")):
     if p not in sys.path:
         sys.path.insert(0, p)
 
+# Closing a main window must not start the away-copy process (shared/away_mode.py)
+os.environ.setdefault("BIOSOFT_NO_AWAY_COPY", "1")
+
 # Offscreen Qt on Windows finds no fonts, so every font measurement was wrong unless an
 # earlier test had happened to start Qt the normal way (13 Oct 2026; docs/05_Rules.md
 # "Measure on Wil's PC"). Point it at the Windows fonts before any test starts Qt.

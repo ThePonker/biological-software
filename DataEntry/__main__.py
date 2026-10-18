@@ -32,6 +32,15 @@ def main(argv=None) -> int:
     parser.add_argument("--db", default=None, help="Path to the main SQLite database.")
     args = parser.parse_args(argv)
 
+    import paths
+    if getattr(paths, "AWAY_MODE", False):          # read-only laptop copy: no recording here
+        from DataEntry.embed import AWAY_MESSAGE
+        print(f"[DataEntry] {AWAY_MESSAGE}")
+        from PySide6.QtWidgets import QApplication, QMessageBox
+        _app = QApplication.instance() or QApplication(sys.argv)
+        QMessageBox.information(None, "Data Entry", AWAY_MESSAGE)
+        return 3
+
     # Silence the benign, noisy "QFont::setPointSize: Point size <= 0" warnings that come from
     # Observatum's config/import chain (pixel-defined fonts). Everything else passes through.
     from PySide6.QtCore import qInstallMessageHandler

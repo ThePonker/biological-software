@@ -23,6 +23,8 @@ from PySide6.QtCore import QThread, Signal
 def _find_vc_database() -> Optional[str]:
     """Find the Vice County lookup database."""
     candidates = []
+    if getattr(paths, 'AWAY_MODE', False):     # away laptop: the local copy only
+        return str(paths.VC_LOOKUP_DB) if paths.VC_LOOKUP_DB.exists() else None
     try:
         from PySide6.QtCore import QSettings
         settings = QSettings()

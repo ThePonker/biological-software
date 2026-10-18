@@ -27,7 +27,25 @@ def _resolve_root():
 
 
 ROOT = _resolve_root()
-DATA_DIR        = ROOT / 'data'
+
+
+# Away machine (18 Oct 2026): a laptop that only reads. The marker file is local, never in
+# OneDrive. On such a machine DATA_DIR is a local copy (shared/away_mode.py builds it), never
+# ROOT/data, so nothing can write to the live, synced data folder.
+def _away_base():
+    base = os.environ.get('LOCALAPPDATA')
+    return (Path(base) if base else Path.home() / 'AppData' / 'Local') / 'Flauna'
+
+
+AWAY_MARKER     = _away_base() / 'away_machine.json'
+AWAY_DATA_DIR   = _away_base() / 'away_data'
+try:
+    AWAY_MODE = AWAY_MARKER.is_file()
+except OSError:
+    AWAY_MODE = False
+AWAY_MANIFEST   = AWAY_DATA_DIR / 'manifest.json'
+
+DATA_DIR        = AWAY_DATA_DIR if AWAY_MODE else ROOT / 'data'
 MAPS_DIR        = DATA_DIR / 'maps'
 OBSERVATUM_DB   = DATA_DIR / 'observatum.db'
 UKSI_DB         = DATA_DIR / 'uksi.db'

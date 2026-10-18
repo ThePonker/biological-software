@@ -22,6 +22,7 @@ from shared.maps import layers as map_layers
 
 from ...services.map_square_service import BAND_PRESET_LABELS
 from ...themes import theme
+from .layer_colours import LayerColoursDialog
 from .square_style import STYLES
 
 VC_LABELS_SETTING = "mapping/vc_labels"      # R9-5: VC numbers / names on the map (default on)
@@ -94,6 +95,7 @@ class MapDisplayBar(QFrame):
     districts_changed = Signal(bool)
     square_opacity_changed = Signal(int)      # percent
     layers_changed = Signal(object)           # the ticked Layers switches (a set of keys)
+    layer_colours_changed = Signal()          # a layer colour was chosen or reset
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -225,6 +227,8 @@ class MapDisplayBar(QFrame):
             self.layers_menu.addAction(act)
             self.layer_actions[tg.key] = act
         self.layers_menu.addSeparator()
+        self.layers_colours = self.layers_menu.addAction("Colours\u2026")
+        self.layers_colours.triggered.connect(self.edit_layer_colours)
         self.layers_reset = self.layers_menu.addAction("Reset to defaults")
         self.layers_reset.triggered.connect(self.reset_layers)
         self.layers_button.setMenu(self.layers_menu)
@@ -238,14 +242,23 @@ class MapDisplayBar(QFrame):
         _save(LAYERS_SETTING + key, on)
         self.layers_changed.emit(self.layers())
 
+    def edit_layer_colours(self):
+        """Layers > Colours...: the small dialog (modal); the map repaints as each is chosen."""
+        dlg = LayerColoursDialog(self)
+        dlg.colours_changed.connect(self.layer_colours_changed)
+        dlg.exec()
+
     def reset_layers(self):
-        """Every Layers switch back to its default (rivers and lakes on, the rest off)."""
+        """Every Layers switch back to its default (rivers and lakes on, the rest off) and
+        every layer colour back to the theme's."""
+        map_layers.reset_colours()
         for tg in map_layers.TOGGLES:
             act = self.layer_actions[tg.key]
             act.blockSignals(True)
             act.setChecked(tg.default)
             act.blockSignals(False)
             _save(LAYERS_SETTING + tg.key, tg.default)
+        self.layer_colours_changed.emit()
         self.layers_changed.emit(self.layers())
 
     def set_layers_available(self, keys):
@@ -317,6 +330,7 @@ class MapDisplayBar(QFrame):
             self.layers_changed.connect(m.set_layers)
             m.set_layers(self.layers())
             self.set_layers_available(m.layer_toggles_available())
+            self.layer_colours_changed.connect(m.refresh_layer_colours)
         if hasattr(m, "set_square_opacity"):
             self.square_opacity_changed.connect(m.set_square_opacity)
             m.set_square_opacity(self.square_opacity())

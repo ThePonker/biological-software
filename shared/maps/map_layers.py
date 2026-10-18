@@ -21,6 +21,15 @@ R5, from Wil's 300 dpi Atlas page of VC23 and the screen:
   a thin dashed grey so the VC boundaries still read as the main lines.
 - VC boundaries and districts sit under the recorded squares (Wil's choice: squares solid).
 
+18 Oct 2026 (speed, Wil: panning and zooming "a little bit laggy" with the real files): each
+layer is built once per (layer, level of detail, area) as ONE QPainterPath in OSGB metres and
+drawn through a QTransform equal to MapFit.to_px (scale and offset, y flipped), instead of
+projecting every point again whenever the view changed; line widths are divided by the scale
+so they stay in screen pixels (x k on the page). The finished background (everything under
+the squares) is kept as a pixmap for as long as the view and the switches are unchanged, so a
+hover or a selection repaints from it. BIOSOFT_MAP_TIMING=1 prints each layer's build and paint
+time (map_timing.py).
+
 Display only.
 """
 from __future__ import annotations
@@ -28,12 +37,14 @@ from __future__ import annotations
 from typing import Dict, List
 
 from PySide6.QtCore import QPointF, Qt
-from PySide6.QtGui import QBrush, QColor, QPainter, QPainterPath, QPen, QPolygonF
+from PySide6.QtGui import (QBrush, QColor, QPainter, QPainterPath, QPen, QPixmap, QPolygonF,
+                           QTransform)
 
 from shared.maps import layers
+from shared.maps.map_timing import note, timed
 from shared.maps._theme import theme
 from shared.maps.coast import split_edges_cached
-from shared.maps.species_dist_map import _COAST_C, _GRID10_C, _GRID100_C, _LAND_C
+from shared.maps.species_dist_map import _SEA_C, _COAST_C, _GRID10_C, _GRID100_C, _LAND_C
 from shared.maps.vc_labels import draw_boundaries
 from shared.maps.vc_map import _SIMPLIFY_TOL
 from shared.maps.vc_topology import snap_rings_cached, unique_chains
@@ -44,12 +55,20 @@ TINT_ALPHA = 40             # the VCs-with-records tint over the land
 SNAP = 25000                # metres: county-detail areas are cut on this grid (cache reuse)
 
 
-def district_pen(k: float = 1.0) -> QPen:
-    """Thin dashed grey: plainly not a VC boundary (solid), and lighter than one."""
+def layer_transform(fit) -> QTransform:
+    """OSGB metres -> the pixels of `fit`: exactly MapFit.to_px (a scale, an offset, y flipped)."""
+    s = fit.scale
+    return QTransform(s, 0.0, 0.0, -s, fit.x0 + fit.offx - fit.extent[0] * s,
+                      fit.y0 + fit.h - fit.offy + fit.extent[1] * s)
+
+
+def district_pen(k: float = 1.0, scale: float = 1.0) -> QPen:
+    """Thin dashed grey: plainly not a VC boundary (solid), and lighter than one. `scale`:
+    pixels per unit of the coordinates it is drawn in (metres through layer_transform)."""
     a, b = QColor(theme.MUTED), QColor(theme.CARD)
     c = QColor(round(a.red() * 0.6 + b.red() * 0.4), round(a.green() * 0.6 + b.green() * 0.4),
                round(a.blue() * 0.6 + b.blue() * 0.4))
-    pen = QPen(c, DISTRICT_W * k)
+    pen = QPen(c, DISTRICT_W * k / scale)
     pen.setDashPattern(DISTRICT_DASH)
     pen.setCapStyle(Qt.PenCapStyle.FlatCap)
     return pen
@@ -62,19 +81,18 @@ class BasemapLayersMixin:
     def _init_layers(self):
         self._poly_cache = None                    # (fit key, land polygons, {vc: polygons})
         self._line_cache: Dict[str, tuple] = {}    # name -> (fit key, projected polylines)
-        self._layer_cache: tuple = (None, {})      # (fit key, {layer key: projected shape})
+        self._layer_cache: Dict[tuple, QPainterPath] = {}   # (layer, lod, area) -> path in metres
+        self._base_cache: tuple = (None, None)     # (view state, the background's pixmap)
 
     def _use_layer_land(self) -> bool:
         return "land" in self._layer_files
 
-    def _layer_shape(self, fit, key: str):
-        """A layer in the view, projected through `fit` (kept until the fit changes): one
-        QPainterPath (OddEvenFill, so holes are holes) for a polygon layer, a list of
-        QPolygonF for a line layer."""
-        fk = self._fit_key(fit)
-        if self._layer_cache[0] != fk:
-            self._layer_cache = (fk, {})
-        cache = self._layer_cache[1]
+    def _layer_shape(self, fit, key: str) -> QPainterPath:
+        """A layer round the view as one QPainterPath in OSGB metres (draw it through
+        layer_transform(fit)), kept per (layer, level of detail, area): a polygon layer
+        (WindingFill, so holes are holes), a line layer (one subpath per line) or the
+        districts (each shared edge once)."""
+        cache = self._layer_cache
         # the level of detail follows what is on screen (zoomed in on the GB view: county
         # detail); county detail is only taken for the area round the view, snapped to 25 km
         # so panning reuses it (17 Oct 2026)
@@ -94,28 +112,42 @@ class BasemapLayersMixin:
             if sum(1 for c in cache if c[0] == key) >= 4:        # keep a few areas per layer
                 for old in [c for c in cache if c[0] == key][:-3]:
                     cache.pop(old, None)
-            feats = layers.features_in(layers.load(self._maps_dir, key, lod), box)
-            cache[ck] = self._project(fit, key, feats)
+            with timed("build", f"{key} {lod}"):
+                feats = layers.features_in(layers.load(self._maps_dir, key, lod), box)
+                cache[ck] = self._build_path(key, feats)
         return cache[ck]
 
     @staticmethod
-    def _project(fit, key, feats):
+    def _build_path(key, feats) -> QPainterPath:
         def poly(pts):
-            return QPolygonF([QPointF(*fit.to_px(e, n)) for e, n in pts])
-        if key == "districts":      # each shared edge once (the dashes would double up)
-            chains = unique_chains([r for f in feats for r in f.get("rings", ())])
-            return [poly(c) for c in chains]
-        if next((lay.kind for lay in layers.LAYERS if lay.key == key), "") == "line":
-            return [poly(f["line"]) for f in feats if f.get("line")]
-        # WindingFill: build_map_layers.py writes outer rings one way round and holes the
-        # other, so a hole is a hole and two features that touch or overlap do not cancel
+            return QPolygonF([QPointF(e, n) for e, n in pts])
         path = QPainterPath()
-        path.setFillRule(Qt.FillRule.WindingFill)
-        for f in feats:
-            for ring in f.get("rings", ()):
-                path.addPolygon(poly(ring))
-                path.closeSubpath()
+        if key == "districts":      # each shared edge once (the dashes would double up)
+            for c in unique_chains([r for f in feats for r in f.get("rings", ())]):
+                path.addPolygon(poly(c))
+        elif next((lay.kind for lay in layers.LAYERS if lay.key == key), "") == "line":
+            for f in feats:
+                if f.get("line"):
+                    path.addPolygon(poly(f["line"]))
+        else:
+            # WindingFill: build_map_layers.py writes outer rings one way round and holes the
+            # other, so a hole is a hole and two features that touch or overlap do not cancel
+            path.setFillRule(Qt.FillRule.WindingFill)
+            for f in feats:
+                for ring in f.get("rings", ()):
+                    path.addPolygon(poly(ring))
+                    path.closeSubpath()
         return path
+
+    def _paint_path(self, p: QPainter, fit, path: QPainterPath, pen, brush, label: str):
+        """Draw a metres path through layer_transform(fit) with `pen` (widths in metres)."""
+        with timed("paint", label):
+            p.save()
+            p.setWorldTransform(layer_transform(fit), True)
+            p.setPen(pen)
+            p.setBrush(brush)
+            p.drawPath(path)
+            p.restore()
 
     def _topo(self) -> Dict[int, list]:
         """The VC rings with their shared borders made common (vc_topology), once."""
@@ -182,11 +214,13 @@ class BasemapLayersMixin:
         self._draw_tint(p, vc_polys)
         # R4: the coast is the land's sea-facing edges only (coast.py); the layers' land has
         # no districts inside it, so every edge of it is coast
-        p.setPen(QPen(QColor(_COAST_C), 0.7 * k))
-        p.setBrush(Qt.BrushStyle.NoBrush)
         if own_land:
-            p.drawPath(self._layer_shape(fit, "land"))
+            self._paint_path(p, fit, self._layer_shape(fit, "land"),
+                             QPen(QColor(_COAST_C), 0.7 * k / fit.scale), Qt.BrushStyle.NoBrush,
+                             "coast")
         else:
+            p.setPen(QPen(QColor(_COAST_C), 0.7 * k))
+            p.setBrush(Qt.BrushStyle.NoBrush)
             for line in self._lines("coast", fit):
                 p.drawPolyline(line)
         self._draw_grid(p, fit, k)
@@ -206,9 +240,8 @@ class BasemapLayersMixin:
 
     def _draw_layer_land(self, p: QPainter, fit, k: float):
         land_c = QColor(_LAND_C)
-        p.setPen(QPen(land_c, 0.8 * k))
-        p.setBrush(QBrush(land_c))
-        p.drawPath(self._layer_shape(fit, "land"))
+        self._paint_path(p, fit, self._layer_shape(fit, "land"),
+                         QPen(land_c, 0.8 * k / fit.scale), QBrush(land_c), "land")
 
     def _draw_layers(self, p: QPainter, fit, k: float):
         """The ticked layers that have a file, in the registry's order (pale, under the tint)."""
@@ -219,17 +252,13 @@ class BasemapLayersMixin:
             fill, line, w = layers.style(lay.key)
             shape = self._layer_shape(fit, lay.key)
             if lay.kind == "polygon":
-                p.setPen(QPen(fill, w * k))
-                p.setBrush(QBrush(fill))
-                p.drawPath(shape)
+                self._paint_path(p, fit, shape, QPen(fill, w * k / fit.scale), QBrush(fill),
+                                 lay.key)
             else:
-                pen = QPen(line, w * k)
+                pen = QPen(line, w * k / fit.scale)
                 pen.setCapStyle(Qt.PenCapStyle.RoundCap)
                 pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
-                p.setPen(pen)
-                p.setBrush(Qt.BrushStyle.NoBrush)
-                for pl in shape:
-                    p.drawPolyline(pl)
+                self._paint_path(p, fit, shape, pen, Qt.BrushStyle.NoBrush, lay.key)
 
     def _draw_tint(self, p: QPainter, vc_polys):
         """VCs holding records: a light tint, from the shared-border rings."""
@@ -244,11 +273,13 @@ class BasemapLayersMixin:
     def _draw_districts(self, p: QPainter, fit, k: float):
         """Districts (the layer file's, else gb_outline.json's inland edges; each edge once):
         thin dashed grey."""
+        if "districts" in self._layer_files:
+            self._paint_path(p, fit, self._layer_shape(fit, "districts"),
+                             district_pen(k, fit.scale), Qt.BrushStyle.NoBrush, "districts")
+            return
         p.setPen(district_pen(k))
         p.setBrush(Qt.BrushStyle.NoBrush)
-        lines = (self._layer_shape(fit, "districts") if "districts" in self._layer_files
-                 else self._lines("districts", fit))
-        for line in lines:
+        for line in self._lines("districts", fit):
             p.drawPolyline(line)
 
     def _draw_grid(self, p, fit, k):
@@ -273,3 +304,33 @@ class BasemapLayersMixin:
                     x1, y1 = fit.to_px(min(maxE, 700000), n)
                     p.drawLine(QPointF(x0, y0), QPointF(x1, y1))
                 n += step
+
+    # ---------------------------------------------------------------- the kept background
+    def _base_key(self, fit, k: float, zoom: float):
+        """Everything the background (land .. districts, under the squares) depends on."""
+        return (self._fit_key(fit), self._pan.x(), self._pan.y(), zoom, k,
+                self.devicePixelRatioF(), self.width(), self.height(),
+                frozenset(self._layers_on), self._districts_on, self._vc_bounds_on,
+                frozenset(self._vc_highlight), layers.saved_colours())
+
+    def base_pixmap(self, fit, k: float, zoom: float) -> QPixmap:
+        """The background drawn as the screen shows it (pan and zoom applied), kept until the
+        view, a switch, the highlighted VCs or a layer colour changes: a hover or a selected
+        square repaints from it (the squares, outline and labels are drawn over it)."""
+        key = self._base_key(fit, k, zoom)
+        if self._base_cache[0] == key:
+            note("base", "reused")
+            return self._base_cache[1]
+        dpr = self.devicePixelRatioF()
+        pm = QPixmap(max(1, round(self.width() * dpr)), max(1, round(self.height() * dpr)))
+        pm.setDevicePixelRatio(dpr)
+        pm.fill(QColor(_SEA_C))
+        q = QPainter(pm)
+        q.setRenderHint(QPainter.RenderHint.Antialiasing)
+        self._apply_pan_zoom(q)
+        self.set_layer_view(fit, zoom)
+        with timed("base", "all layers drawn"):
+            self.draw_base(q, fit, k)
+        q.end()
+        self._base_cache = (key, pm)
+        return pm

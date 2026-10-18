@@ -33,7 +33,20 @@ def _resolve_db() -> Path:
 
 DB_PATH = _resolve_db()
 
+def _away_mode() -> bool:
+    try:
+        import paths
+        return bool(getattr(paths, "AWAY_MODE", False))
+    except ImportError:
+        return False
+
 def get_connection() -> sqlite3.Connection:
+    if _away_mode():                       # away laptop: read-only open, nothing written
+        from shared.db_open import connect_ro
+        conn = connect_ro(DB_PATH)
+        conn.execute("PRAGMA foreign_keys=ON")
+        conn.row_factory = sqlite3.Row
+        return conn
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(DB_PATH))
     conn.execute("PRAGMA journal_mode=WAL")
@@ -42,6 +55,8 @@ def get_connection() -> sqlite3.Connection:
     return conn
 
 def ensure_schema(conn: sqlite3.Connection):
+    if _away_mode():                       # a read-only copy: no migration, no CREATE
+        return
     _migrate(conn)
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS capacity (

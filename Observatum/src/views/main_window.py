@@ -120,6 +120,26 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
         if self._splash is not None and hasattr(self._splash, "pump"):
             self._splash.pump()
 
+    def _add_away_banner(self, layout):
+        """Away mode: say the data is a read-only copy (shared/away_mode.py)."""
+        try:
+            import paths
+            if not getattr(paths, "AWAY_MODE", False):
+                return
+            from shared.away_mode import banner_text, current_made_at
+            t = theme()
+            banner = QLabel(banner_text(current_made_at() or "an unknown date"))
+            banner.setWordWrap(True)
+            banner.setObjectName("awayBanner")
+            banner.setStyleSheet(
+                f"background-color: {t.get('warning_bg')}; color: {t.get('warning_text')};"
+                f" border-bottom: 1px solid {t.get('warning_border')};"
+                " padding: 6px 12px; font-weight: bold;")
+            layout.addWidget(banner)
+            self.away_banner = banner
+        except Exception as _e:
+            print(f"[away] banner not shown: {_e}")
+
     def _update_splash(self, progress: int, message: str):
         """Older progress calls: the bar now follows the startup steps, so just repaint."""
         self._pump_splash()
@@ -132,6 +152,10 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
 
         layout = QVBoxLayout(central)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        # Away mode (laptop, read-only copy): a banner above the tabs
+        self._add_away_banner(layout)
 
         # Tab widget
         self.tabs = QTabWidget()
@@ -1201,6 +1225,12 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
             self.recording_scheme_tab.stop_loading()
         except Exception as _e:
             print(f"[RecordingScheme] could not stop the background load: {_e}")
+        # Away mode: a read-only copy -- nothing to fold, back up or copy
+        import paths as _p
+        if getattr(_p, "AWAY_MODE", False):
+            event.accept()
+            return
+
         # Data Entry staging -> rolling CSV, before anything else can go wrong
         try:
             _de = getattr(self, "data_entry_tab", None)
@@ -1248,6 +1278,14 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
             backup_working('on close')
         except Exception as _e:
             print(f'[backup] close backup skipped: {_e}')
+
+        # The away copy for the laptop: a detached background process, if the last is old
+        # (18 Oct 2026; not in tests -- BIOSOFT_NO_AWAY_COPY=1)
+        try:
+            from shared.away_mode import start_away_copy_in_background
+            start_away_copy_in_background()
+        except Exception as _e:
+            print(f'[away copy] skipped: {_e}')
 
         event.accept()
 

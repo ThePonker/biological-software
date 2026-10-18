@@ -32,6 +32,15 @@ Ref, a reply matched to another export, a renamed test copy escaping its guard, 
 failure, the sheet found by position), all fixed. `copy_job_for_test.py` makes a job that can
 never be committed or exported. **Map layers phase 1** (two Sonnet builders): build script for
 OS Zoomstack and Boundary-Line, Layers menu, layer land and districts; not yet run on real data.
+**18 Oct (round 9):** map layer colours (Layers > Colours…) and speed (layers built once in metres and
+drawn through the view transform, the background kept while the view is unchanged, roads joined by
+type at build); **away mode** for the laptop: `make_away_copy.py` (on closing Observatum and a 02:00
+task) publishes clean DELETE-mode copies of every database, with sha256 per file, into alternating
+slots in `OneDrive\Observatum away copy\`; the laptop (marker in %LOCALAPPDATA%\Flauna) refreshes a
+local copy and opens it read-only (DatabaseManager and Munia mode=ro), with a banner; Data Entry,
+backups and data-changing scripts refuse. The Opus review found that the first build could not open
+its read-only copies, left -wal/-shm files in the synced data folder, and could accept a half-synced
+copy: all fixed, with five smaller points.
 
 ### Session 49 — 13–14 October 2026 (night to evening)
 

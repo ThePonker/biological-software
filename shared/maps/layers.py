@@ -5,7 +5,8 @@ per layer and level of detail, `<key>_<lod>.json` (lod "gb" or "county"; coordin
 integer OSGB metres; each feature carries its bbox). Any of them may be missing: nothing here
 fails then, and the map draws as it did before the layers existed.
 
-Display only. Colours come from theme() (blended; the sea blue is the map's own _SEA_C), never typed in.
+Display only. Colours come from theme() (blended; the sea blue is the map's own _SEA_C), never typed in;
+the Layers menu's "Colours..." can override each toggle's colour (QSettings, hex), else these defaults.
 """
 from __future__ import annotations
 
@@ -14,6 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Set, Tuple
 
+from PySide6.QtCore import QSettings
 from PySide6.QtGui import QColor
 
 from shared.maps._theme import theme
@@ -139,9 +141,50 @@ def _mix(a: str, b: str, t: float) -> QColor:
                     ((ca.red(), cb.red()), (ca.green(), cb.green()), (ca.blue(), cb.blue()))))
 
 
-def style(key: str) -> Tuple[Optional[QColor], Optional[QColor], float]:
-    """(fill, line, line width in px at k = 1) for a layer key: pale, so the squares stay the
-    strongest thing on the map."""
+COLOUR_SETTING = "mapping/layers/{}/colour"     # + the toggle key: the remembered colour (hex)
+
+
+def toggle_key(layer_key: str) -> Optional[str]:
+    """The Layers menu switch whose colour a layer uses (water areas and rivers share one)."""
+    return next((t.key for t in TOGGLES if layer_key in t.files), None)
+
+
+def saved_colour(tkey: str) -> Optional[QColor]:
+    """The colour remembered for a toggle, or None (the default is used)."""
+    try:
+        text = QSettings().value(COLOUR_SETTING.format(tkey), "")
+        c = QColor(str(text)) if text else QColor()
+        return c if c.isValid() else None
+    except Exception:
+        return None
+
+
+def set_colour(tkey: str, colour) -> None:
+    """Remember a toggle's colour (a QColor / hex); None forgets it."""
+    try:
+        s = QSettings()
+        if colour is None:
+            s.remove(COLOUR_SETTING.format(tkey))
+        else:
+            s.setValue(COLOUR_SETTING.format(tkey), QColor(colour).name())
+    except Exception as e:
+        print(f"[map layers] colour {tkey} not saved: {e}")
+
+
+def reset_colours() -> None:
+    for t in TOGGLES:
+        set_colour(t.key, None)
+
+
+def saved_colours() -> Tuple[Optional[str], ...]:
+    """Every toggle's remembered colour as hex (None: default), in TOGGLES order; a cheap
+    key for 'have the colours changed'."""
+    return tuple((c.name() if c else None) for c in (saved_colour(t.key) for t in TOGGLES))
+
+
+def default_style(key: str) -> Tuple[Optional[QColor], Optional[QColor], float]:
+    """(fill, line, line width in px at k = 1) for a layer key from the theme: pale, so the
+    squares stay the strongest thing on the map."""
     if key == "woodland":
         return _mix(_mix(theme.MOSS, theme.MUTED, 0.3).name(), theme.CARD, 0.72), None, 0.3
     if key == "towns":
@@ -153,3 +196,21 @@ def style(key: str) -> Tuple[Optional[QColor], Optional[QColor], float]:
     if key == "roads":
         return None, _mix(theme.MUTED, theme.CARD, 0.5), 0.6
     return None, None, 0.0
+
+
+def default_colour(tkey: str) -> QColor:
+    """A toggle's default colour: its first layer's fill (or line)."""
+    first = next(f for t in TOGGLES if t.key == tkey for f in t.files)
+    fill, line, _w = default_style(first)
+    return fill or line
+
+
+def style(key: str) -> Tuple[Optional[QColor], Optional[QColor], float]:
+    """default_style(key), with the remembered colour of its toggle in place of the fill (water
+    areas, woodland, towns) or the line (rivers, roads)."""
+    fill, line, w = default_style(key)
+    tk = toggle_key(key)
+    c = saved_colour(tk) if tk else None
+    if c is None:
+        return fill, line, w
+    return (c, None, w) if fill is not None else (None, c, w)

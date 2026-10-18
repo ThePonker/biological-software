@@ -196,6 +196,8 @@ class VCLookupService:
         
         # Build comprehensive list of candidate paths
         candidates = []
+        if getattr(paths, 'AWAY_MODE', False):     # away laptop: the local copy only
+            return Path(paths.VC_LOOKUP_DB) if Path(paths.VC_LOOKUP_DB).exists() else None
         
         # 1. Check QSettings for user-configured path
         try:

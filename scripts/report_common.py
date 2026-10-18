@@ -53,7 +53,10 @@ from shared.record_match import (  # noqa: E402,F401
 
 def backup(db_path, what: str, backup_dir=BACKUP_DIR) -> str:
     """conn.backup() of the database into backup_dir, named for what it precedes. Never
-    overwrites an earlier backup."""
+    overwrites an earlier backup. Refuses on an away laptop (read-only copy)."""
+    from shared.away_mode import away_active
+    if away_active():
+        raise RuntimeError("away mode: this is a read-only copy; nothing may be changed or backed up here")
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     dest = os.path.join(backup_dir, f"observatum_pre_{what}_{stamp}.db")
     os.makedirs(backup_dir, exist_ok=True)

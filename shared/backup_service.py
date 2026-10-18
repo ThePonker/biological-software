@@ -94,6 +94,14 @@ def _resolve(name: str) -> Optional[str]:
     return s if os.path.exists(s) else None
 
 
+def _away_mode() -> bool:
+    """True on an away (read-only laptop) machine: no backup writes anything there."""
+    try:
+        return bool(getattr(_paths_module(), "AWAY_MODE", False))
+    except Exception:
+        return False
+
+
 def _ensure(*parts) -> Optional[str]:
     d = os.path.join(BACKUP_ROOT, *parts)
     try:
@@ -280,6 +288,9 @@ def prune_kept(filename: str, label: str, keep: int = KEEP_PER_LABEL) -> int:
 
 def write_kept_copy(src: str, label: str, source_is_live: bool = True) -> Optional[str]:
     """A named, dated, verified copy of src in kept/, then prune that label. Path or None."""
+    if _away_mode():
+        print("[backup] away mode: no backup made")
+        return None
     kept_dir = _ensure(KEPT)
     if kept_dir is None:
         return None
@@ -302,6 +313,9 @@ def backup_databases(names: Iterable[str], label: str = "",
 
     keep: also write a kept/ copy. Default: when the label starts with 'pre-'.
     """
+    if _away_mode():
+        print("[backup] away mode: no backup made")
+        return False
     cur_dir = _ensure(CURRENT)
     if cur_dir is None:
         return False
@@ -362,6 +376,9 @@ def backup_reference() -> bool:
     Written to reference/ rather than current/: these are not session backups and
     should not be rotated out by daily use.
     """
+    if _away_mode():
+        print("[backup] away mode: no backup made")
+        return False
     dest_dir = _ensure(REFERENCE)
     if dest_dir is None:
         return False

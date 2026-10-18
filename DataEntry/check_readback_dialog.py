@@ -69,6 +69,8 @@ class CheckReadbackDialog(QDialog):
         h.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         h.setStretchLastSection(True)
         self.table.itemChanged.connect(lambda _i: self._refresh_text())
+        from shared.tick_style import style_item_view
+        style_item_view(self.table)        # the suite's green tick (Wil, 17 Oct: none showed)
         v.addWidget(self.table, 1)
 
         self.summary = QLabel("")

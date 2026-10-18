@@ -25,6 +25,14 @@ def _resolve_preview_db() -> Optional[str]:
     return None
 
 
+class AwayModeError(RuntimeError):
+    """Data Entry does not start on an away (read-only) machine."""
+
+
+AWAY_MESSAGE = ("Data Entry is not available on this machine. This is a read-only copy. "
+                "Nothing you do here is saved; record in a workbook and import at home.")
+
+
 def make_data_entry_tab(parent: Optional[QWidget] = None, embedded: bool = True,
                         go_live: bool = False) -> QWidget:
     """Return a Data Entry widget ready to addTab().
@@ -33,6 +41,9 @@ def make_data_entry_tab(parent: Optional[QWidget] = None, embedded: bool = True,
     go_live=True: LIVE -- points at observatum.db and enables commit. Takes a timestamped backup
                   of observatum.db first (into data\\_backups\\).
     """
+    import paths
+    if getattr(paths, "AWAY_MODE", False):
+        raise AwayModeError(AWAY_MESSAGE)
     from DataEntry.data_entry_widget import DataEntryWidget
     if go_live:
         import paths

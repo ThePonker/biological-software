@@ -32,7 +32,8 @@ from shared.maps.atlas_sheet import AtlasSheetMixin, draw_split  # noqa: F401 (d
 from shared.maps._theme import theme
 from shared.maps.panzoom import PanZoomMixin
 from shared.maps.map_layers import BasemapLayersMixin
-from shared.maps.species_dist_map import _SEA_C, _load_gb_outline
+from shared.maps.map_timing import timed
+from shared.maps.species_dist_map import _load_gb_outline
 from shared.maps.vc_labels import draw_labels, draw_outline, label_points, point_in_ring
 from shared.maps.vc_map import load_vc_polygons, vc_names
 
@@ -209,24 +210,36 @@ class GridMap(AtlasSheetMixin, BasemapLayersMixin, PanZoomMixin, QWidget):
     def paintEvent(self, ev):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        p.fillRect(self.rect(), QColor(_SEA_C))
-        p.save()
-        self._apply_pan_zoom(p)
-        self.draw(p, self.fit(), k=1.0 / max(self._zoom, 1.0), zoom=self._zoom)
-        p.restore()
+        fit, k = self.fit(), 1.0 / max(self._zoom, 1.0)
+        with timed("paint", "whole map"):
+            p.drawPixmap(0, 0, self.base_pixmap(fit, k, self._zoom))   # sea .. districts, kept
+            p.save()
+            self._apply_pan_zoom(p)
+            self.draw(p, fit, k=k, zoom=self._zoom, base=False)
+            p.restore()
         self._draw_overlay(p)
         p.end()
 
+    def set_layer_view(self, fit: gs.MapFit, zoom: float = 1.0):
+        """What is on screen (for the layers' level of detail): the zoomed view, or the page."""
+        self._layer_view = (gs.visible_extent(fit, (self._pan.x(), self._pan.y()), zoom)
+                            if zoom > 1.0 else fit.extent)
+
+    def refresh_layer_colours(self):
+        """A layer colour changed (Layers > Colours): repaint with the remembered colours."""
+        self.update()
+
     def draw(self, p: QPainter, fit: gs.MapFit, k: float = 1.0, selected: bool = True,
-             zoom: float = 1.0):
+             zoom: float = 1.0, base: bool = True):
         """Basemap, grid, VC boundaries, districts, squares, the selected VC's outline and the
         VC labels through `fit` (R5 order, map_layers.py). k scales line widths (print > 1). selected=False leaves out the clicked
         square's outline (the atlas page, L13/L31). zoom: the screen's zoom (the labels' scale
-        rule). Labels are drawn in device pixels whatever the painter's zoom (vc_labels)."""
-        # what is on screen (for the layers' level of detail): the zoomed view, or the page
-        self._layer_view = (gs.visible_extent(fit, (self._pan.x(), self._pan.y()), zoom)
-                            if zoom > 1.0 else fit.extent)
-        self.draw_base(p, fit, k)                  # land .. VC boundaries, districts (R5)
+        rule). Labels are drawn in device pixels whatever the painter's zoom (vc_labels).
+        base=False: the background (land .. districts) is already on the painter's device
+        (the screen draws it from base_pixmap)."""
+        self.set_layer_view(fit, zoom)
+        if base:
+            self.draw_base(p, fit, k)              # land .. VC boundaries, districts (R5)
         self._draw_squares(p, fit, k, selected)   # R5: squares over the boundaries (Wil)
         vc_polys = self._polygons(fit)[1]
         if self._vc_outline in vc_polys:          # the selected VC: on top of the squares

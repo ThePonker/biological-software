@@ -114,6 +114,8 @@ def transform_ring(ring, transformer, keep_every):
 
 
 def main():
+    sys.path.insert(0, str(PROJECT_ROOT))
+    from shared.away_mode import refuse_if_away; refuse_if_away("convert_vc_shapefile")     # writes data: not on an away laptop
     print("=" * 60)
     print("VC Shapefile Converter (OSGB36 → WGS84 GeoJSON)")
     print("=" * 60)

@@ -158,3 +158,18 @@ def test_checkable_list_items_get_the_tick():
         name = type(view).__name__
         assert f"{name}::indicator:checked" in sheet and "tick_4a7c59_ffffff" in sheet
         assert f"{name}::indicator:indeterminate" in sheet
+
+
+def test_table_ticks_styled_even_under_a_check_box_rule():
+    """17 Oct: Read back checking's Accept ticks showed nothing when ticked."""
+    QApplication.instance() or QApplication([])
+    from PySide6.QtWidgets import QTableWidget, QWidget
+    panel = QWidget()
+    panel.setStyleSheet("QCheckBox::indicator { width: 20px; }")
+    t = QTableWidget(panel)
+    tick_style.style_item_view(t, GREEN)
+    assert "QTableWidget::indicator:checked" in t.styleSheet()
+    own = QTableWidget()
+    own.setStyleSheet("QTableView::indicator { width: 9px; }")
+    tick_style.style_item_view(own, GREEN)
+    assert own.styleSheet() == "QTableView::indicator { width: 9px; }"

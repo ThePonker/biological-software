@@ -86,6 +86,9 @@ class DatabaseManager:
             db_path: Path to the database file
             enable_foreign_keys: Whether to enable FK constraints (default True)
         """
+        import paths as _paths
+        if getattr(_paths, "AWAY_MODE", False):
+            read_only = True                # away laptop: every open is mode=ro, no WAL pragma
         if read_only:                       # D9: reference data, read-only
             from shared.db_open import connect_ro
             conn = connect_ro(db_path)

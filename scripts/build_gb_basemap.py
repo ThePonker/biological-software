@@ -10,6 +10,7 @@ try:
     maps_dir = str(paths.MAPS_DIR)
 except Exception:
     maps_dir = os.path.join("data", "maps")
+from shared.away_mode import refuse_if_away; refuse_if_away("build_gb_basemap")     # writes data: not on an away laptop
 from shared.maps.raster_map import find_tiles_dir
 from shared.maps.gb_basemap import gb_basemap_path, _BASENAME
 

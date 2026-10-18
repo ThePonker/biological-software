@@ -9,6 +9,7 @@ import pytest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from shared.maps import layers  # noqa: E402
+from shared.maps.map_layers import layer_transform  # noqa: E402
 
 ATTR = layers.OS_CREDIT
 BOX = (0, 0, 100000, 100000)
@@ -151,8 +152,8 @@ def test_layer_districts_switch_and_each_edge_once(qapp, tmp_path):
     assert m.has_districts() and m.layers_drawn() == []
     m.set_districts(True)
     assert m.layers_drawn() == ["districts"]
-    chains = m._layer_shape(m.fit(), "districts")
-    edges = sum(c.count() - 1 for c in chains)
+    path = m._layer_shape(m.fit(), "districts")             # one path in metres, a subpath per chain
+    edges = sum(1 for i in range(path.elementCount()) if path.elementAt(i).isLineTo())
     assert edges == 7                                       # 8 edges, the shared one once
     m.grab()
 
@@ -195,7 +196,7 @@ def test_menu_items_disabled_when_not_installed_and_remembered(qapp, tmp_path, s
     bar.attach_map(m)
     acts = bar.layer_actions
     assert [a.text() for a in bar.layers_menu.actions() if a.text()] == [
-        "Woodland", "Towns", "Rivers and lakes", "Main roads", "Reset to defaults"]
+        "Woodland", "Towns", "Rivers and lakes", "Main roads", "Colours\u2026", "Reset to defaults"]
     assert acts["woodland"].isEnabled() and not acts["towns"].isEnabled()
     assert acts["towns"].toolTip() == "Not installed: run scripts\\build_map_layers.py"
     assert bar.layers() == {"water"} and saved_layers() == {"water"}
@@ -229,11 +230,11 @@ def test_zoomed_in_on_the_gb_view_uses_county_detail_round_the_view(qapp, tmp_pa
     m.set_layers({"woodland"})
     fit = m.fit()
     m._layer_view = fit.extent                         # the whole GB view: gb detail
-    whole = m._layer_shape(fit, "woodland").boundingRect()
+    whole = layer_transform(fit).map(m._layer_shape(fit, "woodland")).boundingRect()
     x0, _y = fit.to_px(0, 0)
     assert abs(whole.left() - x0) < 2
     m._layer_view = (90000, 90000, 140000, 140000)     # zoomed in on one 50 km area
     near = m._layer_shape(fit, "woodland")
     xb, _y = fit.to_px(100000, 0)
-    assert abs(near.boundingRect().left() - xb) < 2
+    assert abs(layer_transform(fit).map(near).boundingRect().left() - xb) < 2
     assert near.elementCount() == 5                     # only the nearby county feature

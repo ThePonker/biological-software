@@ -18,6 +18,8 @@ Run:  python scripts\\organise_reviews.py
 import hashlib, os, shutil, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
+from shared.away_mode import refuse_if_away; refuse_if_away("organise_reviews")     # writes data: not on an away laptop
 R = os.path.join(ROOT, "data", "reviews")
 DL = os.path.join(os.path.expanduser("~"), "Downloads")
 APPLY = "--apply" in sys.argv

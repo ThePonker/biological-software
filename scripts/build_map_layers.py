@@ -115,19 +115,21 @@ def count_rows(conn, table, types):
     return conn.execute(f'SELECT COUNT(*) FROM "{real}"{w}', args).fetchone()[0]
 
 
-def read_rows(conn, table, types, want_name=False):
-    """Yield (geometry, name) for each row of the table matching types."""
+def read_rows(conn, table, types, want_name=False, want_type=False):
+    """Yield (geometry, name, type) for each row of the table matching types (name / type are
+    None unless asked for and the table has the column)."""
     gcol, tcol, ncol, real = table_info(conn, table)
     w, args = _where(tcol, types)
-    sel = f'"{gcol}"' + (f', "{ncol}"' if want_name and ncol else ", NULL")
+    sel = (f'"{gcol}"' + (f', "{ncol}"' if want_name and ncol else ", NULL")
+           + (f', "{tcol}"' if want_type and tcol else ", NULL"))
     cur = conn.execute(f'SELECT {sel} FROM "{real}"{w}', args)
     while True:
         chunk = cur.fetchmany(2000)
         if not chunk:
             return
-        for blob, name in chunk:
+        for blob, name, typ in chunk:
             if blob is not None:
-                yield decode_gpkg(blob), name
+                yield decode_gpkg(blob), name, typ
 
 
 # ---- geometry -> compact features ----
@@ -147,8 +149,16 @@ def _bbox(points):
     return [min(xs), min(ys), max(xs), max(ys)]
 
 
-def to_features(geom, kind, tol, min_area, name=None):
-    """Simplify a geometry and return its compact feature dicts."""
+def merge_lines(geoms):
+    """The line geometries joined end to end where exactly two meet (shapely.line_merge), so
+    a road cut into thousands of segments becomes a few long lines; None if there are none."""
+    parts = [p for g in geoms if g is not None for p in shapely.get_parts(g)
+             if p.geom_type == "LineString" and not p.is_empty]
+    return shapely.line_merge(shapely.MultiLineString(parts)) if parts else None
+
+
+def to_features(geom, kind, tol, min_area, name=None, typ=None):
+    """Simplify a geometry and return its compact feature dicts ("t": the source type, lines)."""
     if geom is None or geom.is_empty:
         return []
     geom = geom.simplify(tol, preserve_topology=True)
@@ -177,6 +187,9 @@ def to_features(geom, kind, tol, min_area, name=None):
     if name is not None:
         for f in feats:
             f["name"] = name
+    if typ is not None:
+        for f in feats:
+            f["t"] = typ
     return feats
 
 
@@ -217,11 +230,16 @@ def build_layer(conn, gpkg, key, lod, out_dir):
     tables, tol, min_area = lods[lod]
     feats, rows = [], 0
     merge = key in MERGE                      # land: one shape, so no seams or inner coast
-    pieces = []
+    join = kind == "line"                     # lines: joined end to end per type, then simplified
+    pieces, groups = [], {}
     for table, types in tables:
-        for geom, name in read_rows(conn, table, types, want_name=(key == "districts")):
+        for geom, name, typ in read_rows(conn, table, types, want_name=(key == "districts"),
+                                         want_type=join):
             rows += 1
-            if merge:
+            if join:
+                if geom is not None and not geom.is_empty:
+                    groups.setdefault(typ, []).append(geom)
+            elif merge:
                 if geom is not None and not geom.is_empty:
                     pieces.append(geom)
             else:
@@ -231,6 +249,9 @@ def build_layer(conn, gpkg, key, lod, out_dir):
     if merge and pieces:
         print(f"      merging {len(pieces)} pieces ...", flush=True)
         feats = to_features(shapely.unary_union(pieces), kind, tol, min_area)
+    for typ, geoms in sorted(groups.items(), key=lambda kv: str(kv[0])):
+        print(f"      joining {len(geoms)} {typ or 'untyped'} lines ...", flush=True)
+        feats.extend(to_features(merge_lines(geoms), kind, tol, min_area, typ=typ))
     doc = {"layer": key, "lod": lod, "kind": kind, "source": _source_text(src, gpkg, tables),
            "attribution": ATTRIBUTION, "built": date.today().isoformat(),
            "tolerance_m": tol, "min_area_m2": min_area, "features": feats}
@@ -258,6 +279,7 @@ def check_folder(out_dir):
 
 
 def main(argv=None) -> int:
+    from shared.away_mode import refuse_if_away; refuse_if_away("build_map_layers")
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--apply", action="store_true", help="build the files (default is a dry run)")
     ap.add_argument("--only", default="", help="comma list of layers: " + ",".join(LAYERS))

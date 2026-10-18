@@ -22,6 +22,7 @@ import argparse, csv, glob, os, re, sqlite3, subprocess, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path[:0] = [ROOT, os.path.join(ROOT, "scripts")]
 import paths
+from shared.away_mode import refuse_if_away; refuse_if_away("load_atlases")     # writes data: not on an away laptop
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--apply", action="store_true")

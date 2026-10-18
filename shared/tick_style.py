@@ -95,16 +95,31 @@ def install(app: Optional[QApplication] = None,
     return _installed
 
 
+def _view_has_own_indicator(view: QWidget, sel: str) -> bool:
+    """A rule for this view's item ticks already there (its own class, or any item view);
+    a panel's QCheckBox / QRadioButton rules say nothing about them (17 Oct 2026)."""
+    names = (f"{sel}::indicator", "QAbstractItemView::indicator", "QTableView::indicator",
+             "QListView::indicator", "QTreeView::indicator")
+    w: Optional[QWidget] = view
+    while w is not None:
+        sheet = w.styleSheet() or ""
+        if any(n in sheet for n in names):
+            return True
+        w = w.parentWidget()
+    return False
+
+
 def style_item_view(view: QWidget, colours: Optional[Dict[str, str]] = None) -> None:
-    """The suite's tick for the checkable items of a list or tree (QListWidget, QTreeWidget):
+    """The suite's tick for the checkable items of a list, tree or table (QListWidget, QTreeWidget,
+    QTableWidget):
     their tick boxes are drawn by the view, so the box filter above never sees them. Uses the
     installed colours unless given; does nothing if none are known or the view styles its own
     indicator."""
     c = colours or (_installed._colours() if _installed is not None and _installed._colours
                     else None)
-    if not c or has_own_indicator(view):
-        return
     sel = type(view).__name__
+    if not c or _view_has_own_indicator(view, sel):
+        return
     view.setStyleSheet((view.styleSheet() or "") + checkbox_qss(
         fill=c["fill"], mark=c["mark"], border=c["border"], background=c["background"],
         selector=sel) + f"""

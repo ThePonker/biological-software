@@ -178,3 +178,25 @@ def test_polygons_are_oriented_and_land_pieces_merged():
     merged = bm.to_features(shapely.unary_union([box(0, 0, 1000, 1000), box(1000, 0, 2000, 1000)]),
                             "polygon", 1, 0)
     assert len(merged) == 1 and len(merged[0]["rings"]) == 1
+
+
+def test_lines_are_joined_per_type_before_simplifying(tmp_path):
+    """Roads cut into many segments become one line per run, grouped by the source type;
+    a different type never joins, and each feature carries its type as "t"."""
+    d = tmp_path / "joined"
+    d.mkdir()
+    seg = [(LineString([(i * 1000, 0), ((i + 1) * 1000, 0)]), "Motorway") for i in range(40)]
+    seg += [(LineString([(i * 1000, 5000), ((i + 1) * 1000, 5000)]), "Primary") for i in range(10)]
+    seg += [(LineString([(40000, 0), (40000, 3000)]), "Primary")]       # touches nothing else
+    make_gpkg(d / "OS_Open_Zoomstack.gpkg", {"woodland": ("type TEXT, ", []),      # the probe table
+                                                   "roads_national": ("type TEXT, ", seg),
+                                                   "roads_regional": ("type TEXT, ", [])})
+    out = tmp_path / "out"
+    assert run(d, out, "--apply", "--only", "roads") == 0
+    feats = load(out, "roads_gb.json")["features"]
+    assert len(seg) == 51 and len(feats) == 3
+    by_type = sorted((f["t"], len(f["line"])) for f in feats)
+    assert [t for t, _n in by_type] == ["Motorway", "Primary", "Primary"]
+    motorway = next(f for f in feats if f["t"] == "Motorway")
+    assert motorway["bbox"] == [0, 0, 40000, 0] and motorway["line"][0] in ([0, 0], [40000, 0])
+    assert bm.merge_lines([]) is None

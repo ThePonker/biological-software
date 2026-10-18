@@ -27,6 +27,8 @@ def _find_vc_database() -> Optional[str]:
     Returns path as string, or None if not found.
     """
     candidates = []
+    if getattr(paths, 'AWAY_MODE', False):     # away laptop: the local copy only
+        return str(paths.VC_LOOKUP_DB) if paths.VC_LOOKUP_DB.exists() else None
 
     # 1. Check QSettings for user-configured path
     try:

@@ -202,6 +202,13 @@ build must say what happens to the original file). **Microscope (Q71): capture t
 not only stacked images** (single captures too, so P3 changes); a live view maybe; look into
 coding focus stacking or driving the free stacking software Wil uses.
 
+**Map layers (Wil, 17 Oct; built 18 Oct, round 9, to test):** (1) a setting for each
+layer's colour (Layers menu > Colours…, remembered, Reset); (2) paint speed: "a little bit laggy".
+Likely causes: roads_gb holds 123k separate pieces and roads_county 309k (join them by type at build
+time, linemerge); every layer is re-projected point by point whenever the view changes (cache the
+projected paths in OSGB and draw through the painter's transform instead; cache the background as a
+picture per view, as species_dist_map does). Measure first: time each layer's paint with `--timing`.
+
 **Map layers (Q6, Q34–Q40):** OS Open Zoomstack, one 3.8 GB download (Q6); rivers and lakes on
 by default, the rest off (Q34); **districts from current OS Boundary-Line** (Q35, not the
 recommendation) under the label "Local authority districts" (Q39); the atlas PNG prints what is
