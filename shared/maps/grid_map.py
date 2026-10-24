@@ -232,7 +232,7 @@ class GridMap(AtlasSheetMixin, BasemapLayersMixin, StaticPictureMixin, PanZoomMi
     def draw(self, p: QPainter, fit: gs.MapFit, k: float = 1.0, selected: bool = True,
              zoom: float = 1.0, base: bool = True):
         """Basemap, grid, VC boundaries, districts, squares, the selected VC's outline and the
-        VC labels through `fit` (R5 order, map_layers.py). k scales line widths (print > 1). selected=False leaves out the clicked
+        VC labels, then the place names through `fit` (R5 order, map_layers.py). k scales line widths (print > 1). selected=False leaves out the clicked
         square's outline (the atlas page, L13/L31). zoom: the screen's zoom (the labels' scale
         rule). Labels are drawn in device pixels whatever the painter's zoom (vc_labels).
         base=False: the background (land .. districts) is already on the painter's device."""
@@ -243,13 +243,15 @@ class GridMap(AtlasSheetMixin, BasemapLayersMixin, StaticPictureMixin, PanZoomMi
         vc_polys = self._polygons(fit)[1]
         if self._vc_outline in vc_polys:          # the selected VC: on top of the squares
             draw_outline(p, vc_polys[self._vc_outline], k)
+        shown = []
         if self._vc_labels_on and self._vc_rings:
             if self._label_pts is None:
                 self._label_pts = label_points(self._vc_rings)
             span = max(fit.w, fit.h) / fit.scale / max(zoom, 1.0)   # metres across the view
             occupied, inside = self._label_tests(p, fit)
-            draw_labels(p, fit, self._label_pts, self._vc_names, span,
-                        bold_vc=self._vc_outline, occupied=occupied, inside=inside)
+            shown = draw_labels(p, fit, self._label_pts, self._vc_names, span,
+                                bold_vc=self._vc_outline, occupied=occupied, inside=inside)
+        self._draw_place_names(p, fit, zoom, shown)     # over the squares and the VC labels
 
     def _label_tests(self, p: QPainter, fit):
         """(occupied, inside) for draw_labels, both taking DEVICE coordinates: does a rect

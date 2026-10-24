@@ -482,7 +482,7 @@ def test_json_in_pieces_same_as_json():
     assert vc_map.json is json                       # put back
 
 
-def test_scheme_filter_lists_read_in_a_thread_match(qapp):
+def test_scheme_filter_lists_read_in_a_thread_match(qapp, live_copy):
     """The Recording Scheme filter bar filled from lists read in a worker thread
     (read_choices) is the same as filled on the GUI thread (initialize_with_database)."""
     import paths
@@ -491,7 +491,7 @@ def test_scheme_filter_lists_read_in_a_thread_match(qapp):
     from src.models.database import get_database
     from src.views.scheme.scheme_filter_bar import SchemeFilterBar
     db = get_database()
-    db.set_main_path(str(paths.OBSERVATUM_DB))
+    db.set_main_path(str(live_copy))
     a, b = SchemeFilterBar(), SchemeFilterBar()
     a.initialize_with_database(db)
     box = {}

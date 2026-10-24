@@ -97,13 +97,13 @@ def small_db(tmp_path, qapp, counting_defaults):
 
 
 @pytest.fixture
-def real_db(qapp, counting_defaults):
+def real_db(qapp, counting_defaults, live_copy):
     if not HAVE_DATA:
         pytest.skip("real data copies not present")
     from src.models.database import get_database
     db = get_database()
     old = (db._main_db_path, db._uksi_db_path)
-    db.set_main_path(str(paths.OBSERVATUM_DB))
+    db.set_main_path(str(live_copy))
     db.set_uksi_path(str(paths.UKSI_DB))
     yield db
     db._main_db_path, db._uksi_db_path = old

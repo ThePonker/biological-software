@@ -18,7 +18,6 @@ v2 rewrite:
     status_summary across all tracks
 """
 
-import sqlite3
 import os
 import re
 import sys
@@ -26,6 +25,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import paths
+from shared.db_open import connect_ro
 
 CODEX_PATH = str(paths.CODEX_DB)
 UKSI_PATH = str(paths.UKSI_DB)
@@ -452,14 +452,14 @@ def main():
         print(f"uksi.db not found at {UKSI_PATH}")
         print("Regression tests will be skipped.")
 
-    codex = sqlite3.connect(CODEX_PATH)
+    codex = connect_ro(CODEX_PATH)
 
     # Section 1
     schema_failures = check_schema(codex)
 
     # Section 2
     if os.path.exists(UKSI_PATH):
-        uksi = sqlite3.connect(UKSI_PATH)
+        uksi = connect_ro(UKSI_PATH)
         regression_missing = regression_tests(codex, uksi)
         uksi.close()
     else:
@@ -481,6 +481,7 @@ def main():
         rc = 1
 
     codex.close()
+    print("\nREAD ONLY. Nothing has been changed.")
     return rc
 
 

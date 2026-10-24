@@ -283,7 +283,15 @@ class FamilyDetailPanel(QWidget):
             return
         common = self.subtitle_label.text() if self._current_level == 'family' else ''
         notes = self.notes_edit.toPlainText()
-        self._repo.save_notes(self._current_order, self._current_name, common, notes)
+        from shared.db_open import AwayReadOnly
+        try:
+            self._repo.save_notes(self._current_order, self._current_name, common, notes)
+        except AwayReadOnly as e:              # the laptop's copy is read-only (R12)
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.information(self, "Notes not saved", str(e))
+            self._notes_modified = False       # ask once, not at every auto-save
+            self.save_btn.setEnabled(False)
+            return
         self._notes_modified = False
         self.save_btn.setEnabled(False)
 

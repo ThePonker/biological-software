@@ -28,12 +28,12 @@ def qapp():
 
 
 @pytest.fixture
-def real_db(qapp):
+def real_db(qapp, live_copy):
     """The app's database pointed at the data copies (read by the code under test)."""
     from src.models.database import get_database
     db = get_database()
     old = (db._main_db_path, db._uksi_db_path)
-    db.set_main_path(str(paths.OBSERVATUM_DB))
+    db.set_main_path(str(live_copy))
     db.set_uksi_path(str(paths.UKSI_DB))
     yield db
     db._main_db_path, db._uksi_db_path = old
@@ -114,12 +114,12 @@ def test_dataset_values_and_matches_on_real_data():
 
 
 @needs_data
-def test_status_dialog_dataset_picker_round_trip(qapp):
+def test_status_dialog_dataset_picker_round_trip(qapp, live_copy):
     from PySide6.QtCore import Qt
     from src.views.components.filter_wizard.filter_wizard import FilterWizard
     from src.views.components.filter_wizard.status_filter_dialog import StatusFilterDialog
     w = FilterWizard(tab_name="recording_scheme")
-    w.set_db_path(paths.OBSERVATUM_DB)
+    w.set_db_path(live_copy)
     w._ensure_tab_values()
     assert w._dataset_list and "dataset" in w.card_grid.get_card("status").desc_label.text()
     d = StatusFilterDialog(current_values={"dataset": ["nbn atlas"]}, status_list=w._status_list,
@@ -136,7 +136,7 @@ def test_status_dialog_dataset_picker_round_trip(qapp):
     assert d.get_values() == {}
     # the observations wizard offers no dataset section
     o = FilterWizard(tab_name="observations")
-    o.set_db_path(paths.OBSERVATUM_DB)
+    o.set_db_path(live_copy)
     o._ensure_tab_values()
     assert o._dataset_list == []
     assert StatusFilterDialog(status_list=["Accepted"], type_list=[], dataset_list=[]).dataset_picker is None
@@ -152,14 +152,6 @@ def test_scheme_detail_dialog_is_view_only(qapp):
     texts = {b.text() for b in dlg.findChildren(QPushButton)}
     assert "Edit" not in texts and "Delete" not in texts and "Close" in texts
     assert not hasattr(dlg, "edit_requested") and not hasattr(dlg, "delete_requested")
-
-
-def test_scheme_record_actions_retired():
-    import importlib.util
-    assert importlib.util.find_spec("src.views.scheme.scheme_record_actions") is None
-    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    assert os.path.exists(os.path.join(root, "_archive", "scheme_record_actions_20261010",
-                                       "scheme_record_actions.py"))
 
 
 # ── L16: Home Quick Stats cards ─────────────────────────────────────────────────

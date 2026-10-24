@@ -1,24 +1,14 @@
 # Faults
 
-## Updated 14 October 2026
+## Updated 24 October 2026
 ## Open faults carry an action. Closed ones are kept in brief, because knowing
 ## what has already gone wrong is how the rules in `05` were earned. Older closed
 ## faults are in `06b_Faults_Closed.md` (split out 12 Oct). New faults take the
-## next free number (F88 next).
+## next free number (F107 next).
 
 ---
 
 ## Open
-
-### F53. Scheme records held twice (iRecord and NBN copies)
-34,121 pairs share an iRecord ID: NBN's "Longhorn beetle data from iRecord" is iRecord again
-(`report_scheme_duplicates.py`, read only; also 910 exact, 11,269 likely, 7,694 possible).
-Scheme counts and maps count such a record twice. **Action:** small-fixes round, item 6:
-flag the NBN copy so it counts once (Q59; flag, not delete, reversible); the other tiers in
-the final dataset (M1). *Built 12 Oct (R9 B3):* `recording_scheme.duplicate_of` (added and
-filled by `scripts/mark_scheme_irecord_duplicates.py`, `--undo` clears it), one rule in
-`shared/scheme_duplicates.py` used through `shared/species_counting.py`; the Scheme tab's
-"Show duplicates" lists them. Wil to run the script (dry run 34,121 on the 10 Oct copy).
 
 ### F54. Pantheon links *Sympetrum nigrescens* to *S. striolatum*
 *Found 11 Oct (Sundon).* A fault in Pantheon's link table, seen in Pantheon Only mode; Codex
@@ -38,30 +28,6 @@ review's verdict stands) it cannot be withdrawn by script. **Wil to decide (Q98)
 a new review appears, or record a flagged local withdrawal ("now widespread", Wil's judgement)
 through `withdraw_statuses.py` -- that moves strict key-species figures, so the reference check
 and `reference_figures.json` would be updated with it.
-### F56. 1 January placeholder dates in the Recording Scheme
-11,363 scheme records sat on exact 1 January dates (year-only records padded). **Fixed for
-18 padding datasets 11 Oct:** 11,149 records set to year-only (`fix_jan1_dates_20261011.py`,
-backup taken; January bar 11,648 → 499); the NBN importer now reads date precision. **Left
-by decision:** the "unclear" iRecord longhorn dataset (39) and 27 small datasets (173), to be
-flagged in the final dataset (Q57, Q58).
-
-### F57. Dates before 1700 in the scheme
-*Alosterna tabacicolor* 1500; *Acanthocinus aedilis* and *Agapanthia villosoviridescens* 1675.
-They put squares in the earliest date class. **Action:** a cleaning-report check (Q65),
-small-fixes round, item 5. *Built 12 Oct (R9 B2):* "Date before 1700" tile, list and sheet;
-132 scheme records on the 10 Oct copy (121 Cerambycidae Dataset 1675, 7 ISR 1500, …).
-
-### F58. A test-order flake
-`test_window_width_r4` fails when run before `test_small_fixes_20261010` (note 43). Not the
-map flake fixed on 12 Oct (F47), as far as the notes show. **Action:** small-fixes round,
-item 9.
-
-### F59. The Recording Scheme tab never shows a load error
-`recording_scheme_tab.py`'s loading overlay (`_stack`, `_loading_label`) is guarded but never
-built, so a failed load shows nothing (`40_Code_Sweep` §1, open, low). Round 6 added its own
-"Finishing loading…" cover; check whether a background load error is now shown.
-**Action:** the review-leftovers sweep (small-fixes round, item 11).
-
 ### F22. The July 2025 UKSI flags 24 British beetles redundant
 No current replacement for *Nialus varians*, *Trichonotulus scrofa*, *Subrinus
 sturmi*, *Bolitobius formosus*, *Ochthebius difficilis*, *Cypha ovulum* and 18
@@ -77,8 +43,9 @@ No survey figure affected now. **Action:** a newer UKSI -- backlog F11, F13.
 *11 Oct:* `report_tvks_not_in_uksi.py` and a one-off fix remapped 16 records; **28 records are left with no match** (*Astur gentilis*, redpolls, *Collybia*, *Cnephaeus*, the earwig agg.). Default: wait for the next UKSI (Q61, no preference given).
 
 ### F25. `uksi.synonyms`: what is left (search and Lector only)
-Fixed 9 Oct (`fix_uksi_synonyms.py`, 403 rows; the history is in `06b_Faults_Closed.md`).
-**Still open:** the 366 CONFLICT rows carried over from the old file, and NAMES-sheet errors
+The 403-row fix of 9 Oct (`fix_uksi_synonyms.py`; synonyms 98,415 → 98,013) is closed, see
+`06b_Faults_Closed.md`. **What remains open** (counted at the 9 Oct fix, not re-measured since):
+the 366 CONFLICT rows carried over from the old file, and NAMES-sheet errors
 such as the *Lamia* rows, which are excluded locally (`scripts/uksi_synonym_corrections.csv`)
 and must be reported to the NHM (F11). Lector holds such names back with a reason; on 12 Oct
 Wil decided his own "+" line in `data\lector_synonyms.txt` should win over the suite list (Q95,
@@ -100,13 +67,6 @@ specimens. **Action:** bulk editor — backlog A1.
 *12 Oct:* the bulk editor (A1, "Drawer in hand…") is built; filling is ongoing, drawer by drawer.
 Wil reset all drawers on 12 Oct (428 specimens) because nothing could be removed or moved;
 Round 9 C added remove, move and "Empty this drawer…" (03b, A1), and fixed F67.
-
-### F6. Two parallel enrichment paths in Examen
-`site_analysis_view` imports `load_all_projects` from `examen_data` **and** takes
-`analysis_service`. The project table and the detail tabs are populated from
-different sources, so their figures can disagree. The percentage denominators
-have been reconciled, but the structural split remains.
-**Action:** backlog E5.
 
 ### F7. Stored SQS does not follow Pantheon's published rule — INFORMATIONAL
 Not a fault in this codebase, but it governs every SQI produced. Applying the
@@ -173,7 +133,103 @@ unconverted, so multi-line string anchors still fail unpredictably.
 
 ---
 
+## Found in the 24 October review (code at `ed71524`)
+
+Read from the code, not yet reproduced on Wil's PC unless a line says so. Round 12 fixes the ones marked.
+
+### F88. `build_codex_db.py` deletes `codex.db` after a keep step whose errors are swallowed
+If the keep step (manual entries, reviews, accounts) fails, for example on a lock, the script
+carries on, deletes the file and rebuilds without them. **Action:** make a failed keep stop the
+build before the delete.
+
+### F89. `reset*.bat`, `reset_*.py` and `seed_database.py` wipe or fill the live database with no backup
+**Action:** being archived to `_archive\` (not deleted).
+
+### F90. Away mode: photo moves and direct read-write opens bypass the read-only guard -- fixing in Round 12 (photo moves and direct writes)
+On an away machine the photos are the live OneDrive library, and some code opens a database
+read-write directly instead of through `DatabaseManager`. The Lector store and Codex Manager still
+connect writable: **open**, not in Round 12. See `01` §4f.
+
+### F91. `move_photos.py --reverse` never repoints `photo_links`
+A reversed move leaves links pointing at the old path. **Action:** repoint on reverse.
+
+### F92. `prune_backups.py` deletes rather than moves, and keeps 2 per prefix whatever the label
+Breaks the never-delete rule, and a label such as `..._pre_X_` can lose its only pre-change copy.
+**Action:** move to an archive folder; keep by label.
+
+### F93. `mark_irecord_commercial.py` rewrites type, project and client by site name, with no dry run or backup
+**Action:** being archived.
+
+### F94. Photo numbering: "X 2 2" names and 33 "(2)" names
+`free_path` counts only files with the same extension, and commit keeps the `_Bench` number, so a
+photo can become "X 2 2". The 13 Oct consolidation left 33 names ending "(2)". **Action:** count
+all extensions; renumber at commit; rename the 33 (a dry run first).
+
+### F95. Edit dialog leaves taxonomy stale on a re-determination -- fixing in Round 12 (G1)
+Changing the species in Edit leaves the sort key and the rest of the taxonomy block on the old
+species (`40_Code_Sweep` §2a).
+
+### F96. Examen survey validity says "two years", which contradicts Q80 -- fixing in Round 12 (CIEEM bands, Q80)
+
+### F97. `parse_display_date` accepts US mm/dd/yyyy
+A date typed as 03/04/2026 can be read the American way. Display is dd/mm/yyyy everywhere since Round 7.
+
+### F98. Scheme import: the VC-from-name fallback never ran
+Its relative import is broken, so the fallback is skipped silently.
+
+### F99. Scheme dashboard common names are blank
+The code calls UKSI methods that do not exist under those names.
+
+### F100. Data Entry's 15-minute staging backup timer is never started
+`01` §7 lists it; job close, commit and app close do back up.
+
+### F101. Commercial rows draw their Type in magenta
+The theme key `accent_purple` is missing, so the fallback colour shows.
+
+### F102. Lector: a `+` line in `lector_synonyms.txt` loses to a suite `-` (Q95 is backwards) -- fixing in Round 12
+Wil decided on 12 Oct that his own `+` should win (see F25).
+
+### F103. Data Entry `delete_rows` hides failures; the specimen import refuses cp1252 files
+
+### F104. Tests: no QSettings/HOME sandbox
+Tests share the real settings store; some opened the live database read-write; two Stats dashboard
+tests segfault.
+
+### F105. Commit embargo is set by a second UPDATE after the create
+It can fail after the commit has been written, leaving the record without its embargo.
+
+### F106. Settings are split across QSettings stores
+Standalone Data Entry cannot see the default recorder and determiner. **Action:** Round 16; needs Wil's OK.
+
+---
+
 ## Closed since 10 October
+
+### F53. Scheme records held twice (iRecord and NBN copies) -- CLOSED 14 Oct
+34,121 pairs shared an iRecord ID (NBN's "Longhorn beetle data from iRecord" is iRecord again).
+`recording_scheme.duplicate_of` is filled by `scripts/mark_scheme_irecord_duplicates.py` (`--undo`
+clears it), one rule in `shared/scheme_duplicates.py` used through `shared/species_counting.py`.
+Run on the PC: 110,510 → 76,389 records counted. The other tiers (910 exact, 11,269 likely, 7,694
+possible) wait for the final dataset (M1).
+
+### F56. 1 January placeholder dates in the Recording Scheme -- CLOSED as decided
+11,149 records of 18 padding datasets set to year-only 11 Oct (`fix_jan1_dates_20261011.py`,
+backup taken; January bar 11,648 → 499); the NBN importer reads date precision. Left by decision:
+the "unclear" iRecord longhorn dataset (39) and 27 small datasets (173), to be flagged in the final
+dataset (Q57, Q58).
+
+### F57. Dates before 1700 in the scheme -- CLOSED (cleaning-report check)
+*Alosterna tabacicolor* 1500; *Acanthocinus aedilis* and *Agapanthia villosoviridescens* 1675.
+Built 12 Oct (R9 B2): "Date before 1700" tile, list and sheet (132 scheme records on the 10 Oct copy).
+
+### F58. A test-order flake -- CLOSED, fixed as F79 (13 Oct)
+
+### F59. The Recording Scheme tab never showed a load error -- FIXED 9 Oct (`548a6fa`)
+`recording_scheme_tab.py` now shows a QMessageBox when the load fails.
+
+### F6. Two parallel enrichment paths in Examen -- FIXED 9 Oct (`548a6fa`)
+`Examen/examen_data.py` v6: one analyse result feeds the project table, the species list and the
+detail; `site_analysis_view` reuses `detail.analysis`. (Backlog E5.)
 
 ### F86. Edit Specimen could link a specimen already on a Data Entry row -- FIXED 16 Oct (round 7)
 The Field record box shows "On a Data Entry row (job '…'): it will be linked when that row is

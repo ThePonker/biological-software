@@ -153,7 +153,8 @@ def visit_problem(rows: List[dict]) -> str:
 
 
 def _write(db_path) -> sqlite3.Connection:
-    conn = sqlite3.connect(str(db_path))
+    from shared.db_open import connect_rw          # refused in away mode (AwayReadOnly)
+    conn = connect_rw(db_path)
     conn.row_factory = sqlite3.Row
     return conn
 

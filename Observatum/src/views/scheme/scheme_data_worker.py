@@ -46,7 +46,8 @@ class SchemeDataWorker(QThread):
         """Execute query in background thread with fast dict conversion."""
         try:
             import sqlite3
-            conn = sqlite3.connect(self._db_path)
+            from shared.db_open import connect_ro      # it only reads (review 24 Oct 2026)
+            conn = connect_ro(self._db_path)
             self._conn = conn
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()

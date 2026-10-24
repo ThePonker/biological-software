@@ -53,6 +53,7 @@ def attach(conn, src: Path, staging_id: int, stem: str, field: bool = False) -> 
     """Move one capture-folder photo into _Bench as '<stem>.ext' (or '<stem> 2.ext'...) and link
     it to the staging row. Returns the stored path. Raises OSError with the photo left where it
     was if it cannot be moved or linked."""
+    pf.refuse_if_away()
     src = Path(src)
     dst = pf.free_path(bench_root(), stem, src.suffix)
     new_rel = pf.move_photo(conn, src, dst)
@@ -81,6 +82,7 @@ def rename_for_species(conn, staging_id: int, old_species: str, new_species: str
     old, new = pf.folder_name(old_species), pf.folder_name(new_species)
     if not old or not new or old.casefold() == new.casefold():
         return res
+    pf.refuse_if_away()
     log = pf.new_log_path()
     for p in pl.photos_for_staging(conn, staging_id):
         if not in_bench(p):
@@ -92,7 +94,7 @@ def rename_for_species(conn, staging_id: int, old_species: str, new_species: str
             continue
         stem, ext = os.path.splitext(name)
         try:
-            new_rel = _move_in_library(conn, p, pf.free_path(bench_root(), stem, ext), log)
+            new_rel = _move_in_library(conn, p, pf.free_path(bench_root(), pf.strip_bench_number(stem), ext), log)
             res.moved.append((p, new_rel))
         except OSError as e:
             res.left.append((p, f"could not rename: {e}"))
@@ -153,6 +155,7 @@ def rename_for_row(conn, staging_id: int, old: tuple, new: tuple) -> pf.RedetRes
     res = pf.RedetResult()
     if not pf.folder_name(new[0]) or tuple(old) == tuple(new):
         return res
+    pf.refuse_if_away()
     log = pf.new_log_path()
     for p in pl.photos_for_staging(conn, staging_id):
         if not in_bench(p):
@@ -174,7 +177,7 @@ def rename_for_row(conn, staging_id: int, old: tuple, new: tuple) -> pf.RedetRes
                     res.left.append((tmp, f"could not rename: {e}"))
                     continue
             else:
-                new_rel = _move_in_library(conn, p, pf.free_path(bench_root(), name, ext), log)
+                new_rel = _move_in_library(conn, p, pf.free_path(bench_root(), pf.strip_bench_number(name), ext), log)
             res.moved.append((p, new_rel))
         except OSError as e:
             res.left.append((p, f"could not rename: {e}"))
@@ -258,7 +261,7 @@ def file_on_commit(conn, staging_id: int, row: dict, observation_id: int) -> Tup
                 continue
             stem, ext = os.path.splitext(os.path.basename(p))
             field = pl.is_field_link(conn, p)
-            stem = name_for_commit(stem, row, field)
+            stem = pf.strip_bench_number(name_for_commit(stem, row, field))
             folder = _folder_for(stem, species, row.get("family") or "", row.get("order_name") or "", field)
             try:
                 _move_in_library(conn, p, pf.free_path(folder, stem, ext), log)
@@ -274,12 +277,13 @@ def detach(conn, staging_id: int, stored_path: str, to_folder: Path) -> Path:
     """Take one photo off a Data Entry row (a wrong photo or view): it goes back to the
     capture folder under its current name and its link to the row is removed. Only a photo in
     _Bench linked to this row. Returns its new path; raises with nothing changed if it cannot."""
+    pf.refuse_if_away()
     p = pl.norm(stored_path)
     if not in_bench(p) or p not in pl.photos_for_staging(conn, staging_id):
         raise ValueError(f"{os.path.basename(p)} is not one of this row's photos in {BENCH_REL}")
     src = pf.absolute(p)
     stem, ext = os.path.splitext(src.name)
-    dst = pf.free_path(Path(to_folder), stem, ext)
+    dst = pf.free_path(Path(to_folder), pf.strip_bench_number(stem), ext)
     size = src.stat().st_size
     Path(to_folder).mkdir(parents=True, exist_ok=True)
     os.rename(src, dst)
@@ -308,6 +312,8 @@ def release(conn, staging_ids: Iterable[int], to_folder: Optional[Path] = None) 
     back, notes = 0, []
     if not ids or not pl.has_staging_column(conn):
         return back, notes
+    if to_folder is not None:
+        pf.refuse_if_away()
     log = pf.new_log_path()
     for sid in ids:
         for p in pl.photos_for_staging(conn, sid):
@@ -315,7 +321,7 @@ def release(conn, staging_ids: Iterable[int], to_folder: Optional[Path] = None) 
                 continue
             src = pf.absolute(p)
             stem, ext = os.path.splitext(src.name)
-            dst = pf.free_path(Path(to_folder), stem, ext)
+            dst = pf.free_path(Path(to_folder), pf.strip_bench_number(stem), ext)
             try:
                 if not src.is_file():
                     raise FileNotFoundError(p)
@@ -348,6 +354,7 @@ def send_back(conn, by_row: dict, to_folder: Path) -> Tuple[int, List[str]]:
     """After the rows were deleted: move their _Bench photos (read with photos_by_row before)
     back to `to_folder`. Only for rows that are really gone, and only photos no longer linked
     to anything; the rest stay where they are. Returns (sent back, notes)."""
+    pf.refuse_if_away()
     back, notes = 0, []
     log = pf.new_log_path()
     for sid, paths in by_row.items():
@@ -359,7 +366,7 @@ def send_back(conn, by_row: dict, to_folder: Path) -> Tuple[int, List[str]]:
                 if pl.link_count(conn, p) or not src.is_file():
                     continue
                 stem, ext = os.path.splitext(src.name)
-                dst = pf.free_path(Path(to_folder), stem, ext)
+                dst = pf.free_path(Path(to_folder), pf.strip_bench_number(stem), ext)
                 size = src.stat().st_size
                 Path(to_folder).mkdir(parents=True, exist_ok=True)
                 os.rename(src, dst)
@@ -431,7 +438,7 @@ def file_record_photos(conn, observation_ids: Iterable[int] = (), specimen_ids: 
                 continue
             stem, ext = os.path.splitext(src.name)
             field = pl.is_field_link(conn, p)
-            stem = name_for_commit(stem, rec, field)
+            stem = pf.strip_bench_number(name_for_commit(stem, rec, field))
             folder = _folder_for(stem, rec["species_name"], rec.get("family") or "", rec.get("order_name") or "", field)
             try:
                 moved.append((p, _move_in_library(conn, p, pf.free_path(folder, stem, ext), log)))
@@ -444,9 +451,9 @@ def file_record_photos(conn, observation_ids: Iterable[int] = (), specimen_ids: 
 
 def file_record_photos_at(db_path, kind: str, ids: Iterable[int]) -> Tuple[List[str], List[str]]:
     """file_record_photos on a database path (the record dialogs call this after a save)."""
-    import sqlite3
+    from shared.db_open import connect_rw
     try:
-        conn = sqlite3.connect(str(db_path))
+        conn = connect_rw(db_path)
         try:
             ids = list(ids)
             return file_record_photos(conn, ids if kind == "observation" else (),
@@ -481,6 +488,8 @@ def release_records(conn, by_record: dict, to_bench: bool, kind: str = "observat
     and, with to_bench, move each photo that is now linked to nothing into _Bench. The files
     are never deleted. Returns (moved to _Bench, notes). Commits."""
     moved, notes = 0, []
+    if to_bench:
+        pf.refuse_if_away()
     table, col = _KIND[kind]
     gone = [oid for oid in by_record
             if not conn.execute(f"SELECT 1 FROM {table} WHERE id = ?", (oid,)).fetchone()]
@@ -499,7 +508,7 @@ def release_records(conn, by_record: dict, to_bench: bool, kind: str = "observat
                 if pl.link_count(conn, p) or in_bench(p) or not pf.absolute(p).is_file():
                     continue                      # still another record's, or already there
                 stem, ext = os.path.splitext(os.path.basename(p))
-                _move_in_library(conn, p, pf.free_path(bench_root(), stem, ext), log)
+                _move_in_library(conn, p, pf.free_path(bench_root(), pf.strip_bench_number(stem), ext), log)
                 moved += 1
             except OSError as e:
                 notes.append(f"{os.path.basename(p)}: not moved ({e}); left where it is")

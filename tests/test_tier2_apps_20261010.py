@@ -105,9 +105,10 @@ def test_exa15_assemblage_and_habitat_tabs_show_the_workbook_cell(qapp):
 
 
 @needs_data
-def test_exa15_every_sat_cell_matches_the_export_for_a_real_survey(qapp):
+def test_exa15_every_sat_cell_matches_the_export_for_a_real_survey(qapp, monkeypatch, live_copy):
     from shared.repositories.codex_repository import AnalysisMode
     from Examen import examen_data as ed
+    monkeypatch.setattr(ed, "DB_PATH", live_copy)               # a copy, never the live file
     from Examen.assemblage_tab import AssemblageTab
     from Examen.workbook_export import _sqi_cell
     p = ed.load_all_projects(AnalysisMode.CODEX_FULL)[0]
@@ -124,8 +125,9 @@ def test_exa15_every_sat_cell_matches_the_export_for_a_real_survey(qapp):
 
 
 @needs_data
-def test_exa17_failed_load_or_analysis_disables_exports(qapp, monkeypatch):
+def test_exa17_failed_load_or_analysis_disables_exports(qapp, monkeypatch, live_copy):
     from Examen import examen_data as ed
+    monkeypatch.setattr(ed, "DB_PATH", live_copy)               # a copy, never the live file
     from Examen import site_analysis_view as sav
     view = sav.SiteAnalysisView(ed.analysis_service())
     view._on_project_clicked(0, 0)
@@ -142,6 +144,7 @@ def test_exa17_failed_load_or_analysis_disables_exports(qapp, monkeypatch):
 
     # An analysis that fails inside the detail (Codex unreadable)
     monkeypatch.undo()
+    monkeypatch.setattr(ed, "DB_PATH", live_copy)               # undo() also undid the copy
     view._on_project_clicked(0, 0)
     assert view.pdf_btn.isEnabled()
     from shared.services import pantheon_analysis_service as pas

@@ -47,10 +47,13 @@ class DataEntryWidget(QWidget):
         self._resolve_vc_service()
         self.setWindowTitle("Data Entry")
         self._build_ui()
+        self._start_backup_timer()      # the 15-minute rolling staging CSV (G5: never started before)
 
     # -- csv safety net ---------------------------------------------------
     def _start_backup_timer(self):
         """Rolling CSV backup of staging every 15 minutes while the tab is open."""
+        if getattr(self, "_backup_timer", None) is not None and self._backup_timer.isActive():
+            return                      # already running: never a second timer
         try:
             from PySide6.QtCore import QTimer
             self._backup_timer = QTimer(self)
@@ -59,6 +62,24 @@ class DataEntryWidget(QWidget):
             self._backup_timer.start()
         except Exception as e:
             print(f"[DataEntry] backup timer not started: {e}")
+
+    def backup_before_clear(self):
+        """The grid's hook before Discard job / Export-and-clear delete staging rows (DE8, R12 M4):
+        the staging CSV (False = the grid asks, as before), then a kept backup of observatum.db.
+        If that fails nothing is deleted: the user is told and the action is stopped."""
+        csv_ok = self.backup_now()
+        try:
+            from shared.backup_service import backup_main_only
+            ok = backup_main_only("pre-clear-job")
+        except Exception as e:
+            print(f"[DataEntry] pre-clear-job backup unavailable: {e}")
+            ok = False
+        if not ok:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.critical(self, "Backup failed", "The backup of observatum.db before "
+                                 "deleting the staged rows failed, so nothing has been deleted.")
+            raise RuntimeError("backup before clearing the job failed: nothing deleted")
+        return csv_ok
 
     def backup_now(self):
         """Write the staging CSV. Safe to call at any time; never raises. Returns the file
@@ -139,6 +160,8 @@ class DataEntryWidget(QWidget):
         self._codex_path = cand if os.path.exists(cand) else None
 
     def closeEvent(self, event):
+        if getattr(self, "_backup_timer", None) is not None:
+            self._backup_timer.stop()
         self.backup_now()          # last write before the connection goes
         if self._conn is not None:
             self._conn.close()
@@ -251,7 +274,7 @@ class DataEntryWidget(QWidget):
         grid.finished.connect(self._on_job_finished)
         grid.committed.connect(self.committed)  # forward to the host app (reload Observation Data)
         grid.committed.connect(self.backup_observations_now)   # observations CSV after commit (DE5)
-        grid.before_change = self.backup_now    # before Discard / Export-and-clear (DE8)
+        grid.before_change = self.backup_before_clear    # before Discard / Export-and-clear (DE8, R12 M4)
         self._job_layout.addWidget(grid, 1)
 
         self._stack.setCurrentIndex(1)

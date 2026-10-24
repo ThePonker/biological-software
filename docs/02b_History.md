@@ -5,6 +5,25 @@
 
 ---
 
+### Session 51 — 17–24 October 2026
+
+**Rounds 10 and 11, the review, Round 12.** **Round 10** (18 Oct): the map pans by sliding a saved
+picture (`shared/maps/map_picture.py`), zoom shows a preview then one sharp render, VC topology is
+warmed up in the background (`map_warmup.py`), 40× zoom on the Mapping tab, the 10 km grid follows
+the visible span, woodland fill drawn without antialiasing. **Round 11** (19 Oct, `ed71524`):
+context layers, each a tick in Layers and off by default -- place names, railways, national parks,
+foreshore, parks and green space, relief from OS Terrain 50 (`build_map_relief.py`); `build_map_layers.py
+--describe`. Built on Wil's PC 19 Oct (names_county 40,284 names; greenspace_county 8.9 MB; relief
+2,858 tiles, 2640×4920 cells); his checks and commit pending. Deferred: the OS 1:250k raster, a map
+Identify tool, Small Settlements (212,705), railway tunnels drawn as surface track. **24 Oct:** a
+read-only check of photo names (42 `_Bench` photos all linked; numbering per extension and the
+commit's kept `_Bench` number give names like "X 2 2") and a full review in five parts (dead code,
+styles, safety, tests, docs against code), written up as the Claude doc "Suite Review and
+Development Plan — 24 Oct 2026" (faults F88–F106) with a new order of rounds 12–27 (`04`). Wil
+asked for rounds 12–15 (docs refresh, safety + photo naming, test safety, correctness) as one
+round; decisions: a .jpg and .tif of the same view are numbered separately; the reset and seed
+scripts are archived, `reset_database.py` kept only to build a new empty database.
+
 ### Session 50 — 15–16 October 2026
 
 **Bristol and round 7.** Jon Moore's 160 Bristol records imported (names corrected first,

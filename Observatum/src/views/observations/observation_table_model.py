@@ -13,7 +13,6 @@ from PySide6.QtGui import QColor, QFont
 from shared.display_format import RECORD_DATE_COLUMNS, dmy_time
 
 from ...themes import theme
-from ...core.config import TabColors
 from ...utils.date_utils import format_date_display
 from ...services.vc_lookup_service import VCLookupService
 from ..components import tick_column
@@ -361,7 +360,7 @@ class ObservationTableModel(CheckedByIdMixin, QAbstractTableModel):
             record_type = str(value) if value else 'Personal'
             if record_type == 'Commercial':
                 t = theme()
-                purple = t.get('accent_purple') or TabColors.RECORDING_SCHEME
+                purple = t.get('commercial')
                 return QColor(purple)
 
         return None

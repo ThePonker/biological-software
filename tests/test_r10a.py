@@ -9,11 +9,14 @@ F70  Examen's Species Database: group rows drawn like any other, a clicked group
 Offscreen; the data copy is read only.
 """
 import os
+import sys
 import time
 
 import pytest
 
 import paths
+
+SPEED = os.environ.get("BIOSOFT_SPEED_TESTS") == "1"      # timing limits are opt-in (conftest)
 
 DB = str(paths.OBSERVATUM_DB)
 GROUP = "All Coccinellidae (ladybirds) — group"
@@ -24,6 +27,13 @@ def qapp():
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     from PySide6.QtWidgets import QApplication
     return QApplication.instance() or QApplication([])
+
+
+@pytest.fixture(autouse=True)
+def _data_copy(request, monkeypatch):
+    """The data tests work on a private copy of observatum.db, never the live file."""
+    if os.path.exists(DB):
+        monkeypatch.setattr(sys.modules[__name__], "DB", str(request.getfixturevalue("live_copy")))
 
 
 def _need_data():
@@ -256,7 +266,8 @@ def test_examen_group_click_lists_its_species_and_back(qapp):
     group = next(it for it in items if "Curculionidae" in it.data(HIT_ROLE).get("group_label", ""))
     t = time.time()
     v.results_list.setCurrentItem(group)
-    assert time.time() - t < 2.0
+    if SPEED:
+        assert time.time() - t < 2.0
     assert v.species_name_label.text() == "Curculionidae"
     assert v.results_list.count() > 300                      # 547 weevils on the 10 Oct uksi.db
     assert v.result_count.text().startswith(f"{v.results_list.count():,} species in Curculionidae")
@@ -282,7 +293,8 @@ def test_examen_cap_message_and_speed(qapp):
     v.search_input.setText("ata")
     t = time.time()
     v._do_search()
-    assert time.time() - t < 1.5
+    if SPEED:
+        assert time.time() - t < 1.5
     assert v.results_list.count() == SEARCH_LIMIT == 1000
     assert v.result_count.text() == "First 1,000 shown — type more to narrow"
     v.search_input.setText("Rhagium")

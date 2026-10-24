@@ -124,6 +124,7 @@ def _order(m, monkeypatch):
         real = getattr(owner, name)
         monkeypatch.setattr(owner, name, lambda *a, **k: (seen.append(tag), real(*a, **k))[1])
     spy(m, "_draw_land", "land")
+    spy(m, "_draw_layer_land", "land")       # land from the layer files when they are built
     spy(m, "_draw_tint", "tint")
     spy(m, "_draw_districts", "districts")
     spy(m, "_draw_squares", "squares")

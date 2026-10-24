@@ -108,5 +108,6 @@ def test_copy_held_twice_reviewed_not_planned_twice(tmp_path):
 
 
 def test_name_clash_gets_a_free_name(tmp_path):
-    taken = {"a/specimen/x.jpg", "a/specimen/x (2).jpg"}
-    assert pc.free_name("a/Specimen", "x.jpg", taken) == "x (3).jpg"
+    # one numbering rule since 24 Oct 2026 (shared.photo_files): ' 2' style, any extension
+    taken = {"a/specimen/x.jpg", "a/specimen/x 2.tif"}
+    assert pc.free_name("a/Specimen", "x.jpg", taken) == "x 3.jpg"

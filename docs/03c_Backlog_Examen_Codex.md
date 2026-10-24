@@ -1,6 +1,6 @@
 # Backlog by area: Examen, Codex, species profiles, code hygiene
 
-## Updated 12 October 2026
+## Updated 24 October 2026
 ## Split out of `03_Backlog.md` on 12 Oct. The working list is `03_Backlog.md`;
 ## Observatum, Data Entry, imports, mapping and infrastructure are in
 ## `03b_Backlog_Observatum.md`.
@@ -17,14 +17,14 @@ export stays an appendix (Q74); no visit table for now (Q75); no auto-drafted li
 (Q76); **a project field for ISIS compliance** so reported condition carries high / medium /
 low confidence (Q77); **a generated data-sharing sentence** (Q78; with Codex's sensitive-
 species flag, F15 below); no LERC desk-study import (Q79); quote the **CIEEM 2019 validity
-bands** instead of "two years" (Q80); the SQI 150/125 colour bands stay (Q81); saproxylic:
+bands** instead of "two years" (Q80; **Round 12 builds it**, F96); the SQI 150/125 colour bands stay (Q81); saproxylic:
 no approach to Adrian Fowles, Wil exports and keeps his own lists per site (Q82); appendices
 in order → family → genus, then alphabetical (Q83; revisit). Read NERR005 Table 17 (p. 86)
 from Wil's copy before settling the template.
 
-**E24. Ad hoc lists.** Someone else's species list can be analysed without storing it
-(Betteshanger Park, M.G. Telfer, 12 Oct: figures in `02` §3). If it becomes regular, a
-"analyse a list" path in Examen would save the hand work. *Not requested; noted.*
+**E24. Ad hoc lists.** ✅ Done: `Examen/import_species_dialog.py`, "Import List..." in
+`site_analysis_view.py`. Someone else's species list can be analysed without storing it
+(Betteshanger Park, M.G. Telfer, 12 Oct: figures in `02` §3).
 
 **E25. Sundon reference figures.** ✅ Done 12 Oct (R9 B4a): `reference_figures.json` 231 / 19 /
 125, Pantheon 114, strict 114 / 19 (Q66; figures in `02`).
@@ -61,10 +61,11 @@ Word** in Examen: the PDF's sections as real Word headings and tables. Both rend
 read the workbook through one module, `Examen/report_model.py`, so they cannot drift.
 Needs `py -3.14 -m pip install python-docx`.
 
-**E5. `examen_data` tidy-up.** 0.5 day. `_classify_tier` has been removed and the
-SQI arithmetic consolidated, but the **two parallel enrichment paths remain**:
-the project table comes from `examen_data`, the detail tabs from
-`PantheonAnalysisService`. That is the cause of any remaining figure mismatch.
+**E5. `examen_data` tidy-up.** ✅ Done 9 Oct (`548a6fa`, F6): `Examen/examen_data.py` v6 gives one
+analyse result for the project table, the species list and the detail; `site_analysis_view` reuses
+`detail.analysis`. *Original:* `_classify_tier` removed and the SQI arithmetic consolidated, but two
+parallel enrichment paths remained (project table from `examen_data`, detail tabs from
+`PantheonAnalysisService`).
 
 **E6. Compartment analysis.** ✅ Built 9 Oct -- `Examen/compartments.py`, threshold in
 `compartment_config.json` (5%): per `sub_location` records, species, key, SQI (each run through
@@ -477,17 +478,17 @@ FuzzyFilterProxyModel ×3, RowStatus ×4 -- confirmed by the analysis.
 `ObservationStatsService._refresh` (92). Half a day each.
 
 **I11. Suite-review leftovers sweep** (decided 12 Oct for the next round, Q90): OBS-22
-(search ranking per tab), OBS-23 (scheme stats' own tetrad code; three saved-filter stores),
+(search ranking per tab), OBS-23 (scheme stats' own tetrad code; three saved-filter stores: ✅ done 13 Oct),
 INF5 (architecture doc; refreshed 12 Oct), INF6 (reset-script schemas drifted, e.g.
-`site_name_local` missing from `reset_database.py`'s specimens), INF7 (no tests on
+`site_name_local` missing from `reset_database.py`'s specimens; Round 12 fixes the schema), INF7 (no tests on
 CodexRepository, the Pantheon bridge, SQI or backup), INF8 (`seed_codex.py` DELETE of derived
-scores), INF9 (duplicate grid-ref converters), INF10 (close opens uksi.db read-write), INF11
+scores), INF9 (duplicate grid-ref converters), INF10 (close opens uksi.db read-write: ✅ done, `database.py` `read_only=True`), INF11
 (Home Species Info has no status, SQS or literature), CDX-4 (Codex headline count and dates),
 Tier 4 cosmetics (OBS-25/27, SRCH20/22, MAP13/15/16, DE10–14, IMP-18). Verify each against
 the code first; several may already be done. Small-fixes round, item 11. Findings:
 project note `claude/32_Suite_Review_20261009.md`.
 
-**I12. Test-order flake** (fault F58). Small-fixes round, item 9.
+**I12. Test-order flake** (fault F58). ✅ Fixed 13 Oct as F79 (`tests/conftest.py`).
 
 **I13. Rules not met by older code.** 97+ files over 400 lines and ~120 hex colours outside
 theme files (`05` coding conventions). Newer code honours both; fix when touched.

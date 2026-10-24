@@ -215,12 +215,12 @@ class SiteAnalysisView(QWidget):
             QTimer.singleShot(0, lambda: self._splitter.setSizes(sizes))
         self.table.cellClicked.connect(_keep_split)
         self._splitter = splitter
-        from PySide6.QtCore import QSettings
-        _st = QSettings("Flauna", "Examen").value("site_analysis/splitter")
+        from shared.settings_store import named
+        _st = named("Flauna", "Examen").value("site_analysis/splitter")
         if _st is None or not splitter.restoreState(_st):
             splitter.setSizes([340, 660])          # table ~1/4 on first run
         splitter.splitterMoved.connect(
-            lambda *_: QSettings("Flauna", "Examen").setValue(
+            lambda *_: named("Flauna", "Examen").setValue(
                 "site_analysis/splitter", self._splitter.saveState()))
         layout.addWidget(splitter, 1)
         self.summary_label = QLabel(""); self.summary_label.setStyleSheet("color: " + TEXT_MUTED + "; font-size: 11px;")

@@ -86,7 +86,8 @@ def test_colours_menu_item_dialog_and_reset(qapp, tmp_path, settings_sandbox, mo
     texts = [a.text() for a in bar.layers_menu.actions() if a.text()]
     assert texts.index("Colours…") == texts.index("Reset to defaults") - 1
     dlg = LayerColoursDialog()
-    assert list(dlg.swatches) == ["woodland", "towns", "water", "roads"]
+    assert list(dlg.swatches) == ["woodland", "towns", "water", "roads", "names", "rail",
+                                  "national_parks", "foreshore", "greenspace"]     # not relief (grey)
     seen = []
     dlg.colours_changed.connect(lambda: seen.append(1))
     monkeypatch.setattr(QColorDialog, "getColor", lambda *a, **k: QColor("#00aa00"))

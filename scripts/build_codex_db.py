@@ -519,10 +519,170 @@ def _tvk_translator():
     return tr, used
 
 
+# ============================================================
+# Keep / compare / swap (Round 12, 24 Oct 2026)
+# The rebuild used to read the kept rows swallowing every error, delete codex.db and
+# rebuild in place. Now: back up, read the kept rows (any real error stops the build),
+# build into codex_new.db, compare the kept counts, and only then move the old file
+# into the backup folder and put the new one in its place. Nothing is ever deleted.
+# ============================================================
+class KeptReadError(Exception):
+    """The kept rows could not be read; nothing has been changed."""
+
+
+# kept table -> SQL that counts those rows (in the old file when kept, in the new when restored)
+KEPT_COUNT_SQL = {
+    "manual_entries": "SELECT COUNT(*) FROM manual_entries",
+    "sqs_scores (manual)": "SELECT COUNT(*) FROM sqs_scores WHERE source = 'manual'",
+    "reviews": "SELECT COUNT(*) FROM reviews",
+    "species_profiles": "SELECT COUNT(*) FROM species_profiles",
+}
+
+
+def _query_variants(conn, variants):
+    """Run the first query that works; a missing column falls through to the next
+    (older schema), any other error (e.g. 'database is locked') is fatal."""
+    last = None
+    for sql in variants:
+        try:
+            return conn.execute(sql).fetchall()
+        except sqlite3.OperationalError as e:
+            if "no such column" in str(e).lower():
+                last = e
+                continue
+            raise KeptReadError(str(e))
+    raise KeptReadError(str(last))
+
+
+def read_kept(path, timeout=5):
+    """The rows a rebuild must carry over, read from `path` opened read-only.
+
+    A table that does not exist is fine (nothing to keep). Any other error stops the
+    build before anything is changed. Returns (manual_statuses, manual_sqs, reviews, profiles).
+    """
+    from shared.db_open import connect_ro
+    try:
+        old = connect_ro(path, timeout=timeout)
+    except sqlite3.Error as e:
+        raise KeptReadError(str(e))
+    try:
+        try:
+            have = {r[0] for r in old.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'")}
+        except sqlite3.Error as e:
+            raise KeptReadError(str(e))
+        out = {"manual_entries": [], "sqs": [], "reviews": [], "species_profiles": []}
+        try:
+            if "manual_entries" in have:
+                out["manual_entries"] = _query_variants(old, [
+                    """SELECT tvk, species_name, status_track, status_value,
+                       status_detail, source_review, date_added, added_by, notes, review_id
+                       FROM manual_entries""",
+                    # Older schema without status_detail
+                    """SELECT tvk, species_name, status_track, status_value,
+                       NULL, source_review, date_added, added_by, notes, NULL
+                       FROM manual_entries"""])
+            if "sqs_scores" in have:
+                out["sqs"] = _query_variants(
+                    old, ["SELECT tvk, sqs FROM sqs_scores WHERE source = 'manual'"])
+            if "reviews" in have:
+                out["reviews"] = _query_variants(old, [
+                    """SELECT id, review_name, author, taxon_group, status_track,
+                       date_published, date_imported, source_file,
+                       species_count, supersedes_id, notes, licence
+                       FROM reviews ORDER BY id""",
+                    # Older schema without licence
+                    """SELECT id, review_name, author, taxon_group, status_track,
+                       date_published, date_imported, source_file,
+                       species_count, supersedes_id, notes, NULL
+                       FROM reviews ORDER BY id"""])
+            if "species_profiles" in have:
+                out["species_profiles"] = _query_variants(old, [
+                    """SELECT tvk, review_id, species_name, profile_text, source,
+                       date_added, date_updated, added_by
+                       FROM species_profiles""",
+                    # Older schema: one account per TVK, no review link
+                    """SELECT tvk, 0, NULL, profile_text, source,
+                       date_added, date_updated, added_by
+                       FROM species_profiles"""])
+        except sqlite3.Error as e:
+            raise KeptReadError(str(e))
+        return (out["manual_entries"], out["sqs"], out["reviews"], out["species_profiles"])
+    finally:
+        old.close()
+
+
+def kept_counts(manual_statuses, manual_sqs, saved_reviews, saved_profiles):
+    return {"manual_entries": len(manual_statuses), "sqs_scores (manual)": len(manual_sqs),
+            "reviews": len(saved_reviews), "species_profiles": len(saved_profiles)}
+
+
+def compare_kept(kept, conn):
+    """Rows kept vs rows now in the new file: [(table, kept, now)] for every table, and
+    whether they all match."""
+    rows = [(t, n, conn.execute(KEPT_COUNT_SQL[t]).fetchone()[0]) for t, n in kept.items()]
+    return rows, all(k == n for _, k, n in rows)
+
+
+def move_aside_stale(new_path):
+    """A codex_new.db left by an earlier failed run is moved to codex_new_failed_<stamp>.db."""
+    if not os.path.exists(new_path):
+        return None
+    d = os.path.dirname(new_path)
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    dest = os.path.join(d, f"codex_new_failed_{stamp}.db")
+    n = 1
+    while os.path.exists(dest):
+        n += 1
+        dest = os.path.join(d, f"codex_new_failed_{stamp}-{n}.db")
+    os.replace(new_path, dest)
+    return dest
+
+
+def swap_in(new_path, codex_path):
+    """Move the old codex.db into <backup root>\\reference\\codex_replaced_<stamp>.db (never
+    deleted), then put the new file in its place. Returns the replaced file's new path."""
+    import shutil
+    from shared import backup_service
+    replaced = None
+    if os.path.exists(codex_path):
+        ref = os.path.join(backup_service.BACKUP_ROOT, backup_service.REFERENCE)
+        os.makedirs(ref, exist_ok=True)
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        replaced = os.path.join(ref, f"codex_replaced_{stamp}.db")
+        n = 1
+        while os.path.exists(replaced):
+            n += 1
+            replaced = os.path.join(ref, f"codex_replaced_{stamp}-{n}.db")
+        shutil.move(codex_path, replaced)
+    try:
+        os.replace(new_path, codex_path)
+    except OSError as e:
+        # put the old file back, so codex.db is never left missing (review 24 Oct)
+        if replaced:
+            try:
+                shutil.move(replaced, codex_path)
+            except OSError as e2:
+                raise SwapError(f"the new file could not be put in place ({e}) and the old one "
+                                f"could not be moved back ({e2}). The old codex.db is at "
+                                f"{replaced}; the new one at {new_path}. Copy the old one back "
+                                f"to {codex_path} before running anything else.") from e
+        raise SwapError(f"the new file could not be put in place ({e}); codex.db is unchanged "
+                        f"and the new build is left at {new_path}. Close Codex Manager, Examen "
+                        "and OneDrive's lock on the file, then run again.") from e
+    return replaced
+
+
+class SwapError(RuntimeError):
+    pass
+
+
 def build_codex():
     now = datetime.now().isoformat()
     TR, TR_USED = _tvk_translator()
 
+    from shared.away_mode import refuse_if_away
+    refuse_if_away("build_codex_db")
     # --------------------------------------------------------
     # 0. Preserve manual entries, reviews, and profiles
     # --------------------------------------------------------
@@ -530,74 +690,50 @@ def build_codex():
     manual_sqs = []
     saved_reviews = []
     saved_profiles = []
+    for leftover in (CODEX_PATH + "-journal", CODEX_PATH + "-wal"):
+        if os.path.exists(leftover) and os.path.getsize(leftover) > 0:
+            print(f"{leftover} is there: codex.db is open or was not closed cleanly. Close Codex "
+                  "Manager / Examen (or open codex.db once and close it) and run again. "
+                  "Nothing has been changed.")
+            sys.exit(1)
+    if not os.path.exists(CODEX_PATH) and "--fresh" not in sys.argv:
+        print(f"codex.db is not at {CODEX_PATH}: nothing would be kept (manual statuses, "
+              "reviews, species accounts). If a rebuild failed half-way, put the newest "
+              "codex_replaced_*.db from the backup folder back as codex.db first. To build a "
+              "brand-new Codex on purpose, run with --fresh. Nothing has been changed.")
+        sys.exit(1)
     if os.path.exists(CODEX_PATH):
+        from shared import backup_service
+        backup = backup_service.write_kept_copy(CODEX_PATH, "pre-codex-rebuild")
+        if backup is None:
+            print("Could not take a backup of codex.db first (see the message above). "
+                  "Nothing has been changed.")
+            sys.exit(1)
+        print(f"Backup of codex.db: {backup}")
         try:
-            old = sqlite3.connect(CODEX_PATH)
-            oc = old.cursor()
-            try:
-                oc.execute("""SELECT tvk, species_name, status_track, status_value,
-                              status_detail, source_review, date_added, added_by, notes, review_id
-                              FROM manual_entries""")
-                manual_statuses = oc.fetchall()
-            except sqlite3.OperationalError:
-                # Older schema without status_detail -- try legacy query
-                try:
-                    oc.execute("""SELECT tvk, species_name, status_track, status_value,
-                                  NULL, source_review, date_added, added_by, notes, NULL
-                                  FROM manual_entries""")
-                    manual_statuses = oc.fetchall()
-                except sqlite3.OperationalError:
-                    pass
-            try:
-                oc.execute("SELECT tvk, sqs FROM sqs_scores WHERE source = 'manual'")
-                manual_sqs = oc.fetchall()
-            except sqlite3.OperationalError:
-                pass
-            try:
-                try:
-                    oc.execute("""SELECT id, review_name, author, taxon_group, status_track,
-                                  date_published, date_imported, source_file,
-                                  species_count, supersedes_id, notes, licence
-                                  FROM reviews ORDER BY id""")
-                except sqlite3.OperationalError:
-                    # Older schema without licence
-                    oc.execute("""SELECT id, review_name, author, taxon_group, status_track,
-                                  date_published, date_imported, source_file,
-                                  species_count, supersedes_id, notes, NULL
-                                  FROM reviews ORDER BY id""")
-                saved_reviews = oc.fetchall()
-            except sqlite3.OperationalError:
-                pass
-            try:
-                try:
-                    oc.execute("""SELECT tvk, review_id, species_name, profile_text, source,
-                                  date_added, date_updated, added_by
-                                  FROM species_profiles""")
-                except sqlite3.OperationalError:
-                    # Older schema: one account per TVK, no review link
-                    oc.execute("""SELECT tvk, 0, NULL, profile_text, source,
-                                  date_added, date_updated, added_by
-                                  FROM species_profiles""")
-                saved_profiles = oc.fetchall()
-            except sqlite3.OperationalError:
-                pass
-            old.close()
-            if manual_statuses:
-                print(f"Preserved {len(manual_statuses)} manual entries")
-            if manual_sqs:
-                print(f"Preserved {len(manual_sqs)} manual SQS scores")
-            if saved_reviews:
-                print(f"Preserved {len(saved_reviews)} review records")
-            if saved_profiles:
-                print(f"Preserved {len(saved_profiles)} species profiles")
-        except Exception as e:
-            print(f"Warning: could not preserve prior data: {e}")
-        os.remove(CODEX_PATH)
+            manual_statuses, manual_sqs, saved_reviews, saved_profiles = read_kept(CODEX_PATH)
+        except KeptReadError as e:
+            print(f"Could not read the rows to keep from codex.db: {e}\n"
+                  "Close Codex Manager / Examen and run again. Nothing has been changed.")
+            sys.exit(1)
+        if manual_statuses:
+            print(f"Preserved {len(manual_statuses)} manual entries")
+        if manual_sqs:
+            print(f"Preserved {len(manual_sqs)} manual SQS scores")
+        if saved_reviews:
+            print(f"Preserved {len(saved_reviews)} review records")
+        if saved_profiles:
+            print(f"Preserved {len(saved_profiles)} species profiles")
+    kept = kept_counts(manual_statuses, manual_sqs, saved_reviews, saved_profiles)
 
     # --------------------------------------------------------
-    # 1. Create fresh codex.db
+    # 1. Create fresh codex_new.db (swapped in at the end, once the kept rows check out)
     # --------------------------------------------------------
-    conn = sqlite3.connect(CODEX_PATH)
+    NEW_PATH = os.path.join(os.path.dirname(CODEX_PATH), "codex_new.db")
+    aside = move_aside_stale(NEW_PATH)
+    if aside:
+        print(f"An earlier unfinished codex_new.db was moved aside to {aside}")
+    conn = sqlite3.connect(NEW_PATH)
     c = conn.cursor()
     c.executescript(SCHEMA)
 
@@ -1164,6 +1300,16 @@ def build_codex():
 
     conn.commit()
 
+    kept_rows, kept_ok = compare_kept(kept, conn)
+    if not kept_ok:
+        conn.close()
+        print(f"\n  ! Kept rows do not match what is now in the new file:")
+        print(f"      {'table':<24}{'kept':>8}{'now':>8}")
+        for t, k, n in kept_rows:
+            print(f"      {t:<24}{k:>8}{n:>8}{'   <-- differs' if k != n else ''}")
+        print(f"\n  codex.db has NOT been touched. The new file is left for inspection: {NEW_PATH}")
+        sys.exit(1)
+
     # --------------------------------------------------------
     # 8. Summary
     # --------------------------------------------------------
@@ -1175,7 +1321,7 @@ def build_codex():
     total_manual = c.fetchone()[0]
     c.execute("SELECT COUNT(*) FROM species_profiles")
     total_profiles = c.fetchone()[0]
-    db_size = os.path.getsize(CODEX_PATH)
+    db_size = os.path.getsize(NEW_PATH)
 
     print(f"\n{'='*60}")
     print(f"CODEX.DB v5 BUILT")
@@ -1236,6 +1382,14 @@ def build_codex():
     print(f"  Resolved: {found}/{len(test_species)}")
 
     conn.close()
+    try:
+        replaced = swap_in(NEW_PATH, CODEX_PATH)
+    except SwapError as e:
+        print(f"\nNOT FINISHED: {e}")
+        sys.exit(1)
+    print(f"\nKept rows, all restored: " + ", ".join(f"{t} {n}" for t, n, _ in kept_rows))
+    if replaced:
+        print(f"  The previous codex.db was moved (not deleted) to {replaced}")
     print("Done.")
 
 

@@ -625,7 +625,13 @@ class CommercialReportsDashboard(QScrollArea):
             db = get_database()
             main_path = (db.get_main_path() if hasattr(db, 'get_main_path')
                          else str(db._main_db_path))
-            conn = sqlite3.connect(main_path)
+            from shared.backup_service import backup_main_only
+            if not backup_main_only("pre-embargo-release"):
+                QMessageBox.warning(self, "Release Embargo",
+                                    "The backup failed, so nothing was changed.")
+                return
+            from shared.db_open import connect_rw
+            conn = connect_rw(main_path)         # refused in away mode (the message below)
 
             if project_name:
                 conn.execute("""

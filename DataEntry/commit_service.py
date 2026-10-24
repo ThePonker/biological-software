@@ -64,6 +64,9 @@ def build_kwargs_from_row(row: Dict, job: Dict, embargo_until: Optional[str] = N
         "project_name": (job.get("project") or None) if is_commercial else None,
         "client": (job.get("client") or None) if is_commercial else None,
         "embargo_until": (embargo_until or None) if is_commercial else None,
+        # The iRecord export excludes a record only when embargo_status is 'Active' AND
+        # embargo_until is in the future: both are written in the one create (R12 M1)
+        "embargo_status": "Active" if (is_commercial and embargo_until) else None,
     }
     # Lat/long of the grid square's centre, with the OSGB36 -> WGS84 shift (9 Oct 2026);
     # commits used to leave it blank (1,301 records)
@@ -341,16 +344,10 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
                  row.get("visit_number") or None, batch,
                  tax.get("superfamily"), tax.get("taxonomic_sort_key"), new_id),
             )
-            if kwargs.get("embargo_until"):
-                # The iRecord export excludes a record only when embargo_status is
-                # 'Active' AND embargo_until is in the future. Setting the date alone
-                # left the first committed batch uploadable (found 2 October 2026).
-                db.execute_main_write(
-                    "UPDATE observations SET embargo_status='Active' WHERE id=?", (new_id,))
         except Exception as e:
             # the record IS written: take it out of staging so a retry cannot double it
             error = f"{row.get('species_name')} was written (id {new_id}) but its survey " \
-                    f"fields or embargo were not: {e}"
+                    f"fields were not: {e}"
             committed_rows.append((dict(row), new_id))
             safe = _photos_follow_row(conn, row["id"], new_id, photo_problems, row)
             _specimens_follow_row(conn, row["id"], new_id, photo_problems)

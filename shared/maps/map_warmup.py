@@ -16,7 +16,7 @@ from typing import Callable, List, Tuple
 
 from PySide6.QtCore import QObject, QTimer
 
-from shared.maps import coast, layers
+from shared.maps import coast, layers, place_names, relief
 from shared.maps.vc_map import _SIMPLIFY_TOL
 from shared.maps.vc_topology import unique_chains
 
@@ -95,10 +95,15 @@ def warm_steps(m) -> List[Step]:
                                      raster=st[("raster", key)])
         for key in sorted(_gb_keys(m)):
             layers.load(m._maps_dir, key, "gb")
+        if "relief" in _gb_keys(m):
+            relief.load(m._maps_dir)
+        if "names" in _gb_keys(m):
+            place_names.warm(m._maps_dir)
 
     steps: List[Step] = [("thread", topology), ("gui", rasters), ("thread", classify_and_load)]
     for key in sorted(_gb_keys(m)):                         # GUI: one path per tick
-        steps.append(("gui", lambda k=key: m._layer_shape(m.fit(), k, view=m.fit().extent)))
+        if layers.kind_of(key) in ("polygon", "line"):
+            steps.append(("gui", lambda k=key: m._layer_shape(m.fit(), k, view=m.fit().extent)))
     return steps
 
 

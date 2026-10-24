@@ -47,6 +47,15 @@ class PhotoHousekeepingDialog(QDialog):
         v = QVBoxLayout(self)
         self.lbl_root = QLabel(f"Photo library: {pf.media_root()}")
         v.addWidget(self.lbl_root)
+        from shared.away_mode import away_active
+        self._away = away_active()
+        self.lbl_away = QLabel("Away mode: photos can't be moved on the laptop (they are the live "
+                               "library), so the move, archive and file buttons are off. Do it on "
+                               "the desktop.")
+        self.lbl_away.setWordWrap(True)
+        self.lbl_away.setStyleSheet(f"color: {theme().get('text_muted')};")
+        self.lbl_away.setVisible(self._away)
+        v.addWidget(self.lbl_away)
         self.tabs = QTabWidget()
         v.addWidget(self.tabs, 1)
         self.tables = {}
@@ -149,7 +158,7 @@ class PhotoHousekeepingDialog(QDialog):
                     conn.close()
         finally:
             QApplication.restoreOverrideCursor()
-        self.btn_archive.setEnabled(bool(self._empty))
+        self.btn_archive.setEnabled(bool(self._empty) and not self._away)
         self._bench_buttons()
 
     # -- Waiting in _Bench (14 Oct 2026) -----------------------------------------------------
@@ -161,9 +170,9 @@ class PhotoHousekeepingDialog(QDialog):
     def _bench_buttons(self) -> None:
         sel = self.selected_bench()
         free = bool(sel) and all(getattr(self, "_bench_why", {}).get(p) == ph.UNLINKED for p in sel)
-        self.btn_bench_back.setEnabled(free)
-        self.btn_bench_archive.setEnabled(free)
-        self.btn_bench_file.setEnabled(bool(sel) and any(
+        self.btn_bench_back.setEnabled(free and not self._away)
+        self.btn_bench_archive.setEnabled(free and not self._away)
+        self.btn_bench_file.setEnabled(not self._away and bool(sel) and any(
             getattr(self, "_bench_why", {}).get(p) == ph.ON_RECORD for p in sel))
         self.btn_bench_folder.setEnabled(bool(getattr(self, "_bench_why", None)))
 

@@ -272,8 +272,8 @@ class CleaningDashboard(QWidget):
                 with db.main_connection() as conn:
                     ok = show_again(conn, row.record_id)
             else:
-                import sqlite3
-                conn = sqlite3.connect(self._paths()[0])
+                from shared.db_open import connect_rw
+                conn = connect_rw(self._paths()[0])       # refused in away mode (shown below)
                 try:
                     ok = show_again(conn, row.record_id)
                 finally:

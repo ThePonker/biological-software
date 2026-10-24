@@ -67,15 +67,17 @@ class SpecimenRepository:
     # CONNECTION MANAGEMENT
     # =========================================================================
     
-    def _get_connection(self) -> sqlite3.Connection:
-        """Get a database connection with row factory."""
-        conn = sqlite3.connect(self._db_path)
+    def _get_connection(self, write: bool = True) -> sqlite3.Connection:
+        """Get a database connection with row factory. Writes are refused in away mode
+        (shared.db_open.AwayReadOnly); reads open the file read-only."""
+        from shared.db_open import connect_ro, connect_rw
+        conn = connect_rw(self._db_path) if write else connect_ro(self._db_path)
         conn.row_factory = sqlite3.Row
         return conn
     
     def _execute(self, query: str, params: tuple = ()) -> List[sqlite3.Row]:
         """Execute a query and return all results."""
-        conn = self._get_connection()
+        conn = self._get_connection(write=False)
         try:
             cursor = conn.cursor()
             cursor.execute(query, params)

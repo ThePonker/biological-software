@@ -9,7 +9,7 @@ pytest.importorskip("shapely")    # the build script needs it; the apps do not
 
 import shapely  # noqa: E402
 import shapely.wkb  # noqa: E402
-from shapely.geometry import LineString, MultiPolygon, Polygon, box  # noqa: E402
+from shapely.geometry import LineString, MultiPolygon, Point, Polygon, box  # noqa: E402
 
 from scripts import build_map_layers as bm  # noqa: E402
 
@@ -25,7 +25,8 @@ def blob(geom, envelope=0, empty=False):
 
 
 def make_gpkg(path, tables, srs=27700):
-    """tables: {name: (columns sql or '', [(geom, *extra)])}; extra = type [, Name]."""
+    """tables: {name: (columns sql or '', [(geom, *extra)])}; extra = one value per declared
+    column, in order (e.g. cols "type TEXT, name1 TEXT, " -> rows (geom, type, name))."""
     conn = sqlite3.connect(path)
     conn.execute("CREATE TABLE gpkg_contents (table_name TEXT, data_type TEXT)")
     conn.execute("CREATE TABLE gpkg_geometry_columns (table_name TEXT, column_name TEXT, srs_id INT)")
@@ -33,11 +34,11 @@ def make_gpkg(path, tables, srs=27700):
         conn.execute("INSERT INTO gpkg_contents VALUES (?, 'features')", (name,))
         conn.execute("INSERT INTO gpkg_geometry_columns VALUES (?, 'shape', ?)", (name, srs))
         conn.execute(f"CREATE TABLE {name} (id INTEGER PRIMARY KEY, {cols}shape BLOB)")
+        declared = "".join(c.split()[0] + ", " for c in cols.split(",") if c.strip())
         for r in rows:
-            extra = [v for v in r[1:]]
+            extra = list(r[1:])
             marks = ",".join("?" * (len(extra) + 1))
-            names = ("type, " if cols.startswith("type") else "") + ("Name, " if "Name" in cols else "")
-            conn.execute(f"INSERT INTO {name} ({names}shape) VALUES ({marks})", extra + [blob(r[0])])
+            conn.execute(f"INSERT INTO {name} ({declared}shape) VALUES ({marks})", extra + [blob(r[0])])
     conn.commit()
     conn.close()
 
@@ -65,6 +66,11 @@ def src(tmp_path):
         "roads_national": (t, [(LineString([(0, 0), (9000, 0)]), "Motorway")]),
         "roads_regional": (t, [(LineString([(0, 0), (0, 9000)]), "A Road"),
                                (LineString([(0, 0), (500, 500)]), "B Road")]),
+        "rail": (t, [(LineString([(0, 0), (9000, 0)]), "National")]),
+        "national_parks": (t, [(big, "National")]),
+        "foreshore": (t, [(big, "National")]),
+        "greenspace": (t, [(big, "National")]),
+        "names": (t + "name1 TEXT, ", [(Point(500, 500), "City", "Oxford")]),
     })
     make_gpkg(d / "bdline_test.gpkg", {
         "district_borough_unitary": ("Name TEXT, ", [(MultiPolygon([box(0, 0, 1000, 1000), box(5000, 5000, 6000, 6000)]),

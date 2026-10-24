@@ -18,12 +18,18 @@ class FamilyNotesRepository:
     def set_db_path(self, db_path: str):
         self._db_path = db_path
 
-    def _connect(self):
-        return sqlite3.connect(self._db_path)
+    def _connect(self, write: bool = True):
+        from shared.db_open import connect_ro, connect_rw
+        return connect_rw(self._db_path) if write else connect_ro(self._db_path)
 
     def ensure_table(self):
-        """Create family_notes table if it doesn't exist."""
-        conn = self._connect()
+        """Create family_notes table if it doesn't exist (not possible on the away laptop's
+        read-only copy: the table is there already)."""
+        from shared.db_open import AwayReadOnly
+        try:
+            conn = self._connect()
+        except AwayReadOnly:
+            return
         conn.execute("""
             CREATE TABLE IF NOT EXISTS family_notes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -41,7 +47,7 @@ class FamilyNotesRepository:
 
     def get_notes(self, order_name: str, family: str) -> Optional[Dict]:
         """Get notes for a family. Returns dict or None."""
-        conn = self._connect()
+        conn = self._connect(write=False)
         conn.row_factory = sqlite3.Row
         cursor = conn.execute(
             "SELECT * FROM family_notes WHERE order_name = ? AND family = ?",
@@ -68,7 +74,7 @@ class FamilyNotesRepository:
 
     def get_all_common_names(self) -> Dict[str, str]:
         """Get all family common names as {family: common_name} dict."""
-        conn = self._connect()
+        conn = self._connect(write=False)
         cursor = conn.execute(
             "SELECT family, common_name FROM family_notes WHERE common_name IS NOT NULL AND common_name != ''"
         )

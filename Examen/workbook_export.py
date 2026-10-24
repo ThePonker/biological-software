@@ -135,6 +135,14 @@ OCCURRENCE_PLACEHOLDER = "[write occurrence]"
 _TAX_CACHE = {}
 
 
+# CIEEM Advice Note on the Lifespan of Ecological Reports and Surveys (April 2019), as the
+# summary prints it -- Wil's decision (Q80), 24 Oct 2026, replacing "two years".
+CIEEM_VALIDITY = ("Age of survey data: under 12 months, likely valid; 12-18 months, likely valid "
+                  "with exceptions (flag where an update may be needed); 18 months to 3 years, "
+                  "an ecologist revisits the site and reviews validity; over 3 years, unlikely "
+                  "to be valid (CIEEM, 2019)")
+
+
 def _taxon(k):
     """Order/family/common for a key-species entry, from examen_data.load_taxonomy."""
     tvk = getattr(k, "tvk", "") or ""
@@ -1213,7 +1221,7 @@ def export_workbook(result, detail, project, path,
             ("SQS basis", sqs_basis),
             ("Jurisdiction", jurisdiction),
         ] + _codex_provenance() + [
-            ("Survey validity", "Two years from the survey date (CIEEM, 2019)"),
+            ("Survey validity", CIEEM_VALIDITY),
         ],
         "attribution": [
             "Taxonomy: UK Species Inventory, Natural History Museum. CC BY 4.0.",

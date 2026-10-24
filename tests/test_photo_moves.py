@@ -113,16 +113,22 @@ def test_dry_run_moves_nothing(tmp_path):
     assert _files(root) == before
 
 
-def test_apply_then_reverse(tmp_path):
+def test_apply_then_reverse(tmp_path, monkeypatch):
+    import shared.backup_service as bs
+    monkeypatch.setattr(bs, "backup_main_only", lambda label: True)   # not the live database's backup
+    monkeypatch.setattr(bs, "backup_file_written", lambda _path, label="": True)
     root, moves = _lib(tmp_path)
     before = _files(root)
     log = tmp_path / "log.csv"
-    assert mp.main(["--moves", str(moves), "--root", str(root), "--apply", "--log", str(log)]) == 0
+    db = tmp_path / "no_links.db"                            # never the live database
+    sqlite3.connect(db).close()
+    assert mp.main(["--moves", str(moves), "--root", str(root), "--apply", "--log", str(log),
+                    "--db", str(db)]) == 0
     assert _files(root) == ["Photos/Life/X/Specimen/a 1.i.20.jpg", "Photos/Life/Y/Specimen/b.jpg"]
     assert (root / "Photos/Life/Y/Specimen/b.jpg").read_bytes() == b"photo-Photos/Microscope Photos/b.jpg"
     assert len(mp.read(str(log))) == 2
     assert mp.main(["--reverse", str(log), "--root", str(root), "--apply",
-                    "--log", str(tmp_path / "rev.csv")]) == 0
+                    "--log", str(tmp_path / "rev.csv"), "--db", str(db)]) == 0
     assert _files(root) == before
     assert (root / "Photos/Life/X/Specimen").is_dir()          # emptied folders left
 

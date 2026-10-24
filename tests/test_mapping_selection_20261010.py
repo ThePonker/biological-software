@@ -312,15 +312,12 @@ def test_tab_coleoptera_all_sources(tab, ms, taxa):
     sb.search.setText("Coleoptera")
     sb.run_search()
     hit = [r for r in sb.results() if r["scientific_name"] == "Coleoptera"][0]
-    t = time.perf_counter()
     sb.add(hit)                                     # adding a chip maps it
-    elapsed = time.perf_counter() - t
     want = len(fetch(ms, [hit], "all").records)
     assert len(tab._records) == want
     assert "records mapped" in sb.chip_texts()[0] and f"{want:,}" in sb.chip_texts()[0]
     assert f"{want:,} records" in tab.map_header.grid_count.text()
     assert "embargoed not shown" in tab.map_header.subtitle.text()
-    assert elapsed < 6.0, f"all Coleoptera, all sources took {elapsed:.1f}s"
     tab.display_bar.style_combo.setCurrentIndex(tab.display_bar.style_combo.findData("richness"))
     assert tab.display_bar.legend_labels()[0] in ("1 species", "No species-level record")
     tab.display_bar.style_combo.setCurrentIndex(tab.display_bar.style_combo.findData("date"))
@@ -331,6 +328,22 @@ def test_tab_coleoptera_all_sources(tab, ms, taxa):
     assert len(tab._records) == n and tab.display_bar.legend_labels()[0] == "Pre-1970"
     img = tab.render_atlas()
     assert img.width() == 2480
+
+
+@pytest.mark.speed
+@needs_data
+def test_tab_coleoptera_all_sources_speed(tab, ms, taxa):
+    sb = tab.filter_panel.selection_box
+    sb.clear()
+    tab.filter_panel.source_picker.set_sources("all")
+    sb.rank_combo.setCurrentIndex(sb.rank_combo.findData("order"))
+    sb.search.setText("Coleoptera")
+    sb.run_search()
+    hit = [r for r in sb.results() if r["scientific_name"] == "Coleoptera"][0]
+    t = time.perf_counter()
+    sb.add(hit)
+    elapsed = time.perf_counter() - t
+    assert elapsed < 6.0, f"all Coleoptera, all sources took {elapsed:.1f}s"
 
 
 @needs_data

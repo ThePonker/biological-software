@@ -329,7 +329,11 @@ class StagingTableModel(QAbstractTableModel):
                 row["row_order"] = order[row["id"]]
 
     def delete_rows(self, rows) -> int:
-        """Delete real staging rows by view index. Virtual rows are ignored. Returns count."""
+        """Delete real staging rows by view index. Virtual rows are ignored. Returns count.
+
+        A row that could not be deleted stays; its view row number (1-based) and error are
+        left in self.delete_failures for the caller to report."""
+        self.delete_failures = []
         targets = sorted({r for r in rows if 0 <= r < len(self._rows)}, reverse=True)
         if not targets:
             return 0
@@ -341,7 +345,8 @@ class StagingTableModel(QAbstractTableModel):
             if rid is not None:
                 try:
                     repo.delete_row(self._conn, rid)
-                except Exception:
+                except Exception as e:
+                    self.delete_failures.append((r + 1, str(e)))
                     continue
             del self._rows[r]
             done += 1
@@ -1299,6 +1304,13 @@ class EntryTableView(QTableView):
             return
         n = m.delete_rows(real)
         after()
+        failed = getattr(m, "delete_failures", None)
+        if failed:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(
+                self, "Rows not deleted",
+                "These rows could not be deleted and are still in the grid:\n\n"
+                + "\n".join(f"Row {n}: {why}" for n, why in sorted(failed)))
         print(f"[DataEntry] deleted {n} row(s)")
 
     def _insert_selected_rows(self):
@@ -2379,9 +2391,13 @@ class EntryGridPage(QWidget):
         return ask_about_photos(self, self._conn, [r["id"] for r in repo.fetch_rows(self._conn, self._job_id)], what)
 
     def _safety_copy(self, what: str) -> bool:
-        """Staging CSV before rows are cleared (DE8). False = stop."""
-        if self.before_change is None or self.before_change():
-            return True
+        """Staging CSV before rows are cleared (DE8). False = stop. The hook raises when the
+        kept backup of observatum.db failed (it has told Wil): then nothing is cleared."""
+        try:
+            if self.before_change is None or self.before_change():
+                return True
+        except RuntimeError:
+            return False
         return QMessageBox.question(
             self, "Safety copy failed",
             f"The staging safety copy (staging_backup.csv) could not be written.\n\n{what} "
@@ -2397,7 +2413,8 @@ class EntryGridPage(QWidget):
     _HEADER_KEY = "DataEntry/gridHeaderState"
 
     def _settings(self) -> QSettings:
-        return QSettings("Flauna", "Observatum")
+        from shared.settings_store import named
+        return named("Flauna", "Observatum")
 
     # Before 16 Oct 2026 the grid had these columns (no Check / Check note): a layout saved
     # then is read through them, so adding columns keeps Wil's order, widths and hidden set

@@ -42,6 +42,9 @@ def main(argv=None) -> int:
     ap.add_argument("--db", default=str(paths.OBSERVATUM_DB), help=argparse.SUPPRESS)
     ap.add_argument("--backup-dir", default=BACKUP_DIR, help=argparse.SUPPRESS)
     a = ap.parse_args(argv)
+    if a.apply:
+        from shared.away_mode import refuse_if_away
+        refuse_if_away("standardise_specimen_names")      # photos are the live library
     paths.MEDIA_ROOT = Path(a.root)
     life = Path(a.root) / "Photos" / "Life"
     print(f"\nSpecimen photo names -- the standard\n  library: {a.root}")

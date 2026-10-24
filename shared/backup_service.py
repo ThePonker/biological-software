@@ -370,6 +370,16 @@ def backup_main_only(label: str = "") -> bool:
     return backup_databases(("OBSERVATUM_DB",), label or "pre-commit", keep=True)
 
 
+def backup_file_written(db_path, label: str) -> bool:
+    """Before a script writes to `db_path`: backup_main_only when it is the live observatum.db,
+    else a kept copy of that file itself (a script run with --db on another copy backs up the
+    copy it changes, review 24 Oct 2026)."""
+    live = _resolve("OBSERVATUM_DB")
+    if live and os.path.abspath(str(db_path)) == os.path.abspath(live):
+        return backup_main_only(label)
+    return write_kept_copy(str(db_path), label) is not None
+
+
 def backup_reference() -> bool:
     """The rebuild-only databases. Run after a Codex / UKSI / Pantheon rebuild.
 

@@ -181,7 +181,7 @@ def build(plan_rows, review_rows, check_rows, uksi):
         dest, why = from_review_row(r, res)
         moves.append({"source": r["source"], "destination": dest, "reason": why})
         seen.add(r["source"])
-    # two photos to one name, or a name already in that folder: the next free '(n)'
+    # two photos to one name, or a name already in that folder: the next free ' n' (shared.photo_files numbering)
     taken = set(res.existing)
     for m in moves:
         folder, name = m["destination"].rsplit("/", 1)

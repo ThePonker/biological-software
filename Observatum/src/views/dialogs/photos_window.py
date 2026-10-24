@@ -12,13 +12,12 @@ A separate, non-modal window opened from the record detail dialog.
 Thumbnails are loaded a few at a time on a timer, so big JPEGs never block the window.
 """
 import os
-import sqlite3
 
 from PySide6.QtCore import QObject, QSize, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QColor, QDesktopServices, QFont, QIcon, QImageReader, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QDialog, QHBoxLayout, QLabel, QListView, QListWidget, QListWidgetItem,
-    QPushButton, QStackedLayout, QVBoxLayout, QWidget,
+    QMessageBox, QPushButton, QStackedLayout, QVBoxLayout, QWidget,
 )
 
 from shared import photo_files
@@ -311,7 +310,12 @@ class PhotosWindow(QDialog):
             return
         stored = self.paths[i]
         sid, oid = self._ids()
-        conn = sqlite3.connect(self.db_path)
+        from shared.db_open import AwayReadOnly, connect_rw
+        try:
+            conn = connect_rw(self.db_path)
+        except AwayReadOnly as e:
+            QMessageBox.information(self, "Photos", str(e))
+            return
         try:
             with conn:
                 photo_links.ensure_schema(conn)

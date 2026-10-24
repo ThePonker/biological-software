@@ -4,7 +4,6 @@ Wizard File Handlers Mixin for Specimen Import Wizard.
 Contains file loading, column mapping, preview, and export methods.
 """
 
-import csv
 from typing import Dict, Optional
 
 from PySide6.QtWidgets import (
@@ -15,6 +14,13 @@ from PySide6.QtWidgets import (
 from ..import_common.problem_export import ProblemExportMixin
 
 from ....themes import theme
+
+
+def _encoding_note(encoding: str) -> str:
+    """' (read as Windows-1252)' when the file was not UTF-8, else nothing."""
+    if encoding == "utf-8-sig":
+        return ""
+    return f" (read as {'Windows-1252' if encoding == 'cp1252' else 'Latin-1'}, not UTF-8)"
 
 
 # '=x': the whole heading only. Sex added (IMP-7).
@@ -68,24 +74,15 @@ class WizardFileMixin(ProblemExportMixin):
         """)
         
         try:
-            # Detect delimiter
-            with open(file_path, 'r', encoding='utf-8-sig') as f:
-                sample = f.read(4096)
-            
-            tab_count = sample.count('\t')
-            comma_count = sample.count(',')
-            delimiter = '\t' if tab_count > comma_count else ','
-            
-            # Read file
-            with open(file_path, 'r', encoding='utf-8-sig') as f:
-                reader = csv.DictReader(f, delimiter=delimiter)
-                self.columns = reader.fieldnames or []
-                self.raw_rows = list(reader)
+            # utf-8-sig, then Windows-1252 (Excel's 'CSV' save), then latin-1
+            from shared.import_core import read_table_file
+            self.columns, self.raw_rows, encoding = read_table_file(file_path)
             
             # Update UI
             row_count = len(self.raw_rows)
             self.file_info_label.setText(
                 f"✓ Loaded {row_count} rows with {len(self.columns)} columns"
+                f"{_encoding_note(encoding)}"
             )
             
             self._update_preview_table()

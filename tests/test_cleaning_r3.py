@@ -339,12 +339,12 @@ def test_dataset_picker_parent_ticks_children(qapp):
 
 
 @needs_data
-def test_dataset_filter_counts_real_copy(qapp):
+def test_dataset_filter_counts_real_copy(qapp, live_copy):
     from src.services.filter_builder import matching_ids
     from src.views.components.filter_wizard.filter_wizard import FilterWizard
     from src.views.components.filter_wizard.status_filter_dialog import StatusFilterDialog
     w = FilterWizard(tab_name="recording_scheme")
-    w.set_db_path(paths.OBSERVATUM_DB)
+    w.set_db_path(live_copy)
     w._ensure_tab_values()
     counts = dict(w._dataset_list)
     d = StatusFilterDialog(status_list=w._status_list, type_list=w._record_type_list,

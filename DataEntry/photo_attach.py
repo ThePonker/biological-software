@@ -29,7 +29,8 @@ ADD_VIEW = "Add view…"
 
 
 def _settings() -> QSettings:
-    return QSettings("Flauna", "Observatum")
+    from shared.settings_store import named
+    return named("Flauna", "Observatum")
 
 
 def capture_folder() -> Path:

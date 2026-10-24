@@ -31,6 +31,11 @@ hover or a selection repaints from it. BIOSOFT_MAP_TIMING=1 prints each layer's 
 time (map_timing.py). (18 Oct, later: the screen now keeps the whole static picture, squares and
 labels too, with a margin, map_picture.py; this file only draws the layers.)
 
+18 Oct 2026 (six more layers, all off by default): relief (an image, multiplied, just over the
+land: relief.py), foreshore and parks and green space (pale fills), national parks (outline
+only), railways (thin dashed) and, last of all, over the squares, the place names
+(place_names.py; GridMap.draw() calls _draw_place_names).
+
 Display only.
 """
 from __future__ import annotations
@@ -41,7 +46,7 @@ from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import (QBrush, QColor, QPainter, QPainterPath, QPen, QPolygonF,
                            QTransform)
 
-from shared.maps import layers
+from shared.maps import layers, place_names, relief
 from shared.maps.map_timing import timed
 from shared.maps._theme import theme
 from shared.maps.coast import split_edges_cached
@@ -257,21 +262,46 @@ class BasemapLayersMixin:
                          QPen(land_c, 0.8 * k / fit.scale), QBrush(land_c), "land")
 
     def _draw_layers(self, p: QPainter, fit, k: float):
-        """The ticked layers that have a file, in the registry's order (pale, under the tint)."""
+        """The ticked layers that have a file, in the registry's order (pale, under the tint).
+        The place names are text, drawn later (_draw_place_names)."""
         for lay in layers.LAYERS:
             if lay.toggle is None or lay.toggle not in self._layers_on \
-                    or lay.key not in self._layer_files:
+                    or lay.key not in self._layer_files or lay.kind == "point":
+                continue
+            if lay.kind == "image":
+                rel = relief.load(self._maps_dir)
+                if rel is not None:
+                    with timed("paint", lay.key):
+                        relief.draw(p, rel, layer_transform(fit))
                 continue
             fill, line, w = layers.style(lay.key)
             shape = self._layer_shape(fit, lay.key)
-            if lay.kind == "polygon":
-                self._paint_path(p, fit, shape, QPen(fill, w * k / fit.scale), QBrush(fill),
-                                 lay.key)
+            if fill is not None:
+                self._paint_path(p, fit, shape, QPen(fill, w * k / fit.scale), QBrush(fill), lay.key)
+                continue
+            pen = QPen(line, w * k / fit.scale)
+            dash = layers.DASHES.get(lay.key)
+            if dash:
+                pen.setDashPattern(list(dash))
+                pen.setCapStyle(Qt.PenCapStyle.FlatCap)
             else:
-                pen = QPen(line, w * k / fit.scale)
                 pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-                pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
-                self._paint_path(p, fit, shape, pen, Qt.BrushStyle.NoBrush, lay.key)
+            pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+            self._paint_path(p, fit, shape, pen, Qt.BrushStyle.NoBrush, lay.key)
+
+    def _draw_place_names(self, p: QPainter, fit, zoom: float, vc_labels=()):
+        """The place names, when ticked and installed: over everything, after the VC labels
+        (`vc_labels`: what draw_labels returned) so they never cover those."""
+        if "names" not in self._layers_on or "names" not in self._layer_files:
+            return
+        view = getattr(self, "_layer_view", None) or fit.extent
+        lists = place_names.feature_lists(self._maps_dir, layers.lod_for_extent(view))
+        span = max(fit.w, fit.h) / fit.scale / max(zoom, 1.0)       # metres across the view
+        occupied, _inside = self._label_tests(p, fit)
+        taken = [r.adjusted(-2, -2, 2, 2) for _vc, _t, r, _s in vc_labels]
+        with timed("paint", "names"):
+            place_names.draw_place_names(p, fit, lists, span, layers.style("names")[1], taken,
+                                         occupied)
 
     def _draw_tint(self, p: QPainter, vc_polys):
         """VCs holding records: a light tint, from the shared-border rings."""

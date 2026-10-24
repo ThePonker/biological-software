@@ -28,6 +28,7 @@ import csv
 import datetime
 import glob
 import os
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -111,7 +112,13 @@ def same_drive(a: Path, b: Path) -> bool:
     return os.path.splitdrive(str(a))[0].casefold() == os.path.splitdrive(str(b))[0].casefold()
 
 
-def run(pairs, root: Path, apply: bool, log_path: str, label: str) -> int:
+def stored(rel: str) -> str:
+    """A path as photo_links stores it ('/' separators, no leading './' or '/')."""
+    from shared import photo_links as pl
+    return pl.norm(rel)
+
+
+def run(pairs, root: Path, apply: bool, log_path: str, label: str, db_path=None) -> int:
     checked = check(pairs, root)
     bad = [(i, c) for i, c in enumerate(checked) if c[2]]
     print(f"{label}: {len(pairs):,} files; problems: {len(bad)}")
@@ -131,8 +138,33 @@ def run(pairs, root: Path, apply: bool, log_path: str, label: str) -> int:
     if any(not same_drive(s, d) for s, d, _ in checked):
         print("Refused: a move to another drive (copy and delete) is not done by this script. " + DRY)
         return 1
+    from shared.away_mode import refuse_if_away
+    refuse_if_away("move_photos")                        # photos are the live library
+    from shared.backup_service import backup_file_written, backup_main_only
+    if not (backup_file_written(db_path, "pre-move-photos") if db_path
+            else backup_main_only("pre-move-photos")):
+        print("Refused: the backup of observatum.db failed, so nothing was moved. " + DRY)
+        return 1
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
-    moved = 0
+    conn = None
+    if db_path:
+        if not Path(str(db_path)).is_file():
+            print(f"Refused: {db_path} not found, so photo links could not follow (give --db). "
+                  "Nothing was moved.")
+            return 1
+        conn = sqlite3.connect(str(db_path))
+    try:
+        return _apply(checked, pairs, log_path, conn)
+    finally:
+        if conn is not None:
+            conn.close()
+
+
+def _apply(checked, pairs, log_path, conn) -> int:
+    from shared import photo_links as pl
+    moved = relinked = 0
+    if conn is not None and not pl.has_table(conn):
+        conn = None                                  # a database without photo links: nothing to follow
     with open(log_path, "w", encoding="utf-8-sig", newline="") as f:
         w = csv.DictWriter(f, fieldnames=LOG_FIELDS)
         w.writeheader()
@@ -153,11 +185,20 @@ def run(pairs, root: Path, apply: bool, log_path: str, label: str) -> int:
                         "source": rel_s, "destination": rel_d, "size_bytes": size})
             f.flush()
             moved += 1
+            if conn is not None:                   # the photo's links follow it, one move at a time
+                try:
+                    relinked += pl.repoint(conn, stored(rel_s), stored(rel_d))
+                    conn.commit()
+                except Exception as e:
+                    conn.rollback()
+                    print(f"STOPPED: {rel_s} moved (it is in the log) but its links could not "
+                          f"follow: {e}. Moved {moved}; log {log_path}")
+                    return 1
             if not d.is_file() or d.stat().st_size != size or s.exists():
                 print(f"STOPPED: {rel_s} -> {rel_d} did not check out after the move "
                       f"(it is in the log). Moved {moved}; log {log_path}")
                 return 1
-    print(f"Moved {moved:,} files. Log: {log_path}")
+    print(f"Moved {moved:,} files; {relinked:,} photo links repointed. Log: {log_path}")
     print(f"To put them back: py -3.14 scripts\\move_photos.py --reverse \"{log_path}\"")
     return 0
 
@@ -167,13 +208,20 @@ def main(argv=None) -> int:
     ap.add_argument("--moves", default=None, help="the move list (newest photo_moves_*.csv)")
     ap.add_argument("--reverse", default=None, metavar="LOG", help="put back the moves in this log")
     ap.add_argument("--root", default=None, help="the library (default paths.MEDIA_ROOT)")
+    ap.add_argument("--db", default=None, help="observatum.db whose photo links follow the moves "
+                                               "(default paths.OBSERVATUM_DB)")
     ap.add_argument("--apply", action="store_true")
     ap.add_argument("--log", default=None)
     a = ap.parse_args(argv)
+    sys.path.insert(0, ROOT)
+    import paths
     if a.root is None:
-        sys.path.insert(0, ROOT)
-        import paths
         a.root = str(paths.MEDIA_ROOT)
+    if a.db is None:
+        a.db = str(paths.OBSERVATUM_DB)
+    if a.apply:
+        from shared.away_mode import refuse_if_away
+        refuse_if_away("move_photos")
     root = Path(a.root)
     if not root.is_dir():
         print(f"Library not found: {root} (give it with --root). " + DRY)
@@ -183,7 +231,7 @@ def main(argv=None) -> int:
         rows = read(a.reverse)
         pairs = [(r["destination"], r["source"]) for r in reversed(rows)]
         log = a.log or os.path.join(ROOT, "scripts", "_oneoff", f"photo_moves_reverse_log_{stamp}.csv")
-        return run(pairs, root, a.apply, log, f"Reverse of {a.reverse}")
+        return run(pairs, root, a.apply, log, f"Reverse of {a.reverse}", a.db)
     moves = a.moves or newest_moves()
     if not moves or not os.path.exists(moves):
         print("No move list found: run scripts\\build_photo_moves.py first. " + DRY)
@@ -191,7 +239,7 @@ def main(argv=None) -> int:
     pairs = [(r["source"], r["destination"]) for r in read(moves)]
     log = a.log or os.path.join(ROOT, "scripts", "_oneoff", f"photo_moves_log_{stamp}.csv")
     print(f"Library: {root}\nMove list: {moves}")
-    return run(pairs, root, a.apply, log, "Moves")
+    return run(pairs, root, a.apply, log, "Moves", a.db)
 
 
 if __name__ == "__main__":

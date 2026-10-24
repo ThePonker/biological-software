@@ -1,24 +1,23 @@
 """
-Reset Database Script for Observatum V2.
+Build a NEW, EMPTY Observatum database (new install, or a practice copy).
 
-Deletes existing databases and creates fresh EMPTY tables.
-This is a DESTRUCTIVE operation - all existing data will be lost.
+Never touches an existing database: --out is required, must not exist, and must not be
+inside the suite's data folder or be any of the suite's database paths. Nothing is deleted
+or overwritten. (The old reset behaviour was retired on 24 Oct 2026; the reset scripts are
+in _archive\\reset_scripts_20261024.)
 
 Usage:
-    python scripts/reset_database.py
-    python scripts/reset_database.py --yes  (skip confirmation)
-    
+    py -3.14 scripts\\reset_database.py --out C:\\Temp\\practice\\observatum.db
+
 This will:
-1. Delete existing observatum.db
-2. Delete existing gamification.db
-3. Create all tables with correct schema (76-column observations table)
-4. Create all indexes
-5. Insert default settings only (NO test data)
+1. Create all tables with the current schema (the same one the live database has: see
+   scripts\\check_fresh_schema.py, which compares the two)
+2. Create all indexes
+3. Insert default settings only (NO test data)
 
-To add test data after reset, run: python scripts/seed_database.py
-
-UPDATED: Now includes full NBN Atlas / Darwin Core schema for iRecord imports.
-UPDATED: Includes observatum_key and irecord_key for iRecord sync support.
+The schema pieces that the app itself maintains (photo links, Data Entry staging, hidden
+records, sync conflicts, iRecord exported, family notes, species aliases) are created by the
+app's own ensure_schema code, not copied here.
 """
 
 import sqlite3
@@ -34,7 +33,6 @@ from shared import photo_links as _photo_links
 # CONFIGURATION
 # =============================================================================
 
-DEFAULT_DB_PATH = paths.OBSERVATUM_DB
 
 
 # =============================================================================
@@ -277,6 +275,7 @@ CREATE TABLE IF NOT EXISTS specimens (
     vice_county TEXT,
     vc_number INTEGER,
     site_name TEXT,
+    site_name_local TEXT,
     collector TEXT,
     determiner TEXT,
     sex TEXT,
@@ -620,33 +619,6 @@ DEFAULT_SETTINGS = [
 # DATABASE FUNCTIONS
 # =============================================================================
 
-def delete_databases(db_path: Path) -> bool:
-    """Delete the database files if they exist."""
-    success = True
-    
-    # Delete main database
-    if db_path.exists():
-        try:
-            db_path.unlink()
-            print(f"  ✓ Deleted: {db_path}")
-        except Exception as e:
-            print(f"  ✗ Failed to delete: {e}")
-            success = False
-    else:
-        print(f"  - No existing database: {db_path.name}")
-    
-    # Delete gamification database
-    gamification_db = db_path.parent / "gamification.db"
-    if gamification_db.exists():
-        try:
-            gamification_db.unlink()
-            print(f"  ✓ Deleted: {gamification_db}")
-        except Exception as e:
-            print(f"  ✗ Failed to delete gamification.db: {e}")
-    
-    return success
-
-
 def create_tables(cursor):
     """Create all tables."""
     print("\n[2/4] Creating tables...")
@@ -677,6 +649,44 @@ def create_tables(cursor):
     # A2 (14 Oct 2026): observations.local_edited_at -- defined once in shared/sync_conflicts.py
     from shared import sync_conflicts as _sync_conflicts
     _sync_conflicts.ensure_schema(cursor.connection)
+    _ensure_app_schema(cursor.connection)
+
+
+def _ensure_app_schema(conn):
+    """The parts of the live schema that the app (or one of its add_* scripts) adds later,
+    created by the app's own code where it has one."""
+    import os
+    here = os.path.dirname(os.path.abspath(__file__))
+    root = os.path.dirname(here)
+    for p in (root, os.path.join(root, "Observatum"), here):
+        if p not in sys.path:
+            sys.path.insert(0, p)
+    from shared import hidden_records, irecord_exported, scheme_duplicates, specimen_staging
+    hidden_records.ensure_schema(conn)
+    irecord_exported.ensure_schema(conn)
+    specimen_staging.ensure_schema(conn)          # staging_specimens + its index
+    _photo_links.ensure_schema(conn)              # photo_links.staging_id + its index
+    # recording_scheme.duplicate_of (scripts/mark_scheme_irecord_duplicates.py adds it live)
+    if scheme_duplicates.COLUMN not in {r[1] for r in conn.execute(
+            f"PRAGMA table_info({scheme_duplicates.TABLE})")}:
+        conn.execute(f"ALTER TABLE {scheme_duplicates.TABLE} "
+                     f"ADD COLUMN {scheme_duplicates.COLUMN} INTEGER")
+    # entry_staging.check_flag / check_note (scripts/add_staging_check_columns.py)
+    import add_staging_check_columns as _chk
+    for name, typ in _chk.missing_columns(conn):
+        conn.execute(f"ALTER TABLE entry_staging ADD COLUMN {name} {typ}")
+    # idx_scheme_tvk_vc_date (scripts/add_filter_indexes.py)
+    import add_filter_indexes as _idx
+    for name, table, cols, _why in _idx.INDEXES:
+        conn.execute(_idx.create_sql(name, table, cols))
+    # family_notes and species_aliases: created by the app's own repository / service, which
+    # open the database file themselves, so commit first
+    conn.commit()
+    db_file = conn.execute("PRAGMA database_list").fetchone()[2]
+    from src.repositories.family_notes_repository import FamilyNotesRepository
+    from src.services.species_alias_service import SpeciesAliasService
+    FamilyNotesRepository(db_file).ensure_table()
+    SpeciesAliasService(db_path=db_file)
 
 
 def create_indexes(cursor):
@@ -730,79 +740,76 @@ def verify_schema(cursor):
 # MAIN
 # =============================================================================
 
-def reset_database(db_path: Path):
+def refusal_reason(out: Path) -> str:
+    """Why `out` may not be used ('' if it may). Never touches the file."""
+    out = Path(out)
+    if out.exists():
+        return f"{out} already exists -- this script never overwrites or deletes anything"
+    resolved = out.resolve()
+    try:
+        resolved.relative_to(Path(paths.DATA_DIR).resolve())
+        return f"{out} is inside the suite's data folder ({paths.DATA_DIR})"
+    except ValueError:
+        pass
+    for name in dir(paths):
+        if name.endswith("_DB"):
+            val = getattr(paths, name, None)
+            if isinstance(val, (str, Path)) and Path(val).resolve() == resolved:
+                return f"{out} is the suite's own database (paths.{name})"
+    return ""
+
+
+def build_new_database(db_path: Path):
     """
-    Delete and recreate the database with empty tables.
-    
+    Create a NEW empty database at db_path (which must not exist: see refusal_reason).
+
     Args:
-        db_path: Path to database file
+        db_path: Path of the new database file
     """
     print("\n" + "=" * 60)
-    print("OBSERVATUM V2 - DATABASE RESET")
+    print("OBSERVATUM V2 - NEW EMPTY DATABASE")
     print("=" * 60)
-    print(f"\nTarget: {db_path}")
+    print(f"\nNew file: {db_path}")
     print("Mode: Empty database (no test data)")
-    print("Schema: Full 76-column observations table (iRecord compatible)")
-    print("        Includes observatum_key/irecord_key for sync")
-    
-    # Step 1: Delete existing databases
-    print("\n[1/4] Deleting existing databases...")
-    if not delete_databases(db_path):
-        print("\nAborted: Could not delete existing database.")
-        return False
-    
-    # Ensure data directory exists
+
+    # Ensure the folder exists
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    
+
     # Connect and create new database
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
-    
+
     try:
-        # Step 2: Create tables
+        # Step 1: Create tables
         create_tables(cursor)
-        
-        # Step 3: Create indexes
+
+        # Step 2: Create indexes
         create_indexes(cursor)
-        
-        # Step 4: Insert default settings
+
+        # Step 3: Insert default settings
         print("\n[4/4] Inserting default settings...")
         insert_settings(cursor)
         print(f"  ✓ {len(DEFAULT_SETTINGS)} settings")
-        
+
         conn.commit()
-        
+
         # Verify schema
         print("\n[Verification]")
         verify_schema(cursor)
-        
-        # Summary
+
         print("\n" + "=" * 60)
-        print("DATABASE RESET COMPLETE")
+        print("NEW EMPTY DATABASE CREATED")
         print("=" * 60)
-        print("\nEmpty tables created:")
-        print("  - observations (76 columns - full iRecord schema + sync keys)")
-        print("  - specimens") 
-        print("  - recording_scheme (expanded schema)")
-        print("  - commercial_records")
-        print("  - species_profiles")
-        print("  - conservation_overrides")
-        print("  - saved_filters")
-        print("  - settings")
-        print("  - specimen_notifications")
-        print("  - entry_jobs (data-entry grid: job registry)")
-        print("  - entry_staging (data-entry grid: in-progress rows)")
-        
         print(f"\nDatabase: {db_path}")
         print(f"Size: {db_path.stat().st_size / 1024:.1f} KB")
-        print("\nTo add test data, run: python scripts/seed_database.py")
         print("=" * 60 + "\n")
-        
+
         return True
-        
+
     except Exception as e:
         print(f"\n✗ Error: {e}")
         conn.rollback()
+        print(f"The unfinished file has been left for inspection: {db_path}")
         raise
     finally:
         conn.close()
@@ -810,47 +817,17 @@ def reset_database(db_path: Path):
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Reset Observatum database (DELETE and recreate empty)',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  python scripts/reset_database.py          # Reset with confirmation prompt
-  python scripts/reset_database.py --yes    # Skip confirmation prompt
-  
-To add test data after reset:
-  python scripts/seed_database.py
-        """
-    )
+        description='Build a NEW empty Observatum database (never changes an existing one)')
     parser.add_argument(
-        '--path', '-p',
-        type=str,
-        default=str(DEFAULT_DB_PATH),
-        help=f'Path to database (default: data/observatum.db)'
-    )
-    parser.add_argument(
-        '--yes', '-y',
-        action='store_true',
-        help='Skip confirmation prompt'
-    )
-    
+        '--out', required=True, type=str,
+        help='Path of the new database file. Must not exist, and must not be in the data folder.')
     args = parser.parse_args()
-    db_path = Path(args.path)
-    
-    # Confirmation prompt
-    if not args.yes:
-        print("\n" + "!" * 60)
-        print("WARNING: This will DELETE all data in:")
-        print(f"  {db_path}")
-        print(f"  {db_path.parent / 'gamification.db'}")
-        print("!" * 60)
-        
-        response = input("\nType 'yes' to continue: ").strip().lower()
-        if response != 'yes':
-            print("\nAborted.")
-            sys.exit(0)
-    
-    # Run reset
-    success = reset_database(db_path)
+    out = Path(args.out)
+    why = refusal_reason(out)
+    if why:
+        print(f"Refused: {why}. Nothing has been changed.")
+        sys.exit(1)
+    success = build_new_database(out)
     sys.exit(0 if success else 1)
 
 

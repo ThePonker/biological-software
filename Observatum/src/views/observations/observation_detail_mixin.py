@@ -6,6 +6,41 @@ Handles record detail dialog display and navigation for ObservationTab.
 
 from typing import Dict
 
+# What follows from a record's species, written with a re-determination (24 Oct 2026)
+REDET_TAXONOMY_FIELDS = ("taxon_rank", "kingdom", "taxon_group", "superfamily", "subfamily",
+                         "taxonomic_sort_key")
+
+
+def redet_taxonomy_fields(tvk, uksi_path=None) -> Dict:
+    """{taxon_rank, kingdom, taxon_group, superfamily, subfamily, taxonomic_sort_key} for a
+    TVK, from the same two functions the importers and Data Entry's commit use
+    (shared.taxon_groups.taxonomy_for_tvks and shared.import_core.taxonomy_for_tvks).
+    {} when the TVK is not in UKSI. Raises when UKSI cannot be read."""
+    if not tvk:
+        return {}
+    from shared.taxon_groups import taxonomy_for_tvks as group_taxonomy
+    from shared.import_core import taxonomy_for_tvks as sort_taxonomy
+    g = group_taxonomy([tvk], uksi_path).get(tvk)
+    if not g:
+        return {}
+    s = sort_taxonomy([tvk], uksi_path).get(tvk) or {}
+    return {
+        "taxon_rank": g.get("taxon_rank"),
+        "kingdom": g.get("kingdom"),
+        "taxon_group": g.get("taxon_group"),
+        "superfamily": g.get("superfamily"),
+        "subfamily": s.get("subfamily") or None,
+        "taxonomic_sort_key": g.get("taxonomic_sort_key"),
+    }
+
+
+def with_redet_taxonomy(updates: Dict, old_tvk, uksi_path=None) -> Dict:
+    """`updates` plus the taxonomy fields for the new TVK when the species TVK changed."""
+    new_tvk = (updates.get('species_tvk') or "").strip()
+    if new_tvk and new_tvk != (old_tvk or "").strip():
+        updates.update(redet_taxonomy_fields(new_tvk, uksi_path))
+    return updates
+
 
 class ObservationDetailMixin:
     """Mixin providing record detail and navigation functionality."""
@@ -133,8 +168,9 @@ class ObservationDetailMixin:
             record_id = record.get('id')
             if record_id:
                 boundary_note, derived = "", {}
+                conn = None
                 try:
-                    import sqlite3
+                    from shared.db_open import connect_rw
                     import paths
                     # A changed grid ref takes its VC and lat/long from the new reference,
                     # never the old ones (review OBS-03: SO539092 -> TQ5070 kept VC34)
@@ -144,7 +180,7 @@ class ObservationDetailMixin:
                         # Grid ref unchanged: leave its VC and lat/long as they are
                         for k in ('vice_county', 'vc_number'):
                             obs_data.pop(k, None)
-                    conn = sqlite3.connect(str(paths.OBSERVATUM_DB))
+                    conn = connect_rw(paths.OBSERVATUM_DB)
                     allowed = {'species_name', 'species_tvk', 'common_name', 'family',
                                'order_name', 'date', 'site_name', 'grid_ref',
                                'vice_county', 'vc_number', 'latitude', 'longitude',
@@ -153,9 +189,12 @@ class ObservationDetailMixin:
                     updates.update(derived)         # may set NULLs: a VC that no longer applies
                     old_species = ""
                     if updates:
-                        row = conn.execute("SELECT species_name FROM observations WHERE id = ?",
-                                           (record_id,)).fetchone()
+                        row = conn.execute("SELECT species_name, species_tvk FROM observations "
+                                           "WHERE id = ?", (record_id,)).fetchone()
                         old_species = (row[0] if row else "") or ""
+                        # a changed species brings its rank, kingdom, group, superfamily,
+                        # subfamily and sort key with it (same code as the importers)
+                        with_redet_taxonomy(updates, row[1] if row else None)
                         set_parts = [f"{k} = ?" for k in updates]
                         values = list(updates.values()) + [record_id]
                         conn.execute(
@@ -168,7 +207,6 @@ class ObservationDetailMixin:
                         if differing(dict(record), updates) or cleared(dict(record), updates):
                             mark_edited(conn, [record_id])
                         conn.commit()
-                    conn.close()
                     # A re-determination: the record's linked photos follow (photos B5)
                     if old_species and updates.get('species_name') \
                             and updates['species_name'] != old_species:
@@ -182,6 +220,16 @@ class ObservationDetailMixin:
                     self.records_changed.emit()
                 except Exception as e:
                     print(f"[ObservationTab] Error updating record: {e}")
+                    from PySide6.QtWidgets import QMessageBox
+                    QMessageBox.warning(self, "Edit not saved",
+                                        f"The record could not be saved:\n\n{e}")
+                finally:
+                    if conn is not None:
+                        try:
+                            conn.rollback()      # nothing half-written; a no-op after a commit
+                        except Exception:
+                            pass
+                        conn.close()
                 if boundary_note:
                     from PySide6.QtWidgets import QMessageBox
                     if derived.get('vc_number'):

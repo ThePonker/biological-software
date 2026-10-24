@@ -1,6 +1,6 @@
 # Architecture
 
-## Updated 12 October 2026 (Lector window, startup, map layers, shared rule homes)
+## Updated 24 October 2026 (Lector window, startup, map layer files, away mode, shared rule homes)
 
 ---
 
@@ -52,8 +52,8 @@ Biological Software/
 ├── scripts/                 Build, reset, import, patch and check scripts
 │   ├── build_gb_basemap.py  Builds the GB basemap for Data Entry — keep (moved here 7 Oct)
 │   └── _oneoff/             One-off data-changing scripts, git-ignored, archived later
-├── launchers/               run_atrium, run_codex, run_lector (console), run_lector_gui, run_munia
-├── tests/                   pytest suite (~1,220 tests); manual_import_files/ for Wil's import tests
+├── launchers/               run_atrium, run_codex, run_lector (console), run_lector_gui, run_munia, run_away (§8)
+├── tests/                   pytest suite (count in 02); manual_import_files/ for Wil's import tests
 ├── _archive/                Retired code, dated
 └── docs/                    This set, the research documents, Lector_User_Manual.md, drafts/
 
@@ -97,7 +97,8 @@ implementation, and the shim is the small one.
 | `vc_lookup.db` | Vice-county per 1 km square | Shapefile import |
 | `vc_splits.db` | The 1 km squares a VC boundary crosses, each VC's share (F29) | `build_vc_splits.py` |
 | `lector.db` | Lector: BHL answers, pages and text, saved searches, runs, review notes, activity (schema v3) | Lector (`Lector/store.py`, `saved.py`); updates by `Lector/upgrade.py` |
-| `data/maps/*` | `vc_brc_wgs84.geojson` (VC outlines, from `convert_vc_shapefile.py`), `gb_outline.json` (on the PC: 2013 ONS districts, no build script), `uk_vice_counties.svg` | scripts / by hand |
+| `data/maps/*` | `vc_brc_wgs84.geojson` (VC outlines, from `convert_vc_shapefile.py`), `uk_vice_counties.svg`; `gb_outline.json` (2013 ONS districts) is superseded by the layer files below | scripts / by hand |
+| `data/maps/layers/*`, `relief_gb.png` / `relief_gb.json` | The map's background layers (§4c). Git-ignored, rebuilt from the OS data | `build_map_layers.py`, `build_map_relief.py` |
 | `examen.db` | Frozen assessments -- **retired 9 Oct 2026** (E13); nothing reads or writes it now. Export: `scripts/export_examen_snapshots.py` | none (still backed up) |
 | `munia.db` | Project allocations, day logs | Munia |
 | `gamification.db` | Achievements | Observatum |
@@ -194,9 +195,19 @@ VC's outline, the **labels**. The same drawing makes the screen and the A4 300 d
 - `vc_labels.py`: labels in device pixels as one path (numbers nationally, names zoomed in),
   nudged off recorded squares; boundary drawing; the selected VC outline.
 - `project_many.py`: WGS84 → OSGB on numpy arrays (outlines project in about 1 s).
-- Switches remembered in QSettings: VC labels, VC boundaries (on), Districts (off; to be
-  renamed "Local authority districts" and sourced from Boundary-Line, Q35/Q39), Square opacity
-  (0–100 %, `Observatum/src/views/mapping/display_bar.py`).
+- Switches remembered in QSettings: VC labels, VC boundaries (on), Local authority districts (off;
+  from the Boundary-Line layer files), Square opacity (0–100 %, `Observatum/src/views/mapping/display_bar.py`).
+- **Background layer files (Rounds 8–11).** `scripts/build_map_layers.py` reads OS Open Zoomstack, OS
+  Boundary-Line and OS Terrain 50 from `~\OS data` and writes `data/maps/layers/<key>_<gb|county>.json`
+  (one file per layer, a GB version and a county version) and, via `scripts/build_map_relief.py`,
+  `data/maps/relief_gb.png` + `relief_gb.json`. `--describe` lists what is built. `shared/maps/layers.py`
+  and `map_layers.py` load them (built once in metres, so panning does not reproject); the `Layers ▾` menu
+  ticks them, colours are remembered (`Layers ▸ Colours…`). Land and districts come from these files. Context
+  layers, each off by default: place names (`place_names.py`, `place_classes.py`), railways, national
+  parks, foreshore, parks and green space, relief (`relief.py`). `atlas_sheet.py` prints what is ticked,
+  with the OS credit for the layers drawn.
+- **Speed (Round 10).** `map_picture.py`: a pan slides a saved picture; a zoom shows a preview, then
+  one sharp render; `map_warmup.py` warms the VC topology; the 10 km grid follows the visible span.
 - `Observatum/src/services/batch_maps.py` + `scripts/batch_maps.py`: the same query, squares
   and page for many taxa at once, date-class and cumulative spread frames, GIF.
 
@@ -232,7 +243,28 @@ lines). Manual: `docs/Lector_User_Manual.md`.
 | Fit a window to the screen | `shared/fit_to_screen.py` (`fit_to_screen`, `scroll_body`) | Observatum dialogs and wizards, Curator, Munia, standalone Data Entry, Lector |
 | Read-only reference connections | `shared/db_open.py` (`connect_ro`) | every app |
 | Photo names and matching | `shared/photo_names.py`, `photo_match.py` | `check_media_library.py` (photos not wired in yet) |
-| Checklist order within a family | `shared/checklist_order.py` | drawer assignment, batch maps (no checklist files yet) |
+| Checklist order within a family | `shared/checklist_order.py` | drawer assignment, batch maps. Files built by `scripts/build_checklists.py` into `shared/checklists/*.csv` (git-ignored) |
+| Tick colour | `shared/tick_style.py` | green ticks everywhere |
+| Date display (dd/mm/yyyy) | `shared/display_format.py` (`dmy`) | every screen that shows a date |
+| Away mode | `shared/away_mode.py` | `DatabaseManager`, Munia, Data Entry (§8) |
+| Species identity keys on import | `shared/observatum_keys.py` | the import paths (F82) |
+
+### 4f. Away mode (Round 9, 18 Oct; built, not yet tested by Wil)
+
+A read-only copy of the suite for Wil's own laptop (decision 17 Oct, "Option 2"). It replaces the
+older "separate databases, export/import" plan (Q3) for that laptop; the partner's install is a
+separate job (D13).
+
+- **Marker:** `%LOCALAPPDATA%\Flauna\away_machine.json`. Its presence makes the machine an away
+  machine (`shared/away_mode.py`).
+- **Data folder:** on an away machine `paths.DATA_DIR` points to `%LOCALAPPDATA%\Flauna\away_data`,
+  not the OneDrive `data\`. `DatabaseManager` and Munia open with `mode=ro`; Data Entry refuses to open.
+- **Making the copy:** `scripts/make_away_copy.py` (copy made at Observatum close; a nightly task is
+  set up by hand: `make_away_copy.py --show-task-command` prints the command). One-off laptop setup:
+  `scripts/setup_away_laptop.py`. Start with `launchers/run_away.bat`.
+- **Not yet covered:** photo moves and some direct read-write opens bypass the guard; the Lector store and
+  Codex Manager still connect writable (`06` F90; Round 12 fixes the photo moves and direct
+  writes).
 
 ---
 

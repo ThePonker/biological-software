@@ -136,14 +136,14 @@ def test_scheme_button_emits_and_counts(settings, tmp_path, monkeypatch):
     ("Leiopus nebulosus", "NHMSYS0021125200", "Species"),
     ("Rhagium mordax", "NBNSYS0000011004", "Species"),
 ])
-def test_lookup_and_tab_agree_on_copy(settings, monkeypatch, agg_off, name, tvk, rank):
+def test_lookup_and_tab_agree_on_copy(settings, monkeypatch, live_copy, agg_off, name, tvk, rank):
     sc.set_excluded("recording_scheme", ["agg"] if agg_off else [])
-    db = _Db(paths.OBSERVATUM_DB)
+    db = _Db(live_copy)
     d = _lookup(db, name, tvk, rank)
     n = d._selected_species["schemeRecords"]
     assert n > 0 and d._selected_species["schemeTabRecords"] == n
     assert d._scheme_btn.text() == f"View {n:,} scheme records"
-    assert _tab_count(paths.OBSERVATUM_DB, name, monkeypatch) == n
+    assert _tab_count(live_copy, name, monkeypatch) == n
 
 
 # ------------------------------------------------------------------ 2. 1 January dates

@@ -490,9 +490,9 @@ class RecordingSchemeStatsService:
                 for r in species_result:
                     common_name = ""
                     try:
-                        species_info = uksi.get_by_tvk(r['species_tvk'])
+                        species_info = uksi.get_species_by_tvk(r['species_tvk'])
                         if species_info:
-                            common_name = species_info.common_name or ""
+                            common_name = species_info.get('common_name') or ""
                     except Exception:
                         pass
                     
@@ -542,9 +542,9 @@ class RecordingSchemeStatsService:
                     
                     common_name = ""
                     try:
-                        species_info = uksi.get_by_name(r['species_name'])
+                        species_info = uksi.get_species_by_name(r['species_name'])
                         if species_info:
-                            common_name = species_info.common_name or ""
+                            common_name = species_info.get('common_name') or ""
                     except Exception:
                         pass
                     
@@ -595,9 +595,9 @@ class RecordingSchemeStatsService:
                 for r in gaps_result:
                     common_name = ""
                     try:
-                        species_info = uksi.get_by_tvk(r['species_tvk'])
+                        species_info = uksi.get_species_by_tvk(r['species_tvk'])
                         if species_info:
-                            common_name = species_info.common_name or ""
+                            common_name = species_info.get('common_name') or ""
                     except Exception:
                         pass
                     result['recording_gaps'].append({

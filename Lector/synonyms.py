@@ -30,8 +30,13 @@ from . import config
 
 LATIN = re.compile(r"^[A-Z][a-z]+(?: \([A-Z][a-z]+\))? [a-z][a-z-]+"
                    r"(?: (?:(?:var|subsp|ssp|f|ab)\. )?[a-z][a-z-]+)?$")
-SUITE_CORRECTIONS = Path(getattr(config.paths, "SCRIPTS_DIR", config.DATA_DIR.parent / "scripts")) \
-    / "uksi_synonym_corrections.csv"
+# The suite's corrections list sits in the repo's scripts folder, found from this file (the
+# data root, which paths.SCRIPTS_DIR hangs off, is not where the code is); paths.SCRIPTS_DIR
+# only if it is not there.
+SUITE_CORRECTIONS = Path(__file__).resolve().parent.parent / "scripts" / "uksi_synonym_corrections.csv"
+if not SUITE_CORRECTIONS.exists():
+    SUITE_CORRECTIONS = Path(getattr(config.paths, "SCRIPTS_DIR", config.DATA_DIR.parent / "scripts")) \
+        / "uksi_synonym_corrections.csv"
 USER_FILE_HEADER = """\
 # Lector synonym list -- your corrections to UKSI's synonyms (see Lector/synonyms.py).
 # One change per line. The species after '@' can be a name or a TVK; text after '|'
@@ -100,9 +105,16 @@ class SynonymRules:
         return self
 
     def excluded(self, name, accepted_name, tvk):
+        """The '-' rule that holds this name back, if any. A '-' from the suite corrections
+        list never beats the user's own '+' line for the same name (Q95, 24 Oct 2026)."""
+        key = plain(name).lower()
+        user_added = any(r.sign == "+" and r.source == "your list" and plain(r.name).lower() == key
+                         and r.applies_to(accepted_name, tvk) for r in self.rules)
         for r in self.rules:
-            if r.sign == "-" and plain(r.name).lower() == plain(name).lower() \
+            if r.sign == "-" and plain(r.name).lower() == key \
                     and r.applies_to(accepted_name, tvk):
+                if user_added and r.source != "your list":
+                    continue
                 return r
         return None
 

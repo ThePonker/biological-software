@@ -1,6 +1,6 @@
 # Current State
 
-## 12 October 2026 (after Round 8 and the outstanding tests)
+## 24 October 2026 (docs refresh after Round 11; code at `ed71524`). Figures marked "as of" were not re-measured
 ## The only home for these figures. If a number appears elsewhere, it is a copy
 ## and it will drift. Session history is in `02b_History.md` (split out 12 Oct).
 
@@ -10,11 +10,11 @@
 
 | Component | State |
 |---|---|
-| **Observatum** | Active. Since 10 Oct: species-counting switches everywhere (Settings › Species counting; excluded rows dimmed, "Show only excluded"); Cleaning Report (Stats/Reports); Recording Scheme records read-only; Home cards Personal, Commercial, All, Scheme & Collection (Achievements card gone); Open in iRecord in record details and the Mapping square list; Species lookup "View N scheme records"; Edit Specimen "Field record" box; laptop sizes (dialogs fit 1280×720 and scroll with their buttons kept on screen; the window narrows to about 1,100 px). **Startup "window early, rest behind"** (§1a). Mapping: VC labels, VC boundaries (each border once), Local authority districts switch (2013 ONS for now), Square opacity slider, County view, Current-view atlas PNG. |
-| **Data Entry** | In production. Commits 2 Oct (Birmingham 172) and 8 Oct (1,136 records, five jobs). Count mode (F9) and repeat key (Ctrl+R) built 9 Oct. **Check before commit (B8) passed Wil's test 12 Oct.** A count of 0 is pink and blocks that row's commit; conservation chips read S.41 / SBL / S7 / Protected; "Showing: entry order" / "sorted by … (view only)" with Back to entry order; the banner cards narrow to fit the window. At 1280×720 the grid shows about 7 rows (compact banner agreed, Q54). |
+| **Observatum** | Active. Since 10 Oct: species-counting switches everywhere (Settings › Species counting; excluded rows dimmed, "Show only excluded"); Cleaning Report (Stats/Reports); Recording Scheme records read-only; Home cards Personal, Commercial, All, Scheme & Collection (Achievements card gone); Open in iRecord in record details and the Mapping square list; Species lookup "View N scheme records"; Edit Specimen "Field record" box; laptop sizes (dialogs fit 1280×720 and scroll with their buttons kept on screen; the window narrows to about 1,100 px). **Startup "window early, rest behind"** (§1a). Mapping: VC labels, VC boundaries (each border once), Local authority districts switch (OS Boundary-Line layer files since Round 8), Square opacity slider, County view, Current-view atlas PNG. **Map background layers (Rounds 8–11, built, Wil's checks and commit still to do):** land and districts from layer files, `Layers ▾` with remembered colours, panning by a saved picture, 40× zoom, and context layers off by default (place names, railways, national parks, foreshore, parks and green space, relief from OS Terrain 50). **Away mode (Round 9, built, not yet tested by Wil):** a read-only copy of the databases for his laptop (`01`). Dates show dd/mm/yyyy everywhere; green ticks come from one place (`shared/tick_style.py`). |
+| **Data Entry** | In production. Commits 2 Oct (Birmingham 172) and 8 Oct (1,136 records, five jobs). Count mode (F9) and repeat key (Ctrl+R) built 9 Oct. **Check before commit (B8) passed Wil's test 12 Oct.** A count of 0 is pink and blocks that row's commit; conservation chips read S.41 / SBL / S7 / Protected; "Showing: entry order" / "sorted by … (view only)" with Back to entry order; the banner cards narrow to fit the window. At 1280×720 the grid shows about 7 rows (compact banner agreed, Q54). **Rounds 7–8 (16–17 Oct, built; Wil's tests pending):** Check mark ("to check", Ctrl+T), "To check only", Export for checking, Read back checking, Last entered row, Test copy of a job (`09`). |
 | **Examen** | Reproduces an issued report's SQI exactly (Glory Park, 117). Reads `assessment_records`, so contributed records count. Excel, PDF and Word reports; compartments (E6), saproxylic SQI + IEC (E7), taxonomic summary (E8b). **PDF passed Wil's review 12 Oct (E3)**; style changes wait for the report-contents work. "1 sp." singular. Fits a laptop screen (minimum 1000×560, toolbar scrolls sideways). |
 | **Codex** | Rebuilt 9 October (D5) on **JNCC June 2026** and **UKSI July 2025**. **63 reviews** (35 status reviews + 28 atlases, accounts only), 6,566 review accounts. Known stale status: *Philanthus triangulum* still carries RDB2 (12 Oct). |
-| **UKSI** | NHM July 2025 release since 6 Oct; the December 2023 file kept as `uksi_2023.db`. Synonym fix applied 9 Oct (98,415 → 98,013). |
+| **UKSI** | NHM July 2025 release since 6 Oct; the December 2023 file kept as `uksi_2023.db`. Synonym fix applied 9 Oct (98,415 → 98,013); synonym count in §2 below. |
 | **Contributed records** | `contributed_observations`, **917 records** from J. Moore: Birmingham 162, Slade Green 339, Sundon 256 (11 Oct), **Bristol 160** (15 Oct). Read-only Contributed tab. On Mapping only when chosen. |
 | **Insect Collection** | 2,745 specimens. Field record links: the Edit Specimen box, link / unlink scripts and `specimens.no_field_record_checked` (added on the PC 11 Oct). Read-only breakdown of specimens with no field record (§2). |
 | **Curator** | Working. Genus-only specimens get their own "<Genus> sp." row (Leiopus 3 = *L. nebulosus* 2 + Leiopus sp. 1). Does not write curatorial fields. |
@@ -34,15 +34,17 @@ Scheme records, Stats/Reports, Mapping, Settings, then the species-search index,
 moves to the front of the queue. `run.bat --timing` prints the phases and every GUI pause over
 100 ms with where it happened.
 
+Timings below are **as of 12 Oct, before Rounds 9–11 (map layers, away mode); not re-measured.**
+
 | PC, `run.bat --timing` | Round 5 (11 Oct) | Round 6 (12 Oct) | **Round 8 (12 Oct 15:41)** |
 |---|---:|---:|---:|
 | Window shown | 14.7 s | 5.75 s | **5.72 s** |
 | Everything ready | 15.3 s | 16.33 s | **12.05 s** |
 | Longest GUI pause | — | 1,231 ms | **106 ms** (stats order grid build) |
 
-**Automated tests (13 Oct):** on the PC, `py -3.14 -m pytest tests -q -n 6` (pytest-xdist,
+**Automated tests (as of 13 Oct; not re-run on the PC since):** on the PC, `py -3.14 -m pytest tests -q -n 6` (pytest-xdist,
 installed 13 Oct): 1,366 passed, 3 skipped in 1 min 55 s at `19e4a1c` (one process: 7 min 43 s).
-Task 4 added 2 tests (`test_species_lookup_list.py`). The test-order failures are cured: offscreen
+Task 4 added 2 tests (`test_species_lookup_list.py`). On 24 Oct, in the cloud workspace (not the PC): 1,659 collected, 1,593 passed. The test-order failures are cured: offscreen
 Qt on Windows had no fonts, so the 1280 px layout tests passed only when an earlier test had
 started Qt with real fonts; `tests/conftest.py` now sets `QT_QPA_FONTDIR` (backlog small fix 9).
 
@@ -148,17 +150,17 @@ current TVKs through the bridge. The other 10 are treated as ordinary S41
 
 | | |
 |---|---:|
-| Observations | **24,962** (measured 10 Oct on the 9 Oct copy). Counted with the default switches on the PC, 12 Oct: **24,827 records, 3,163 species** (Personal 19,043 + Commercial 5,784; Home's All card matches Observation Data) |
+| Observations | **24,962** (as of 10/12 Oct; the 24 Oct snapshot shows 25,009; measured 10 Oct on the 9 Oct copy). Counted with the default switches on the PC, 12 Oct: **24,827 records, 3,163 species** (Personal 19,043 + Commercial 5,784; Home's All card matches Observation Data) |
 | Changed on the PC 14 Oct | **25,008** observations after the 14 Oct sync check. **2,719** records given new Observatum keys (F82; 0 repeated after). Columns added: `observations.local_edited_at` (A2), `photo_links` table with `staging_id` (bench photos). 30 specimen photos renamed to the standard (`… gen 16.iv.19`) |
 | Changed on the PC 11 Oct | *Melanotus* 10 records to the click-beetle genus (F43); 16 records off TVKs not in UKSI (28 left with no match, Q61); 39 iRecord-format sort keys recomputed (10/11 Oct) |
-| Recording Scheme | **110,510**; 35,104 with an iRecord ID (restored 9 Oct, F40); taxon groups backfilled 10 Oct (75,406 rows). **11 Oct:** 11,149 records from 18 padding datasets moved from exact 1 January dates to year-only (`fix_jan1_dates_20261011.py`; the January bar 11,648 → 499); 39 "unclear" iRecord-longhorn and 173 small-dataset 1 January dates left for the final dataset (Q57/58). Counted with the default switches: 108,577 records, 82 species (12 Oct) |
+| Recording Scheme | **110,510** (as of 12 Oct, before the F53 duplicate marks; the PC run brought it to 76,389 on 14 Oct, F53 closed); 35,104 with an iRecord ID (restored 9 Oct, F40); taxon groups backfilled 10 Oct (75,406 rows). **11 Oct:** 11,149 records from 18 padding datasets moved from exact 1 January dates to year-only (`fix_jan1_dates_20261011.py`; the January bar 11,648 → 499); 39 "unclear" iRecord-longhorn and 173 small-dataset 1 January dates left for the final dataset (Q57/58). Counted with the default switches: 108,577 records, 82 species (12 Oct) |
 | On TVKs not in UKSI July 2025 | 28 records left after the 11 Oct remap (*Astur gentilis*, redpolls, *Collybia*, *Cnephaeus*, the earwig agg.); waiting for the next UKSI (Q61) |
 | Contributed observations | **917** (J. Moore: Birmingham – Wheels Park 162, Slade Green 339, Sundon 256 on 11 Oct, Bristol 160 on 15 Oct) |
 | Vice-county filled | 4,169 backfilled 26 September; 0 missing where a grid ref exists |
 | species_profiles (your own) | **141** -- 70 Kent Deadwood, 71 from seven other reports (6 Oct), keyed on TVK |
 | Remapped to current TVKs, 6 Oct | 12 observations, 1 specimen, 1 own profile (`remap_record_tvks.py`) |
 
-### Specimens — measured 26 September; links 11 Oct
+### Specimens — measured 26 September (as of that date); links 11 Oct
 
 **Specimens with no field record** (`scripts/report_specimens_without_records.py`, read only,
 PC 11 Oct): 863 of Wil's, complete, would make **794 new records**; **506 near misses** to link
@@ -177,13 +179,13 @@ about 1,115 (dry run 11 Oct).
 
 | Database | |
 |---|---|
-| uksi.db | **July 2025 release.** taxa 113,291 (113,258 current + 33 kept: 9 your data uses, 24 beetles kept at your request); synonyms 98,415; common_names 23,171; designations 40,551; plus `name_map` 335,060, `tvk_remap` 13,569, `taxon_qualifiers`. JNCC TVKs unknown to it: 66 of 15,211. |
+| uksi.db | **July 2025 release.** taxa 113,291 (113,258 current + 33 kept: 9 your data uses, 24 beetles kept at your request); synonyms 98,013 (after the 9 Oct synonym fix; 98,415 before it); common_names 23,171; designations 40,551; plus `name_map` 335,060, `tvk_remap` 13,569, `taxon_qualifiers`. JNCC TVKs unknown to it: 66 of 15,211. |
 | uksi_2023.db | The December 2023 file, kept beside it: 122,435 taxa. |
 | pantheon.db | 14,229 species, frozen at 2017 v3.7.4. 11,311 SQS scores on 0, 1, 4, 8, 16, 32. Holds Pantheon's biotope→habitat tree in `habitat_traits`. |
 | vc_lookup.db, examen.db, munia.db, gamification.db | unchanged |
-| lector.db | Schema v3 (Round 8). On the PC, 12 Oct: 3 saved searches -- *Emus hirtus* (499 pages, most without text), *Rutpela maculata* (50), *Lamia textor* (160 pages before filters; Run 4 with "British periodicals": 87 kept of 1,104 found). Updated with backups (`data\_backups\lector_pre_v2_*`, `lector_pre_v3_*`). |
+| lector.db | Schema v3 (Round 8). On the PC, as of 12 Oct: 3 saved searches -- *Emus hirtus* (499 pages, most without text), *Rutpela maculata* (50), *Lamia textor* (160 pages before filters; Run 4 with "British periodicals": 87 kept of 1,104 found). Updated with backups (`data\_backups\lector_pre_v2_*`, `lector_pre_v3_*`). |
 | vc_splits.db | 14,455 boundary 1 km squares and 42 squares with no VC (9 Oct, F29) |
-| data/maps | `vc_brc_wgs84.geojson`: rebuilt on the PC 13 Oct from `vc_brc.shp` (112 VCs, 15.0 MB; the old coarse 2 MB file kept as `vc_brc_wgs84_before_20261013_195800.geojson`); `gb_outline.json` on the PC = 2013 ONS districts (380), no build script |
+| data/maps | `vc_brc_wgs84.geojson`: rebuilt on the PC 13 Oct from `vc_brc.shp` (112 VCs, 15.0 MB; the old coarse 2 MB file kept as `vc_brc_wgs84_before_20261013_195800.geojson`); `gb_outline.json` (2013 ONS districts, 380) is superseded by the layer files. **`data/maps/layers/`** (built by `scripts/build_map_layers.py` from OS Boundary-Line, Zoomstack and the context layers; `--describe` lists them) and `relief_gb.png` / `relief_gb.json` (`scripts/build_map_relief.py`, OS Terrain 50). Built on the PC 19 Oct: `names_county` 40,284 names; `greenspace_county` 8.9 MB; relief 2,858 tiles, 2640×4920 cells. Layer files are git-ignored (`01`) |
 
 ---
 

@@ -22,3 +22,18 @@ def connect_ro(path, **kwargs) -> sqlite3.Connection:
     """
     uri = Path(path).resolve().as_uri() + "?mode=ro"
     return sqlite3.connect(uri, uri=True, **kwargs)
+
+
+class AwayReadOnly(sqlite3.OperationalError):
+    """Raised by connect_rw on the away laptop: its data is a read-only copy (24 Oct 2026)."""
+
+
+def connect_rw(path, **kwargs) -> sqlite3.Connection:
+    """A read-write connection, refused in away mode (the laptop's copy is read-only and is
+    replaced at the next refresh, so a write there would look saved and then vanish).
+    Use it for every direct write outside DatabaseManager."""
+    from shared.away_mode import away_active
+    if away_active():
+        raise AwayReadOnly("Away mode: this is a read-only copy -- nothing can be saved here. "
+                           "Make the change on the desktop.")
+    return sqlite3.connect(str(path), **kwargs)

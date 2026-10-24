@@ -169,11 +169,13 @@ def place(name, tvk, review, folders, uksi):
 
 
 def free_name(folder, fname, taken):
+    """The next free ' 2' style name in `folder` (one numbering rule: shared.photo_files);
+    a name is taken when any planned file there has that stem, whatever its extension."""
+    from shared.photo_files import free_stem
     stem, ext = os.path.splitext(fname)
-    n = 2
-    while posixpath.join(folder, f"{stem} ({n}){ext}").casefold() in taken:
-        n += 1
-    return f"{stem} ({n}){ext}"
+    here = folder.casefold()
+    stems = {os.path.splitext(posixpath.basename(t))[0] for t in taken if posixpath.dirname(t) == here}
+    return f"{free_stem(stem, stems)}{ext}"
 
 
 def plan(rows, uksi):

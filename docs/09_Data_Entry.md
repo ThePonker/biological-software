@@ -1,7 +1,7 @@
 # Data Entry
 
 ## The recording grid
-## Updated 12 October 2026 (§5 banner, §8 built since, §9 constraints)
+## Updated 24 October 2026 (§7b personal jobs, §8a Rounds 7–8, §9 constraints)
 ## Consolidates `26_Data_Entry_Design.md` (the design) and
 ## `27_Data_Entry_State.md` (what was built). The research behind it is in
 ## `25_Data_Entry_Research.md`, which remains worth reading.
@@ -16,8 +16,8 @@ A fast, keyboard-driven observation-entry grid writing directly to
 Built as `DataEntry/` — a self-contained package of 23 modules, embedded by
 Observatum as a tab and openable standalone via `launchers/run_entry.bat`.
 
-**In production.** 13 jobs, 12 active, ~2,373 staged rows, nothing yet committed
-to `observations`.
+**In production.** Commits so far: 2 Oct (Birmingham 172) and 8 Oct (1,136 records, five jobs); current figures
+in `02` §1. (The job and staged-row counts once given here, 13 jobs and ~2,373 rows, were as of September and are gone.)
 
 It captures **observations only**, Personal and Commercial. Specimens go through
 the Insect Collection tab. Conservation and taxonomy are shown read-only as a
@@ -152,7 +152,7 @@ conservation chips read S.41 / SBL / S7 / Protected, with the full label on hove
 into "+n" when they don't fit. Standalone Data Entry opens fitted to the screen (Round 5).
 
 **Short screens.** At 1280×720 (a laptop at 150 %) the grid shows about 7 rows. Decided
-12 Oct (Q54): a toggle that folds the cards to one line. In the small-fixes round.
+12 Oct (Q54): a toggle that folds the cards to one line. Not started (24 Oct).
 
 ---
 
@@ -161,7 +161,7 @@ into "+n" when they don't fit. Standalone Data Entry opens fitted to the screen 
 | Layer | Covers | When |
 |---|---|---|
 | WAL + `synchronous=FULL`, per-edit commit | every keystroke | continuous |
-| `staging_backup.csv` (+prev) | all staging jobs | job close, 15-min timer, commit, app close |
+| `staging_backup.csv` (+prev) | all staging jobs | job close, 15-min timer (**never started**, `06` F100), commit, app close |
 | `observations_backup.csv` (+prev) | observations | after commit (connected 9 Oct 2026 — it never ran before) |
 | `backup_service` pre-commit | whole database | before every commit — **blocks the commit if it fails** |
 
@@ -223,7 +223,13 @@ iRecord export -- by the **exact** Project and Client strings. So:
 - **Comments** typed in the grid are written on commit from 8 October; before that
   they were dropped (fault F31).
 
-## 7b. Personal jobs go to iRecord (9 Oct 2026)
+## 7b. Personal jobs go to iRecord (9 Oct 2026; changed by A3, 14 Oct)
+
+**Now (A3, 14 Oct):** a personal job just **Commits**, like a commercial one. Records go to iRecord in
+bulk from Observatum's export (with the Observatum key as External key) and the iRecord sync pairs them
+back by key. Data Entry's own iRecord export half is removed: `_do_irecord_export` has no caller. **Check
+iRecord return** is kept for old jobs still awaiting. What follows is the 9 Oct flow, which those old jobs
+used.
 
 Personal records are iRecord-first, so a Personal job has no Commit. Its button is
 **Export for iRecord**: a CSV in iRecord's import layout — Species, TVK (only when it is a
@@ -262,6 +268,21 @@ staged); otherwise the missing rows are listed. Commercial jobs commit as before
   projects, with the hint "New projects start in Data Entry" (decision 7). *12 Oct:* its
   popup is see-through (fault F50, small-fixes round).
 
+## 8a. Rounds 7–8 (16–17 Oct), built, Wil's tests pending
+
+- **Check mark** (Round 7): a row can be marked "to check" (Ctrl+T); **To check only** limits the grid to the marked rows.
+- **Export for checking** (Round 7): the export carries a hidden `_rows` sheet, a `refs.json` and a "Row id"
+  column.
+- **Read back checking** (Round 8; `DataEntry/check_readback.py`, `check_readback_dialog.py`): reads a checked export back
+  into the job (the ids above are what it relies on).
+- **Last entered row** (Round 7).
+- **Test copy of a job** (Round 8; `scripts/copy_job_for_test.py`): a copy of a job for testing. A test copy
+  is refused at commit, at iRecord export, in Edit details and by the grid's Commit button. Discard the test
+  job when done.
+- Also Round 7: green ticks (`shared/tick_style.py`) and dd/mm/yyyy display (`shared/display_format.dmy`).
+  `parse_display_date` still accepts US mm/dd/yyyy (`06` F97).
+- **Away mode** (Round 9): Data Entry refuses to open on an away machine (`01` §4f).
+
 ## 9. Known constraints
 
 **Pasted names that can't be matched** stay as text with no TVK; Check before commit lists
@@ -273,9 +294,10 @@ the wrong database if the distinction is forgotten.
 **Row insert below the new-row marker does not work** (B5). Committed, incomplete,
 there is a workaround.
 
-**Personal records are never committed from staging.** The established path is
-spreadsheet → iRecord → Observatum; a Personal job is exported for iRecord and checked
-back instead (§7b), so the sync-back cannot duplicate it.
+**Personal jobs are committed from staging** (A3, 14 Oct, §7b). A personal record gets its
+Observatum key at commit; the bulk export from Observatum carries it as the External key and the
+sync pairs by key, so the sync-back does not duplicate it. Only old jobs still awaiting iRecord use
+"Check iRecord return".
 
 ---
 

@@ -70,7 +70,7 @@ def test_specimen_of_embargoed_excluded_observation_held_back(settings, tmp_path
 
 
 @needs_data
-def test_phenology_month_dialog_lists_what_the_bar_counts(settings):
+def test_phenology_month_dialog_lists_what_the_bar_counts(settings, live_copy):
     """2. Species lookup: clicking a phenology month lists the records the bar counts. The
     bar follows the counting switches; the dialog did not (Leiopus, default switches: June
     and July bars 3 records short of their dialogs; with scheme agg/genus left out, 225 vs
@@ -81,7 +81,7 @@ def test_phenology_month_dialog_lists_what_the_bar_counts(settings):
     from src.views.stats.species_dashboard import SpeciesDashboard
     db = get_database()
     old = (db._main_db_path, db._uksi_db_path)
-    db.set_main_path(str(paths.OBSERVATUM_DB))
+    db.set_main_path(str(live_copy))
     db.set_uksi_path(str(paths.UKSI_DB))
     try:
         d = SpeciesDashboard.__new__(SpeciesDashboard)

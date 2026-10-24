@@ -33,9 +33,10 @@ for _p in (ROOT, os.path.join(ROOT, "Observatum")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-DATA = os.path.join(ROOT, "data")
-UKSI_DB = os.path.join(DATA, "uksi.db")
-OBS_DB = os.path.join(DATA, "observatum.db")
+import paths  # noqa: E402  (BIOSOFT_ROOT / the data folder; the same files the tests' skip guards check)
+
+UKSI_DB = str(paths.UKSI_DB)
+OBS_DB = str(paths.OBSERVATUM_DB)
 GOLDEN = os.path.join(ROOT, "tests", "golden", "species_lookup_golden.json")  # not tests/data: git ignores data/
 
 # Names that exercise the awkward paths, whatever the databases hold.

@@ -68,6 +68,11 @@ def window(qapp, monkeypatch, metrics_font):
     monkeypatch.setattr(SettingsTab, "initialize", lambda self: None)
     # closing the real window backs up the databases: not from a test
     monkeypatch.setattr(mw.MainWindow, "closeEvent", lambda self, e: e.accept())
+    # a message box would wait for a click that never comes (24 Oct 2026: the scheme tab's
+    # load error hung this test for 10 minutes); this test only measures widths
+    from PySide6.QtWidgets import QMessageBox
+    for name in ("warning", "information", "critical", "question"):
+        monkeypatch.setattr(QMessageBox, name, staticmethod(lambda *a, **k: QMessageBox.StandardButton.Ok))
     w = mw.MainWindow()
     for name in ("stats_reports_tab", "mapping_tab", "settings_tab"):
         w.ensure_tab(name)

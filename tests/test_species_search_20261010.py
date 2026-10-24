@@ -113,6 +113,7 @@ def test_tvk_for_name(idx):
     assert idx.tvk_for_name("No such beast") is None
 
 
+@pytest.mark.speed
 def test_speed(idx):
     """Under 100 ms a keystroke on the full UKSI (measured here 1-60 ms; build ~1.4 s)."""
     worst = 0.0

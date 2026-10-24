@@ -209,9 +209,14 @@ class ObservationExportMixin:
 
             note = ""
             if use_irecord and not file_path.endswith('.xlsx') and stamped is None:
-                note = ("\n\nObservatum could not note these records as exported, so a second "
-                        "export before the next sync would include them again. Run once "
-                        "(Observatum closed):\npy -3.14 scripts\\add_irecord_exported_column.py --apply")
+                from shared.away_mode import away_active
+                if away_active():
+                    note = ("\n\nAway mode: this copy is read-only, so these records were not "
+                            "noted as exported. Export from the desktop to note them.")
+                else:
+                    note = ("\n\nObservatum could not note these records as exported, so a second "
+                            "export before the next sync would include them again. Run once "
+                            "(Observatum closed):\npy -3.14 scripts\\add_irecord_exported_column.py --apply")
             QMessageBox.information(
                 self,
                 "Export Complete",
@@ -273,11 +278,12 @@ class ObservationExportMixin:
         column is missing or the write failed."""
         import sqlite3
         from shared import irecord_exported
+        from shared.db_open import connect_rw
         path = self._main_db_path()
         if not path:
             return None
         try:
-            conn = sqlite3.connect(path)
+            conn = connect_rw(path)             # refused in away mode (AwayReadOnly, an sqlite3.Error)
             try:
                 if not irecord_exported.has_column(conn):
                     return None

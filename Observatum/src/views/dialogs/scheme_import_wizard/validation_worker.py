@@ -967,7 +967,7 @@ class SchemeValidationWorker(QThread):
             # Fallback: resolve vc_number from pipe-separated vice_county text
             if not validated_row.vc_number and validated_row.vice_county:
                 try:
-                    from ...core.vc_shortnames import VC_FULL_NAMES
+                    from ....core.vc_shortnames import VC_FULL_NAMES
                     _name_to_num = {v.lower().strip(): int(k) for k, v in VC_FULL_NAMES.items() if k.isdigit()}
                     first_vc = validated_row.vice_county.split("|")[0].strip().lower()
                     resolved = _name_to_num.get(first_vc)

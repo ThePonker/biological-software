@@ -827,7 +827,14 @@ class AddSpecimenDialog(QDialog):
             QMessageBox.warning(self, "Missing Grid Ref", "Please enter a grid reference.")
             self.gridref_edit.setFocus()
             return
-        
+
+        from src.utils.date_utils import unreadable_full_date
+        if unreadable_full_date(self.date_edit.text()):
+            QMessageBox.warning(self, "Date not understood",
+                                "That is not a real date. Type it day first, e.g. 13/06/2024.")
+            self.date_edit.setFocus()
+            return
+
         self.accept()
     
     def _add_taxonomy_keys(self, data: Dict[str, Any]):

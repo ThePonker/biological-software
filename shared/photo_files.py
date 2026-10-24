@@ -181,6 +181,7 @@ def move_for_redet(conn, photo_paths: Iterable[str], old_species: str, new_speci
     """Move and rename a re-determined record's photos (see the module note). `specimen_ids` /
     `observation_ids`: the record's own ids -- a link to anything else means 'shared'.
     Each moved photo's links are committed on `conn` as soon as it has moved."""
+    refuse_if_away()
     log_path = log_path or new_log_path()
     res = RedetResult()
     old, new = folder_name(old_species), folder_name(new_species)
@@ -263,18 +264,57 @@ def specimen_folder_for(species: str, family: str = "", order: str = "",
     return root / "_New species" / name / SPECIMEN
 
 
+AWAY_MSG = ("Away mode: photos can't be moved on the laptop (they are the live library). "
+            "Do it on the desktop.")
+
+
+def refuse_if_away() -> None:
+    """Photos are the live OneDrive library: no move on the away laptop (24 Oct 2026)."""
+    from shared.away_mode import away_active
+    if away_active():
+        raise OSError(AWAY_MSG)
+
+
+def free_stem(stem: str, taken_stems) -> str:
+    """stem, or 'stem 2', 'stem 3'... -- the first whose lower-cased form is not in taken_stems
+    (a set of lower-cased stems). The one numbering rule, for real folders and for plans."""
+    if stem.casefold() not in taken_stems:
+        return stem
+    n = 2
+    while f"{stem} {n}".casefold() in taken_stems:
+        n += 1
+    return f"{stem} {n}"
+
+
 def free_path(folder: Path, stem: str, ext: str) -> Path:
-    """folder/stem.ext, or 'stem 2.ext', 'stem 3.ext'... -- the first not taken."""
-    p, n = folder / f"{stem}{ext}", 2
-    while p.exists():
-        p, n = folder / f"{stem} {n}{ext}", n + 1
-    return p
+    """folder/stem.ext, or 'stem 2.ext', 'stem 3.ext'... -- the first not taken. A name is
+    taken when ANY file in the folder has that stem, whatever its extension (a .jpg and a .tif
+    of one view are two pictures, numbered separately: Wil, 24 Oct 2026)."""
+    taken = set()
+    try:
+        with os.scandir(str(folder)) as it:
+            for e in it:
+                taken.add(os.path.splitext(e.name)[0].casefold())
+    except OSError:
+        pass
+    return folder / f"{free_stem(stem, taken)}{ext}"
+
+
+def strip_bench_number(stem: str) -> str:
+    """Drop one trailing ' <digits>' word (the _Bench number) so the photo is numbered afresh in
+    its destination: 'Maro lepidus male 19.x.26 2' -> 'Maro lepidus male 19.x.26'. Only a
+    separate all-digit last word; a date such as '19.x.26' is never touched."""
+    head, sep, last = stem.rpartition(" ")
+    if sep and head and last.isdigit():
+        return head
+    return stem
 
 
 def move_photo(conn, src: Path, dst: Path, log_path=None) -> str:
     """Move one photo (os.rename: never a copy, never over another file), log it, and point
     any links at its new place (committed at once). Returns the new stored path; raises
     OSError / FileExistsError with nothing changed if it cannot."""
+    refuse_if_away()
     src, dst = Path(src), Path(dst)
     if dst.exists():
         raise FileExistsError(f"{dst.name} is already there")
@@ -326,9 +366,10 @@ def follow_redet(db, kind: str, record_id: int, old_species: str, new_species: s
     try:
         if folder_name(old_species).casefold() == folder_name(new_species).casefold():
             return None
-        import sqlite3
+        refuse_if_away()
+        from shared.db_open import connect_rw
         path = str(getattr(db, "main_db_path", None) or getattr(db, "_main_db_path", None) or db)
-        conn = sqlite3.connect(path)
+        conn = connect_rw(path)
         try:
             if not pl.has_table(conn):
                 return None
@@ -400,5 +441,5 @@ def species_now(db, kind: str, record_id: int) -> str:
 
 
 __all__ = ["add_listener", "follow_redet", "species_now", "new_log_path", "SPECIMEN",
-           "specimen_folder_for", "free_path", "move_photo", "media_root", "life_root", "folder_name", "rel", "absolute", "refresh",
+           "specimen_folder_for", "free_path", "free_stem", "refuse_if_away", "strip_bench_number", "move_photo", "media_root", "life_root", "folder_name", "rel", "absolute", "refresh",
            "species_folders", "species_photos", "RedetResult", "move_for_redet"]

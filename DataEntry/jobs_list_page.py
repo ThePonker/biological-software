@@ -420,9 +420,25 @@ class JobsListPage(QWidget):
                                  "Delete job")
         if after is None:
             return
+        if not self._backup_main("pre-delete-job"):
+            return
         repo.delete_job(self._conn, job_id)
         after()
         self.refresh()
+
+    def _backup_main(self, label: str) -> bool:
+        """A kept backup of observatum.db before staging rows are deleted (R12 M4). False = stop:
+        the user has been told nothing was deleted."""
+        try:
+            from shared.backup_service import backup_main_only
+            ok = backup_main_only(label)
+        except Exception as e:
+            print(f"[DataEntry] {label} backup unavailable: {e}")
+            ok = False
+        if not ok:
+            QMessageBox.critical(self, "Delete job", "The backup of observatum.db before deleting "
+                                 "failed, so nothing has been deleted.")
+        return ok
 
     def _safety_copy(self) -> bool:
         """Staging CSV before a delete (DE8). False = stop (the copy failed, Wil said no)."""

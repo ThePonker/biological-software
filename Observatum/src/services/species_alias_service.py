@@ -51,23 +51,31 @@ class SpeciesAliasService:
         self._db_path = db_path
         self._ensure_table_exists()
     
-    def _get_connection(self) -> Optional[sqlite3.Connection]:
-        """Get a database connection."""
+    def _get_connection(self, write: bool = True) -> Optional[sqlite3.Connection]:
+        """Get a database connection. Writes are refused in away mode
+        (shared.db_open.AwayReadOnly); reads open the file read-only."""
+        from shared.db_open import connect_ro, connect_rw
+        opener = connect_rw if write else connect_ro
         if self._db:
             # Use db manager's main database
             if hasattr(self._db, 'main_db_path') and self._db.main_db_path:
-                return sqlite3.connect(str(self._db.main_db_path))
+                return opener(str(self._db.main_db_path))
             elif hasattr(self._db, '_main_path') and self._db._main_path:
-                return sqlite3.connect(str(self._db._main_path))
+                return opener(str(self._db._main_path))
         
         if self._db_path:
-            return sqlite3.connect(self._db_path)
+            return opener(self._db_path)
         
         return None
     
     def _ensure_table_exists(self):
-        """Create the species_aliases table if it doesn't exist."""
-        conn = self._get_connection()
+        """Create the species_aliases table if it doesn't exist (not possible on the away
+        laptop's read-only copy: the table is there already)."""
+        from shared.db_open import AwayReadOnly
+        try:
+            conn = self._get_connection()
+        except AwayReadOnly:
+            return
         if not conn:
             return
         
@@ -106,7 +114,7 @@ class SpeciesAliasService:
             Tuple of (uksi_name, tvk, common_name, order, family, subfamily) 
             or None if not found
         """
-        conn = self._get_connection()
+        conn = self._get_connection(write=False)
         if not conn:
             return None
         
@@ -199,7 +207,7 @@ class SpeciesAliasService:
         Returns:
             List of alias dictionaries
         """
-        conn = self._get_connection()
+        conn = self._get_connection(write=False)
         if not conn:
             return []
         
@@ -231,7 +239,7 @@ class SpeciesAliasService:
     
     def get_alias_count(self) -> int:
         """Get the total number of aliases."""
-        conn = self._get_connection()
+        conn = self._get_connection(write=False)
         if not conn:
             return 0
         

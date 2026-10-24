@@ -1,6 +1,6 @@
-"""Layers > Colours...: one colour per background layer switch (Woodland, Towns, Rivers and
-lakes, Main roads), remembered (QSettings mapping/layers/<key>/colour; layers.py). The map, the
-atlas pages and the batch maps all draw with them. "Reset colours" goes back to the theme's."""
+"""Layers > Colours...: one colour per background layer switch that has one to choose (all but
+Relief, which is grey), remembered (QSettings mapping/layers/<key>/colour; layers.py). The map,
+the atlas pages and the batch maps all draw with them. "Reset colours" goes back to the theme's."""
 from PySide6.QtCore import Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (QColorDialog, QDialog, QGridLayout, QHBoxLayout, QLabel,
@@ -28,7 +28,7 @@ class LayerColoursDialog(QDialog):
         lay.addWidget(note)
         grid = QGridLayout()
         self.swatches = {}
-        for i, tg in enumerate(layers.TOGGLES):
+        for i, tg in enumerate(t for t in layers.TOGGLES if t.colour):
             lab = QLabel(tg.label)
             lab.setStyleSheet(f"color: {t.get('text_heading')}; font-size: 12px;")
             grid.addWidget(lab, i, 0)

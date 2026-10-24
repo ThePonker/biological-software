@@ -94,8 +94,7 @@ def parse_display_date(display_date: str) -> Optional[str]:
     
     Handles multiple input formats:
         - "15 June 2024" or "15 Jun 2024"
-        - "15/06/2024" or "15-06-2024"
-        - "06/15/2024" (US format)
+        - "15/06/2024" or "15-06-2024" (day first; US month-first is not accepted)
         - "2024-06-15" (already ISO)
         
     Args:
@@ -117,12 +116,17 @@ def parse_display_date(display_date: str) -> Optional[str]:
         except ValueError:
             pass
     
-    # Try various formats
-    formats = [
+    # Try various formats: the format chosen in Settings first, so a user who chose
+    # mm/dd/yyyy can still save the date the dialog shows (review 24 Oct 2026); otherwise a
+    # month-first date is never guessed
+    try:
+        chosen = [get_user_date_format()]
+    except Exception:
+        chosen = []
+    formats = chosen + [
         "%d %B %Y",    # 15 June 2024
         "%d %b %Y",    # 15 Jun 2024
         "%d/%m/%Y",    # 15/06/2024 (UK)
-        "%m/%d/%Y",    # 06/15/2024 (US)
         "%d-%m-%Y",    # 15-06-2024
         "%Y-%m-%d",    # 2024-06-15
     ]
@@ -135,6 +139,16 @@ def parse_display_date(display_date: str) -> Optional[str]:
             continue
     
     return None
+
+
+def unreadable_full_date(text: str) -> bool:
+    """True for a full day/month/year in figures that is not a real date in the user's format
+    or dd/mm/yyyy -- e.g. '06/13/2024' with dd/mm/yyyy chosen. The edit dialogs refuse to save
+    it rather than store the text as typed (review 24 Oct 2026). Vague dates ('2024',
+    'June 2024') are not this, and are left to the dialogs as before."""
+    import re
+    t = (text or "").strip()
+    return bool(re.fullmatch(r"\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}", t)) and parse_display_date(t) is None
 
 
 def get_date_for_db(display_date: str) -> str:

@@ -39,10 +39,10 @@ SQS scoring rules (derived from Pantheon documentation):
 If a species qualifies under multiple tracks, we take the HIGHEST derived
 SQS (not a sum) -- same approach as Pantheon's own scoring.
 
-Usage: python scripts/seed_codex.py
+Usage: python scripts/seed_codex.py            # dry run: reports what it would do, writes nothing
+       python scripts/seed_codex.py --apply    # backup of codex.db, then write
 """
 
-import sqlite3
 import os
 import sys
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.parent))
@@ -92,16 +92,31 @@ SQS_DEFAULTS = {
 
 
 def main():
+    apply = "--apply" in sys.argv
     if not os.path.exists(CODEX_PATH):
         print(f"codex.db not found at {CODEX_PATH}")
         print("Run build_codex_db.py first")
         return
 
-    conn = sqlite3.connect(CODEX_PATH)
+    if apply:
+        from shared.away_mode import refuse_if_away
+        from shared import backup_service
+        from shared.db_open import connect_rw
+        refuse_if_away("seed_codex")
+        backup = backup_service.write_kept_copy(CODEX_PATH, "pre-seed-codex")
+        if backup is None:
+            print("Could not take a backup of codex.db first (see the message above). "
+                  "Nothing has been changed.")
+            sys.exit(1)
+        print(f"Backup of codex.db: {backup}")
+        conn = connect_rw(CODEX_PATH)
+    else:
+        from shared.db_open import connect_ro
+        conn = connect_ro(CODEX_PATH)
     c = conn.cursor()
 
     print("=" * 60)
-    print("CODEX SEED -- SQS GAP-FILL (INVERTEBRATE-ONLY)")
+    print("CODEX SEED -- SQS GAP-FILL (INVERTEBRATE-ONLY)" + ("" if apply else "  (DRY RUN)"))
     print("=" * 60)
 
     # --------------------------------------------------------
@@ -130,9 +145,13 @@ def main():
     # derivation happens in this script.
     # --------------------------------------------------------
     if pre_sqs_der > 0:
-        c.execute("DELETE FROM sqs_scores WHERE source = 'derived'")
-        print(f"\nCleared {pre_sqs_der:,} prior derived SQS entries "
-              f"(will re-derive below)")
+        if apply:
+            c.execute("DELETE FROM sqs_scores WHERE source = 'derived'")
+            print(f"\nCleared {pre_sqs_der:,} prior derived SQS entries "
+                  f"(will re-derive below)")
+        else:
+            print(f"\nWould clear {pre_sqs_der:,} prior derived SQS entries "
+                  f"(will re-derive below)")
 
     # --------------------------------------------------------
     # SQS gap-fill -- INVERTEBRATE-ONLY
@@ -293,9 +312,12 @@ def main():
 
     print(f"\n  Resolved: {found}/{len(test_species)}")
 
-    conn.commit()
+    if apply:
+        conn.commit()
     conn.close()
     print(f"\nDone.")
+    if not apply:
+        print("DRY RUN. Nothing has been changed. Run again with --apply to write.")
 
 
 if __name__ == "__main__":

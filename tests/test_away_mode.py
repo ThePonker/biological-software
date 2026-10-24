@@ -406,7 +406,10 @@ def test_background_copy_respects_the_switches(world, monkeypatch):
     assert away_mode.start_away_copy_in_background() is True
     cmd = started[0][0][0]
     assert cmd[0] == sys.executable and cmd[-2:] == ["--if-older-than", "20"]
-    assert started[0][1].get("start_new_session") is True
+    if sys.platform == "win32":              # detached, no window (24 Oct: was Linux-only)
+        assert started[0][1].get("creationflags")
+    else:
+        assert started[0][1].get("start_new_session") is True
 
 
 def test_close_event_calls_the_hook_and_conftest_sets_the_switch():

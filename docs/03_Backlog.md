@@ -1,6 +1,6 @@
 # Backlog
 
-## Updated 14 October 2026 (photos and the iRecord round trip; see "Next")
+## Updated 24 October 2026 (docs refresh after Round 11; see "Next (24 Oct)")
 ## Check this before starting a session.
 
 This file is the working list: how we work, what is next, what is decided but not built,
@@ -23,7 +23,45 @@ profiles, code hygiene, closed decisions). Question numbers (Q1–Q98) are proje
 **State on 12 Oct:** Rounds 2–8 built, tested and committed (Wil's PC and GitHub at the
 Round 8 commit, `6b76546` in the agents' clone). Every outstanding test passed (`02` §1a).
 Lector is paused. **Q1 (the next big job) is still Wil's to decide**; the small-fixes round
-comes first either way.
+comes first either way. *(Update 24 Oct: Q1 was settled by the order of work of 14 Oct and the
+24 Oct plan below; Rounds 5–11 are built, see "Next (24 Oct)".)*
+
+---
+
+## Next (24 Oct): the plan, and what is open
+
+The order, from the Claude doc "Suite Review and Development Plan -- 24 Oct 2026", is in
+`04_Roadmap.md` (rounds 12–27). Rounds 12–15 are being built together as "Round 12".
+
+**Built since 14 Oct, waiting for Wil's tests and commit** (`02b_History.md` has Rounds 7–9; Rounds
+10–11 below): Round 7 (16 Oct), Round 8 (17 Oct), Round 9 (18 Oct), Round 10 (18 Oct), Round 11
+(19 Oct, `ed71524`). What they cover is in `02` §1, `09` and `01`. Round 11 on the PC 19 Oct: Wil's
+Observatum checks and the commit are still to do.
+
+**Half built (open):**
+- **Away mode guards** (Round 9). Round 12 fixes the photo moves and direct writes (F90); the Lector
+  store and Codex Manager writable connect are still open.
+- **B4 photo intake:** phone photos only. No microscope/Mosaic path (Q71), no OneDrive Inbox, no move
+  log with undo.
+- **Data Entry map shims** (`DataEntry/raster_map.py` and others) still have callers in `info_panel.py`
+  and `entry_grid.py`.
+- **A3 retirement:** Data Entry's own iRecord export is removed (`_do_irecord_export` has no caller);
+  "Check iRecord return" is kept for old awaiting jobs. (`09` §9 corrected.)
+- **Commercial Reports "coming soon" line** (Site Species List, Project Summary, Site Comparison,
+  Survey Effort): schedule or remove.
+- **Sync settings panel:** its options are never saved or read, and it describes the conflict handling
+  A2 replaced: remove or wire up.
+- **Map layers, Wil's checks:** deferred: OS 1:250k Colour Raster (review after Round 11), a map Identify
+  tool (asked 19 Oct; names must be joined to shapes at build), Small Settlements (212,705; the type is
+  spelled "Small Settlements"; not included); railway tunnels are drawn as surface track.
+
+**Not started (kept):** B11/Q54 compact banner; Q80 CIEEM bands (Round 12 builds it); Q77 ISIS field;
+Q78 data-sharing sentence and the sensitive flag (F15); status printed with its source; scoping-out
+table; SQI per habitat with key species; IEC by grade; compartments untested on real data; C(1) specimen
+photos on field records; the first real iRecord round trip; M1/M2/M3; D13 partner install
+(`reset_database.py` schema drift: Round 12 fixes the schema); Lector Q94, Q95 (Round 12), Q97; the
+decade option in Mapping; Batch maps screen; map phase 2 (Q37); the edit dialog's stale taxonomy on a
+re-det (`40_Code_Sweep` §2a, F95: Round 12, G1).
 
 ---
 
@@ -31,18 +69,18 @@ comes first either way.
 
 | # | Fix | Source / decision |
 |---|---|---|
-| 1 | **Species search lists:** row text clipped at the bottom (descenders: *Aclypea opaca*, *Agabus brunneus*); each name drawn in a bordered box; a plant genus offered for "beetle" ("All Leptochloa (beetle-grass) — group"); doubled brackets ("All Curculionidae (beetles (weevils)) — group"); **when the typed word is a group word, the "All … — group" choices come first** (change to R9-32) | 12 Oct outstanding Test 2; **built Round 9 A, to test** |
-| 2 | **See-through drop-down popups:** Quick Entry's Project list draws over the form behind it with a text shadow. Give popups an opaque background; check every combo popup in the suite | Test 3; **built Round 9 A, to test** |
-| 3 | **Import wizards, picked names:** the observation wizard's double-click pick keeps no "File had …" note and loses the original name (bug); one wording for "picked by you" / "resolved by you as"; the same row numbering in all three wizards (scheme counts from 1, the others from 2) | Import test files, 12 Oct; **built Round 9 A, to test** |
-| 4 | ✅ *Built 12 Oct (R9 B1), Wil to run the relabel.* **Butterflies labelled "insect – moth":** the map was already one (`shared/taxon_groups.py`, since 10 Oct; the old wizard copies are gone); relabel the 42 records with `backfill_taxon_groups.py --relabel-only --tables observations` (dry run first; new option: corrects labels, fills no blanks) | Q63 |
+| 1 | **Species search lists:** row text clipped at the bottom (descenders: *Aclypea opaca*, *Agabus brunneus*); each name drawn in a bordered box; a plant genus offered for "beetle" ("All Leptochloa (beetle-grass) — group"); doubled brackets ("All Curculionidae (beetles (weevils)) — group"); **when the typed word is a group word, the "All … — group" choices come first** (change to R9-32) | 12 Oct outstanding Test 2; **built Round 9 A; tested and passed 14 Oct (F49)** |
+| 2 | **See-through drop-down popups:** Quick Entry's Project list draws over the form behind it with a text shadow. Give popups an opaque background; check every combo popup in the suite | Test 3; **built Round 9 A; tested and passed 14 Oct (F50)** |
+| 3 | **Import wizards, picked names:** the observation wizard's double-click pick keeps no "File had …" note and loses the original name (bug); one wording for "picked by you" / "resolved by you as"; the same row numbering in all three wizards (scheme counts from 1, the others from 2) | Import test files, 12 Oct; **built Round 9 A; tested and passed 14 Oct (F51)** |
+| 4 | ✅ *Built 12 Oct (R9 B1); relabel run, F52 closed 14 Oct.* **Butterflies labelled "insect – moth":** the map was already one (`shared/taxon_groups.py`, since 10 Oct; the old wizard copies are gone); relabel the 42 records with `backfill_taxon_groups.py --relabel-only --tables observations` (dry run first; new option: corrects labels, fills no blanks) | Q63 |
 | 5 | ✅ *Built 12 Oct (R9 B2).* **"Date before 1700" check** in the cleaning report (*Alosterna tabacicolor* 1500; *Acanthocinus aedilis*, *Agapanthia villosoviridescens* 1675); 132 scheme records on the 10 Oct copy; Contributed added as a third source | Q65 |
-| 6 | ✅ *Built 12 Oct (R9 B3), Wil to run `mark_scheme_irecord_duplicates.py`.* **Scheme iRecord duplicates:** mark the 34,121 NBN "Longhorn beetle data from iRecord" copies that share an iRecord ID so each record counts once, keeping the iRecord copy. A flag, not a delete; reversible. Other tiers wait for the final dataset | Q59 |
+| 6 | ✅ *Built 12 Oct (R9 B3); `mark_scheme_irecord_duplicates.py` run on the PC, F53 closed (110,510 → 76,389).* **Scheme iRecord duplicates:** mark the 34,121 NBN "Longhorn beetle data from iRecord" copies that share an iRecord ID so each record counts once, keeping the iRecord copy. A flag, not a delete; reversible. Other tiers wait for the final dataset | Q59 |
 | 7 | ✅ *Done 12 Oct (R9 B4a).* **Sundon reference figures:** `reference_figures.json` now 231 species / 19 key / SQI 125, Pantheon 114, strict 114 / 19 (Jon's IDs accepted as recorded) | Q66 |
 | 8 | ✅ *Built 12 Oct (R9 B4b).* ***Sympetrum nigrescens*** linked to *S. striolatum* in Pantheon Only mode: a local correction to the bridge, flagged (`shared/pantheon_bridge_corrections.csv`; strict key −1 at six surveys, `02`) | Q67 |
 | 9 | ✅ *Fixed 13 Oct (F79).* **Test-order flake:** offscreen Qt on Windows had no fonts; `tests/conftest.py` sets `QT_QPA_FONTDIR`, so the layout tests pass in any order and in parallel | Q89, note 43 |
 | 10 | ✅ *Done 13 Oct (warm-up).* **Retire the scheme month chart's never-built species dropdown** (`stat_widgets.py` `_species_combo`): removed; the code kept in `_archive/month_chart_species_filter_20261013/removed_code.txt` (the service's `get_monthly_counts_by_species` left in place) | Q64 |
-| 11 | **Suite-review leftovers sweep** (Tier 3 and 4: OBS-22/23, INF5–11, CDX-4, OBS-25/27, SRCH20/22, MAP13/15/16, DE10–14, IMP-18): verify each, fix or close; about half a session | Q90, note 39 §4.11 |
-| 12 | **Data Entry compact banner:** a toggle that folds the cards to one line, for short laptop screens (about 7 grid rows at 1280×720) | Q54 |
+| 11 | *Partly done:* F59 (`548a6fa`), INF10, OBS-23, the import key fallback (F82), the personal duplicate check, "Skipped duplicates always 0" (IMP-16), specimen import sex (IMP-7) are done; the rest not re-checked 24 Oct. **Suite-review leftovers sweep** (Tier 3 and 4: OBS-22/23, INF5–11, CDX-4, OBS-25/27, SRCH20/22, MAP13/15/16, DE10–14, IMP-18): verify each, fix or close; about half a session | Q90, note 39 §4.11 |
+| 12 | *Open (B11/Q54).* **Data Entry compact banner:** a toggle that folds the cards to one line, for short laptop screens (about 7 grid rows at 1280×720) | Q54 |
 | 13 | ✅ *Done 13 Oct (warm-up).* **Species lookup ↔ Species Info:** Home › Species Info "Open in Species lookup →" opens Stats/Reports › Species on that species; Species lookup "Show on Home" shows it in Species Info | Q55 |
 | 14 | ✅ *Built 13 Oct (R10 A1, F68).* **What filter group choices filter:** "All Coccinellidae (ladybirds) — group" picked in the Species box keeps every record at or below the taxon (by TVK); the chip names the group | Round 9 test 11 |
 | 15 | ✅ *Built 13 Oct (R10 A2, F69).* **Species box drop-down on the quick filter bars** (Observation Data, Recording Scheme, Contributed): the shared species list with group choices, scoped to the tab's species; typed text still filters | Round 9 test 15 |
@@ -133,13 +171,13 @@ F72's uncovered raw queries for hidden records: decide whether to sweep.
 
 | Job | Size | State of the decisions |
 |---|---|---|
-| **Specimens → records** | Wil's checking, 6–10 h | **Built 14 Oct (round 6)**: script, Data Entry jobs, Specimens to check. Left: Wil runs it, checks and commits the jobs, links the near misses by hand |
+| **Specimens → records** | Wil's checking, 6–10 h | **Built 14 Oct (round 6)**: script, Data Entry jobs, Specimens to check. Code done: `scripts/stage_records_from_specimens.py` (with `--undo`), `shared/specimens_to_check.py`, the Specimens to check dialog. The jobs were undone 14 Oct; the re-run is pending (C(2)). Left: Wil runs it, checks and commits the jobs, links the near misses by hand |
 | **Final Recording Scheme dataset** (M1) | 1 h of questions, 2 sessions | Q4: questions straight after the next big job. Q72/Q73 answered; Q57–Q59 feed it |
 | **iRecord round trip, then Photos** (lean plan below) | about 8 hours | A1–A3, B1–B3, B5, bench photos, viewer done 13–14 Oct; review sheet, intake, grid refs built in round 6 (to test). Left: the first real iRecord round trip |
-| **Partner's laptop install** | 8–11 days | **Winter**, after photos and the scheme dataset (Q2). Full suite (Q68). Separate databases, data moved by export/import (Q3). Her own empty database plus an optional practice database with sample data (Q69) |
-| Optional: **map background layers** | 3–4 days | **Phase 1 built 17 Oct (round 8)**: `build_map_layers.py`, Layers menu, layer land and districts. Left: Wil downloads Zoomstack + Boundary-Line to `~\OS data`, runs the build, judges the look and paint speed; relief (Terrain 50) not built (not in Q6); phase 2 (SSSI/NNR, ancient woodland) later (Q37) |
+| **Partner's laptop install** | 8–11 days | **Winter**, after photos and the scheme dataset (Q2). Full suite (Q68). For Wil's own laptop, away mode (read-only copy, Option 2, decided 17 Oct) replaces the older "separate databases, export/import (Q3)" plan; the partner install (D13) is separate. Her own empty database plus an optional practice database with sample data (Q69) |
+| Optional: **map background layers** | 3–4 days | **Phase 1 built 17 Oct (Round 8), colours and speed Round 9, picture-sliding pan Round 10, context layers and relief Round 11** (`01` §4c). Built on the PC 19 Oct. Left: Wil's checks and commit; phase 2 (SSSI/NNR, ancient woodland) later (Q37) |
 | Optional: **Atrium icons and restyle** | about 1 session | Q52/Q53: Claude drafts a silhouette for each app from the Observatum logo for Wil to approve; icon files in git are fine; Munia's look checked here |
-| Optional: **splash and loading redesign** | about 1 session | Q51: after the Round 8 `--timing` (done): the bar follows the real steps, smooth animation |
+| Optional: **splash and loading redesign** | about 1 session | Q51: *largely done in Round 5* (`views/splash_progress.py`: the bar follows the real steps) |
 | Winter: **C4 import wizard merge** | 4–7 days | Q84–Q87 answered (Q85 to confirm) |
 | Winter: **report contents** | 2–3 sessions | Q74–Q80, Q83 answered |
 | Later: **batch maps screen** | 1 session | Q41–Q50 answered; the script is enough for now |
@@ -202,7 +240,7 @@ build must say what happens to the original file). **Microscope (Q71): capture t
 not only stacked images** (single captures too, so P3 changes); a live view maybe; look into
 coding focus stacking or driving the free stacking software Wil uses.
 
-**Map layers (Wil, 17 Oct; built 18 Oct, round 9, to test):** (1) a setting for each
+**Map layers (Wil, 17 Oct; built 18 Oct, Rounds 9–10; Wil's checks pending):** (1) a setting for each
 layer's colour (Layers menu > Colours…, remembered, Reset); (2) paint speed: "a little bit laggy".
 Likely causes: roads_gb holds 123k separate pieces and roads_county 309k (join them by type at build
 time, linemerge); every layer is re-projected point by point whenever the view changes (cache the
@@ -210,10 +248,9 @@ projected paths in OSGB and draw through the painter's transform instead; cache 
 picture per view, as species_dist_map does). Measure first: time each layer's paint with `--timing`.
 
 **Map layers (Q6, Q34–Q40):** OS Open Zoomstack, one 3.8 GB download (Q6); rivers and lakes on
-by default, the rest off (Q34); **districts from current OS Boundary-Line** (Q35, not the
-recommendation) under the label "Local authority districts" (Q39); the atlas PNG prints what is
-ticked (Q36); phase 2 (SSSI/NNR, ancient woodland) later (Q37); the map credit built from the
-layers drawn (Q38); VC boundary colour and width kept (Q40).
+by default, the rest off (Q34); **districts from current OS Boundary-Line** (Q35, *done*) under the label "Local authority districts" (Q39); the atlas PNG prints what is
+ticked (Q36, *done*, `shared/maps/atlas_sheet.py`); phase 2 (SSSI/NNR, ancient woodland) later (Q37); the map credit built from the
+layers drawn (Q38, *done*); VC boundary colour and width kept (Q40).
 
 **Batch maps (Q41–Q50):** screen later (Q41); date classes pre-1970 / 1970–99 / 2000–19 / 2020+,
 editable (Q42); class by first record, latest as an option (Q43); cumulative frames, new squares
@@ -240,8 +277,7 @@ on synonym remaps; suggested: keep the recorded name in a separate "name as reco
 Confirm when building C4**; a name not found in a sync is a warning (Q86); a re-import changes
 a narrow field list and never blanks a field (Q87).
 
-**Housekeeping:** merge `main` into `stable` now that Round 8 is committed (Q88, D3, F2);
-Spider Extract SPD1–3 at the next free slot (Q91; separate repo).
+**Housekeeping:** ~~merge `main` into `stable` (Q88, D3, F2)~~ done 14 Oct; Spider Extract SPD1–3 at the next free slot (Q91; separate repo).
 
 ---
 
@@ -249,7 +285,7 @@ Spider Extract SPD1–3 at the next free slot (Q91; separate repo).
 
 Built and tested: Rounds 7 and 8 (9 of 9 tests). Decided, to build when Lector resumes:
 - "N runs" on the dashboard counts fetch runs only (Q94).
-- A "+" line in `data\lector_synonyms.txt` wins over the suite corrections list (Q95).
+- A "+" line in `data\lector_synonyms.txt` wins over the suite corrections list (Q95; F102, Round 12).
 - "Archive" a saved search: hidden from the dashboard, kept, restorable (Q97).
 - Kept as built: Steel Blue accent and ticks (Q8, Q92); console keeps saved searches unless
   `--replace-search` (Q93). (Q96, the Square opacity slider, is Observatum's: kept as built.)
@@ -336,18 +372,18 @@ From the sweep of notes 30–46, the repo docs, the drafts, the agent briefs and
 | Lector: `py -m Lector gui` from a bare prompt needs Observatum on `PYTHONPATH` (the launcher sets it); make it find it itself or say so | R8 docs agent report |
 | Splash and loading: Wil wants to discuss them again (separate from the Q51 redesign?) | note 44, R12 Test 2 |
 | Startup: one pause over 100 ms remains (stats order grid build, 106 ms) | PC `--timing` 12 Oct |
-| Recording Scheme tab: the loading overlay (`_stack`, `_loading_label`) is never built, so **load errors are never shown** | `40_Code_Sweep` §1 (open, low) |
-| Observation edit dialog: changing the species leaves taxon rank, kingdom, taxon group, superfamily, subfamily and sort key stale; the VC cannot be cleared | `40_Code_Sweep` §2 (latent) |
+| ~~Recording Scheme tab never shows a load error~~ done 9 Oct (`548a6fa`, F59): a QMessageBox | `40_Code_Sweep` §1 |
+| Observation edit dialog (F95, Round 12 G1): changing the species leaves taxon rank, kingdom, taxon group, superfamily, subfamily and sort key stale; the VC cannot be cleared | `40_Code_Sweep` §2 (latent) |
 | `ObservationModel.create` fixed column list omits `import_notes`, survey and sort-key columns (callers patch with an UPDATE) | `40_Code_Sweep` §2 (latent) |
-| Observation import: the Observatum key sequence falls back to 0 on a DB error, uses 4 digits against the model's 6, and finds the last key by string sort | `40_Code_Sweep` §3; `41_Groundwork` §1.3 |
-| Observation import: personal duplicate check still inside `except: pass`? (check whether the 9 Oct repair made it loud) | `41_Groundwork` §1.3 |
-| Specimen import: the fuzzy lookup is unguarded (an error hangs the wizard on validation); cp1252 files refused; sex never imported | `41_Groundwork` §1.2 P5 |
-| Scheme import: "Skipped duplicates" always 0; cf./agg. retry swallows errors; `SchemeImportRow` declares ~20 fields twice | `41_Groundwork` §1.1 S9 (check after I7b) |
+| ~~Observation import key fallback~~ done (F82, 14 Oct, `shared/observatum_keys.py`) | `40_Code_Sweep` §3; `41_Groundwork` §1.3 |
+| ~~Personal duplicate check inside `except: pass`~~ done: `validation_worker` prints "duplicate check FAILED" | `41_Groundwork` §1.3 |
+| Specimen import: the fuzzy lookup is unguarded (an error hangs the wizard on validation); cp1252 files refused (F103); ~~sex never imported~~ done (IMP-7) | `41_Groundwork` §1.2 P5 |
+| Scheme import: ~~"Skipped duplicates" always 0~~ done (IMP-16); cf./agg. retry swallows errors; `SchemeImportRow` declares ~20 fields twice | `41_Groundwork` §1.1 S9 (check after I7b) |
 | Scheme records can't be deleted in the app (by design since Round 2): a wrongly imported scheme file can only be undone by script. Say so in the scheme import wizard, or give a "remove this import batch" script | import test files agent, 12 Oct |
 | Saproxylic E7 follow-ups: cumulative scope (other record types for a site), SQI for non-beetles, families with no modern review scored on 1999 statuses, show Alexander's 300 band | `41_Groundwork` E7 §8 Q4–Q7 |
-| `shared/checklist_order.py` and the drawer and batch-map hooks exist, but there are no checklist files yet (`shared/checklists/*.csv`) | code; A1, Q50, Q83 |
+| `shared/checklist_order.py` and the hooks exist; `scripts/build_checklists.py` (`8ffd785`) builds `shared/checklists/*.csv` (git-ignored) | code; A1, Q50, Q83 |
 | Longhorn checklist CSV for batch-map order (Q50) | `drafts/batch_maps_design.md` Q9 |
-| Batch maps: "decade" period option in the Mapping tab was never implemented | `03b` H1–H6 note |
+| Batch maps: "decade" period option in the Mapping tab is still not implemented | `03b` H1–H6 note |
 | Specimen links: has `link_specimens_to_observations.py --apply` (about 1,115 certain links) been run on the PC? The notes say "held" (note 40) and "optional" (note 41) | notes 40, 41 |
 | Observation Data autoload: settled by Round 6 (loads under the splash) | note 42 open decision (closed) |
 | Species search index built last in the background: settled | note 43 (closed) |
@@ -355,7 +391,7 @@ From the sweep of notes 30–46, the repo docs, the drafts, the agent briefs and
 | Exploratory: Observatum as host for IUCN Red List assessment support | note 39 §4.6 |
 | Repo inside OneDrive: `.git` lock friction; revisit if it worsens | note 39 §4.9 |
 | Performance list (cache_size/mmap, Qt model flags, fixed row heights, virtual table model) | note 39 §4.9 |
-| DataEntry map shims: land the switch to `shared/maps` when Wil is not entering data | `03b` H1–H6; note 39 §4.8 |
+| DataEntry map shims (`raster_map.py` etc.) still have callers in `info_panel.py` and `entry_grid.py`: land the switch to `shared/maps` when Wil is not entering data | `03b` H1–H6; note 39 §4.8 |
 | Philanthus triangulum carries an outdated RDB2 in Codex: check for a newer status and record it | Betteshanger analysis, 12 Oct |
 | Map credit, boundary colour, district label: answered (Q38–Q40) | note 42 |
 
@@ -374,4 +410,5 @@ From the sweep of notes 30–46, the repo docs, the drafts, the agent briefs and
 | Tests only (12 Oct) | B8 Check before commit; E3 Examen PDF; import test files (`tests/manual_import_files/`) | passed |
 | Handover tasks (13 Oct) | One place for saved filters; cleaning report rows open Record Detail + Hidden here tile; disabled look on every button style; Species Lookup list painter; tests in parallel (`-n 6`) | all passed 13 Oct |
 | 13–14 Oct | B2 links, B3 Photos window, B5 re-det moves; A2 sync guard (F83), A3; one key rule and renumber (F82); bench photos and take 2 (F84); cleaning report Photos | Wil, 14 Oct: tests and full suite 1,431 passed (bench photos); take 2 being tested |
+| Rounds 7–11 (16–19 Oct) | Round 7: Check mark, To check only, Export for checking, Last entered row, F86/F87, green ticks, dd/mm/yyyy. Round 8: Read back checking, Test copy of a job, map layers phase 1. Round 9: layer colours, map speed, away mode. Round 10: picture-sliding pan, 40× zoom. Round 11: context layers and relief | Wil's tests pending (away mode not yet tested); detail in `02b_History.md` (Rounds 7–9 there) |
 | 13 Oct (night) | A1 download check; B1 plan, review sheet, standard photo names (`15.ix.17`, sex lower case), move list, mover with log and reverse; 1,469 photos moved into Life | Wil, 13 Oct: tests, full suite 1,386, dry run 0 problems, move checked |

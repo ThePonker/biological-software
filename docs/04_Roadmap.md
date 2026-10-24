@@ -1,6 +1,6 @@
 # Roadmap
 
-## Updated 12 October 2026
+## Updated 24 October 2026 (Now/Next rewritten to the 24 Oct plan)
 
 ---
 
@@ -52,48 +52,48 @@ every figure says which it is.
 | Maps (labels, boundaries, districts, borders once, opacity) | ✅ Rounds 3–5 and 8, tested |
 | Startup and laptop sizes | ✅ Rounds 4–6 and 8: window 5.7 s, ready 12 s, longest pause 106 ms; dialogs fit 1280×720 |
 | **Lector in the suite** | ✅ Rounds 7–8 (window, saved searches, exports); tested 9 of 9. **Paused** |
-| **Now: small-fixes round** | 🔄 13 items agreed 12 Oct (`03`) |
-| Next big job | Q1, Wil's to decide (recommended: specimens → records) |
-| Final Recording Scheme dataset | Questions straight after the next big job (Q4) |
-| Photos (A8/A8b) | Decided (Q5, Q13–Q22, Q71); about 3 sessions |
-| Partner's laptop install | Winter, after photos and the scheme dataset (Q2) |
-| Report contents (methods, effort, limitations) | Winter; decisions Q74–Q83 taken |
-| Import wizard merge (C4), stages 3+ | Winter; Q84–Q87 taken (Q85 to confirm) |
-| Map background layers | Optional; decisions Q6, Q34–Q40 taken |
+| Small-fixes round, Rounds 5–6, Rounds 7–11 (maps, Data Entry checking, away mode) | ✅ built; Wil's tests and commits of Rounds 7–11 pending (`03`) |
+| **Now: Round 12** | 🔄 docs, safety, photo naming, test safety, correctness (rounds 12–15 built together) |
+| Final Recording Scheme dataset | Round 20 (scheme M1/M3; Q4) |
+| Photos (A8/A8b) | Partly built (bench photos, Photos window, phone intake); rest in rounds 13 and 18 |
+| Partner's laptop install | Round 26 (Q2) |
+| Report contents (methods, effort, limitations) | Round 17; decisions Q74–Q83 taken |
+| Import wizard merge (C4), stages 3+ | Round 24; Q84–Q87 taken (Q85 to confirm) |
+| Map background layers | ✅ Built Rounds 8–11 (context layers, relief); Wil's checks pending; more in round 23 |
 | Web Examen | Future, if reach ever justifies it |
 
 ---
 
 ## Sequence
 
-### Now
+### Now: the 24 October order (Claude doc "Suite Review and Development Plan -- 24 Oct 2026")
 
-**1. Small-fixes round** (`03`, items 1–13), then test, commit, push, refresh `D:\`.
+Rounds 12–15 are being built together as "Round 12". One round at a time after that: build, Wil tests,
+commit, then the next.
 
-**2. Merge `main` into `stable`** (Q88; 15 minutes).
+| Round | Job |
+|---|---|
+| 12 | Docs refresh |
+| 13 | Safety and photo naming |
+| 14 | Test safety |
+| 15 | Correctness |
+| 16 | Foundations (settings stores need Wil's OK) |
+| 17 | Reports complete (CIEEM bands Q80, ISIS Q77, data-sharing sentence Q78) |
+| 18 | Photos and specimen records |
+| 19 | The first real iRecord round trip |
+| 20 | Scheme M1 / M3 |
+| 21 | Away mode and the laptop, with the compact banner (B11) |
+| 22 | Visual consistency |
+| 23 | Maps |
+| 24 | Import wizard merge (C4) |
+| 25 | Lector, Atrium, Munia |
+| 26 | Partner install (D13) |
+| 27 | Finish |
 
-**3. The next big job** (Q1). Suggested order, one at a time:
-1. **Specimens → records** (about half a day; every decision answered).
-2. **Final scheme dataset** (about an hour of questions, then 2 sessions).
-3. **Photos** (about 3 sessions: linking and viewing, then the Inbox; microscope captures
-   once the camera and stacking software are known).
-4. **Partner's laptop install** (winter; 8–11 days with packaging).
-
-**Optional slots** between them, each one round: map background layers (3–4 days), Atrium
-icons and restyle (with Munia's look), splash and loading redesign.
-
-**Lector** is paused; it resumes with the Q94/Q95/Q97 changes and its manual tests.
-
-### Winter
-
-**Report contents** -- Q74–Q83 answered; then the methods layer (ISIS compliance field,
-data-sharing sentence and sensitive-species flag, CIEEM validity bands, survey effort).
-
-**Merge the import wizards** -- stages 3+ of C4, ~4-7 days with testing against real imports.
-
-**Distributable suite** -- module registry, first-run wizard, de-personalisation, PyInstaller,
-licence screens. First install: Wil's partner's laptop, the full suite (Q68), her own empty
-database plus an optional practice database (Q69).
+**Lector** stays paused until round 25 (Q94, Q95, Q97 and its manual tests). **Distributable suite**
+(module registry, first-run wizard, PyInstaller, licence screens) is part of rounds 26–27. First install:
+Wil's partner's laptop, the full suite (Q68), her own empty database plus an optional practice
+database (Q69).
 
 ### Later
 
@@ -112,7 +112,7 @@ and Observatum from annotated screenshots. **Shared Longhorn dataset with the pa
 | Specimens → records | about half a day |
 | Final scheme dataset | 1 h of questions + 2 sessions |
 | Photos | about 3 sessions (~2.25 days linking + 2–2.5 days Inbox) |
-| Map background layers | 3-4 days |
+| ~~Map background layers~~ | ✅ built Rounds 8–11 |
 | Atrium icons and restyle | about 1 session |
 | Batch maps screen | about 1 session |
 | Merge the import wizards (rest) | 4-7 days |
@@ -131,7 +131,7 @@ fast; the limit is Wil's testing time, which is why one main line at a time.
 | Risk | Severity | State |
 |---|---|---|
 | Single machine, no off-site copy | — | ✅ Closed 26 September. Refresh after sessions that change data. The 45 GB media library is not yet in the mirror (Q13); the backup may move to a larger drive |
-| **`stable` stale since June** | Medium | Open (F2, D3). Decided: merge now Round 8 is committed (Q88) |
+| `stable` stale since June | — | ✅ Closed 14 Oct (F2, D3): `main` merged into `stable` |
 | Counts differ between screens | — | ✅ Closed 10 Oct (F45, counting switches) |
 | **Curatorial fields empty across the collection** | Medium | Bulk editor built (A1); filling is ongoing |
 | Unsourced verdict in generated prose | — | ✅ Closed 8 Oct (E16). The table colour bands stay by Wil's choice (Q81) |
@@ -142,9 +142,9 @@ fast; the limit is Wil's testing time, which is why one main line at a time.
 | **Spread too thin** | Medium | Agreed 12 Oct: one main line at a time, test and commit before the next round |
 | Rebuild reproducibility | — | ✅ Proven 9 Oct (D7) |
 | Stale TVKs in `observatum.db` | Low, compounding | 28 records wait for the next UKSI (Q61) |
-| SQLite over a syncing folder from two machines | — | Decided 12 Oct: separate databases, export/import (Q3) |
+| SQLite over a syncing folder from two machines | — | Decided 12 Oct: separate databases, export/import (Q3). Wil's own laptop: away mode, a read-only copy (17 Oct, built, guards incomplete: `06` F90) |
 | Caches keyed on too little | Low | One found 12 Oct (F47): a cache key must name every input (`05`) |
-| Doc drift | Low | Docs brought up to 12 Oct after three days of rounds; update `02`/`03`/`06` with each round's commit |
+| Doc drift | Low | Docs refreshed 24 Oct after Rounds 7–11; update `02`/`03`/`06` with each round's commit |
 
 ---
 

@@ -98,8 +98,9 @@ def test_missing_folder_or_bad_file_gives_nothing(tmp_path):
 
 def test_defaults_rivers_and_lakes_only():
     assert layers.defaults() == {"water"}
-    assert [t.label for t in layers.TOGGLES] == ["Woodland", "Towns", "Rivers and lakes",
-                                                 "Main roads"]
+    assert [t.label for t in layers.TOGGLES] == [
+        "Woodland", "Towns", "Rivers and lakes", "Main roads", "Place names", "Railways",
+        "National parks", "Foreshore", "Parks and green space", "Relief"]
 
 
 # ---------------------------------------------------------------- the map
@@ -196,7 +197,9 @@ def test_menu_items_disabled_when_not_installed_and_remembered(qapp, tmp_path, s
     bar.attach_map(m)
     acts = bar.layer_actions
     assert [a.text() for a in bar.layers_menu.actions() if a.text()] == [
-        "Woodland", "Towns", "Rivers and lakes", "Main roads", "Colours\u2026", "Reset to defaults"]
+        "Woodland", "Towns", "Rivers and lakes", "Main roads", "Place names", "Railways",
+        "National parks", "Foreshore", "Parks and green space", "Relief", "Colours\u2026",
+        "Reset to defaults"]
     assert acts["woodland"].isEnabled() and not acts["towns"].isEnabled()
     assert acts["towns"].toolTip() == "Not installed: run scripts\\build_map_layers.py"
     assert bar.layers() == {"water"} and saved_layers() == {"water"}

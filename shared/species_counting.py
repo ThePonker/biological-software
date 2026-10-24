@@ -68,7 +68,8 @@ def _settings():
     "Observatum"), so it reads Observatum's store by name."""
     from PySide6.QtCore import QCoreApplication, QSettings
     if QCoreApplication.organizationName() == "Flauna":
-        return QSettings("Observatum", "Observatum V2")
+        from shared.settings_store import named
+        return named("Observatum", "Observatum V2")
     return QSettings()
 
 

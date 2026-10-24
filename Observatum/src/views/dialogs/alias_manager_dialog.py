@@ -172,8 +172,12 @@ class AliasManagerDialog(QDialog):
             return
 
         deleted = 0
-        for name in names:
-            if self.alias_service.delete_alias(name):
-                deleted += 1
+        from shared.db_open import AwayReadOnly
+        try:
+            for name in names:
+                if self.alias_service.delete_alias(name):
+                    deleted += 1
+        except AwayReadOnly as e:              # the laptop's copy is read-only (R12)
+            QMessageBox.information(self, "Delete Aliases", str(e))
 
         self._load_data()

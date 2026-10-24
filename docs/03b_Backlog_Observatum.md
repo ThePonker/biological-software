@@ -1,6 +1,6 @@
 # Backlog by area: Observatum, Data Entry, imports, mapping, infrastructure
 
-## Updated 12 October 2026
+## Updated 24 October 2026
 ## Split out of `03_Backlog.md` on 12 Oct (it had reached 866 lines). The working list
 ## (what to do next, open decisions, reminders) is `03_Backlog.md`; Examen, Codex,
 ## species profiles and code hygiene are in `03c_Backlog_Examen_Codex.md`.
@@ -38,8 +38,8 @@ UKSI's sort code -- alphabetical by genus within a family (Carabidae: *Abax*,
 
 *12 Oct:* Examen's appendix order is answered (Q83: order → family → genus, then
 alphabetical); **the drawer order is not**. The engine exists (`shared/checklist_order.py`,
-used by `drawer_assign.py` and the batch maps) but no checklist file has been made
-(`shared/checklists/*.csv`).
+used by `drawer_assign.py` and the batch maps). `scripts/build_checklists.py` (`8ffd785`) builds
+`shared/checklists/*.csv` (git-ignored); the drawer-order question itself is still Wil's.
 
 Sex is the exception: it needs the animal under the scope, and is being worked
 through by hand (602 so far).
@@ -135,6 +135,7 @@ against an observation's quantity. *Open:* whether the ~1,115 certain links were
 next (Q1)**. Read-only breakdown built 11 Oct (`scripts/report_specimens_without_records.py`):
 on the PC 794 new records from 863 specimens, 506 near misses, 33 other people's, 37 already
 in the scheme, 2 missing details. Every decision answered 12 Oct (Q23–Q33, in `03_Backlog.md`).
+*Code done (14 Oct, round 6):* `scripts/stage_records_from_specimens.py` (with `--undo`), `shared/specimens_to_check.py`, the Specimens to check dialog. The jobs were undone 14 Oct; the re-run is pending (`03` C(2)).
 
 ---
 
@@ -196,7 +197,15 @@ then This workbook), sorting keeps Copy context; the window is never forced wide
 screen. Standalone Data Entry opens fitted to the screen (Round 5).
 
 **B11. Compact banner.** Decided 12 Oct (Q54): a toggle that folds the cards to one line,
-for short laptop screens (about 7 grid rows at 1280×720). In the small-fixes round.
+for short laptop screens (about 7 grid rows at 1280×720). Not started 24 Oct.
+
+**B12. Rounds 7–8 (16–17 Oct), built, Wil's tests pending.** Check mark ("to check", Ctrl+T), "To check
+only", Export for checking, Last entered row, Read back checking, Test copy of a job (`09` §8a). Also
+F86 and F87 (`06`), green ticks (`shared/tick_style.py`), dd/mm/yyyy everywhere (`shared/display_format.dmy`).
+
+**B13. Half built (24 Oct).** A3 retirement: Data Entry's own iRecord export half is removed
+(`_do_irecord_export` has no caller; Check iRecord return kept for old awaiting jobs). The map shims
+(`DataEntry/raster_map.py` and others) still have callers in `info_panel.py` and `entry_grid.py`.
 
 ---
 
@@ -264,8 +273,7 @@ answer to single-machine risk.
 that changes data** — re-run the two `robocopy /MIR` lines in `01_Architecture.md`
 §7; only changes copy.
 
-**D3. Merge `main` → `stable`.** 15 minutes. Stale since June. *Decided 12 Oct (Q88):* do it
-now that Round 8 is committed.
+**D3. Merge `main` → `stable`.** ✅ Done 14 Oct (Q88, F2).
 
 **D4. UKSI rebuild** — ✅ **DONE** (6 October), without the extractor:
 `build_uksi_from_release.py` builds `uksi.db` from the NHM *Simplified Copy*
@@ -326,15 +334,16 @@ Expect no added copies, the 36 key-only records given their iRecord ID, twins 0 
 from the known pair. Then retire `observatum_pre_sync_20261009.db` (backups folder) to
 `_archive`.
 
-**D8. Laptop / second-machine access.** **Decided 12 Oct (Q3): each machine keeps its own
-databases; data moves by export and import.** (SQLite over a syncing folder from two
-machines risks corruption; one-at-a-time and a server were the other options.)
+**D8. Laptop / second-machine access.** *Decided 12 Oct (Q3): each machine keeps its own
+databases; data moves by export and import.* **For Wil's own laptop this was replaced on 17 Oct by
+away mode (Option 2, a read-only copy; built Round 9, not yet tested; `01` §4f).** Q3 still stands for
+the partner's install. Guards incomplete: F90.
 
 **D13. Partner's laptop install.** Winter, after photos and the scheme dataset (Q2). The
 full suite (Q68). Her own empty database, plus perhaps a separate practice database seeded
 with sample data (Q69). Before it: the real-laptop check (dialogs fit 1280×720 since
 Round 5, `shared/fit_to_screen.py`), `uk_vice_counties.svg` and `family_common_names.json`
-present, the packaging work (`04_Roadmap.md`).
+present, the packaging work (`04_Roadmap.md`). `reset_database.py` has schema drift (Round 12 fixes the schema).
 
 **D14. Backup drive.** The media library (45 GB) joins the `D:\` mirror (Q13), and the
 off-site copy should move from the USB pen to one of Wil's larger external drives (to
@@ -360,12 +369,12 @@ tint slivers); Round 8 (Square opacity slider, 0–100 %, remembered; the atlas 
 batch maps stay solid) and the review's cache-key fix (`06` F47).
 
 **Open (12 Oct):**
-- **Map background layers** (big, optional; 3–4 days): OS Open Zoomstack, decisions Q6,
-  Q34–Q40 answered (`03_Backlog.md`); design `docs/drafts/map_layers_survey.md`. Districts
-  move to current OS Boundary-Line, labelled "Local authority districts" (Q35, Q39).
+- **Map background layers:** ✅ built Rounds 8–11 (`01` §4c); districts now from Boundary-Line (Q35, Q39,
+  done); the atlas prints what is ticked (Q36, Q38, done). Left: Wil's checks and commit; phase 2 (Q37);
+  deferred items in `03`. Design `docs/drafts/map_layers_survey.md`.
 - **Batch maps screen** (later; Q41–Q50 answered): `scripts/batch_maps.py` is the engine;
   design `docs/drafts/batch_maps_design.md`.
-- Rebuild the PC's coarse 2 MB VC outline file (`convert_vc_shapefile.py`; L34).
+- ~~Rebuild the PC's coarse 2 MB VC outline file~~ done 13 Oct (`02` data/maps).
 - The "decade" period option was never implemented (below).
 
 **H1–H6.** ✅ Built 9 Oct. The Mapping tab draws its own map (`shared/maps/grid_map.py`) in place
@@ -429,7 +438,7 @@ remaining 1 January dates (Q57, Q58), dates before 1700 (Q65). **Timing (Q4): th
 questions come straight after the next big job.** About 1 h of questions, then 2 sessions.
 
 **M2. Shared access** to the final dataset (and possibly observation data) with Wil's
-partner. Q3 settled the approach: separate databases, data moved by export and import.
+partner. Q3 settled the approach for the partner: separate databases, data moved by export and import (Wil's own laptop uses away mode).
 After M1 and the laptop install.
 
 **M3. Scheme imports can't be undone in the app.** Records are read-only by design, so a

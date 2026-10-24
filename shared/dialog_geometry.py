@@ -25,7 +25,8 @@ def key_for(dialog) -> str:
 
 
 def _settings() -> QSettings:
-    return QSettings("Flauna", "Dialogs")
+    from shared.settings_store import named
+    return named("Flauna", "Dialogs")
 
 
 _WATCHED = (QEvent.Type.Show, QEvent.Type.Hide, QEvent.Type.Close)

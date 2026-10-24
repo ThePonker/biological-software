@@ -260,8 +260,10 @@ def test_munia_window_and_budget(qapp, metrics_font, tmp_path, monkeypatch):
 
 @needs_data
 @FONTS
-def test_examen_window(qapp, metrics_font):
+def test_examen_window(qapp, metrics_font, monkeypatch, live_copy):
     from PySide6.QtWidgets import QPushButton
+    from Examen import examen_data as ed
+    monkeypatch.setattr(ed, "DB_PATH", live_copy)               # a copy, never the live file
     from Examen.examen_ui import ExamenWindow
     from src.views.components.hscroll_strip import HScrollStrip
     e = ExamenWindow()

@@ -13,6 +13,8 @@ Dashboard for scheme organisers showing:
 NO gamification - this is a scheme organiser tool.
 """
 
+import weakref
+
 from PySide6.QtWidgets import (
     QDialog, QTabWidget,
     QScrollArea, QWidget, QVBoxLayout, QHBoxLayout, QFrame, QLabel,
@@ -298,7 +300,11 @@ class VCExplorer(QFrame):
         """)
         self.vc_combo.currentIndexChanged.connect(self._on_vc_selected)
         # Select all text when clicking in the combo box for easy replacement
-        self.vc_combo.lineEdit().mousePressEvent = lambda e: (self.vc_combo.lineEdit().selectAll(), e.accept())
+        # (the handler must not capture self: that kept the whole explorer alive from the line edit
+        # and deleting it from inside Qt's own teardown crashed -- Round 12)
+        edit = self.vc_combo.lineEdit()
+        edit_ref = weakref.ref(edit)
+        edit.mousePressEvent = lambda e: (edit_ref() and edit_ref().selectAll(), e.accept())
         selector_row.addWidget(self.vc_combo)
         
         # Clear button

@@ -16,6 +16,7 @@ _ALLOWED_FIELDS = {
     "recorder_certainty", "date", "date_type", "grid_ref", "vice_county", "vc_number",
     "site_name", "recorder", "determiner", "sex", "stage", "quantity", "method",
     "record_type", "project_name", "client", "embargo_until",
+    "embargo_status",   # written with the record, so a failed second UPDATE cannot leave it NULL
     "comment",   # the grid's Comment column -- was dropped at commit until 8 Oct 2026
     "latitude", "longitude", "geodetic_datum",   # from the grid ref at commit (9 Oct 2026)
     "kingdom", "taxon_group",                    # from UKSI at commit (9 Oct 2026, OBS-11)

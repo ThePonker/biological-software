@@ -5,6 +5,10 @@ per layer and level of detail, `<key>_<lod>.json` (lod "gb" or "county"; coordin
 integer OSGB metres; each feature carries its bbox). Any of them may be missing: nothing here
 fails then, and the map draws as it did before the layers existed.
 
+18 Oct 2026: six more layers, all off by default: place names (points), railways, national
+parks, foreshore, parks and green space, and relief (an image: relief.py). A names feature is
+{"bbox", "pt": [e, n], "n": name, "t": class}; place_classes.py is the table of classes.
+
 Display only. Colours come from theme() (blended; the sea blue is the map's own _SEA_C), never typed in;
 the Layers menu's "Colours..." can override each toggle's colour (QSettings, hex), else these defaults.
 """
@@ -33,7 +37,7 @@ class Layer:
     """One drawn layer. toggle: the menu switch that turns it on (None: land and districts,
     which have their own place)."""
     key: str
-    kind: str                   # "polygon" or "line"
+    kind: str                   # "polygon", "line", "point" (place names) or "image" (relief)
     toggle: Optional[str] = None
 
 
@@ -44,25 +48,41 @@ class Toggle:
     label: str
     default: bool
     files: Tuple[str, ...]
+    colour: bool = True         # False: nothing to choose in Colours... (the relief is grey)
 
 
-# bottom to top: land, woodland, towns, water areas, rivers, main roads (the VC tint, coast,
-# grid, VC boundaries and districts are drawn between and above them by map_layers.py)
+# bottom to top: land, relief, foreshore, parks and green space, woodland, towns, water areas,
+# rivers, national parks, railways, main roads (the VC tint, coast, grid, VC boundaries and
+# districts are drawn between and above them by map_layers.py). The place names are text: GridMap
+# draws them last of all, over the squares (place_names.py).
 LAYERS = (
     Layer("land", "polygon"),
+    Layer("relief", "image", "relief"),
+    Layer("foreshore", "polygon", "foreshore"),
+    Layer("greenspace", "polygon", "greenspace"),
     Layer("woodland", "polygon", "woodland"),
     Layer("towns", "polygon", "towns"),
     Layer("water", "polygon", "water"),
     Layer("rivers", "line", "water"),
+    Layer("national_parks", "polygon", "national_parks"),
+    Layer("rail", "line", "rail"),
     Layer("roads", "line", "roads"),
     Layer("districts", "polygon"),
+    Layer("names", "point", "names"),
 )
-TOGGLES = (                 # the menu, in draw order
+TOGGLES = (                 # the menu
     Toggle("woodland", "Woodland", False, ("woodland",)),
     Toggle("towns", "Towns", False, ("towns",)),
     Toggle("water", "Rivers and lakes", True, ("water", "rivers")),
     Toggle("roads", "Main roads", False, ("roads",)),
+    Toggle("names", "Place names", False, ("names",)),
+    Toggle("rail", "Railways", False, ("rail",)),
+    Toggle("national_parks", "National parks", False, ("national_parks",)),
+    Toggle("foreshore", "Foreshore", False, ("foreshore",)),
+    Toggle("greenspace", "Parks and green space", False, ("greenspace",)),
+    Toggle("relief", "Relief", False, ("relief",), colour=False),
 )
+DASHES = {"rail": (4.0, 3.0)}   # dash, gap (in line widths) of a dashed line layer
 NOT_INSTALLED = "Not installed: run scripts\\build_map_layers.py"
 
 
@@ -94,9 +114,15 @@ def file_path(maps_dir, key: str, lod: str) -> Optional[Path]:
     return None
 
 
+def kind_of(key: str) -> str:
+    return next((lay.kind for lay in LAYERS if lay.key == key), "")
+
+
 def available(maps_dir) -> Set[str]:
-    """Layer keys with at least one file in data/maps/layers/."""
-    return {lay.key for lay in LAYERS if file_path(maps_dir, lay.key, "gb") is not None}
+    """Layer keys with at least one file in data/maps/layers/ (the relief needs its image too)."""
+    d = layers_dir(maps_dir)
+    return {lay.key for lay in LAYERS if file_path(maps_dir, lay.key, "gb") is not None
+            and (lay.kind != "image" or (d / f"{lay.key}_gb.png").is_file())}
 
 
 def toggle_available(avail: Set[str], toggle: Toggle) -> bool:
@@ -108,7 +134,7 @@ _LOCK = threading.RLock()
 
 
 def load(maps_dir, key: str, lod: str) -> List[dict]:
-    """The layer's features (dicts with "bbox" and "rings" or "line", OSGB metres), cached per
+    """The layer's features (dicts with "bbox" and "rings", "line" or "pt", OSGB metres), cached per
     file. [] when there is no file or it cannot be read."""
     path = file_path(maps_dir, key, lod)
     if path is None:
@@ -120,7 +146,7 @@ def load(maps_dir, key: str, lod: str) -> List[dict]:
                 with open(path, encoding="utf-8") as fh:
                     data = json.load(fh)
                 _CACHE[ck] = [f for f in data.get("features", [])
-                              if isinstance(f, dict) and (f.get("rings") or f.get("line"))]
+                              if isinstance(f, dict) and (f.get("rings") or f.get("line") or f.get("pt"))]
             return _CACHE[ck]
     except Exception:
         return []
@@ -198,6 +224,16 @@ def default_style(key: str) -> Tuple[Optional[QColor], Optional[QColor], float]:
         return None, _mix(_SEA_C, theme.SLATE, 0.4), 0.6
     if key == "roads":
         return None, _mix(theme.MUTED, theme.CARD, 0.5), 0.6
+    if key == "rail":
+        return None, _mix(theme.MUTED, theme.CARD, 0.3), 0.7
+    if key == "national_parks":
+        return None, _mix(theme.MOSS_HOVER, theme.CARD, 0.15), 1.0
+    if key == "foreshore":
+        return _mix(_mix(theme.GOLD, theme.MOSS, 0.4).name(), theme.CARD, 0.72), None, 0.3
+    if key == "greenspace":
+        return _mix(_mix(theme.MOSS, theme.GOLD, 0.15).name(), theme.CARD, 0.6), None, 0.3
+    if key == "names":      # the ink of the place names (a line colour: they have no fill)
+        return None, _mix(theme.INK, theme.MUTED, 0.5), 0.0
     return None, None, 0.0
 
 
@@ -210,7 +246,7 @@ def default_colour(tkey: str) -> QColor:
 
 def style(key: str) -> Tuple[Optional[QColor], Optional[QColor], float]:
     """default_style(key), with the remembered colour of its toggle in place of the fill (water
-    areas, woodland, towns) or the line (rivers, roads)."""
+    areas, woodland, towns ...) or the line (rivers, roads, rail, national parks, place names)."""
     fill, line, w = default_style(key)
     tk = toggle_key(key)
     c = saved_colour(tk) if tk else None

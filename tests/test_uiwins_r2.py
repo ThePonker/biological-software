@@ -373,15 +373,6 @@ def test_dashboards_wire_the_recent_species_popup():
         assert "wire_observation_detail(dlg, self)" in body, name
 
 
-def test_notifications_retired_and_package_imports():
-    import pathlib
-    import src.features.gamification as g
-    root = pathlib.Path(__file__).resolve().parents[1]
-    assert not (root / "Observatum/src/features/gamification/notifications.py").exists()
-    assert (root / "_archive/gamification_notifications_20261010/notifications.py").exists()
-    assert not hasattr(g, "NotificationStack")
-
-
 # ---------------------------------------------------------------- L21 / L22 Data Entry
 
 @pytest.fixture

@@ -5,7 +5,6 @@ Contains file loading, iRecord format detection, column mapping,
 and problem export methods.
 """
 
-import csv
 from typing import Dict, Optional
 
 from PySide6.QtWidgets import (
@@ -147,25 +146,9 @@ class WizardFileMixin(ProblemExportMixin):
         """)
         
         try:
-            # Detect encoding and delimiter
-            file_encoding = "utf-8-sig"
-            try:
-                with open(file_path, "r", encoding="utf-8-sig") as f:
-                    sample = f.read(4096)
-            except UnicodeDecodeError:
-                file_encoding = "latin-1"
-                with open(file_path, "r", encoding="latin-1") as f:
-                    sample = f.read(4096)
-
-            tab_count = sample.count("\t")
-            comma_count = sample.count(",")
-            delimiter = "\t" if tab_count > comma_count else ","
-
-            # Read file
-            with open(file_path, "r", encoding=file_encoding) as f:
-                reader = csv.DictReader(f, delimiter=delimiter)
-                self.columns = reader.fieldnames or []
-                self.raw_rows = list(reader)
+            # utf-8-sig, then Windows-1252 (Excel's 'CSV' save), then latin-1
+            from shared.import_core import read_table_file
+            self.columns, self.raw_rows, file_encoding = read_table_file(file_path)
             
             # Check if this is an iRecord file
             self.is_irecord_format = self._detect_irecord_format()
@@ -173,6 +156,9 @@ class WizardFileMixin(ProblemExportMixin):
             # Update UI
             row_count = len(self.raw_rows)
             format_note = " (iRecord format detected)" if self.is_irecord_format else ""
+            if file_encoding != "utf-8-sig":
+                format_note += (f" (read as {'Windows-1252' if file_encoding == 'cp1252' else 'Latin-1'}, "
+                                "not UTF-8)")
             self.file_info_label.setText(
                 f"✓ Loaded {row_count} rows with {len(self.columns)} columns{format_note}"
             )

@@ -4,10 +4,13 @@
     py -3.14 scripts\\build_map_layers.py --apply         # build the layer files (long: Zoomstack is 11.8 GB)
     py -3.14 scripts\\build_map_layers.py --apply --only woodland,rivers
     py -3.14 scripts\\build_map_layers.py --check         # size / features / points of files already built
+    py -3.14 scripts\\build_map_layers.py --describe names,rail   # read-only: columns, rows, common types
 
 Reads OS Open Zoomstack and OS Boundary-Line (both GeoPackage, EPSG:27700) read-only from
 --source (default ~/OS data) and writes data/maps/layers/<key>_<lod>.json (--out overrides).
-Nothing but the output folder is ever written; the GeoPackages are only read.
+The "relief" layer is made from OS Terrain 50 (ASCII Grid zip, read without extracting; see
+build_map_relief.py) into relief_gb.png + relief_gb.json. If it is not found, it is skipped.
+Nothing but the output folder is ever written; the sources are only read.
 """
 import argparse
 import json
@@ -27,22 +30,40 @@ import shapely.wkb  # noqa: E402
 from shapely.geometry import Polygon  # noqa: E402
 from shapely.geometry.polygon import orient  # noqa: E402
 
+from scripts.map_gpkg import (Classes, Soft, count_rows, decode_gpkg, open_ro,  # noqa: E402,F401
+                              point_features, read_rows, table_info)
+from shared.maps import place_classes  # noqa: E402
+
 ZOOMSTACK_URL = "https://osdatahub.os.uk/downloads/open/OpenZoomstack"
 BOUNDARY_URL = "https://osdatahub.os.uk/downloads/open/BoundaryLine"
 ATTRIBUTION = "Contains OS data © Crown copyright and database right 2026."
+LODS = ("gb", "county")
 ZOOM, BOUND = "zoomstack", "boundary"
 _NAMES = {ZOOM: "OS Open Zoomstack", BOUND: "OS Boundary-Line"}
 _PROBE = {ZOOM: "woodland", BOUND: "district_borough_unitary"}
-_ENVELOPE = {0: 0, 1: 32, 2: 48, 3: 48, 4: 64}      # GPKG header envelope indicator -> bytes
+
+RELIEF = "relief"
+
 
 # ---- THE TABLE: per layer and lod -> (tables [(table, types or None)], tolerance m, min area m2) ----
 _GB_TOL, _GB_AREA, _CO_TOL, _CO_AREA = 250, 500000, 25, 10000
 
 
-def _scaled(table):
+def _scaled(table, soft=False):
     """Zoomstack scale versions: National for the GB view, Regional for the county view."""
-    return {"gb": ([(table, ["National"])], _GB_TOL, _GB_AREA),
-            "county": ([(table, ["Regional"])], _CO_TOL, _CO_AREA)}
+    one = Soft if soft else list
+    return {"gb": ([(table, one(["National"]))], _GB_TOL, _GB_AREA),
+            "county": ([(table, one(["Regional"]))], _CO_TOL, _CO_AREA)}
+
+
+def _place_names():
+    """Cities in the GB file, the rest in the county file (place_classes.py is the one table)."""
+    out = {}
+    for lod in LODS:
+        classes = Classes(place_classes.source_values(lod))
+        classes.detect = [v for c in place_classes.PLACE_CLASSES for v in c.values]
+        out[lod] = ([("names", classes)], 0, 0)
+    return out
 
 
 LAYERS = {
@@ -58,78 +79,16 @@ LAYERS = {
     "districts": ("polygon", BOUND, {
         "gb": ([("district_borough_unitary", None)], _GB_TOL, 0),
         "county": ([("district_borough_unitary", None)], _CO_TOL, 0)}),
+    # 18 Oct 2026 (table and column names to be checked with --describe)
+    "rail": ("line", ZOOM, _scaled("rail", soft=True)),
+    "national_parks": ("polygon", ZOOM, _scaled("national_parks", soft=True)),
+    "foreshore": ("polygon", ZOOM, _scaled("foreshore", soft=True)),
+    "greenspace": ("polygon", ZOOM, _scaled("greenspace", soft=True)),
+    "names": ("point", ZOOM, _place_names()),
 }
-LODS = ("gb", "county")
 # layers merged into one shape before simplifying: the land comes in pieces whose shared edges
 # would otherwise be drawn as coast (and simplified apart, leaving slivers)
 MERGE = ("land",)
-
-
-# ---- GeoPackage reading ----
-def open_ro(path):
-    return sqlite3.connect(f"file:{Path(path).as_posix()}?mode=ro", uri=True)
-
-
-def decode_gpkg(blob):
-    """GeoPackage geometry blob -> shapely geometry (None if empty)."""
-    blob = bytes(blob)
-    if blob[:2] != b"GP":
-        raise ValueError("not a GeoPackage geometry blob")
-    flags = blob[3]
-    if (flags >> 4) & 1:                              # empty-geometry flag
-        return None
-    ind = (flags >> 1) & 7
-    if ind not in _ENVELOPE:
-        raise ValueError(f"bad envelope indicator {ind}")
-    return shapely.wkb.loads(blob[8 + _ENVELOPE[ind]:])
-
-
-def table_info(conn, table):
-    """(geometry column, type column or None, name column or None, canonical table name).
-
-    Raises ValueError if the table is missing or its srs is not 27700."""
-    row = conn.execute("SELECT table_name FROM gpkg_contents WHERE lower(table_name)=lower(?)",
-                       (table,)).fetchone()
-    if not row:
-        raise ValueError(f"table {table} not found")
-    real = row[0]
-    g = conn.execute("SELECT column_name, srs_id FROM gpkg_geometry_columns "
-                     "WHERE lower(table_name)=lower(?)", (table,)).fetchone()
-    if not g:
-        raise ValueError(f"table {table} has no geometry column registered")
-    if g[1] != 27700:
-        raise ValueError(f"table {table} is in srs {g[1]}, not 27700 - refusing")
-    cols = {r[1].lower(): r[1] for r in conn.execute(f'PRAGMA table_info("{real}")')}
-    return g[0], cols.get("type"), cols.get("name"), real
-
-
-def _where(tcol, types):
-    if tcol and types:
-        return f' WHERE "{tcol}" IN ({",".join("?" * len(types))})', list(types)
-    return "", []
-
-
-def count_rows(conn, table, types):
-    _, tcol, _, real = table_info(conn, table)
-    w, args = _where(tcol, types)
-    return conn.execute(f'SELECT COUNT(*) FROM "{real}"{w}', args).fetchone()[0]
-
-
-def read_rows(conn, table, types, want_name=False, want_type=False):
-    """Yield (geometry, name, type) for each row of the table matching types (name / type are
-    None unless asked for and the table has the column)."""
-    gcol, tcol, ncol, real = table_info(conn, table)
-    w, args = _where(tcol, types)
-    sel = (f'"{gcol}"' + (f', "{ncol}"' if want_name and ncol else ", NULL")
-           + (f', "{tcol}"' if want_type and tcol else ", NULL"))
-    cur = conn.execute(f'SELECT {sel} FROM "{real}"{w}', args)
-    while True:
-        chunk = cur.fetchmany(2000)
-        if not chunk:
-            return
-        for blob, name, typ in chunk:
-            if blob is not None:
-                yield decode_gpkg(blob), name, typ
 
 
 # ---- geometry -> compact features ----
@@ -194,6 +153,8 @@ def to_features(geom, kind, tol, min_area, name=None, typ=None):
 
 
 def count_points(feature):
+    if "pt" in feature:
+        return 1
     return len(feature["line"]) if "line" in feature else sum(len(r) for r in feature["rings"])
 
 
@@ -232,7 +193,9 @@ def build_layer(conn, gpkg, key, lod, out_dir):
     merge = key in MERGE                      # land: one shape, so no seams or inner coast
     join = kind == "line"                     # lines: joined end to end per type, then simplified
     pieces, groups = [], {}
-    for table, types in tables:
+    if kind == "point":
+        feats, rows = point_features(conn, tables)
+    for table, types in (() if kind == "point" else tables):
         for geom, name, typ in read_rows(conn, table, types, want_name=(key == "districts"),
                                          want_type=join):
             rows += 1
@@ -273,6 +236,10 @@ def check_folder(out_dir):
         doc = json.loads(f.read_text(encoding="utf-8"))
         feats = doc.get("features", [])
         pts = sum(count_points(x) for x in feats)
+        if doc.get("kind") == "image":
+            print(f"  {f.name}: {f.stat().st_size:,} bytes, image {doc.get('width')} x {doc.get('height')} "
+                  f"cells of {doc.get('cell_m')} m")
+            continue
         print(f"  {f.name}: {f.stat().st_size:,} bytes, {len(feats)} features, {pts} points")
     print("\nREAD ONLY. Nothing has been changed.")
     return 0
@@ -282,21 +249,26 @@ def main(argv=None) -> int:
     from shared.away_mode import refuse_if_away; refuse_if_away("build_map_layers")
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--apply", action="store_true", help="build the files (default is a dry run)")
-    ap.add_argument("--only", default="", help="comma list of layers: " + ",".join(LAYERS))
+    ap.add_argument("--only", default="", help="comma list of layers: " + ",".join([*LAYERS, RELIEF]))
     ap.add_argument("--check", action="store_true", help="describe files already built")
+    ap.add_argument("--describe", default="", metavar="TABLE[,TABLE]",
+                    help="read-only: each table's columns, rows, geometry type and commonest types")
     ap.add_argument("--source", default=str(Path.home() / "OS data"))
     ap.add_argument("--out", default=str(Path(paths.ROOT) / "data" / "maps" / "layers"))
     a = ap.parse_args(argv)
     if a.check:
         return check_folder(a.out)
-    keys = [k.strip() for k in a.only.split(",") if k.strip()] or list(LAYERS)
-    bad = [k for k in keys if k not in LAYERS]
+    if a.describe:
+        from scripts.build_map_describe import describe
+        return describe(a.source, [t.strip() for t in a.describe.split(",") if t.strip()])
+    keys = [k.strip() for k in a.only.split(",") if k.strip()] or [*LAYERS, RELIEF]
+    bad = [k for k in keys if k not in LAYERS and k != RELIEF]
     if bad:
-        print(f"Unknown layer(s) {bad}; choose from {list(LAYERS)}. Nothing has been changed.")
+        print(f"Unknown layer(s) {bad}; choose from {[*LAYERS, RELIEF]}. Nothing has been changed.")
         return 1
     found, missing = {}, False
     for kind in (ZOOM, BOUND):
-        if any(LAYERS[k][1] == kind for k in keys):
+        if any(k in LAYERS and LAYERS[k][1] == kind for k in keys):
             found[kind] = find_gpkg(a.source, kind)
             if found[kind] is None:
                 missing = True
@@ -315,7 +287,7 @@ def main(argv=None) -> int:
     conns = {k: open_ro(p) for k, p in found.items()}
     problems = 0
     try:
-        for key in keys:
+        for key in (k for k in keys if k != RELIEF):
             src = LAYERS[key][1]
             for lod in LODS:
                 tables, tol, min_area = LAYERS[key][2][lod]
@@ -334,6 +306,9 @@ def main(argv=None) -> int:
     finally:
         for c in conns.values():
             c.close()
+    if RELIEF in keys:
+        from scripts.build_map_relief import build_relief
+        problems += build_relief(a.source, a.out, ATTRIBUTION, a.apply, explicit=(RELIEF in a.only))
     print("\n" + ("Done." if a.apply and not problems else
                   "Nothing has been changed." if not a.apply else "Finished with problems."))
     return 1 if problems else 0

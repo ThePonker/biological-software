@@ -171,7 +171,6 @@ def test_take_a_photo_off_a_row(lib):
 
 def test_attach_dialog_takes_a_photo_off(lib):
     root, conn, cap, repo = lib
-    from PySide6.QtCore import QSettings
     from PySide6.QtGui import QImage
     from PySide6.QtWidgets import QApplication
     QApplication.instance() or QApplication([])
@@ -179,7 +178,8 @@ def test_attach_dialog_takes_a_photo_off(lib):
     jid = repo.create_job(conn, "Personal", "Personal", None, None)
     rid = repo.insert_row(conn, jid, {"species_name": "Amara aenea"})
     assert QImage(8, 8, QImage.Format.Format_RGB32).save(str(cap / "a.jpg"))
-    s = QSettings("Flauna", "Observatum")
+    from shared.settings_store import named
+    s = named("Flauna", "Observatum")
     old = s.value(photo_attach.KEY_FOLDER)
     s.setValue(photo_attach.KEY_FOLDER, str(cap))
     try:
