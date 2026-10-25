@@ -26,9 +26,13 @@ from typing import Iterable, List, Optional, Tuple
 
 from shared import photo_files as pf
 from shared import photo_links as pl
+from shared.vocab import SEX_OPTIONS
 
 BENCH_REL = "Photos/_Bench"
-SEX_WORDS = {"male", "female", "males", "females", "mixed", "worker", "queen", "hermaphrodite"}
+# the one-word sexes of the shared list (male, female, mixed) plus the plurals and castes a
+# photo name may carry
+SEX_WORDS = ({s.casefold() for s in SEX_OPTIONS if " " not in s}
+             | {"males", "females", "worker", "queen", "hermaphrodite"})
 
 
 def bench_root() -> Path:

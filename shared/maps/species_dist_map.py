@@ -249,35 +249,8 @@ class DistributionMiniMap(PanZoomMixin, QWidget):
     # GB land bounding box in OSGB metres (from the VC boundary extent) -- deterministic crop.
     _GB_LAND = (13000.0, 5000.0, 654000.0, 1211000.0)
 
-    @staticmethod
-    def _crop_land(img, full_extent):
-        """Crop the national-box mosaic to GB's land bbox (trims sea margins predictably)."""
-        w, h = img.width(), img.height()
-        minE, minN, maxE, maxN = full_extent
-        lE0, lN0, lE1, lN1 = DistributionMiniMap._GB_LAND
-        x0 = int((lE0 - minE) / (maxE - minE) * w)
-        x1 = int((lE1 - minE) / (maxE - minE) * w)
-        y0 = int((maxN - lN1) / (maxN - minN) * h)
-        y1 = int((maxN - lN0) / (maxN - minN) * h)
-        x0 = max(0, min(x0, w - 1)); x1 = max(x0 + 1, min(x1, w))
-        y0 = max(0, min(y0, h - 1)); y1 = max(y0 + 1, min(y1, h))
-        cropped = img.copy(x0, y0, x1 - x0, y1 - y0)
-        return cropped, (lE0, lN0, lE1, lN1)
-
     _SEA = _SEA_C; _LAND = _LAND_C; _COAST = _COAST_C
     _VCLINE = _VCLINE_C; _GRID100 = _GRID100_C; _GRID10 = _GRID10_C
-
-    @staticmethod
-    def _sample_sea(img):
-        """Grab the OS sea-blue from a known-sea pixel (top-left corner of the GB box)."""
-        from PySide6.QtGui import QColor
-        try:
-            c = QColor(img.pixel(3, 3))
-            if c.red() > 245 and c.green() > 245 and c.blue() > 245:
-                return QColor(220, 233, 244)  # near-white corner -> sensible pale blue
-            return c
-        except Exception:
-            return QColor(220, 233, 244)
 
     def resizeEvent(self, ev):
         self._land_pix = None  # invalidate cached land on resize

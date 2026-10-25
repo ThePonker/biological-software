@@ -31,7 +31,7 @@ _WIDTHS = (200, 110, 90, 140, 190, 150, 240, 90, 260)
 def link_colour() -> str:
     """The link colour: the theme's own 'link' token, else its primary (Moss Green)."""
     t = theme()
-    return t.get("link", t.get("primary"))
+    return t.get("primary")
 
 
 class CleaningRowModel(QAbstractTableModel):

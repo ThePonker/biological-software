@@ -202,14 +202,6 @@ def main():
     # for information; nothing is written.
     filled = 0
     track_counts = {}
-    if False:  # retained for reference; see patch_sqs_derive_live.py
-        for tvk, (tvk_, sqs, winning) in by_species.items():
-            c.execute("""INSERT OR IGNORE INTO sqs_scores (tvk, sqs, source)
-                         VALUES (?, ?, 'derived')""", (tvk, sqs))
-            if c.rowcount > 0:
-                filled += 1
-                track_counts[winning[0]] = track_counts.get(winning[0], 0) + 1
-
     print(f"  Candidate invertebrate species: {len(by_species):,}")
     print(f"  SQS scores STORED:              {filled:,}  "
           f"(derivation is now live -- see shared/sqs_derivation.py)")

@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Optional, Dict
 import sys
 import paths
+from ..themes.naturalist import NATURALIST_THEME as _T   # one source for the colours (R13)
 
 
 # =============================================================================
@@ -96,7 +97,6 @@ class Settings:
     FILTERS_VISIBLE_COLLECTION = "display/filters_visible_collection"
     CSV_BACKUP_ON_CLOSE = "general/csv_backup_on_close"
     CSV_BACKUP_PATH = "general/csv_backup_path"
-    ACTIVE_RECORD_BOOKS_PATH = "general/active_record_books_path"
 
     # --- Export Settings ---
     EXPORT_INCLUDE_COMMON_NAMES = "export/include_common_names"
@@ -113,10 +113,7 @@ class Settings:
     COLLECTION_LEPIDOPTERA_ENABLED = "collection/lepidoptera_enabled"
     
     # --- Sync Settings ---
-    SYNC_METHOD = "sync/method"
     SYNC_LAST_SYNC = "sync/last_sync"
-    SYNC_AUTO_ACCEPT = "sync/auto_accept"
-    SYNC_PROMPT_OVERWRITE = "sync/prompt_overwrite"
     
     # --- Window State ---
     WINDOW_GEOMETRY = "window/geometry"
@@ -250,7 +247,7 @@ class Paths:
 
 class TabColors:
     """
-    Tab accent colors for the Naturalist theme.
+    Tab accent colors for the Naturalist theme (look-ups into NATURALIST_THEME, R13).
     
     Each data tab has a distinct color for visual identification.
     Each tab has three variants:
@@ -270,68 +267,68 @@ class TabColors:
     # -------------------------------------------------------------------------
     # Home / Settings - Warm Gray
     # -------------------------------------------------------------------------
-    HOME = "#8b8178"
-    HOME_LIGHT = "#f5f4f3"
-    HOME_DARK = "#6b635b"
+    HOME = _T["accent_home"]
+    HOME_LIGHT = _T["accent_home_light"]
+    HOME_DARK = _T["accent_home_dark"]
     
-    SETTINGS = "#8b8178"
-    SETTINGS_LIGHT = "#f5f4f3"
-    SETTINGS_DARK = "#6b635b"
+    SETTINGS = _T["accent_settings"]
+    SETTINGS_LIGHT = _T["accent_settings_light"]
+    SETTINGS_DARK = _T["accent_settings_dark"]
     
     # -------------------------------------------------------------------------
     # Observation Data - Sage Green
     # -------------------------------------------------------------------------
-    OBSERVATION = "#5f8575"
-    OBSERVATION_LIGHT = "#e8f0ec"
-    OBSERVATION_DARK = "#4a6b5c"
+    OBSERVATION = _T["accent_observation"]
+    OBSERVATION_LIGHT = _T["accent_observation_light"]
+    OBSERVATION_DARK = _T["accent_observation_dark"]
     
     # -------------------------------------------------------------------------
     # Recording Scheme - Dusty Purple
     # -------------------------------------------------------------------------
-    RECORDING_SCHEME = "#7c6c9f"
-    RECORDING_SCHEME_LIGHT = "#eeeaf3"
-    RECORDING_SCHEME_DARK = "#5c4f7a"
+    RECORDING_SCHEME = _T["accent_scheme"]
+    RECORDING_SCHEME_LIGHT = _T["accent_scheme_light"]
+    RECORDING_SCHEME_DARK = _T["accent_scheme_dark"]
     
     # -------------------------------------------------------------------------
     # Insect Collection - Warm Gold
     # -------------------------------------------------------------------------
-    COLLECTION = "#b8860b"
-    COLLECTION_LIGHT = "#faf6eb"
-    COLLECTION_DARK = "#8a6508"
+    COLLECTION = _T["accent_collection"]
+    COLLECTION_LIGHT = _T["accent_collection_light"]
+    COLLECTION_DARK = _T["accent_collection_dark"]
     
     # -------------------------------------------------------------------------
     # Stats & Reports - Steel Blue
     # -------------------------------------------------------------------------
-    STATS = "#5c6b7a"
-    STATS_LIGHT = "#eaecef"
-    STATS_DARK = "#454f5c"
+    STATS = _T["accent_stats"]
+    STATS_LIGHT = _T["accent_stats_light"]
+    STATS_DARK = _T["accent_stats_dark"]
     
     # -------------------------------------------------------------------------
     # Mapping - Terracotta
     # -------------------------------------------------------------------------
-    MAPPING = "#c2956e"
-    MAPPING_LIGHT = "#f7f2ed"
-    MAPPING_DARK = "#9a7555"
+    MAPPING = _T["accent_mapping"]
+    MAPPING_LIGHT = _T["accent_mapping_light"]
+    MAPPING_DARK = _T["accent_mapping_dark"]
     # -------------------------------------------------------------------------
     # Personal Stats - Emerald Green
     # -------------------------------------------------------------------------
-    PERSONAL = "#10b981"
-    PERSONAL_LIGHT = "#d1fae5"
-    PERSONAL_DARK = "#065f46"
+    PERSONAL = _T["accent_personal"]
+    PERSONAL_LIGHT = _T["accent_personal_light"]
+    PERSONAL_DARK = _T["accent_personal_dark"]
 
     # -------------------------------------------------------------------------
     # Commercial Reports - Violet
     # -------------------------------------------------------------------------
-    COMMERCIAL = "#8b5cf6"
-    COMMERCIAL_LIGHT = "#ede9fe"
-    COMMERCIAL_DARK = "#5b21b6"
+    COMMERCIAL = _T["accent_commercial"]
+    COMMERCIAL_LIGHT = _T["accent_commercial_light"]
+    COMMERCIAL_DARK = _T["accent_commercial_dark"]
 
     # -------------------------------------------------------------------------
     # Species Dashboard - Blue
     # -------------------------------------------------------------------------
-    SPECIES = "#3b82f6"
-    SPECIES_LIGHT = "#dbeafe"
-    SPECIES_DARK = "#1e40af"
+    SPECIES = _T["accent_species"]
+    SPECIES_LIGHT = _T["accent_species_light"]
+    SPECIES_DARK = _T["accent_species_dark"]
 
     
     # -------------------------------------------------------------------------
@@ -407,20 +404,20 @@ class ButtonColors:
     """
     
     # Primary actions (Save, Add, Create) - Moss Green
-    PRIMARY = "#4a7c59"
-    PRIMARY_HOVER = "#3d6649"
-    PRIMARY_PRESSED = "#2f5a3b"
-    PRIMARY_TEXT = "#ffffff"
+    PRIMARY = _T["button_primary"]
+    PRIMARY_HOVER = _T["primary_hover"]
+    PRIMARY_PRESSED = _T["primary_pressed"]
+    PRIMARY_TEXT = _T["primary_text"]
     
     # Secondary actions (Cancel, Close) - Warm Gray (outlined style)
-    SECONDARY = "#8b8178"
-    SECONDARY_HOVER = "#6b635b"
-    SECONDARY_TEXT = "#8b8178"
+    SECONDARY = _T["secondary"]
+    SECONDARY_HOVER = _T["secondary_hover"]
+    SECONDARY_TEXT = _T["secondary_text"]
     
     # Danger actions (Delete) - Faded Crimson (outlined style)
-    DANGER = "#a63d40"
-    DANGER_HOVER = "#8b3033"
-    DANGER_TEXT = "#a63d40"
+    DANGER = _T["danger"]
+    DANGER_HOVER = _T["danger_hover"]
+    DANGER_TEXT = _T["danger_text"]
 
 
 # =============================================================================

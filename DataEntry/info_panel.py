@@ -15,7 +15,7 @@ from PySide6.QtCore import Qt, QSettings
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
 
 from DataEntry import theme
-from DataEntry import species_dist_map as _src
+from shared.maps import species_dist_map as _src
 from DataEntry.banner_layout import BannerCard, ElidedCheckBox, banner_height
 
 # QSettings key per map source -- used by both the restore block and _on_source_toggle.
@@ -100,9 +100,6 @@ class _FlowRow(QWidget):
     def resizeEvent(self, e):
         super().resizeEvent(e)
         self._fit()
-
-    def visible_count(self) -> int:
-        return sum(1 for w in self._items if not w.isHidden())
 
     def _fit(self):
         """Show the items that fit; fold the rest into "+n" (tooltip lists them)."""
@@ -416,7 +413,7 @@ class InfoPanel(QWidget):
         # location map: prefer OS raster, else vector VC outline, else none
         self._map = None
         try:
-            from DataEntry.raster_map import RasterMiniMap
+            from shared.maps.raster_map import RasterMiniMap
             rm = RasterMiniMap(tiles_dir, vc_service)
             if rm.has_data():
                 self._map = rm
@@ -426,7 +423,7 @@ class InfoPanel(QWidget):
             self._map = None
         if self._map is None:
             try:
-                from DataEntry.vc_map import MiniMap
+                from shared.maps.vc_map import MiniMap
                 mm = MiniMap(geojson_path, vc_service)
                 if mm.has_data():
                     self._map = mm
@@ -444,7 +441,7 @@ class InfoPanel(QWidget):
         # distribution map
         self._dist = None
         try:
-            from DataEntry.species_dist_map import DistributionMiniMap
+            from shared.maps.species_dist_map import DistributionMiniMap
             dm = DistributionMiniMap(geojson_path, dist_service, tiles_dir=tiles_dir, maps_dir=maps_dir)
             if dm.has_data():
                 self._dist = dm
@@ -549,8 +546,8 @@ class InfoPanel(QWidget):
     def _popout_location(self):
         if self._popout_loc_win is not None:
             self._popout_loc_win.raise_(); self._popout_loc_win.activateWindow(); return
-        from DataEntry.raster_map import RasterMiniMap
-        from DataEntry.vc_map import MiniMap
+        from shared.maps.raster_map import RasterMiniMap
+        from shared.maps.vc_map import MiniMap
         try:
             m = RasterMiniMap(self._tiles_dir, self._vc, window_m=16000, resizable=True)
             if not m.has_data():
@@ -569,7 +566,7 @@ class InfoPanel(QWidget):
     def _popout_distribution(self):
         if self._popout_dist_win is not None:
             self._popout_dist_win.raise_(); self._popout_dist_win.activateWindow(); return
-        from DataEntry.species_dist_map import DistributionMiniMap
+        from shared.maps.species_dist_map import DistributionMiniMap
         m = DistributionMiniMap(self._geojson_path, self._dist_service, resizable=True,
                                 tiles_dir=self._tiles_dir, maps_dir=self._maps_dir)
         self._popout_dist = m

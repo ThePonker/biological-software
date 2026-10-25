@@ -12,7 +12,7 @@ from PySide6.QtWidgets import QFrame, QLabel, QPushButton, QVBoxLayout
 from src.themes import theme
 
 from shared.display_format import dmy, dmy_time
-from shared.tick_mark import checkbox_qss
+from shared.tick_mark import checkbox_qss, radio_qss
 
 T = theme()
 ACCENT, ACCENT_LIGHT, ACCENT_DARK = (T.get("accent_stats"), T.get("accent_stats_light"),
@@ -55,6 +55,7 @@ def app_qss():
         {T.scrollbar_style()}
         {checkbox_style()}
         QRadioButton {{ color: {c('text_primary')}; spacing: 8px; }}
+        {radio_style()}
         {T.tooltip_style()}
         {T.status_bar_style()}
         QProgressBar {{ background: {c('surface_alt')}; border: 1px solid {c('border')};
@@ -68,6 +69,12 @@ def app_qss():
         QTabWidget::pane {{ border: none; }}
         QSplitter::handle {{ background: {c('background')}; }}
     """
+
+
+def radio_style():
+    """Radio buttons: an empty round box, or the accent fill with a white dot (shared/tick_mark.py)."""
+    return radio_qss(fill=ACCENT, mark=c("button_primary_text"),
+                     border=c("border_strong"), background=c("surface"))
 
 
 def checkbox_style():

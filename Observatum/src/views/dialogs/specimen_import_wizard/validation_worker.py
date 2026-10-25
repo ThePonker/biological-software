@@ -9,8 +9,6 @@ Validation Worker for Specimen Import Wizard.
 PANDAS REFACTOR: Uses vectorized operations for fast validation.
 """
 
-import os
-import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional, Dict, List
@@ -21,45 +19,8 @@ from PySide6.QtCore import QThread, Signal
 
 
 def _find_vc_database() -> Optional[str]:
-    """Find the Vice County lookup database."""
-    candidates = []
-    if getattr(paths, 'AWAY_MODE', False):     # away laptop: the local copy only
-        return str(paths.VC_LOOKUP_DB) if paths.VC_LOOKUP_DB.exists() else None
-    try:
-        from PySide6.QtCore import QSettings
-        settings = QSettings()
-        custom_path = settings.value("database/vc_lookup_path")
-        if custom_path:
-            candidates.append(Path(custom_path))
-    except Exception:
-        pass
-    try:
-        this_file = Path(__file__).resolve()
-        candidates.append(this_file.parent.parent.parent.parent / "data" / "vc_lookup.db")
-        candidates.append(this_file.parent.parent.parent / "data" / "vc_lookup.db")
-    except Exception:
-        pass
-    cwd = Path(os.getcwd())
-    candidates.append(cwd / "data" / "vc_lookup.db")
-    candidates.append(cwd / "src" / "data" / "vc_lookup.db")
-    if sys.path:
-        candidates.append(Path(sys.path[0]) / "data" / "vc_lookup.db")
-    candidates.append(Path("data") / "vc_lookup.db")
-    try:
-        home = Path.home()
-        candidates.append(paths.VC_LOOKUP_DB)
-    except Exception:
-        pass
-    if getattr(sys, "frozen", False):
-        exe_dir = Path(sys.executable).parent
-        candidates.append(exe_dir / "data" / "vc_lookup.db")
-    for path in candidates:
-        try:
-            if path.exists():
-                return str(path)
-        except Exception:
-            pass
-    return None
+    """The Vice County lookup database: paths.VC_LOOKUP_DB (the away copy in away mode)."""
+    return str(paths.VC_LOOKUP_DB) if Path(paths.VC_LOOKUP_DB).exists() else None
 
 
 from ..row_status import RowStatus  # noqa: F401  (I9: one copy; re-exported for the mixins)

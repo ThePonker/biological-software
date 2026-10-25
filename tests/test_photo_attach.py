@@ -33,8 +33,8 @@ def env(tmp_path, monkeypatch, qapp):
         assert QImage(8, 8, QImage.Format.Format_RGB32).save(str(f))
         os.utime(f, (1_700_000_000 + i * 100, 1_700_000_000 + i * 100))
         files.append(f)
-    from shared.settings_store import named
-    s = named("Flauna", "Observatum")
+    from shared.settings_store import app_settings
+    s = app_settings()
     old = s.value(photo_attach.KEY_FOLDER)
     s.setValue(photo_attach.KEY_FOLDER, str(cap))
     conn = sqlite3.connect(":memory:")

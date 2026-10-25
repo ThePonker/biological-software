@@ -40,15 +40,17 @@ def qapp():
 @pytest.fixture
 def settings(qapp):
     """QSettings isolated; the module's caches and default database restored after."""
-    from PySide6.QtCore import QCoreApplication, QSettings
+    from PySide6.QtCore import QCoreApplication
     org, app = QCoreApplication.organizationName(), QCoreApplication.applicationName()
     QCoreApplication.setOrganizationName("ObservatumTests")
     QCoreApplication.setApplicationName("counting_r3")
-    QSettings().clear()
+    # species_counting reads the suite's one store (24 Oct 2026): the sandbox's copy of it
+    from shared.settings_store import app_settings
+    app_settings().clear()
     old_default = sc._default_db
     sc.invalidate()
-    yield QSettings()
-    QSettings().clear()
+    yield app_settings()
+    app_settings().clear()
     sc._default_db = old_default
     sc.invalidate()
     QCoreApplication.setOrganizationName(org)

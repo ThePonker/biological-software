@@ -29,17 +29,8 @@ from .site_analysis_view import SiteAnalysisView
 
 
 # Naturalist palette
-BG = "#f5f5f4"
-SURFACE = "#ffffff"
-TEXT_PRIMARY = "#1f2937"
-TEXT_HEADING = "#4b5563"
-TEXT_SECONDARY = "#6b7280"
-TEXT_MUTED = "#9ca3af"
-BORDER = "#d1d5db"
-SEPARATOR = "#e5e7eb"
-ACCENT = "#7c6c9f"
-ACCENT_LIGHT = "#f0edf5"
-ACCENT_DARK = "#5a4d78"
+from Examen.style import (BG, SURFACE, TEXT_PRIMARY, TEXT_SECONDARY, TEXT_MUTED,
+    BORDER, SEPARATOR, ACCENT, ACCENT_LIGHT, ACCENT_DARK)
 
 
 class ExamenWindow(QMainWindow):

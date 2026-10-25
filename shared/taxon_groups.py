@@ -185,9 +185,6 @@ def taxon_group(order: Optional[str], family: Optional[str] = None,
     return None
 
 
-def is_butterfly(order: Optional[str], family: Optional[str]) -> bool:
-    return (order or "").strip() == "Lepidoptera" and (family or "").strip() in BUTTERFLY_FAMILIES
-
 
 def group_for_record(stored: Optional[str], order: Optional[str] = None,
                      family: Optional[str] = None, kingdom: Optional[str] = None) -> Optional[str]:

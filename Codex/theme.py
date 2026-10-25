@@ -1,22 +1,29 @@
-"""Codex Manager theme — conservation authority aesthetic."""
+"""Codex Manager theme: names resolved from Observatum's Naturalist theme."""
+from shared.theme_lookup import value as _g
 
-# Codex accent: deep forest green with gold highlights
-ACCENT = "#2d5016"
-ACCENT_LIGHT = "#e8f0e4"
-ACCENT_DARK = "#1a3a0a"
-GOLD = "#8b7535"
-GOLD_LIGHT = "#f5f0e0"
 
-SURFACE = "#faf9f7"
-SURFACE_ALT = "#f0eeea"
-BORDER = "#d4d0c8"
-SEPARATOR = "#e0ddd6"
-TEXT_PRIMARY = "#2c2c2c"
-TEXT_SECONDARY = "#6b6560"
-TEXT_HEADING = "#3d3832"
-HOVER = "#f0eeea"
-RADIUS_SM = "4px"
-RADIUS_MD = "6px"
+# Codex takes the suite's shared palette (R13, 24 Oct 2026): Moss Green is its accent.
+ACCENT = _g("primary", "#4a7c59")
+ACCENT_LIGHT = _g("primary_bg", "#e8f0eb")
+ACCENT_DARK = _g("primary_dark", "#2f5a3b")
+GOLD = _g("accent_collection", "#b8860b")
+GOLD_LIGHT = _g("accent_collection_light", "#faf6eb")
+
+SURFACE = _g("surface", "#ffffff")
+SURFACE_ALT = _g("surface_alt", "#f9fafb")
+BORDER = _g("border", "#d1d5db")
+SEPARATOR = _g("separator", "#e5e7eb")
+TEXT_PRIMARY = _g("text_primary", "#1f2937")
+TEXT_SECONDARY = _g("text_secondary", "#6b7280")
+TEXT_HEADING = _g("text_heading", "#4b5563")
+HOVER = _g("hover", "#e5e7eb")
+RADIUS_SM = _g("radius_sm", "4px")
+RADIUS_MD = _g("radius_md", "6px")
+
+# State colours (error text, key-species badges)
+DANGER = _g("danger", "#a63d40")
+WARNING = _g("warning", "#d97706")
+SUCCESS = _g("success", "#4a7c59")
 
 # Status category colours
 CAT_COLOURS = {

@@ -7,12 +7,11 @@ different validation rules and column mappings for each.
 """
 from __future__ import annotations   # pd.DataFrame annotations: never evaluated
 
-import os
-import sys
 from dataclasses import dataclass, field
 from enum import Enum
 import paths
 from pathlib import Path
+from shared.vocab import SEX_CHOICES
 from typing import Optional, Dict, List
 
 from src.utils.lazy_module import lazy_module
@@ -21,67 +20,8 @@ from PySide6.QtCore import QThread, Signal
 
 
 def _find_vc_database() -> Optional[str]:
-    """
-    Find the Vice County lookup database.
-    Searches multiple locations in order of priority.
-    Returns path as string, or None if not found.
-    """
-    candidates = []
-    if getattr(paths, 'AWAY_MODE', False):     # away laptop: the local copy only
-        return str(paths.VC_LOOKUP_DB) if paths.VC_LOOKUP_DB.exists() else None
-
-    # 1. Check QSettings for user-configured path
-    try:
-        from PySide6.QtCore import QSettings
-        settings = QSettings()
-        custom_path = settings.value("database/vc_lookup_path")
-        if custom_path:
-            candidates.append(Path(custom_path))
-    except Exception:
-        pass
-
-    # 2. From this file's location
-    try:
-        this_file = Path(__file__).resolve()
-        candidates.append(this_file.parent.parent.parent.parent.parent / "data" / "vc_lookup.db")
-        candidates.append(this_file.parent.parent.parent.parent / "data" / "vc_lookup.db")
-    except Exception:
-        pass
-
-    # 3. From current working directory
-    cwd = Path(os.getcwd())
-    candidates.append(cwd / "data" / "vc_lookup.db")
-    candidates.append(cwd / "src" / "data" / "vc_lookup.db")
-
-    # 4. From sys.path
-    if sys.path:
-        candidates.append(Path(sys.path[0]) / "data" / "vc_lookup.db")
-
-    # 5. Relative paths
-    candidates.append(Path("data") / "vc_lookup.db")
-
-    # 6. User's home directory
-    try:
-        home = Path.home()
-        candidates.append(paths.VC_LOOKUP_DB)
-        candidates.append(paths.VC_LOOKUP_DB)
-    except Exception:
-        pass
-
-    # 7. For frozen executables
-    if getattr(sys, 'frozen', False):
-        exe_dir = Path(sys.executable).parent
-        candidates.append(exe_dir / "data" / "vc_lookup.db")
-        candidates.append(exe_dir / "vc_lookup.db")
-
-    for path in candidates:
-        try:
-            if path.exists():
-                return str(path)
-        except Exception:
-            pass
-
-    return None
+    """The Vice County lookup database: paths.VC_LOOKUP_DB (the away copy in away mode)."""
+    return str(paths.VC_LOOKUP_DB) if Path(paths.VC_LOOKUP_DB).exists() else None
 
 
 class ImportMode(Enum):
@@ -95,7 +35,7 @@ from ..row_status import RowStatus  # noqa: F401  (I9: one copy; re-exported for
 
 
 # Valid dropdown values
-VALID_SEX_VALUES = ["", "female", "male", "mixed", "not recorded"]
+VALID_SEX_VALUES = [s.casefold() for s in SEX_CHOICES]     # one sex list (R13)
 VALID_STAGE_VALUES = ["", "adult", "larva", "pupa", "egg", "nymph", "teneral", "not recorded"]
 VALID_CERTAINTY_VALUES = ["", "certain", "likely", "uncertain"]
 VALID_METHOD_VALUES = [

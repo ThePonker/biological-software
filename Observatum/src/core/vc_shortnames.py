@@ -418,3 +418,32 @@ def get_region(vc_code: str) -> str:
         if vc in codes:
             return region
     return "unknown"
+
+
+# Other spellings found in recording-scheme vice_county text that VC_FULL_NAMES does not match
+# exactly (24 Oct 2026). Key: lower-case alias. Value: the vc_number as the suite stores it
+# (an integer, as in recording_scheme.vc_number). British vice counties only: the suite stores
+# no Irish (H1-H40) vice-county numbers, so Irish names are deliberately NOT listed here.
+# Each number is the one VC_FULL_NAMES / vc_lookup.db gives that county.
+VC_NAME_ALIASES = {
+    "leicestershire": 55,            # Leicestershire with Rutland
+    "glamorganshire": 41,            # Glamorgan
+    "westmorland": 69,               # Westmorland with North Lancashire
+    "east inverness-shire": 96,      # East Inverness-shire with Nairn
+    "moray": 95,                     # Moray (Elginshire)
+    "west perthshire": 87,           # West Perthshire with Clackmannan
+    "west cornwall": 1,              # West Cornwall with Scilly
+    "channel isles": 113,            # Channel Islands
+    # review 24 Oct 2026: forms seen in the scheme data (Fifeshire, North Ebudes) or likely in
+    # future NBN downloads; each checked against VC_FULL_NAMES
+    "fifeshire": 85,                 # Fife with Kinross
+    "fife": 85,
+    "north ebudes": 104,             # North Ebudes (Skye, Rhum, etc.)
+    "mid ebudes": 103,               # Mid Ebudes (Mull, Coll, Tiree)
+    "south ebudes": 102,             # South Ebudes (Islay, Jura, Colonsay)
+    "angus": 90,                     # Angus (Forfarshire)
+    "forfarshire": 90,
+    "argyll": 98,                    # Argyll Main
+    "main argyll": 98,
+    "north northumberland": 68,      # North Northumberland (Cheviotland)
+}

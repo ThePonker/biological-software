@@ -109,6 +109,3 @@ def badge_qss(kind="default"):
     bg, fg = m.get(kind, m["default"])
     return ("background-color: %s; color: %s; padding: 2px 8px;"
             " border-radius: %s; font-size: 11px; font-weight: 600;" % (bg, fg, RADIUS_SM))
-
-def header_qss():
-    return "color: %s; font-size: 15px; font-weight: 700; letter-spacing: 1px;" % HEADING

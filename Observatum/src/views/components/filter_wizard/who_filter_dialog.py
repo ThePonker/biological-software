@@ -261,16 +261,6 @@ class WhoFilterDialog(QDialog):
                 border: 1px solid {t.get('border')};
                 border-radius: 4px;
             }}
-            QCheckBox::indicator {{
-                width: 16px;
-                height: 16px;
-                border: 2px solid {self._accent_color};
-                border-radius: 3px;
-                background-color: white;
-            }}
-            QCheckBox::indicator:checked {{
-                background-color: {self._accent_color};
-            }}
         """)
         label_row.addWidget(partial_cb)
         

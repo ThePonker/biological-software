@@ -5,7 +5,6 @@ from .database import DatabaseManager, get_database
 from .observation import Observation, ObservationModel
 from .specimen import Specimen, SpecimenModel
 from .uksi import UKSIModel
-from .recording_scheme_model import SchemeRecord, RecordingSchemeModel
 
 __all__ = [
     'DatabaseManager',
@@ -15,6 +14,4 @@ __all__ = [
     'Specimen',
     'SpecimenModel',
     'UKSIModel',
-    'SchemeRecord',
-    'RecordingSchemeModel',
 ]

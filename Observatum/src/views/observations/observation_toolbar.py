@@ -211,7 +211,7 @@ class ObservationToolbar(QFrame):
                 color: white;
             }}
             QPushButton:pressed {{
-                background-color: {t.get('error_dark', '#8b2d2d')};
+                background-color: {t.get('error_text')};
             }}
         """
     def _toggle_select_all(self):

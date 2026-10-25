@@ -59,24 +59,6 @@ class SettingsTab(QWidget):
                 font-size: {t.font_size('base')};
                 padding: 4px 0;
             }}
-            QCheckBox::indicator {{
-                width: 18px;
-                height: 18px;
-                border: 2px solid {t.get('border_strong')};
-                border-radius: 3px;
-                background-color: {t.get('surface')};
-            }}
-            QCheckBox::indicator:hover {{
-                border-color: {t.get('primary')};
-            }}
-            QCheckBox::indicator:checked {{
-                background-color: {t.get('primary')};
-                border-color: {t.get('primary')};
-            }}
-            QCheckBox::indicator:checked:hover {{
-                background-color: {t.get('primary_hover')};
-                border-color: {t.get('primary_hover')};
-            }}
             QLabel {{
                 color: {t.get('text_primary')};
             }}
@@ -207,24 +189,6 @@ class SettingsTab(QWidget):
                 color: {t.get('text_primary')};
                 font-size: {t.font_size('base')};
                 padding: 4px 0;
-            }}
-            QCheckBox::indicator {{
-                width: 18px;
-                height: 18px;
-                border: 2px solid {t.get('border_strong')};
-                border-radius: 3px;
-                background-color: {t.get('surface')};
-            }}
-            QCheckBox::indicator:hover {{
-                border-color: {t.get('primary')};
-            }}
-            QCheckBox::indicator:checked {{
-                background-color: {t.get('primary')};
-                border-color: {t.get('primary')};
-            }}
-            QCheckBox::indicator:checked:hover {{
-                background-color: {t.get('primary_hover')};
-                border-color: {t.get('primary_hover')};
             }}
             QLabel {{
                 color: {t.get('text_primary')};

@@ -10,7 +10,7 @@ Note: Application metadata (APP_NAME, APP_VERSION) is in src.core.config.AppConf
 # CONTROLLED VALUE LISTS
 # =============================================================================
 
-SEX_OPTIONS = ['Female', 'Male', 'Mixed', 'Not recorded']
+from shared.vocab import SEX_OPTIONS  # noqa: E402,F401  (one sex list for the suite, R13)
 
 # iRecord Stage/Life stage termlist
 STAGE_OPTIONS = [

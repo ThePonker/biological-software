@@ -19,6 +19,7 @@ from .planner_data import (
 )
 from .planner_preview import BoxPreviewPanel
 from .planner_family_list import FamilyListPanel
+from .style import (DANGER, MOSS, MOSS_HOVER, SAGE, TERRACOTTA)
 
 
 class AllocationSummaryItem(QWidget):
@@ -36,9 +37,9 @@ class AllocationSummaryItem(QWidget):
         label.setFont(QFont("Segoe UI", 9))
         layout.addWidget(label, 1)
         pct_label = QLabel(f"{box_alloc.capacity_pct}%")
-        colour = "#7a9e7e" if box_alloc.capacity_pct < 80 else "#c2956e"
+        colour = SAGE if box_alloc.capacity_pct < 80 else TERRACOTTA
         if box_alloc.capacity_pct > 95:
-            colour = "#a63d40"
+            colour = DANGER
         pct_label.setStyleSheet(f"color: {colour}; font-weight: bold;")
         layout.addWidget(pct_label)
 
@@ -76,7 +77,7 @@ class BoxLayoutView(QWidget):
         # Missing or unreadable config files, said on screen (CUR-3)
         self.problem_label = QLabel("")
         self.problem_label.setWordWrap(True)
-        self.problem_label.setStyleSheet("color: #a63d40; font-size: 11px;")
+        self.problem_label.setStyleSheet("color: " + DANGER + "; font-size: 11px;")
         ll.addWidget(self.problem_label)
 
         ll.addWidget(QLabel("Order"))
@@ -104,9 +105,9 @@ class BoxLayoutView(QWidget):
 
         recalc_btn = QPushButton("Recalculate")
         recalc_btn.setStyleSheet(
-            "QPushButton { background-color: #4a7c59; color: white; "
+            "QPushButton { background-color: " + MOSS + "; color: white; "
             "border: none; padding: 8px; border-radius: 4px; font-weight: bold; } "
-            "QPushButton:hover { background-color: #3d6348; }")
+            "QPushButton:hover { background-color: " + MOSS_HOVER + "; }")
         recalc_btn.clicked.connect(self._recalculate)
         ll.addWidget(recalc_btn)
 
@@ -148,9 +149,9 @@ class BoxLayoutView(QWidget):
         export_layout = QHBoxLayout()
         btn = QPushButton("Export PDF")
         btn.setStyleSheet(
-            "QPushButton { background-color: #4a7c59; color: white; "
+            "QPushButton { background-color: " + MOSS + "; color: white; "
             "border: none; padding: 8px 16px; border-radius: 4px; } "
-            "QPushButton:hover { background-color: #3d6348; }")
+            "QPushButton:hover { background-color: " + MOSS_HOVER + "; }")
         btn.clicked.connect(self._export_pdf)
         export_layout.addWidget(btn)
         export_layout.addStretch()

@@ -13,7 +13,6 @@ import time
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QTabWidget, QStatusBar, QLabel
 )
-from PySide6.QtCore import Qt
 
 # Import from refactored packages
 from .home import HomeTab
@@ -754,21 +753,6 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
             self.insect_collection_tab.set_extra_filter('storage_location', storage)
             self.insect_collection_tab._load_data()
 
-    def _navigate_to_collection_recent(self):
-        """Navigate to the Insect Collection tab and show recent additions."""
-        self.tabs.setCurrentWidget(self.insect_collection_tab)
-        self.insect_collection_tab.show_recent_additions()
-
-    def _add_placeholder_tab(self, name: str):
-        """Add a placeholder tab."""
-        placeholder = QWidget()
-        layout = QVBoxLayout(placeholder)
-        label = QLabel(f"{name} Tab - Coming Soon")
-        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(label)
-
-        self.tabs.addTab(placeholder, name)
-
     def _setup_statusbar(self):
         """Set up the status bar."""
         self.statusbar = QStatusBar()
@@ -953,47 +937,6 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
                 ic._current_detail_dialog = None
         except Exception as e:
             print(f"[MainWindow] Error showing specimen detail: {e}")
-
-    def _clear_all_data_tab_filters(self):
-        """Clear filters on Observation, Recording Scheme, and Insect Collection tabs."""
-        # Clear Observation tab filters
-        try:
-            if hasattr(self, 'observation_tab') and hasattr(self.observation_tab, 'filter_bar'):
-                fb = self.observation_tab.filter_bar
-                fb.blockSignals(True)
-                if hasattr(fb, 'clear_filters'):
-                    fb.clear_filters()
-                fb.blockSignals(False)
-        except Exception as e:
-            print(f"[MainWindow] Could not clear observation filters: {e}")
-
-        # Clear Recording Scheme tab filters
-        try:
-            if hasattr(self, 'recording_scheme_tab') and hasattr(self.recording_scheme_tab, 'filter_bar'):
-                fb = self.recording_scheme_tab.filter_bar
-                fb.blockSignals(True)
-                if hasattr(fb, 'clear_filters'):
-                    fb.clear_filters()
-                fb.blockSignals(False)
-        except Exception as e:
-            print(f"[MainWindow] Could not clear recording scheme filters: {e}")
-
-        # Clear Insect Collection tab filters
-        try:
-            if hasattr(self, 'insect_collection_tab') and hasattr(self.insect_collection_tab, 'filters'):
-                fb = self.insect_collection_tab.filters
-                fb.blockSignals(True)
-                if hasattr(fb, 'clear_all'):
-                    fb.clear_all()
-                elif hasattr(fb, 'order_combo'):
-                    fb.order_combo.setCurrentIndex(0)
-                if hasattr(fb, 'family_edit'):
-                    fb.family_edit.clear()
-                if hasattr(fb, 'species_edit'):
-                    fb.species_edit.clear()
-                fb.blockSignals(False)
-        except Exception as e:
-            print(f"[MainWindow] Could not clear collection filters: {e}")
 
     def _on_tab_changed(self, index: int):
         """Lazy load tab data on first visit. Widget-based so tab ORDER does not matter."""
@@ -1239,26 +1182,25 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
         except Exception as _e:
             print(f"[DataEntry] close backup skipped: {_e}")
 
-        if True:  # Always offer backup option
-            from PySide6.QtCore import QSettings
-            from src.core.config import Settings
-            settings = QSettings()
-            backup_enabled = settings.value(Settings.CSV_BACKUP_ON_CLOSE, False, type=bool)
-            backup_path = settings.value(Settings.CSV_BACKUP_PATH, "")
+        from PySide6.QtCore import QSettings
+        from src.core.config import Settings
+        settings = QSettings()
+        backup_enabled = settings.value(Settings.CSV_BACKUP_ON_CLOSE, False, type=bool)
+        backup_path = settings.value(Settings.CSV_BACKUP_PATH, "")
 
-            if backup_enabled and backup_path:
-                from PySide6.QtWidgets import QMessageBox
-                # It asked this even when nothing had changed (review OBS-25)
-                changed = ("Data was changed during this session." if self._data_changed
-                           else "No data was changed in this session.")
-                reply = QMessageBox.question(
-                    self, "CSV Safety Backup",
-                    f"{changed}\n\n"
-                    "Would you like to export CSV backups before closing?",
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-                )
-                if reply == QMessageBox.StandardButton.Yes:
-                    self._export_csv_backups(backup_path)
+        if backup_enabled and backup_path:
+            from PySide6.QtWidgets import QMessageBox
+            # It asked this even when nothing had changed (review OBS-25)
+            changed = ("Data was changed during this session." if self._data_changed
+                       else "No data was changed in this session.")
+            reply = QMessageBox.question(
+                self, "CSV Safety Backup",
+                f"{changed}\n\n"
+                "Would you like to export CSV backups before closing?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+            if reply == QMessageBox.StandardButton.Yes:
+                self._export_csv_backups(backup_path)
 
         # Fold WAL side-files into the main databases before close
         # (protects against cloud sync copying an incomplete state)

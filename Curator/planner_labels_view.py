@@ -20,6 +20,7 @@ from .planner_label_preview import LabelPreviewWidget
 from .planner_settings import load_settings, SettingsDialog
 from .planner_fonts import load_qt_fonts, get_available_fonts
 from shared.fit_to_screen import scroll_body
+from .style import (BORDER, DANGER, HOVER, MOSS, MOSS_HOVER, PURPLE_DARK, SEPARATOR, STEEL, TERRACOTTA_DARK, WARM_GRAY)
 
 
 class LabelsView(QWidget):
@@ -60,7 +61,7 @@ class LabelsView(QWidget):
         # Missing or unreadable config files, said on screen (CUR-3)
         self.problem_label = QLabel("")
         self.problem_label.setWordWrap(True)
-        self.problem_label.setStyleSheet("color: #a63d40; font-size: 11px;")
+        self.problem_label.setStyleSheet("color: " + DANGER + "; font-size: 11px;")
         ll.addWidget(self.problem_label)
 
         ll.addWidget(QLabel("Order"))
@@ -75,7 +76,7 @@ class LabelsView(QWidget):
 
         sep1 = QFrame()
         sep1.setFrameShape(QFrame.Shape.HLine)
-        sep1.setStyleSheet("color: #ddd;")
+        sep1.setStyleSheet("color: " + SEPARATOR + ";")
         ll.addWidget(sep1)
 
         ll.addWidget(QLabel("Label Levels"))
@@ -113,7 +114,7 @@ class LabelsView(QWidget):
 
         sep2 = QFrame()
         sep2.setFrameShape(QFrame.Shape.HLine)
-        sep2.setStyleSheet("color: #ddd;")
+        sep2.setStyleSheet("color: " + SEPARATOR + ";")
         ll.addWidget(sep2)
 
         ll.addWidget(QLabel("Format"))
@@ -150,7 +151,7 @@ class LabelsView(QWidget):
 
         sep_font = QFrame()
         sep_font.setFrameShape(QFrame.Shape.HLine)
-        sep_font.setStyleSheet("color: #ddd;")
+        sep_font.setStyleSheet("color: " + SEPARATOR + ";")
         ll.addWidget(sep_font)
 
         ll.addWidget(QLabel("Font"))
@@ -175,18 +176,18 @@ class LabelsView(QWidget):
         # Export button at bottom of controls
         export_btn = QPushButton("Export PDF")
         export_btn.setStyleSheet(
-            "QPushButton { background-color: #4a7c59; color: white; "
+            "QPushButton { background-color: " + MOSS + "; color: white; "
             "border: none; padding: 8px 16px; border-radius: 4px; } "
-            "QPushButton:hover { background-color: #3d6348; }"
+            "QPushButton:hover { background-color: " + MOSS_HOVER + "; }"
         )
         export_btn.clicked.connect(self._export_pdf)
         ll.addWidget(export_btn)
 
         settings_btn = QPushButton("Settings")
         settings_btn.setStyleSheet(
-            "QPushButton { padding: 6px 16px; border: 1px solid #8b8178; "
-            "border-radius: 4px; color: #8b8178; } "
-            "QPushButton:hover { background-color: #f0eeea; }"
+            "QPushButton { padding: 6px 16px; border: 1px solid " + WARM_GRAY + "; "
+            "border-radius: 4px; color: " + WARM_GRAY + "; } "
+            "QPushButton:hover { background-color: " + HOVER + "; }"
         )
         settings_btn.clicked.connect(self._open_settings)
         ll.addWidget(settings_btn)
@@ -365,26 +366,26 @@ class LabelsView(QWidget):
             f = QFont("Segoe UI", 9)
             f.setItalic(True)
             item.setFont(0, f)
-            item.setForeground(0, QColor("#9a7555"))
+            item.setForeground(0, QColor(TERRACOTTA_DARK))
         elif node.rank == "Suborder":
             f = QFont("Segoe UI", 10)
             f.setItalic(True)
             item.setFont(0, f)
-            item.setForeground(0, QColor("#5a4d78"))
+            item.setForeground(0, QColor(PURPLE_DARK))
         elif node.rank == "Family":
             item.setFont(0, QFont("Segoe UI", 9, QFont.Weight.Bold))
         elif node.rank == "Subfamily":
             f = QFont("Segoe UI", 9)
             f.setItalic(True)
             item.setFont(0, f)
-            item.setForeground(0, QColor("#6e8898"))
+            item.setForeground(0, QColor(STEEL))
         elif node.rank == "Genus":
             f = QFont("Segoe UI", 9)
             f.setItalic(True)
             item.setFont(0, f)
 
         if not node.in_collection:
-            item.setForeground(0, QColor("#cccccc"))
+            item.setForeground(0, QColor(BORDER))
 
         for child in node.children:
             self._add_tree_children(item, child)

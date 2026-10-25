@@ -17,7 +17,7 @@ from ...themes import theme
 
 
 # Controlled value lists
-SEX_OPTIONS = ["", "Female", "Male", "Mixed", "Not recorded"]
+from shared.vocab import SEX_CHOICES as SEX_OPTIONS      # one sex list (R13)
 # STAGE_OPTIONS imported from constants below
 CERTAINTY_OPTIONS = ["", "Certain", "Likely", "Uncertain"]
 from ...utils.constants import SAMPLE_METHOD_OPTIONS, STAGE_OPTIONS
@@ -184,10 +184,6 @@ class QuickEntryFieldsMixin:
                 color: {t.get('text_secondary')};
                 font-size: {t.font_size('sm')};
                 background: transparent;
-            }}
-            QCheckBox::indicator {{
-                width: 16px;
-                height: 16px;
             }}
         """)
         return self.never_upload_check

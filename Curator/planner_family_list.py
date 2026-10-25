@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont, QColor, QPainter, QPen, QCursor
+from .style import (TERRACOTTA, TERRACOTTA_DARK, TERRACOTTA_LIGHT, TEXT_SECONDARY)
 
 
 class FamilyListItem(QWidget):
@@ -33,7 +34,7 @@ class FamilyListItem(QWidget):
         badge.setFixedSize(28, 28)
         badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
         badge.setStyleSheet(
-            "background-color: #e8e0d8; color: #9a7555; "
+            "background-color: " + TERRACOTTA_LIGHT + "; color: " + TERRACOTTA_DARK + "; "
             "border-radius: 4px; font-size: 10px; font-weight: bold;"
         )
         layout.addWidget(badge)
@@ -50,7 +51,7 @@ class FamilyListItem(QWidget):
         if family_data.superfamily:
             parts.append(family_data.superfamily)
         detail_label = QLabel(" \u2014 ".join(parts))
-        detail_label.setStyleSheet("color: #888; font-size: 11px;")
+        detail_label.setStyleSheet("color: " + TEXT_SECONDARY + "; font-size: 11px;")
         info_layout.addWidget(detail_label)
 
         layout.addLayout(info_layout, 1)
@@ -104,22 +105,22 @@ class BoxDivider(QWidget):
         mid_y = h // 2
 
         # Background
-        painter.fillRect(0, 0, w, h, QColor("#f5f0eb"))
+        painter.fillRect(0, 0, w, h, QColor(TERRACOTTA_LIGHT))
 
         # Dashed divider line
-        pen = QPen(QColor("#c2956e"), 2, Qt.PenStyle.DashLine)
+        pen = QPen(QColor(TERRACOTTA), 2, Qt.PenStyle.DashLine)
         painter.setPen(pen)
         painter.drawLine(8, mid_y, w - 8, mid_y)
 
         # Box labels
-        painter.setPen(QColor("#9a7555"))
+        painter.setPen(QColor(TERRACOTTA_DARK))
         painter.setFont(QFont("Segoe UI", 8, QFont.Weight.Bold))
         label = f"Box {self._box_above}  \u2502  Box {self._box_below}"
         painter.drawText(0, 0, w, h, Qt.AlignmentFlag.AlignCenter, label)
 
         # Drag grip dots
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor("#c2956e"))
+        painter.setBrush(QColor(TERRACOTTA))
         for dy in [-3, 0, 3]:
             painter.drawEllipse(w - 18, mid_y + dy - 1, 3, 3)
             painter.drawEllipse(w - 12, mid_y + dy - 1, 3, 3)
@@ -190,9 +191,6 @@ class FamilyListPanel(QWidget):
         self._break_indices = list(break_indices)
         self._profile_mgr = profile_mgr
         self._rebuild()
-
-    def get_break_indices(self) -> list:
-        return list(self._break_indices)
 
     def _rebuild(self):
         """Rebuild the list with families and dividers."""

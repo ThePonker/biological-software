@@ -19,7 +19,7 @@ SKIP_DIRS = {".git", "__pycache__", ".venv", "venv", "node_modules"}
 OPS = {
     "build_uksi_from_release", "build_codex_db", "remap_record_tvks", "make_source_bundle",
     "clear_legacy_detail", "clear_stale_legacy", "restore_dropped_statuses", "check_sqi_table",
-    "import_own_profiles", "seed_codex", "mark_irecord_commercial", "tidy_inventory",
+    "import_own_profiles", "seed_codex", "tidy_inventory",
 }
 ONE_OFF = re.compile(r"^(patch|fix|apply|migrate|migration|oneoff|one_off|temp|tmp|test|debug|"
                      r"probe|diag|inspect|lookup|check|verify|repair|backfill|dedupe|rename|move)_",

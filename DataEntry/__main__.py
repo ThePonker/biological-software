@@ -69,8 +69,10 @@ def main(argv=None) -> int:
     from DataEntry.data_entry_widget import DataEntryWidget
 
     app = QApplication.instance() or QApplication(sys.argv)
-    app.setOrganizationName("Flauna")
-    app.setApplicationName("Observatum")  # so QSettings resolves the same USER_INITIALS
+    from shared.settings_store import APP, ORG, merge_flauna_store_once
+    app.setOrganizationName(ORG)          # the same store as Observatum
+    app.setApplicationName(APP)
+    merge_flauna_store_once()
     from DataEntry import theme as de_theme
     from shared.opaque_popups import install as solid_popups
     solid_popups(app, lambda: (de_theme.CARD, de_theme.INK))      # F50: solid drop-down lists

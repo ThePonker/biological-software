@@ -180,6 +180,24 @@ NATURALIST_THEME = {
     'commercial_bg': '#f3f0ff',
     'commercial_text': '#6d28d9',
     
+    # Personal / Commercial / Species dashboard tabs (TabColors in config.py reads these;
+    # added R13 with the exact values those tabs have always drawn)
+    'accent_personal': '#10b981',
+    'accent_personal_light': '#d1fae5',
+    'accent_personal_dark': '#065f46',
+    'accent_commercial': '#8b5cf6',
+    'accent_commercial_light': '#ede9fe',
+    'accent_commercial_dark': '#5b21b6',
+    'accent_species': '#3b82f6',
+    'accent_species_light': '#dbeafe',
+    'accent_species_dark': '#1e40af',
+    
+    # Per-app identity colours the Atrium launcher draws behind each app's icon (R13)
+    'app_observatum': '#6b4c8a',
+    'app_observatum_light': '#f0eaf5',
+    'app_munia': '#4a6580',
+    'app_munia_light': '#e4ecf2',
+    
     # =========================================================================
     # Button Colors (explicit names for clarity)
     # =========================================================================

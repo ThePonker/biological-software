@@ -33,6 +33,12 @@ except ImportError:
     ROOT = Path(__file__).resolve().parent.parent
 
 
+# Colours come from Observatum's Naturalist theme (R13); the fallbacks are only used if it
+# cannot be imported.
+from shared.theme_lookup import _theme  # noqa: F401  (Atrium/__main__.py imports it from here)
+from shared.theme_lookup import value as theme_value
+
+
 @dataclass
 class AppDef:
     """Definition of a launchable app."""
@@ -55,21 +61,26 @@ from Lector.config import GUI_TITLE as LECTOR_GUI_TITLE  # noqa: E402
 
 APPS = [
     AppDef("Observatum", "Biological recording", "beetle.png",
-           "src.main", "#6b4c8a", "#f0eaf5", window_title="Observatum V2"),
+           "src.main", theme_value("app_observatum", "#6b4c8a"),
+           theme_value("app_observatum_light", "#f0eaf5"), window_title="Observatum V2"),
     AppDef("Examen", "Species assessment", "beetle.png",
-           "Examen", "#5a4d78", "#f0edf5",
+           "Examen", theme_value("accent_scheme_dark", "#5c4f7a"),
+           theme_value("accent_scheme_light", "#eeeaf3"),
            window_title="Examen — Species Assessment Tool"),
     AppDef("Codex", "Conservation manager", "mushroom.png",
-           "Codex", "#2d5016", "#e8f0e2",
+           "Codex", theme_value("primary", "#4a7c59"), theme_value("primary_bg", "#e8f0eb"),
            window_title="Codex — Conservation Status Manager"),
     AppDef("Curator", "Collection organiser", "mushroom.png",
-           "Curator", "#4a7c59", "#e6f0ea", window_title="Collection Layout Planner"),
+           "Curator", theme_value("primary", "#4a7c59"), theme_value("primary_bg", "#e8f0eb"),
+            window_title="Collection Layout Planner"),
     AppDef("Munia", "Capacity planner", "bat.png",
-           "Munia", "#4a6580", "#e4ecf2", window_title="Munia — Capacity Planner"),
+           "Munia", theme_value("app_munia", "#4a6580"), theme_value("app_munia_light", "#e4ecf2"), window_title="Munia — Capacity Planner"),
     AppDef("Lector", "BHL literature", "book.png",
-           "Lector", "#5c6b7a", "#eaecef", window_title=LECTOR_GUI_TITLE, args=("gui",)),
+           "Lector", theme_value("accent_stats", "#5c6b7a"), theme_value("accent_stats_light", "#eaecef"),
+            window_title=LECTOR_GUI_TITLE, args=("gui",)),
     AppDef("Lector console", "BHL literature (console)", "book.png",
-           "Lector", "#8b8178", "#f3f1ee", window_title=LECTOR_TITLE, console=True),
+           "Lector", theme_value("secondary", "#8b8178"), theme_value("accent_home_light", "#f5f4f3"),
+            window_title=LECTOR_TITLE, console=True),
 ]
 
 # launch_app results

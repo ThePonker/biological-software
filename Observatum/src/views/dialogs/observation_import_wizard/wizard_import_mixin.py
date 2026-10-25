@@ -424,43 +424,6 @@ class WizardImportMixin:
             f"{record.get('species_name') or '?'} {record.get('date') or ''} "
             f"(iRecord {record.get('irecord_id') or '-'}): {error}")
 
-    def _pre_generate_observatum_keys(self, rows, import_mode):
-        """Pre-generate unique observatum_keys for all rows in a batch.
-        
-        This ensures each row gets a unique key before batch insert.
-        For iRecord sync, uses external_key if available.
-        For personal uploads, generates sequential keys.
-        """
-        from .validation_worker import ImportMode
-        from PySide6.QtCore import QSettings
-        from src.core.config import Settings, Defaults
-        from datetime import datetime
-        
-        if import_mode == ImportMode.IRECORD_SYNC:
-            # For iRecord, external_key is the observatum_key
-            # Only generate for rows without external_key
-            rows_needing_keys = [r for r in rows if not r.external_key]
-        else:
-            # Personal upload - all rows need keys
-            rows_needing_keys = rows
-        
-        if not rows_needing_keys:
-            return
-        
-        settings = QSettings()
-        initials = settings.value(Settings.USER_INITIALS, Defaults.USER_INITIALS) or 'UNK'
-        date_str = datetime.now().strftime('%Y%m%d')
-        prefix = f"OBS-{initials}-{date_str}-"
-        
-        # The current maximum -- THE rule, shared/observatum_keys.py (numeric, not text order;
-        # a read failure raises rather than starting again at 1)
-        from shared.observatum_keys import last_sequence, make_key
-        last_seq = last_sequence(self.db, prefix)
-
-        # Assign sequential keys to each row
-        for i, row in enumerate(rows_needing_keys):
-            row._pre_generated_key = make_key(prefix, last_seq + i + 1)
-
     def _combine_import_notes(self, row):
         """Combine import_notes with any error/warning messages."""
         parts = []
@@ -684,30 +647,6 @@ class WizardImportMixin:
         self._import_key_sequence[batch_key] += 1
         return make_key(prefix, self._import_key_sequence[batch_key])
 
-    def _insert_observation(self, obs_data: dict) -> bool:
-        """Insert a new observation record."""
-        try:
-            # Use observation model if available
-            if hasattr(self.observation_model, 'create'):
-                from src.models.observation import Observation
-                obs = Observation(**{k: v for k, v in obs_data.items() if hasattr(Observation, k) or k in ['created_at', 'updated_at']})
-                result = self.observation_model.create(obs)
-                return result is not None and result > 0
-            
-            # Fallback to direct SQL
-            columns = list(obs_data.keys())
-            placeholders = ', '.join(['?' for _ in columns])
-            column_names = ', '.join(columns)
-            values = [obs_data[c] for c in columns]
-            
-            query = f"INSERT INTO observations ({column_names}) VALUES ({placeholders})"
-            result = self.db.execute_main_write(query, tuple(values))
-            return result > 0
-            
-        except Exception as e:
-            print(f"[ObservationImportWizard] Insert error: {e}")
-            return False
-    
     def _has_changes(self, existing, new_data: dict) -> bool:
         """Check if new data differs from existing record."""
         # Fields to compare for changes (sync-relevant fields)

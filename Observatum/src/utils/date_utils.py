@@ -7,7 +7,7 @@ These utilities format dates for display in the UI.
 UPDATED: Now reads user's preferred date format from settings.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 
 from PySide6.QtCore import QSettings
@@ -123,22 +123,26 @@ def parse_display_date(display_date: str) -> Optional[str]:
         chosen = [get_user_date_format()]
     except Exception:
         chosen = []
-    formats = chosen + [
-        "%d %B %Y",    # 15 June 2024
-        "%d %b %Y",    # 15 Jun 2024
-        "%d/%m/%Y",    # 15/06/2024 (UK)
-        "%d-%m-%Y",    # 15-06-2024
-        "%Y-%m-%d",    # 2024-06-15
-    ]
-    
-    for fmt in formats:
+    for fmt in chosen:
         try:
-            dt = datetime.strptime(display_date, fmt)
-            return dt.strftime("%Y-%m-%d")
+            return datetime.strptime(display_date, fmt).strftime("%Y-%m-%d")
         except ValueError:
             continue
-    
-    return None
+
+    # Everything else is the suite's one date reader (shared.import_core.parse_record_date,
+    # R13), day first, never month first. Only a whole day is returned here: a vague date or a
+    # range is not one (None, as before), and neither is a two-digit year, which the dialogs
+    # have always refused (unreadable_full_date).
+    from shared.import_core import _two_digit_year, parse_record_date
+    if _two_digit_year(display_date):      # not '2024-6-15' (review 24 Oct 2026)
+        return None
+    try:
+        got = parse_record_date(display_date, today=date(9999, 12, 31))
+    except ValueError:                 # December 9999: its month end would be in year 10000
+        return None
+    if got.error or got.date_type != "D":
+        return None
+    return got.date
 
 
 def unreadable_full_date(text: str) -> bool:

@@ -357,18 +357,6 @@ class WizardValidationMixin:
                 + (f", update {updates} held" if updates else "")
                 + (f"; {left_out} row(s) left out" if left_out else ""))
 
-    def _show_duplicate_preview(self):
-        """Show dialog with duplicate records."""
-        duplicates = [r for r in self.validated_rows if r.is_duplicate and r.status != RowStatus.ERROR]
-
-        if not duplicates:
-            QMessageBox.information(self, "No Duplicates", "No duplicate records found.")
-            return
-
-        from .wizard_import_mixin import DuplicatePreviewDialog
-        dialog = DuplicatePreviewDialog(self, duplicates)
-        dialog.exec()
-
     def _show_match_report(self):
         """Show species match report dialog."""
         try:

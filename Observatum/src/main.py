@@ -59,8 +59,10 @@ def main():
     )
 
     app = QApplication(sys.argv)
-    app.setApplicationName("Observatum V2")
-    app.setOrganizationName("Observatum")
+    from shared.settings_store import APP, ORG, merge_flauna_store_once
+    app.setApplicationName(APP)
+    app.setOrganizationName(ORG)
+    merge_flauna_store_once()      # one settings store: bring in Data Entry's old keys, once
     # drop-down lists always solid, whatever the panel round them clears (F50, 12 Oct 2026)
     from shared.opaque_popups import install as solid_popups
     from src.themes import theme

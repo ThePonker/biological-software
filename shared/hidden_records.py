@@ -182,15 +182,6 @@ def hidden_ids(conn: sqlite3.Connection) -> Dict[str, Optional[str]]:
         return {}
 
 
-def mark_returned(conn: sqlite3.Connection, irecord_id, stamp: Optional[str] = None) -> int:
-    """A download brought a hidden record again: note when. Rows changed (0 without the table)."""
-    try:
-        with conn:
-            return conn.execute(f"UPDATE {ID_TABLE} SET returned_at = ? WHERE irecord_id = ?",
-                                (stamp or now_iso(), str(irecord_id).strip())).rowcount
-    except sqlite3.Error:
-        return 0
-
 
 def after_download(conn: sqlite3.Connection, irecord_ids, stamp: Optional[str] = None) -> int:
     """After an iRecord download: every remembered ID among `irecord_ids` keeps its record

@@ -121,17 +121,6 @@ class HowFilterDialog(QDialog):
                     font-size: 12px;
                     spacing: 6px;
                 }}
-                QCheckBox::indicator {{
-                    width: 16px;
-                    height: 16px;
-                    border: 2px solid {t.get('border')};
-                    border-radius: 3px;
-                    background-color: white;
-                }}
-                QCheckBox::indicator:checked {{
-                    background-color: {self._accent_color};
-                    border-color: {self._accent_color};
-                }}
             """)
             row = i // 2
             col = i % 2

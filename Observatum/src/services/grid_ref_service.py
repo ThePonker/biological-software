@@ -5,7 +5,7 @@ Utilities for working with OS Grid References.
 Handles validation, conversion, and precision detection.
 """
 
-from typing import Optional, Tuple
+from typing import Optional
 import re
 
 
@@ -129,18 +129,3 @@ class GridRefService:
         northing = digits[current_len // 2:][:half]
         
         return f"{letters}{easting}{northing}"
-    
-    @classmethod
-    def to_coordinates(cls, grid_ref: str) -> Optional[Tuple[int, int]]:
-        """
-        Convert grid reference to easting/northing coordinates.
-        
-        Args:
-            grid_ref: Grid reference string
-            
-        Returns:
-            Tuple of (easting, northing) in metres, or None if invalid
-        """
-        # TODO: Implement full conversion
-        # This requires the grid letter offsets
-        return None

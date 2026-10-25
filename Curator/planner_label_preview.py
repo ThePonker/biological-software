@@ -4,6 +4,7 @@ Black and white friendly, cascading sizes, cut lines between labels.
 """
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QScrollArea
 from PySide6.QtCore import Qt
+from .style import (BORDER, DANGER, LABEL_INK, TEXT_SECONDARY)
 
 RANK_OFFSET = {"Order":6,"Suborder":6,"Superfamily":4,"Family":2,"Subfamily":2,"Genus":0,"Species":0}
 
@@ -58,8 +59,8 @@ class LabelPreviewWidget(QWidget):
                 page_break = QFrame()
                 page_break.setFixedHeight(24)
                 page_break.setStyleSheet(
-                    "background: white; border-top: 2px dashed #c00; "
-                    "border-bottom: 2px dashed #c00;"
+                    "background: white; border-top: 2px dashed " + DANGER + "; "
+                    "border-bottom: 2px dashed " + DANGER + ";"
                 )
                 pb_layout = QHBoxLayout(page_break)
                 pb_layout.setContentsMargins(0, 2, 0, 2)
@@ -67,7 +68,7 @@ class LabelPreviewWidget(QWidget):
                 pb_label = QLabel(f"— Page {page_num} —")
                 pb_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 pb_label.setStyleSheet(
-                    "color: #c00; font-size: 9px; font-weight: bold; "
+                    "color: " + DANGER + "; font-size: 9px; font-weight: bold; "
                     "background: white; border: none;"
                 )
                 pb_layout.addWidget(pb_label)
@@ -77,7 +78,7 @@ class LabelPreviewWidget(QWidget):
             if i > 0 and cumulative_mm > 0:
                 cut = QFrame()
                 cut.setFixedHeight(1)
-                cut.setStyleSheet("background: #ccc; margin: 0 8px;")
+                cut.setStyleSheet("background: " + BORDER + "; margin: 0 8px;")
                 self._cl.addWidget(cut)
 
             card = self._card(name, rank, cn, specimens, my_species, gb_species,
@@ -96,37 +97,37 @@ class LabelPreviewWidget(QWidget):
         dsz = max(7, sz - 2)
         S = {
             "Order": (
-                f"background:white;color:#000;font-size:{sz}px;"
+                f"background:white;color:{LABEL_INK};font-size:{sz}px;"
                 f"font-family:'{ff}';font-weight:bold;"
-                f"padding:6px 12px;border-top:3px solid #000;border-bottom:1px solid #000;"
+                f"padding:6px 12px;border-top:3px solid {LABEL_INK};border-bottom:1px solid {LABEL_INK};"
             ),
             "Suborder": (
-                f"background:white;color:#000;font-size:{sz}px;"
+                f"background:white;color:{LABEL_INK};font-size:{sz}px;"
                 f"font-family:'{ff}';font-weight:bold;"
                 f"padding:4px 12px;"
             ),
             "Superfamily": (
-                f"background:white;color:#000;font-size:{sz}px;"
+                f"background:white;color:{LABEL_INK};font-size:{sz}px;"
                 f"font-family:'{ff}';font-weight:bold;"
                 f"padding:4px 12px;"
             ),
             "Family": (
-                f"background:white;color:#000;font-size:{sz}px;"
+                f"background:white;color:{LABEL_INK};font-size:{sz}px;"
                 f"font-family:'{ff}';font-weight:bold;"
                 f"padding:4px 12px;"
             ),
             "Subfamily": (
-                f"background:white;color:#000;font-size:{sz}px;"
+                f"background:white;color:{LABEL_INK};font-size:{sz}px;"
                 f"font-family:'{ff}';font-weight:bold;"
                 f"padding:4px 12px;"
             ),
             "Genus": (
-                f"background:white;color:#000;font-size:{sz}px;"
+                f"background:white;color:{LABEL_INK};font-size:{sz}px;"
                 f"font-family:'{ff}';font-style:italic;"
                 f"padding:3px 12px;"
             ),
             "Species": (
-                f"background:white;color:#000;font-size:{sz}px;"
+                f"background:white;color:{LABEL_INK};font-size:{sz}px;"
                 f"font-family:'{ff}';font-style:italic;"
                 f"padding:3px 12px;"
             ),
@@ -166,7 +167,7 @@ class LabelPreviewWidget(QWidget):
         if rp:
             rl = QLabel(" \u00b7 ".join(rp))
             rl.setStyleSheet(
-                f"border:none;background:transparent;color:#888;"
+                f"border:none;background:transparent;color:{TEXT_SECONDARY};"
                 f"font-size:{dsz}px;font-family:'{ff}';"
             )
             layout.addWidget(rl)

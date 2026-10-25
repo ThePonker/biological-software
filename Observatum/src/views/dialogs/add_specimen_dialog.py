@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal
 from shared.fit_to_screen import fit_to_screen
+from shared.vocab import SEX_CHOICES
 from ..components.species_search import SpeciesSearch
 
 from ...themes import theme
@@ -248,7 +249,7 @@ class AddSpecimenDialog(QDialog):
         sex_group.addWidget(sex_label)
         
         self.sex_combo = QComboBox()
-        self.sex_combo.addItems(["", "Male", "Female", "Unknown"])
+        self.sex_combo.addItems(SEX_CHOICES)
         self.sex_combo.setMinimumHeight(36)
         self.sex_combo.setStyleSheet(f"""
             QComboBox {{
@@ -545,40 +546,6 @@ class AddSpecimenDialog(QDialog):
         self.gridref_edit.editingFinished.connect(self._validate_grid_ref)
         self.gridref_edit.editingFinished.connect(self._refresh_loc_map)
     
-    def _on_species_text_changed(self, text: str):
-        """Handle species search as user types."""
-        if not self._uksi_model or len(text) < 2:
-            self.species_info_label.hide()
-            return
-        
-        # Search UKSI
-        try:
-            results = self._uksi_model.search_species(text, limit=1)
-            if results:
-                result = results[0]
-                self._selected_species = result
-                info_parts = []
-                if result.order_name:
-                    info_parts.append(result.order_name)
-                if result.family:
-                    info_parts.append(result.family)
-                display = " · ".join(info_parts)
-                if result.common_name:
-                    display += f" – {result.common_name}"
-                if display:
-                    self.species_info_label.setText(display)
-                    self.species_info_label.show()
-                
-                # Update profile section for new species
-                self._load_species_profile(result.name if hasattr(result, 'name') else text, 
-                                          result.tvk if hasattr(result, 'tvk') else None)
-            else:
-                self._selected_species = None
-                self.species_info_label.hide()
-                self._update_profile_display(None)
-        except Exception as e:
-            print(f"[AddSpecimenDialog] Species search error: {e}")
-
     def _on_species_selected(self, text: str):
         """Handle selection from autocomplete dropdown."""
         if text in self._species_results:
@@ -750,6 +717,10 @@ class AddSpecimenDialog(QDialog):
         # Set sex combo
         sex = specimen.get('sex', '')
         index = self.sex_combo.findText(sex)
+        if index < 0 and sex:
+            # a stored value not in the list (older rows hold 'Unknown'): still shown, still saved
+            self.sex_combo.addItem(sex)
+            index = self.sex_combo.findText(sex)
         if index >= 0:
             self.sex_combo.setCurrentIndex(index)
         

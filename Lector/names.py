@@ -91,6 +91,3 @@ def find_names(text, names, regex=None):
         spans.append((start, end))
     return spans
 
-
-def name_in_text(text, names):
-    return bool(find_names(text, names))

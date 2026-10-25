@@ -137,22 +137,11 @@ def qapp():
     return QApplication.instance() or QApplication([])
 
 
-def test_data_entry_shims_are_the_shared_modules():
-    import DataEntry._panzoom as a1
-    import DataEntry.gb_basemap as a2
-    import DataEntry.raster_map as a3
-    import DataEntry.species_dist_map as a4
-    import DataEntry.vc_map as a5
-    from shared.maps import gb_basemap, panzoom, raster_map, species_dist_map, vc_map
-    with open(a1.__file__, encoding="utf-8") as f:
-        if "shared.maps" not in f.read():
-            pytest.skip("the Data Entry map shims have not landed yet (held while Wil enters data)")
-    assert a1.PanZoomMixin is panzoom.PanZoomMixin
-    assert a2.gb_basemap_path is gb_basemap.gb_basemap_path and a2._BASENAME == gb_basemap._BASENAME
-    assert a3.RasterMiniMap is raster_map.RasterMiniMap and a3._CACHE is raster_map._CACHE
-    assert a4.DistributionMiniMap is species_dist_map.DistributionMiniMap
-    assert a4.SOURCE_ORDER is species_dist_map.SOURCE_ORDER
-    assert a5.load_vc_polygons is vc_map.load_vc_polygons
+def test_data_entry_map_shims_are_retired():
+    # 24 Oct 2026: every caller imports shared.maps directly; the Data Entry shims are archived
+    import importlib.util
+    for name in ("raster_map", "vc_map", "species_dist_map", "gb_basemap", "_panzoom", "osgb"):
+        assert importlib.util.find_spec(f"DataEntry.{name}") is None, name
 
 
 def test_grid_map_click_and_sheet(qapp):

@@ -22,10 +22,8 @@ try:
 except ImportError:  # pragma: no cover
     from workbook_export import NATIONAL_POOL_NOTE
 
-BG = "#f5f5f4"; SURFACE = "#ffffff"; TEXT_PRIMARY = "#1f2937"; TEXT_HEADING = "#4b5563"
-TEXT_SECONDARY = "#6b7280"; TEXT_MUTED = "#9ca3af"; BORDER = "#d1d5db"; SEPARATOR = "#e5e7eb"
-MOSS_GREEN = "#4a7c59"; ACCENT = "#7c6c9f"; ACCENT_DARK = "#5a4d78"
-RED_STATUS = "#a63d40"; AMBER = "#c2956e"
+from Examen.style import (BG, TEXT_HEADING, TEXT_MUTED,
+    BORDER, SEPARATOR, MOSS_GREEN, AMBER)
 
 _ref_cache = {}  # Cached reference counts {type: {name: count}}
 

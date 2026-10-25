@@ -1,34 +1,39 @@
 """Munia theme — Naturalist palette matching Observatum & Examen."""
 
-# ── Palette ──────────────────────────────────────────────────────
-STONE_BG = "#f5f5f4"
-STONE_LIGHT = "#fafaf9"
-STONE_BORDER = "#d6d3d1"
-DUSTY_PURPLE = "#7c6c9f"
-DUSTY_PURPLE_LIGHT = "#e8e4f0"
-MOSS_GREEN = "#4a7c59"
-MOSS_GREEN_LIGHT = "#e6f0ea"
-WARM_GRAY = "#8b8178"
-WARM_GRAY_LIGHT = "#f0eeec"
-FADED_CRIMSON = "#a63d40"
-FADED_CRIMSON_LIGHT = "#f5e6e6"
-AMBER = "#b8860b"
-AMBER_LIGHT = "#fdf4e3"
-TEXT_DARK = "#292524"
-TEXT_MID = "#57534e"
-TEXT_LIGHT = "#78716c"
+from shared.theme_lookup import _theme  # noqa: F401  (Munia/__main__.py imports it from here)
+from shared.theme_lookup import value as _g
+
+
+# ── Palette (names resolved from Observatum's Naturalist theme, R13) ──
+STONE_BG = _g("background", "#f5f5f4")
+STONE_LIGHT = _g("surface_alt", "#f9fafb")
+STONE_BORDER = _g("border", "#d1d5db")
+DUSTY_PURPLE = _g("accent_scheme", "#7c6c9f")
+DUSTY_PURPLE_LIGHT = _g("accent_scheme_light", "#eeeaf3")
+MOSS_GREEN = _g("primary", "#4a7c59")
+MOSS_GREEN_LIGHT = _g("primary_bg", "#e8f0eb")
+MOSS_GREEN_HOVER = _g("primary_hover", "#3d6649")
+WARM_GRAY = _g("secondary", "#8b8178")
+WARM_GRAY_LIGHT = _g("accent_home_light", "#f5f4f3")
+FADED_CRIMSON = _g("danger", "#a63d40")
+FADED_CRIMSON_LIGHT = _g("danger_bg", "#fce8e8")
+AMBER = _g("accent_collection", "#b8860b")
+AMBER_LIGHT = _g("accent_collection_light", "#faf6eb")
+TEXT_DARK = _g("text_primary", "#1f2937")
+TEXT_MID = _g("text_heading", "#4b5563")
+TEXT_LIGHT = _g("text_secondary", "#6b7280")
 
 # ── Day-type colours ─────────────────────────────────────────────
 DAY_COLOURS = {
-    "field": "#4a7c59",
-    "microscope": "#7c6c9f",
-    "report": "#b8860b",
+    "field": MOSS_GREEN,
+    "microscope": DUSTY_PURPLE,
+    "report": AMBER,
 }
 
 DAY_COLOURS_LIGHT = {
-    "field": "#d4e8da",
-    "microscope": "#ddd8e8",
-    "report": "#f0e4c4",
+    "field": MOSS_GREEN_LIGHT,
+    "microscope": DUSTY_PURPLE_LIGHT,
+    "report": AMBER_LIGHT,
 }
 
 # ── Fonts ────────────────────────────────────────────────────────
@@ -74,7 +79,7 @@ def window_stylesheet():
             font-weight: 600;
         }}
         QPushButton#primary:hover {{
-            background-color: #3d6a4b;
+            background-color: {MOSS_GREEN_HOVER};
         }}
         QPushButton#primary:disabled {{
             background-color: {WARM_GRAY_LIGHT};

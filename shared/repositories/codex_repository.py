@@ -573,7 +573,7 @@ class CodexRepository:
         of what was published, which is what makes an SQI comparable. Where
         Pantheon has no score, the published rule is applied to current Codex
         statuses instead of storing an invented value. See
-        patch_sqs_derive_live.py.
+        shared/sqs_derivation.py.
         """
         if not tvks:
             return {}

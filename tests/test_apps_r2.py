@@ -67,9 +67,9 @@ def test_unread_settings_are_hidden_not_deleted(qapp):
     from src.views.settings.general_panel import GeneralSettingsPanel
     g = GeneralSettingsPanel()
     # hidden: saved but nothing reads them
-    assert g.theme_group.isHidden() and g.auto_vc.isHidden() and g.record_books_group.isHidden()
-    # still there (kept), and the ones that are read stay visible
-    assert g.record_books_path is not None and g.theme_combo is not None
+    assert g.theme_group.isHidden() and g.auto_vc.isHidden()
+    # the Tabella record-books setting was removed on 24 Oct 2026 (Wil agreed); theme kept
+    assert not hasattr(g, "record_books_group") and g.theme_combo is not None
     for w in (g.default_recorder, g.date_format, g.cn_home,
               g.filters_observations, g.csv_backup_enabled, g.scheme_families_input):
         assert not w.isHidden()

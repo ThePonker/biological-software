@@ -340,20 +340,6 @@ class StatusFilterDialog(QDialog):
                 spacing: 10px;
                 background: transparent;
             }}
-            QCheckBox::indicator {{
-                width: 18px;
-                height: 18px;
-                border-radius: 3px;
-                border: 2px solid {t.get('border')};
-                background-color: {t.get('surface')};
-            }}
-            QCheckBox::indicator:hover {{
-                border-color: {self._accent_color};
-            }}
-            QCheckBox::indicator:checked {{
-                background-color: {self._accent_color};
-                border-color: {self._accent_color};
-            }}
         """)
     
     def _darken_color(self, hex_color: str, factor: float = 0.85) -> str:

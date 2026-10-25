@@ -64,13 +64,9 @@ _TABLES = {"observations": "observations", "recording_scheme": "recording_scheme
 # ---------------------------------------------------------------------------------------
 
 def _settings():
-    """Observatum's QSettings. Data Entry run on its own registers as ("Flauna",
-    "Observatum"), so it reads Observatum's store by name."""
-    from PySide6.QtCore import QCoreApplication, QSettings
-    if QCoreApplication.organizationName() == "Flauna":
-        from shared.settings_store import named
-        return named("Observatum", "Observatum V2")
-    return QSettings()
+    """The suite's one settings store."""
+    from shared.settings_store import app_settings
+    return app_settings()
 
 
 def _legacy_default(s, source: str, kind: str) -> bool:
@@ -230,8 +226,7 @@ def _uksi_conn() -> Optional[sqlite3.Connection]:
             import paths
             path = str(paths.UKSI_DB)
         except Exception:
-            from shared.db_config import db_path
-            path = str(db_path("uksi.db"))
+            return None
     try:
         from shared.db_open import connect_ro
         from pathlib import Path

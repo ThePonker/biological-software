@@ -17,20 +17,8 @@ from PySide6.QtGui import QFont
 import paths
 from shared.species_list_delegate import HIT_ROLE, SpeciesListDelegate
 
-BG = "#f5f5f4"
-SURFACE = "#ffffff"
-TEXT_PRIMARY = "#1f2937"
-TEXT_HEADING = "#4b5563"
-TEXT_SECONDARY = "#6b7280"
-TEXT_MUTED = "#9ca3af"
-BORDER = "#d1d5db"
-SEPARATOR = "#e5e7eb"
-MOSS_GREEN = "#4a7c59"
-ACCENT = "#7c6c9f"
-ACCENT_LIGHT = "#f0edf5"
-ACCENT_DARK = "#5a4d78"
-RED_STATUS = "#a63d40"
-AMBER = "#c2956e"
+from Examen.style import (BG, SURFACE, TEXT_PRIMARY, TEXT_SECONDARY, TEXT_MUTED,
+    BORDER, SEPARATOR, ACCENT, ACCENT_LIGHT, ACCENT_DARK, RED_STATUS, AMBER)
 
 TRACK_LABELS = {
     "threat_iucn_2001": "GB Red List (2001 IUCN)",

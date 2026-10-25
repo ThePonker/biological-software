@@ -21,9 +21,8 @@ except ImportError:  # pragma: no cover
     from presentation import SQI_TOOLTIP
     from workbook_export import _sqi_cell, PTT_NEAR, SQI_MIN_SPECIES
 
-BG = "#f5f5f4"; SURFACE = "#ffffff"; TEXT_HEADING = "#4b5563"
-TEXT_SECONDARY = "#6b7280"; TEXT_MUTED = "#9ca3af"; BORDER = "#d1d5db"; SEPARATOR = "#e5e7eb"
-MOSS_GREEN = "#4a7c59"; ACCENT_DARK = "#5a4d78"; RED_STATUS = "#a63d40"; AMBER = "#c2956e"
+from Examen.style import (BG, TEXT_HEADING, TEXT_SECONDARY, TEXT_MUTED, BORDER,
+    SEPARATOR, MOSS_GREEN, AMBER)
 
 THRESHOLDS_PATH = Path(__file__).parent / "sat_thresholds.json"
 _thresholds_cache = None

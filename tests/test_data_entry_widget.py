@@ -142,7 +142,7 @@ def test_failed_backup_asks_before_discard(widget, monkeypatch):
 
 
 def test_part_failed_commit_says_how_many_and_refreshes(widget, monkeypatch):
-    from DataEntry import entry_grid
+    from DataEntry import entry_grid, grid_exits_mixin
     conn = widget._conn
     cid = repo.create_job(conn, "Glory Park", "Commercial", "BAM", "Glory Park")
     repo.insert_row(conn, cid, ROW)
@@ -157,7 +157,7 @@ def test_part_failed_commit_says_how_many_and_refreshes(widget, monkeypatch):
 
         def value(self):
             return None
-    monkeypatch.setattr(entry_grid, "EmbargoDialog", _Embargo)
+    monkeypatch.setattr(grid_exits_mixin, "EmbargoDialog", _Embargo)   # _do_commit now lives in grid_exits_mixin
     grid._commit_cb = lambda job_id, embargo: {"committed": 4, "remaining": 2, "error": "disk full",
                                                "batch": "DataEntry batch X"}
     got = []

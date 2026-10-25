@@ -6,12 +6,9 @@ Handles iRecord, NBN Atlas, and generic CSV imports with
 different validation rules and column mappings for each.
 """
 from __future__ import annotations   # pd.DataFrame annotations: never evaluated
-import os
-import sys
 from dataclasses import dataclass, field
 from enum import Enum
 import paths  # noqa: F401  (sets up the suite paths)
-from pathlib import Path
 from typing import Optional, Dict, List, Any
 
 from src.utils.lazy_module import lazy_module
@@ -20,43 +17,36 @@ from PySide6.QtCore import QThread, Signal
 
 
 def _find_vc_database() -> Optional[str]:
-    """Find the Vice County lookup database."""
-    candidates = []
-    if getattr(paths, 'AWAY_MODE', False):     # away laptop: the local copy only
-        return str(paths.VC_LOOKUP_DB) if paths.VC_LOOKUP_DB.exists() else None
-    try:
-        from PySide6.QtCore import QSettings
-        settings = QSettings()
-        custom_path = settings.value("database/vc_lookup_path")
-        if custom_path:
-            candidates.append(Path(custom_path))
-    except Exception:
-        pass
+    """The Vice County lookup database: the suite's one registered path (paths.VC_LOOKUP_DB)."""
+    return str(paths.VC_LOOKUP_DB) if paths.VC_LOOKUP_DB.exists() else None
 
-    try:
-        this_file = Path(__file__).resolve()
-        candidates.append(this_file.parent.parent.parent.parent.parent / "data" / "vc_lookup.db")
-        candidates.append(this_file.parent.parent.parent.parent / "data" / "vc_lookup.db")
-    except Exception:
-        pass
 
-    cwd = Path(os.getcwd())
-    candidates.append(cwd / "data" / "vc_lookup.db")
-    candidates.append(cwd / "src" / "data" / "vc_lookup.db")
+def resolve_vc_number_from_text(vice_county_text) -> Optional[int]:
+    """The vc_number for the FIRST pipe-separated name in a vice_county text, or None.
 
-    if sys.path:
-        candidates.append(Path(sys.path[0]) / "data" / "vc_lookup.db")
+    VC_FULL_NAMES first, then VC_NAME_ALIASES; case- and space-insensitive. The one rule the
+    scheme import and scripts/_oneoff/backfill_scheme_vc_numbers_20261024.py both use."""
+    from ....core.vc_shortnames import VC_FULL_NAMES, VC_NAME_ALIASES
+    first = " ".join(str(vice_county_text or "").split("|")[0].split()).lower()
+    if not first:
+        return None
+    for k, v in VC_FULL_NAMES.items():
+        if k.isdigit() and " ".join(v.split()).lower() == first:
+            return int(k)
+    return VC_NAME_ALIASES.get(first)
 
-    candidates.append(Path("data") / "vc_lookup.db")
 
-    for candidate in candidates:
-        try:
-            if candidate and candidate.exists():
-                return str(candidate)
-        except Exception:
-            continue
-
-    return None
+def resolve_vc_number_unambiguous(vice_county_text) -> Optional[int]:
+    """As resolve_vc_number_from_text, but None when the pipe-separated names resolve to
+    different vice counties ('Shropshire | Worcestershire'): a record over several VCs gets
+    no number rather than the first one's (24 Oct 2026, the same rule as the backfill)."""
+    names = [n for n in str(vice_county_text or "").split("|") if n.strip()]
+    found = [resolve_vc_number_from_text(n) for n in names]
+    if len({v for v in found if v}) > 1:
+        return None
+    if len(names) > 1 and not all(found):      # a name not understood: it may be another VC
+        return None
+    return resolve_vc_number_from_text(vice_county_text)
 
 
 class SchemeImportMode(Enum):
@@ -967,10 +957,7 @@ class SchemeValidationWorker(QThread):
             # Fallback: resolve vc_number from pipe-separated vice_county text
             if not validated_row.vc_number and validated_row.vice_county:
                 try:
-                    from ....core.vc_shortnames import VC_FULL_NAMES
-                    _name_to_num = {v.lower().strip(): int(k) for k, v in VC_FULL_NAMES.items() if k.isdigit()}
-                    first_vc = validated_row.vice_county.split("|")[0].strip().lower()
-                    resolved = _name_to_num.get(first_vc)
+                    resolved = resolve_vc_number_unambiguous(validated_row.vice_county)
                     if resolved:
                         validated_row.vc_number = resolved
                 except Exception:

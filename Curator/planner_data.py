@@ -146,9 +146,6 @@ class ProfileManager:
     def get_size(self, profile_key: str) -> SpecimenSize:
         return self._sizes.get(profile_key, self._sizes.get("standard"))
 
-    def get_all_sizes(self) -> dict:
-        return dict(self._sizes)
-
     def get_box(self, box_key: str) -> BoxSize:
         return self._boxes.get(box_key)
 

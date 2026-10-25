@@ -18,7 +18,7 @@ from PySide6.QtGui import QFont, QIcon, QPixmap, QCursor, QColor, QPainter
 
 from Atrium.process_manager import (
     APPS, launch_app, is_running, running_count, FAILED, ALREADY_RUNNING, LAUNCHED,
-    EARLY_EXIT_SECONDS, early_exit_code,
+    EARLY_EXIT_SECONDS, early_exit_code, theme_value,
 )
 
 _POLL_MS = 250
@@ -60,23 +60,23 @@ def watch_start(app, parent=None, polls: int = int(EARLY_EXIT_SECONDS * 1000 / _
 
 ASSETS = Path(__file__).resolve().parent / "assets"
 
-# Observatum naturalist palette
-BG = "#faf9f7"
-SURFACE = "#ffffff"
-TEXT_PRIMARY = "#2c3e2d"
-TEXT_SECONDARY = "#5a6b5c"
-TEXT_MUTED = "#8b9a8d"
-BORDER = "#d4cfc7"
-SEPARATOR = "#e8e4de"
-MOSS = "#4a7c59"
-MOSS_LIGHT = "#e6f0ea"
-HEATHER = "#7c6c9f"
-HEATHER_LIGHT = "#f0edf5"
-WARM_GRAY = "#8b8178"
-GOLD = "#b8860b"
-GOLD_LIGHT = "#fdf4e3"
-CODEX_GREEN = "#2d5016"
-CODEX_LIGHT = "#e8f0e2"
+# Observatum naturalist palette (names resolved from the theme, R13)
+BG = theme_value("background", "#f5f5f4")
+SURFACE = theme_value("surface", "#ffffff")
+TEXT_PRIMARY = theme_value("text_primary", "#1f2937")
+TEXT_SECONDARY = theme_value("text_secondary", "#6b7280")
+TEXT_MUTED = theme_value("text_muted", "#9ca3af")
+BORDER = theme_value("border", "#d1d5db")
+SEPARATOR = theme_value("separator", "#e5e7eb")
+MOSS = theme_value("primary", "#4a7c59")
+MOSS_LIGHT = theme_value("primary_bg", "#e8f0eb")
+HEATHER = theme_value("accent_scheme", "#7c6c9f")
+HEATHER_LIGHT = theme_value("accent_scheme_light", "#eeeaf3")
+WARM_GRAY = theme_value("secondary", "#8b8178")
+GOLD = theme_value("accent_collection", "#b8860b")
+GOLD_LIGHT = theme_value("accent_collection_light", "#faf6eb")
+CODEX_GREEN = MOSS                       # Codex now uses the shared palette's Moss Green
+CODEX_LIGHT = MOSS_LIGHT
 
 
 class AppButton(QFrame):

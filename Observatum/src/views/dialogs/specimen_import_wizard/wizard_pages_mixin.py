@@ -417,22 +417,6 @@ class WizardPagesMixin:
             QCheckBox {{
                 spacing: 6px;
             }}
-            QCheckBox::indicator {{
-                width: 14px;
-                height: 14px;
-                border-radius: 3px;
-                border: 2px solid {t.get('text_primary')};
-            }}
-            QCheckBox::indicator:checked {{
-                background-color: {t.get('accent_collection', '#b8860b')};
-                border: 2px solid {t.get('accent_collection', '#b8860b')};
-                border-radius: 4px;
-            }}
-            QCheckBox::indicator:unchecked {{
-                background-color: {t.get('surface')};
-                border: 2px solid {t.get('border')};
-                border-radius: 4px;
-            }}
         """
 
 

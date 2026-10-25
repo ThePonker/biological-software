@@ -7,7 +7,7 @@ Mixins provide sidebar, data-loading, and export functionality.
 from typing import Optional, Any
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QFrame, QTableView, QSplitter,
-    QHeaderView, QAbstractItemView, QMessageBox,
+    QHeaderView, QAbstractItemView,
 )
 from PySide6.QtGui import QShortcut, QKeySequence
 from PySide6.QtCore import Qt, QSettings, Signal
@@ -269,45 +269,6 @@ class InsectCollectionTab(ICSidebarMixin, ICDataMixin, ICExportMixin, QWidget):
                 self._specimen_repo.create(specimen_data)
             elif self._specimen_model:
                 self._specimen_model.add_specimen(specimen_data)
-            self._load_data()
-            self.data_changed.emit()
-
-    def _on_edit_specimen(self):
-        """Open the edit-specimen dialog for the selected row."""
-        specimen = self.get_selected_specimen()
-        if not specimen:
-            QMessageBox.information(self, "No Selection", "Please select a specimen to edit.")
-            return
-
-        specimen_dict = specimen if isinstance(specimen, dict) else vars(specimen)
-
-        dialog = AddSpecimenDialog(
-            self,
-            self._uksi_model,
-            self._vc_service,
-            existing_specimen=specimen_dict,
-            db=get_database()
-        )
-        if dialog.exec():
-            specimen_data = dialog.get_specimen_data()
-            specimen_id = specimen_dict.get('id')
-            if specimen_id:
-                import paths
-                from shared.photo_files import follow_redet, species_now
-                db_path = str(getattr(self._specimen_repo, '_db_path', '') or paths.OBSERVATUM_DB)
-                old_species = species_now(db_path, "specimen", specimen_id)
-                if self._specimen_repo:
-                    self._specimen_repo.update(specimen_id, specimen_data)
-                elif self._specimen_model:
-                    self._specimen_model.update_specimen(specimen_id, specimen_data)
-                # A re-determination: the specimen's linked photos follow (photos B5)
-                new_species = specimen_data.get('species_name') or ""
-                if old_species and new_species and new_species != old_species \
-                        and species_now(db_path, "specimen", specimen_id) == new_species:
-                    follow_redet(db_path, "specimen", specimen_id, old_species, new_species)
-                # its photos still in _Bench are filed once it has a species from UKSI
-                from shared.bench_photos import file_record_photos_at
-                file_record_photos_at(db_path, "specimen", [specimen_id])
             self._load_data()
             self.data_changed.emit()
 

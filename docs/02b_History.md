@@ -24,6 +24,22 @@ asked for rounds 12–15 (docs refresh, safety + photo naming, test safety, corr
 round; decisions: a .jpg and .tif of the same view are numbered separately; the reset and seed
 scripts are archived, `reset_database.py` kept only to build a new empty database.
 
+**Round 12 delivered and committed by Wil (24 Oct).** On the PC: 1,696 passed then 2 test-only
+fixes; reference check ALL MATCH; 33 `(N)` photos renamed; 5,203 observations' subfamily /
+sort key filled (`repair_redet_taxonomy`, default fields; no figure moved). **Round 13
+(Foundations, 24 Oct):** one colour source (every app's palette from the Naturalist theme via
+`shared/theme_lookup.py`; Codex moved onto the shared palette, Wil; dialogs green ticks, record
+tables keep each tab's colour, Wil); one settings store (`shared/settings_store.app_settings`,
+Data Entry's Flauna/Observatum store merged once, Observatum's value kept; Wil agreed); dead
+Sync/Tabella settings removed; one sex list (`shared/vocab.py`); one date reader
+(`import_core.parse_record_date` behind the Data Entry and Observatum wrappers; 75,921-input
+comparison: nothing previously read changes except years before 1700 and December 9999); VC
+database found only at `paths.VC_LOOKUP_DB`; ~3,500 lines of dead code archived
+(`_archive/dead_code_20261024/`), the Data Entry map shims retired; `entry_grid.py` split
+(2,519 -> 602 lines plus seven modules); VC name aliases and a dry-run backfill of
+`recording_scheme.vc_number` (multi-county or partly understood texts left empty; Irish VCs not
+stored by the suite).
+
 ### Session 50 — 15–16 October 2026
 
 **Bristol and round 7.** Jon Moore's 160 Bristol records imported (names corrected first,

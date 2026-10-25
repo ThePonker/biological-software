@@ -151,8 +151,8 @@ class PhotoIntakeDialog(QDialog):
     @staticmethod
     def _defaults() -> dict:
         try:
-            from PySide6.QtCore import QSettings
-            s = QSettings()
+            from shared.settings_store import app_settings
+            s = app_settings()
             rec = s.value("general/default_recorder", "", type=str) or s.value("DataEntry/entryRecorder", "", type=str)
             det = s.value("general/default_determiner", "", type=str) or s.value("DataEntry/entryDeterminer", "", type=str)
             return {"recorder": rec, "determiner": det}

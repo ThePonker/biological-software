@@ -44,20 +44,6 @@ class WizardPagesMixin(ImportProgressPagesMixin):
                 color: {t.get('text_primary')};
                 spacing: 8px;
             }}
-            QCheckBox::indicator {{
-                width: 18px;
-                height: 18px;
-            }}
-            QCheckBox::indicator:checked {{
-                background-color: {self._accent};
-                border: 2px solid {self._accent};
-                border-radius: 4px;
-            }}
-            QCheckBox::indicator:unchecked {{
-                background-color: {t.get('surface')};
-                border: 2px solid {t.get('border')};
-                border-radius: 4px;
-            }}
         """
 
     def _create_mode_selection_page(self):

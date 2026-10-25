@@ -144,10 +144,6 @@ class QuickEntryForm(QuickEntryFieldsMixin, Card):
         t = theme()
         return f"""
             QCheckBox {{ spacing: 0px; }}
-            QCheckBox::indicator {{ width: 16px; height: 16px; border-radius: 3px; }}
-            QCheckBox::indicator:unchecked {{ border: 2px solid {t.get('border_strong')}; background-color: {t.get('surface')}; }}
-            QCheckBox::indicator:unchecked:hover {{ border: 2px solid {t.get('success')}; }}
-            QCheckBox::indicator:checked {{ border: 2px solid {t.get('success')}; background-color: {t.get('success')}; }}
         """
     
     def _load_sticky_settings(self):

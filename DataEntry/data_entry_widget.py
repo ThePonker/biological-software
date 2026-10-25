@@ -140,7 +140,7 @@ class DataEntryWidget(QWidget):
             p = str(paths.VC_GEOJSON)
             if os.path.exists(p):
                 self._geojson_path = p
-            from DataEntry.raster_map import find_tiles_dir
+            from shared.maps.raster_map import find_tiles_dir
             self._tiles_dir = find_tiles_dir(str(paths.MAPS_DIR))
             self._maps_dir = str(paths.MAPS_DIR)
         except Exception:

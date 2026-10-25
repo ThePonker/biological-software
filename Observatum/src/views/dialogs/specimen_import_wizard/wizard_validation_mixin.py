@@ -4,7 +4,7 @@ Wizard Validation Mixin for Specimen Import Wizard.
 Contains validation callbacks and row update methods.
 """
 
-from typing import List, Optional
+from typing import List
 
 from PySide6.QtWidgets import (
     QDialog, QTableWidgetItem, QMessageBox, QTableView
@@ -160,7 +160,7 @@ class WizardValidationMixin:
         from PySide6.QtGui import QPalette
         palette = self.validation_table.palette()
         palette.setColor(QPalette.ColorRole.Highlight, QColor(t.get("primary_bg", "{t.get('surface_alt')}")))
-        palette.setColor(QPalette.ColorRole.HighlightedText, QColor(t.get("text", "{t.get('text_primary')}")))
+        palette.setColor(QPalette.ColorRole.HighlightedText, QColor(t.get("text_primary")))
         self.validation_table.setPalette(palette)
         
         # Connect double-click for species editing
@@ -425,10 +425,6 @@ class WizardValidationMixin:
         self.validation_model.update_row(row_idx, row)
         self.validated_rows[row_idx] = row
     
-    def _parse_date_format(self, date_str: str) -> Optional[str]:
-        """ISO date for an exact date, else None (the shared reader; kept for old callers)."""
-        return parse_specimen_date(date_str)[0] or None
-    
     def _update_validation_counts_live(self):
         """Update validation counts during validation."""
         valid = sum(1 for r in self.validated_rows if r.status == RowStatus.VALID)
@@ -457,23 +453,7 @@ class WizardValidationMixin:
         # Export Problems was created disabled and never enabled (IMP-18, 10 Oct 2026)
         if hasattr(self, "export_problems_btn"):
             self.export_problems_btn.setEnabled(error_count > 0 or warning_count > 0)
-        return  # Early return to skip old implementation
 
-    def _update_validation_counts_OLD(self):
-        """Update validation count labels and enable next button."""
-        valid = sum(1 for r in self.validated_rows if r.status == RowStatus.VALID)
-        warnings = sum(1 for r in self.validated_rows if r.status == RowStatus.WARNING)
-        errors = sum(1 for r in self.validated_rows if r.status == RowStatus.ERROR)
-        
-        self.valid_count_label.setText(f"Valid: {valid}")
-        self.warning_count_label.setText(f"Warnings: {warnings}")
-        self.error_count_label.setText(f"Errors: {errors}")
-        
-        self.export_problems_btn.setEnabled(errors > 0 or warnings > 0)
-        
-        if hasattr(self, '_validation_complete') and self._validation_complete:
-            self.next_btn.setEnabled(valid > 0 or warnings > 0)
-    
     def _on_validation_finished(self, validated_rows: List[ImportRow]):
         """Handle validation completion - just set the model data (instant)."""
         self.validated_rows = validated_rows

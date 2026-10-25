@@ -164,7 +164,7 @@ class SpeciesTab(QWidget):
             self.results_frame.show()
             self.results_list.hide()
             err = QLabel(f"Search error: {e}")
-            err.setStyleSheet("color: red; padding: 8px;")
+            err.setStyleSheet(f"color: {theme.DANGER}; padding: 8px;")
             self.results_layout.addWidget(err)
             return
 
@@ -264,7 +264,7 @@ class SpeciesTab(QWidget):
             repo.close()
         except Exception as e:
             err = QLabel(f"Error loading profile: {e}")
-            err.setStyleSheet("color: red; padding: 12px;")
+            err.setStyleSheet(f"color: {theme.DANGER}; padding: 12px;")
             self.profile_layout.insertWidget(0, err)
             return
 
@@ -318,7 +318,7 @@ class SpeciesTab(QWidget):
                 repo.close()
         except Exception as e:
             err = QLabel(f"Error loading statuses: {e}")
-            err.setStyleSheet("color: red; padding: 12px;")
+            err.setStyleSheet(f"color: {theme.DANGER}; padding: 12px;")
             self.profile_layout.insertWidget(0, err)
             return
         rows, n = found["rows"], len(found["rows"])
@@ -423,7 +423,7 @@ class SpeciesTab(QWidget):
         if summary.get("is_key"):
             tier = summary.get("key_species_tier", "")
             badge_colour = {
-                "Rare": "#c62828", "Scarce": "#ef6c00", "Priority": "#7cb342"
+                "Rare": theme.DANGER, "Scarce": theme.WARNING, "Priority": theme.SUCCESS
             }.get(tier, theme.TEXT_SECONDARY)
             badge = QLabel(f"  {tier} Key Species  ")
             badge.setStyleSheet(

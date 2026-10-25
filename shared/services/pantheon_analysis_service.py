@@ -437,10 +437,6 @@ class PantheonAnalysisService:
             codex_only_key=codex_only,
         )
 
-    def analyse_by_site(self, site_species, mode=AnalysisMode.CODEX_FULL):
-        return {site: self.analyse(tvks, mode=mode)
-                for site, tvks in site_species.items()}
-
     def _calc_sqi(self, label, tvks_or_set, sqs_scores, pool=None):
         """The one SQI calculation (EXA1): CodexRepository.compute_sqi, the
         project table and every export come here. `pool` is the species

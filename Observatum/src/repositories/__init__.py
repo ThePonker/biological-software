@@ -36,12 +36,10 @@ Usage:
 
 from .observation_repository import ObservationRepository
 from .specimen_repository import SpecimenRepository
-from .recording_scheme_repository import RecordingSchemeRepository
 from .uksi_repository import UKSIRepository
 
 __all__ = [
     'ObservationRepository',
     'SpecimenRepository',
-    'RecordingSchemeRepository',
     'UKSIRepository',
 ]

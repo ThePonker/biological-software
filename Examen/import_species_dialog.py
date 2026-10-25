@@ -76,18 +76,8 @@ def resolve_names(names, uksi) -> list:
         out.append(row)
     return out
 
-SURFACE = "#ffffff"
-BG = "#f5f5f4"
-TEXT_PRIMARY = "#1f2937"
-TEXT_SECONDARY = "#6b7280"
-TEXT_MUTED = "#9ca3af"
-BORDER = "#d1d5db"
-SEPARATOR = "#e5e7eb"
-MOSS_GREEN = "#4a7c59"
-ACCENT = "#7c6c9f"
-ACCENT_DARK = "#5a4d78"
-RED_STATUS = "#a63d40"
-WARM_GRAY = "#8b8178"
+from Examen.style import (BG, TEXT_SECONDARY, TEXT_MUTED, BORDER,
+    SEPARATOR, MOSS_GREEN, ACCENT, ACCENT_DARK, RED_STATUS, WARM_GRAY)
 
 
 class ImportSpeciesDialog(QDialog):

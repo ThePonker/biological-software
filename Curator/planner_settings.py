@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox,
     QSpinBox, QCheckBox, QPushButton, QFrame, QFormLayout,
 )
+from .style import (MOSS, SEPARATOR, TEXT_SECONDARY, WARM_GRAY)
 
 SETTINGS_PATH = Path(__file__).parent / "settings.json"
 
@@ -71,12 +72,12 @@ class SettingsDialog(QDialog):
         layout.addWidget(title)
 
         info = QLabel("These apply when Curator starts.")
-        info.setStyleSheet("color: #666; font-size: 11px;")
+        info.setStyleSheet("color: " + TEXT_SECONDARY + "; font-size: 11px;")
         layout.addWidget(info)
 
         sep = QFrame()
         sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet("color: #ddd;")
+        sep.setStyleSheet("color: " + SEPARATOR + ";")
         layout.addWidget(sep)
 
         form = QFormLayout()
@@ -101,7 +102,7 @@ class SettingsDialog(QDialog):
 
         sep2 = QFrame()
         sep2.setFrameShape(QFrame.Shape.HLine)
-        sep2.setStyleSheet("color: #ddd;")
+        sep2.setStyleSheet("color: " + SEPARATOR + ";")
         form.addRow(sep2)
 
         form.addRow(QLabel("Default count toggles:"))
@@ -127,15 +128,15 @@ class SettingsDialog(QDialog):
 
         cancel_btn = QPushButton("Cancel")
         cancel_btn.setStyleSheet(
-            "padding: 6px 16px; border: 1px solid #8b8178; "
-            "border-radius: 4px; color: #8b8178;"
+            "padding: 6px 16px; border: 1px solid " + WARM_GRAY + "; "
+            "border-radius: 4px; color: " + WARM_GRAY + ";"
         )
         cancel_btn.clicked.connect(self.reject)
         btn_row.addWidget(cancel_btn)
 
         save_btn = QPushButton("Save")
         save_btn.setStyleSheet(
-            "padding: 6px 16px; background-color: #4a7c59; color: white; "
+            "padding: 6px 16px; background-color: " + MOSS + "; color: white; "
             "border: none; border-radius: 4px; font-weight: bold;"
         )
         save_btn.clicked.connect(self._save)

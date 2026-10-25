@@ -185,76 +185,15 @@ class VCLookupService:
                 print(f"[VCLookupService] Could not load vc_names table: {e}")
     
     def _get_db_path(self) -> Optional[Path]:
-        """Find the VC lookup database."""
-        if self._db_path:
+        """The VC lookup database: an explicit path given at construction, else paths.VC_LOOKUP_DB
+        (the away copy in away mode)."""
+        if self._db_path and not getattr(paths, 'AWAY_MODE', False):
             p = Path(self._db_path)
             if p.exists():
                 return p
-        
-        import os
-        import sys
-        
-        # Build comprehensive list of candidate paths
-        candidates = []
-        if getattr(paths, 'AWAY_MODE', False):     # away laptop: the local copy only
-            return Path(paths.VC_LOOKUP_DB) if Path(paths.VC_LOOKUP_DB).exists() else None
-        
-        # 1. Check QSettings for user-configured path
-        try:
-            from PySide6.QtCore import QSettings
-            settings = QSettings()
-            custom_path = settings.value("database/vc_lookup_path")
-            if custom_path:
-                candidates.append(Path(custom_path))
-        except Exception:
-            pass
-        
-        # 2. From this file's location (most reliable for installed app)
-        try:
-            this_file = Path(__file__).resolve()
-            # src/services/vc_lookup_service.py -> src/services -> src -> project root
-            candidates.append(this_file.parent.parent.parent / "data" / "vc_lookup.db")
-            candidates.append(this_file.parent.parent / "data" / "vc_lookup.db")
-            candidates.append(this_file.parent / "data" / "vc_lookup.db")
-        except Exception:
-            pass
-        
-        # 3. From current working directory
-        cwd = Path(os.getcwd())
-        candidates.append(cwd / "data" / "vc_lookup.db")
-        candidates.append(cwd / "src" / "data" / "vc_lookup.db")
-        
-        # 4. From sys.path (useful when running as module)
-        if sys.path:
-            candidates.append(Path(sys.path[0]) / "data" / "vc_lookup.db")
-        
-        # 5. Relative paths
-        candidates.append(Path("data") / "vc_lookup.db")
-        candidates.append(Path("data/vc_lookup.db"))
-        
-        # 6. User's home directory (portable fallback)
-        try:
-            home = Path.home()
-            candidates.append(paths.VC_LOOKUP_DB)
-            candidates.append(paths.VC_LOOKUP_DB)
-        except Exception:
-            pass
-        
-        # 7. For frozen executables (PyInstaller, etc.)
-        if getattr(sys, 'frozen', False):
-            exe_dir = Path(sys.executable).parent
-            candidates.append(exe_dir / "data" / "vc_lookup.db")
-            candidates.append(exe_dir / "vc_lookup.db")
-        
-        for path in candidates:
-            try:
-                if path.exists():
-                    return path
-            except Exception:
-                pass
-        
-        return None
-    
+        p = Path(paths.VC_LOOKUP_DB)
+        return p if p.exists() else None
+
     def _get_connection(self) -> Optional[sqlite3.Connection]:
         """Get database connection."""
         if self._connection:

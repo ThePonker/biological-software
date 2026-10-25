@@ -18,83 +18,43 @@ import re
 from typing import Optional
 
 _ISO = re.compile(r"^(\d{4})-(\d{1,2})-(\d{1,2})$")
-_DMY = re.compile(r"^(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{2}|\d{4})$")
-_YEAR = re.compile(r"^(\d{4})$")
-_MY = re.compile(r"^(\d{1,2})[/.\-](\d{4})$")           # 06/2026
 _YM = re.compile(r"^(\d{4})-(\d{1,2})$")                # 2026-06 (also the stored form)
-_MONTHS = {m: i for i, m in enumerate(
-    ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"), start=1)}
 _MON_ABBR = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
-_MON_Y = re.compile(r"^([a-z]+)\.?,?\s+(\d{4})$")       # Jun 2026 / June 2026
-_MIN_YEAR = 1700                                         # earlier than any plausible record
+_NO_LIMIT = _dt.date(9999, 12, 31)    # the reader's "today": a date still to come is read, not refused
+                                      # (is_future flags it; the 2-digit year is always the 2000s)
 
 
 def to_iso(value) -> Optional[str]:
-    """Return YYYY-MM-DD if the value parses to a real date, else None."""
-    if value is None:
-        return None
-    s = str(value).strip().lower()
-    if not s:
-        return None
-    if s in ("today", "now"):
-        return _dt.date.today().isoformat()
-    if s in ("yesterday", "yday"):
-        return (_dt.date.today() - _dt.timedelta(days=1)).isoformat()
-
-    m = _ISO.match(s)
-    if m:
-        y, mo, d = (int(g) for g in m.groups())
-        return _valid(y, mo, d)
-
-    m = _DMY.match(s)
-    if m:
-        d, mo, yr = m.groups()
-        d, mo = int(d), int(mo)
-        y = int(yr)
-        if len(yr) == 2:                       # 2-digit year -> 2000s
-            y += 2000
-        return _valid(y, mo, d)
-    return None
-
-
-def _valid(y: int, mo: int, d: int) -> Optional[str]:
-    try:
-        return _dt.date(y, mo, d).isoformat()
-    except ValueError:
-        return None
+    """Return YYYY-MM-DD if the value parses to a real day, else None."""
+    p = parse(value)
+    return p[0] if p and p[1] == "D" else None
 
 
 def parse(value):
     """(stored form, date type) for anything the grid can read, else None.
 
-    D: 'YYYY-MM-DD'; O: 'YYYY-MM'; Y: 'YYYY'. The type codes are Observation.date_type's."""
-    iso = to_iso(value)
-    if iso:
-        return iso, "D"
+    D: 'YYYY-MM-DD'; O: 'YYYY-MM'; Y: 'YYYY'. The type codes are Observation.date_type's.
+    The reading is shared.import_core.parse_record_date (R13: one date reader for the suite);
+    'today' / 'yesterday' are added here, and a range ('2019-2021') is not one date: None."""
     if value is None:
         return None
-    s = " ".join(str(value).strip().lower().split())
-    m = _YEAR.match(s)
-    if m:
-        y = int(m.group(1))
-        return (f"{y:04d}", "Y") if y >= _MIN_YEAR else None
-    m = _MY.match(s) or _YM.match(s)
-    if m:
-        a, b = m.groups()
-        y, mo = (int(b), int(a)) if m.re is _MY else (int(a), int(b))
-        return (f"{y:04d}-{mo:02d}", "O") if 1 <= mo <= 12 and y >= _MIN_YEAR else None
-    m = _MON_Y.match(s)
-    if m:
-        mo = _MONTHS.get(m.group(1)[:3])
-        y = int(m.group(2))
-        if mo and y >= _MIN_YEAR and (len(m.group(1)) == 3 or _full_month(m.group(1))):
-            return f"{y:04d}-{mo:02d}", "O"
-    return None
-
-
-def _full_month(word: str) -> bool:
-    return word in ("january", "february", "march", "april", "may", "june", "july", "august",
-                    "september", "october", "november", "december", "sept")
+    # 'June, 2021' read as before R13 (review 24 Oct 2026): a comma is a separator here
+    s = " ".join(str(value).strip().lower().replace(",", " ").split())
+    if not s:
+        return None
+    if s in ("today", "now"):
+        return _dt.date.today().isoformat(), "D"
+    if s in ("yesterday", "yday"):
+        return (_dt.date.today() - _dt.timedelta(days=1)).isoformat(), "D"
+    from shared.import_core import parse_record_date
+    try:
+        got = parse_record_date(s, today=_NO_LIMIT)
+    except ValueError:                 # December 9999: its month end would be in year 10000
+        return None
+    if got.error or not got.date or got.date_type not in ("D", "O", "Y"):
+        return None
+    cut = {"D": 10, "O": 7, "Y": 4}[got.date_type]
+    return got.date[:cut], got.date_type
 
 
 def is_readable(value) -> bool:

@@ -57,11 +57,6 @@ class LectorStore:
         self.conn.commit()
 
     # --- per-name log (pre-saved-search table, still kept up to date) -----
-    def search_done(self, accepted_name, query_name):
-        row = self.conn.execute(
-            "SELECT 1 FROM searches WHERE accepted_name=? AND query_name=?",
-            (accepted_name, query_name)).fetchone()
-        return row is not None
 
     def record_search(self, entry, query_name, role, total, kept):
         self.conn.execute(
@@ -88,10 +83,6 @@ class LectorStore:
         return [json.loads(r[0]) for r in self.conn.execute(
             "SELECT record FROM name_hits WHERE query_name=? ORDER BY page_id", (query_name,))]
 
-    def name_lookup(self, query_name):
-        return self.conn.execute("SELECT * FROM name_lookups WHERE query_name=?",
-                                 (query_name,)).fetchone()
-
     def forget_name_hits(self, query_names):
         for n in query_names:
             self.conn.execute("DELETE FROM name_hits WHERE query_name=?", (n,))
@@ -112,11 +103,6 @@ class LectorStore:
         self.conn.execute(
             "INSERT OR IGNORE INTO page_hits (page_id, accepted_name, query_name, tvk)"
             " VALUES (?,?,?,?)", (page_id, accepted_name, query_name, tvk))
-
-    def add_page_hit(self, page, entry, query_name):
-        """Insert page metadata (if new) and link it to this species/name."""
-        self.upsert_page(page)
-        self.add_hit(page["page_id"], entry.name, query_name, entry.tvk)
 
     def pages_missing_text(self, accepted_name=None, page_ids=None):
         if page_ids is not None:

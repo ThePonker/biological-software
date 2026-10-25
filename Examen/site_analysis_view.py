@@ -22,11 +22,9 @@ from .assemblage_tab import AssemblageTab
 from .species_tab import SpeciesTab
 from .conservation_tab import ConservationTab
 
-BG = "#f5f5f4"; SURFACE = "#ffffff"; TEXT_PRIMARY = "#1f2937"; TEXT_HEADING = "#4b5563"
-TEXT_SECONDARY = "#6b7280"; TEXT_MUTED = "#9ca3af"; BORDER = "#d1d5db"; SEPARATOR = "#e5e7eb"
-MOSS_GREEN = "#4a7c59"; MOSS_HOVER = "#3d6649"; WARM_GRAY = "#8b8178"
-ACCENT = "#7c6c9f"; ACCENT_LIGHT = "#f0edf5"; ACCENT_DARK = "#5a4d78"
-RED_STATUS = "#a63d40"; AMBER = "#c2956e"
+from Examen.style import (BG, TEXT_PRIMARY, TEXT_HEADING, TEXT_SECONDARY, TEXT_MUTED,
+    BORDER, SEPARATOR, MOSS_GREEN, MOSS_HOVER, ACCENT, ACCENT_LIGHT, ACCENT_DARK,
+    RED_STATUS, AMBER)
 
 BTN_PRIMARY = ("QPushButton { background-color: " + MOSS_GREEN + "; color: white; border: none; "
     "padding: 6px 16px; border-radius: 4px; font-size: 12px; } QPushButton:hover { background-color: " + MOSS_HOVER + "; }"
