@@ -12,8 +12,6 @@ from tests.test_export_preview_20261026 import ALL, NONE, make_host  # noqa: E40
 
 qapp, settings_sandbox = r11.qapp, r11.settings_sandbox
 
-SHOTS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "_r17_shots")
-os.makedirs(SHOTS, exist_ok=True)
 CLASSES = list(env_classes.BEDROCK)[:14]          # 14 classes: more than the 12 shown
 
 
@@ -121,4 +119,4 @@ def test_legend_does_not_overlap_anything(qapp, tmp_path, settings_sandbox, opts
     assert block_end <= credit_top, (block_end, credit_top)
     img = h.render_atlas("full", opts, dpi=100)
     assert img.width() > 0
-    img.save(os.path.join(SHOTS, f"legend_{sum(opts.values())}_{int(bool(opts.get('layer_legend')))}.png"))
+    img.save(os.path.join(str(tmp_path), f"legend_{sum(opts.values())}_{int(bool(opts.get('layer_legend')))}.png"))

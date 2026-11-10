@@ -45,3 +45,4 @@ shared/checklists/*.csv
 .pytest_tmp/
 
 Claude outputs/
+_r17_shots/
