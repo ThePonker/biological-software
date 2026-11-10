@@ -6,6 +6,7 @@ Pure parts on made-up data; the tab on the data copies (read-only), offscreen.
 import os
 
 import pytest
+from _map_sync import sync
 
 import paths
 
@@ -42,7 +43,7 @@ def tab(settings_sandbox):
     if not HAVE_DATA:
         pytest.skip("needs data copies")
     from src.views.mapping.mapping_tab import MappingTab
-    t = MappingTab()
+    t = sync(MappingTab())
     t.resize(1600, 1000)
     t.show()
     yield t

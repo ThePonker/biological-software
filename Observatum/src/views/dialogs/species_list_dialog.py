@@ -259,7 +259,6 @@ class SpeciesListDialog(QDialog):
 
     def _build_species_table(self):
         """Build and return the species QTableWidget."""
-        t = theme()
         table = QTableWidget()
         table.setColumnCount(3)
         table.setHorizontalHeaderLabels(["Species Name", "First Recorded", "Last Recorded"])

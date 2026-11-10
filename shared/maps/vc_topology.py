@@ -22,6 +22,8 @@ import math
 import threading
 from typing import Dict, Iterable, List, Tuple
 
+from shared.maps import map_disk_cache
+
 
 Point = Tuple[float, float]
 SNAP_M = 200.0          # a point this near an earlier VC's ring is on their common border
@@ -190,11 +192,25 @@ _SNAP_CACHE: Dict[tuple, dict] = {}
 _LOCK = threading.RLock()
 
 
-def snap_rings_cached(key, vc_rings):
-    """snap_rings, kept per key (the geojson and its simplification) for the process."""
+def snap_rings_cached(key, vc_rings, source=None):
+    """snap_rings, kept per key (the geojson and its simplification) for the process. source:
+    the file the rings came from; with it the result is also kept on disk (map_disk_cache, R16)
+    and read from there on the next run while the file is unchanged."""
     with _LOCK:         # the map's warm-up may be working it out: wait for it, not do it twice
         if key not in _SNAP_CACHE:
-            _SNAP_CACHE[key] = snap_rings(vc_rings)
+            extra = (SNAP_M,) + tuple(key[2:])
+            hit = None
+            if source:
+                a = map_disk_cache.load(source, "snap", *extra)
+                try:
+                    hit = None if a is None else map_disk_cache.unpack_groups(a)
+                except Exception:
+                    hit = None
+            if hit is None:
+                hit = snap_rings(vc_rings)
+                if source and all(hit.values()):
+                    map_disk_cache.save(source, "snap", map_disk_cache.pack_groups(hit), *extra)
+            _SNAP_CACHE[key] = hit
         return _SNAP_CACHE[key]
 
 

@@ -98,6 +98,18 @@ class EditObservationDialog(QDialog):
         # Determiner
         self._add_field(layout, "Determiner", "determiner_edit", "")
 
+        # Reference (where the record came from other than iRecord/NBN); disabled until
+        # scripts/add_data_reference.py has added the column
+        from ..components.reference_field import ReferenceField
+        ref_group = QVBoxLayout()
+        ref_label = QLabel("Reference")
+        ref_label.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {t.get('text_secondary')};")
+        ref_group.addWidget(ref_label)
+        self.reference_edit = ReferenceField(self._db, "observations")
+        self.reference_edit.setMinimumHeight(36)
+        ref_group.addWidget(self.reference_edit)
+        layout.addLayout(ref_group)
+
         # Comment
         notes_group = QVBoxLayout()
         notes_label = QLabel("Comment")
@@ -241,6 +253,7 @@ class EditObservationDialog(QDialog):
         self.recorder_edit.setText(obs.get('recorder', ''))
         self.determiner_edit.setText(obs.get('determiner', ''))
         self.comment_edit.setText(obs.get('comment', obs.get('notes', '')))
+        self.reference_edit.setText(obs.get('data_reference') or '')
 
         # Show species info
         info_parts = []
@@ -303,6 +316,9 @@ class EditObservationDialog(QDialog):
             'determiner': self.determiner_edit.text().strip(),
             'comment': self.comment_edit.toPlainText().strip(),
         }
+
+        if self.reference_edit.available:
+            data['data_reference'] = self.reference_edit.text().strip() or None
 
         if self._selected_species:
             data['species_tvk'] = self._selected_species.get('tvk')

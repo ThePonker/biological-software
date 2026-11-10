@@ -20,6 +20,8 @@ from typing import Dict, List, Optional, Tuple
 from PySide6.QtCore import QPointF
 from PySide6.QtGui import QColor, QImage, QPainter, QPen, QPolygonF
 
+from shared.maps import map_disk_cache
+
 Point = Tuple[float, float]
 CELL = 250.0                 # metres per pixel of the land raster
 GB_E, GB_N = 700000.0, 1300000.0
@@ -96,17 +98,39 @@ def has_split(key) -> bool:
     return key in _SPLIT_CACHE
 
 
-def split_edges_cached(key, rings: List[List[Point]], lines=None, raster=None):
+def load_disk(key, disk) -> bool:
+    """Take the split for `key` from the disk cache (map_disk_cache, R16) when there is a matching
+    file; True when it is now in the process cache. disk: (source file, name)."""
+    with _LOCK:
+        if key in _SPLIT_CACHE:
+            return True
+        if not disk:
+            return False
+        a = map_disk_cache.load(disk[0], "split_" + disk[1], CELL, *key[2:])
+        try:
+            if a is not None:
+                _SPLIT_CACHE[key] = map_disk_cache.unpack_split(a)
+                return True
+        except Exception:
+            pass
+        return False
+
+
+def split_edges_cached(key, rings: List[List[Point]], lines=None, raster=None, disk=None):
     """split_edges, kept per key (the source file and its simplification) for the process:
     the Mapping tab and the batch renderer share one result. lines: a callable giving the
     polylines to split (split_edges' `lines`), called only when the key is new. raster: the
     land_raster already made. A lock makes a paint that needs it while the map's warm-up is
-    still working it out wait for that result, not work it out twice."""
+    still working it out wait for that result, not work it out twice. disk: (source file, name):
+    the result is also kept in data/maps/cache/ and read from there next run (load_disk)."""
     with _LOCK:
-        if key not in _SPLIT_CACHE:
+        if key not in _SPLIT_CACHE and not load_disk(key, disk):
             ln = lines() if lines else None
             _SPLIT_CACHE[key] = (split_edges(rings, lines=ln) if raster is None
                                  else classify(raster, rings, CELL, ln))
+            if disk:
+                map_disk_cache.save(disk[0], "split_" + disk[1],
+                                    map_disk_cache.pack_split(*_SPLIT_CACHE[key]), CELL, *key[2:])
         return _SPLIT_CACHE[key]
 
 

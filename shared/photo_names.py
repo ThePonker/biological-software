@@ -29,6 +29,8 @@ from dataclasses import dataclass, field
 from pathlib import PurePath
 from typing import List, Optional, Union
 
+from shared.import_core import _ROMAN as ROMAN       # one roman-month table (import_core)
+
 LIFE = "life"
 MICROSCOPE = "microscope"
 
@@ -40,8 +42,6 @@ IMAGE_EXTS = frozenset(".jpg .jpeg .jpe .png .tif .tiff .heic .heif .webp .gif .
                        ".cr3 .nef .arw .orf .rw2 .raf".split())
 VIDEO_EXTS = frozenset(".mp4 .mov .avi .mkv .m4v .3gp .wmv .mts .m2ts .mpg .mpeg .webm".split())
 
-ROMAN = {"i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5, "vi": 6, "vii": 7, "viii": 8,
-         "ix": 9, "x": 10, "xi": 11, "xii": 12}
 INFRA_RANKS = {"ssp": "ssp.", "subsp": "ssp.", "var": "var.", "f": "f.", "ab": "ab."}
 
 _NOTE = re.compile(r"\(([^()]*)\)")

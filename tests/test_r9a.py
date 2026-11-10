@@ -204,6 +204,7 @@ def test_filter_wizard_offers_the_group_first(qapp):
 # ---------------------------------------------------------------- F50 drop-down lists
 
 def test_combo_popups_are_solid(qapp):
+    from PySide6.QtCore import QEvent
     from PySide6.QtWidgets import QComboBox, QVBoxLayout, QWidget
     import shared.opaque_popups as op
     from src.views.home.quick_entry_fields_mixin import QuickEntryFieldsMixin
@@ -219,9 +220,10 @@ def test_combo_popups_are_solid(qapp):
     styled.setStyleSheet("QComboBox QAbstractItemView { background: #fff8e0; }")
     styled.addItems(["a", "b"])
     lay.addWidget(styled)
+    from shared import app_filter
     earlier = op._installed               # an app's main() run by an earlier test installs it
     if earlier is not None:
-        qapp.removeEventFilter(earlier)
+        app_filter.unregister(qapp, "opaque_popups")
         op._installed = None
     form.show()
     combo.showPopup()
@@ -239,10 +241,10 @@ def test_combo_popups_are_solid(qapp):
         assert styled.view().styleSheet() == ""                     # left as it was
         assert op.install(qapp) is f                                # once per application
     finally:
-        qapp.removeEventFilter(f)
+        app_filter.unregister(qapp, "opaque_popups")
         op._installed = earlier
         if earlier is not None:
-            qapp.installEventFilter(earlier)
+            app_filter.register(qapp, "opaque_popups", earlier.eventFilter, (QEvent.Type.Show,))
         form.deleteLater()
 
 

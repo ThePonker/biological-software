@@ -229,7 +229,9 @@ def test_scheme_counts_unchanged(qapp, db_copy, settings_isolated):
     in brackets). Hand SQL applies THE rule, shared/scheme_duplicates.live_sql."""
     h = lambda sql: _hand(db_copy, sql + _copies_out(db_copy))  # noqa: E731
     mordax = h("SELECT COUNT(*) FROM recording_scheme WHERE species_name = 'Rhagium mordax'")
-    assert 3000 < mordax <= 4628                                       # 4,628 (3,431)
+    # a sanity bound, not a pin: the live count moves whenever a data script runs (4,628 total,
+    # 3,431 without the marked copies, on the 9 Oct copy)
+    assert 1000 < mordax <= 10000
     for text in ("rhag mor", "Rhagium mordx", "Rhagium mordax"):
         assert _scheme_rows(db_copy, {"species": text}) == mordax
     assert _scheme_rows(db_copy, {"location": "wood"}) == h(

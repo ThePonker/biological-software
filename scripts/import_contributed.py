@@ -78,6 +78,11 @@ ap.add_argument("--sheet", default=None)
 ap.add_argument("--method", action="append", default=[], help='"Swept=Net"; adds to the defaults')
 ap.add_argument("--received", default=datetime.date.today().isoformat())
 ap.add_argument("--permission", default="Permission given to store and to use in assessments")
+ap.add_argument("--reference", default=None,
+                help='free-text Reference stored on every row, e.g. "Joe Bloggs, data to 1990"; '
+                     'existing similar references are listed so the naming convention is followed')
+ap.add_argument("--drop-reference", action="store_true",
+                help="with --replace and no --reference: let the replaced rows lose their Reference")
 ap.add_argument("--replace", action="store_true", help="remove an earlier import of this file first")
 ap.add_argument("--apply", action="store_true")
 a = ap.parse_args()
@@ -200,7 +205,39 @@ if prior:
     if not a.replace:
         print("  x re-run with --replace to remove that import first")
 
-blocked = bool(unmatched or bad_dates or (prior and not a.replace) or not records)
+from shared import data_reference as _dr
+a.reference = _dr.clean(a.reference)
+ref_missing = False
+if a.reference:
+    if not _dr.has_column(o, "contributed_observations"):
+        print("\n  x --reference given but the Reference column is not there yet: "
+              "run scripts\\add_data_reference.py first")
+        ref_missing = True
+    else:
+        similar = _dr.similar_references(o, a.reference)
+        print(f"\n  Reference: {a.reference!r}")
+        if similar:
+            print("  Existing references that resemble it (follow their naming if it is the same source):")
+            for s_ in similar:
+                print(f"      {s_!r}")
+        else:
+            print("  No existing reference resembles it.")
+        for rec in records:
+            rec["data_reference"] = a.reference
+
+replace_needs_ref = False
+if prior and a.replace and _dr.has_column(o, "contributed_observations"):
+    old_refs = [x[0] for x in o.execute(
+        "SELECT DISTINCT data_reference FROM contributed_observations WHERE source_file=? "
+        "AND contributor=? AND TRIM(COALESCE(data_reference, '')) <> ''", (src_file, a.contributor))]
+    if old_refs:
+        print(f"\n  The rows being replaced carry the Reference: {old_refs}")
+        if not a.reference and not a.drop_reference:
+            print("  x --replace would lose it: give --reference \"...\" (the same or a new one), "
+                  "or --drop-reference to let it go")
+            replace_needs_ref = True
+
+blocked = bool(unmatched or bad_dates or ref_missing or replace_needs_ref or (prior and not a.replace) or not records)
 if not a.apply:
     print("\n" + ("Fix the items marked x before applying.\n" if blocked else "All checks pass.\n")
           + "DRY RUN -- nothing has been changed.")

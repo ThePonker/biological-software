@@ -30,7 +30,7 @@ This is for SEARCHING only. Imports keep shared/species_lookup.py's own rules (e
 synonyms, and a close spelling of one species of the same genus) and never accept any other
 of these matches without a person choosing it.
 The index is built once per process (about a second), on first use, and rebuilt if uksi.db
-changes on disk. shared/species_filter.py turns typed text into a TVK set for record tables.
+changes on disk; the built index is also cached on disk so later starts load it. shared/species_filter.py turns typed text into a TVK set for record tables.
 """
 from __future__ import annotations
 
@@ -231,13 +231,35 @@ class SpeciesIndex:
             if words and words != sci_words[i]:
                 add(i, 2, name, words)
         self.postings = postings
-        self.vocab = sorted(postings)
+        self._finish()
+
+    # The lists and dicts saved to (and loaded from) the disk cache, shared/species_index_cache.py.
+    STATE_FIELDS = ("tvk", "sci", "rank", "family", "order", "genus", "kingdom", "parent",
+                    "qualifier", "label", "common", "e_taxon", "e_kind", "e_name", "e_words",
+                    "postings")
+
+    def _finish(self) -> None:
+        """What is worked out from postings (cheap next to building them)."""
+        self.vocab = sorted(self.postings)
         self._vjoined = "|".join(self.vocab)
         self._vstarts, at = [], 0
         for w in self.vocab:
             self._vstarts.append(at)
             at += len(w) + 1
         self.fuzzy = FuzzyVocab(self.vocab)
+
+    def to_state(self) -> dict:
+        return {k: getattr(self, k) for k in self.STATE_FIELDS}
+
+    @classmethod
+    def from_state(cls, state: dict) -> "SpeciesIndex":
+        """An index from to_state() output, without reading uksi.db."""
+        self = cls.__new__(cls)
+        for k in cls.STATE_FIELDS:
+            setattr(self, k, state[k])
+        self.pos = {t: i for i, t in enumerate(self.tvk)}
+        self._finish()
+        return self
 
     # ------------------------------------------------------------ word lookups
 
@@ -480,8 +502,10 @@ def _default_path() -> str:
     return str(paths.UKSI_DB)
 
 
-def get_index(db_path: Optional[str] = None) -> SpeciesIndex:
-    """The index for uksi.db (built on first use, rebuilt if the file changes)."""
+def get_index(db_path: Optional[str] = None, cache_dir: Optional[str] = None) -> SpeciesIndex:
+    """The index for uksi.db (built on first use, rebuilt if the file changes). The built index
+    is kept on disk (local cache folder, shared/species_index_cache.py) and loaded at the next start
+    while uksi.db is unchanged; an explicit db_path is cached only if cache_dir is given."""
     path = os.path.abspath(str(db_path or _default_path()))
     try:
         stamp = os.stat(path).st_mtime_ns
@@ -494,12 +518,19 @@ def get_index(db_path: Optional[str] = None) -> SpeciesIndex:
         hit = _cache.get(path)
         if hit and hit[0] == stamp:
             return hit[1]
-        from shared.db_open import connect_ro
-        conn = connect_ro(path)
-        try:
-            idx = SpeciesIndex(conn)
-        finally:
-            conn.close()
+        from shared import species_index_cache as disk
+        cache_file = disk.cache_file_for(path, db_path, cache_dir)
+        idx = disk.load(cache_file, path) if cache_file else None
+        header = disk.make_header(path) if cache_file and idx is None else None   # before building
+        if idx is None:
+            from shared.db_open import connect_ro
+            conn = connect_ro(path)
+            try:
+                idx = SpeciesIndex(conn)
+            finally:
+                conn.close()
+            if cache_file:
+                disk.save(idx, cache_file, header)
         _cache[path] = (stamp, idx)
         return idx
 

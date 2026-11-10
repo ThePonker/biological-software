@@ -27,7 +27,6 @@ class QuickStatsPanel(Card):
     
     def _setup_ui(self):
         """Set up the panel UI with sections for each data source."""
-        t = theme()
         
         # Main stats layout
         self.stats_layout = QVBoxLayout()

@@ -413,7 +413,6 @@ class VCExplorer(QFrame):
 
     def _update_summary(self, vc_info):
         """Update the summary panel with VC info."""
-        t = theme()
         
         if vc_info is None:
             self.vc_title_label.setText("No vice county selected")

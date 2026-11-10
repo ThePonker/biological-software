@@ -28,7 +28,6 @@ class DatabaseSettingsPanel(QScrollArea):
         self._load_settings()
     
     def _setup_ui(self):
-        t = theme()
         
         self.setWidgetResizable(True)
         self.setFrameShape(QFrame.Shape.NoFrame)
@@ -294,7 +293,6 @@ class DatabaseSettingsPanel(QScrollArea):
 
     def apply_theme(self):
         """Apply the current theme to all components."""
-        t = theme()
         
         # Re-apply styles to frames - would require storing references
         # For now, the panel would need to be rebuilt for full theme refresh

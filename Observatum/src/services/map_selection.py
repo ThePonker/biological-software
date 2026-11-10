@@ -113,6 +113,11 @@ _SPECIMEN_OBS = ("(o.id = specimens.observation_id OR (specimens.observation_id 
                  "AND REPLACE(UPPER(o.grid_ref), ' ', '') = REPLACE(UPPER(specimens.grid_ref), ' ', '')))")
 
 
+# said on the map (subtitle / PNG) and in the Reference box's tooltip while a Reference is set
+REFERENCE_NO_SPECIMENS = ("Insect Collection records have no Reference and are left out "
+                          "while the Reference filter is set.")
+
+
 @dataclass
 class MapFilters:
     """The filter panel's values. Dates are ISO (the panel reads any usual form, MAP3)."""
@@ -121,6 +126,7 @@ class MapFilters:
     vc: Optional[int] = None
     recorder: str = ""
     site: str = ""
+    data_reference: str = ""               # contains, any case; only set when the column exists
     project: str = ""                      # Commercial only
     include_embargoed: bool = False
 
@@ -207,6 +213,15 @@ def build_query(table: str, selection: List[dict], source, filters: MapFilters,
     if sql:
         where.append(sql)
         params += p
+    ref_set = bool((filters.data_reference or "").strip())
+    if ref_set:                                      # the Reference filter (data_reference)
+        if table == "specimens":
+            where.append("0")                        # specimens carry no Reference
+        else:
+            from shared.data_reference import like_clause
+            sql, p = like_clause(filters.data_reference)
+            where.append(sql)
+            params += p
     hold = not filters.include_embargoed
     if table == "observations":
         kinds, kp = _obs_kinds("", srcs, filters.project)
@@ -256,7 +271,9 @@ def build_query(table: str, selection: List[dict], source, filters: MapFilters,
         kinds, kp = _obs_kinds("", srcs, filters.project)
         if part == "embargoed":
             where.append("0")
-        elif kinds:                            # one of your observations, shown as that
+        elif kinds and not ref_set:            # one of your observations, shown as that
+            # (not while a Reference is set: observations have none, so folding a scheme row
+            # into its observation would make it vanish; each source is filtered on its own)
             mine = ("COALESCE(irecord_id, '') <> '' AND irecord_id IN (SELECT o.irecord_id FROM "
                     f"observations o WHERE COALESCE(o.irecord_id, '') <> '' AND {kinds}{obs_ok}"
                     + (" AND NOT " + _EMBARGOED.format(p="") if hold else "") + ")")
@@ -280,7 +297,7 @@ class MapResult:
 def fetch(selection: List[dict], source="personal", filters: Optional[MapFilters] = None,
           db_path=None, uksi_path=None) -> MapResult:
     """The records for the map, with what was held back. Each record: source, table, id,
-    species_name, tvk, common_name, grid_ref, date, year, site_name, person, extra, vc,
+    species_name, tvk, common_name, grid_ref, date, date_type, year, site_name, person, extra, vc,
     chips (indexes of the chips it falls under) and species (its key for richness).
     `source`: a key of SOURCES or a list of them (several sources at once)."""
     filters = filters or MapFilters()
@@ -301,11 +318,12 @@ def fetch(selection: List[dict], source="personal", filters: Optional[MapFilters
             rtype = "record_type" if table == "observations" else "NULL"
             gcol = GROUP_COLUMN.get(table)
             gexpr = gcol if (want_group and gcol) else "NULL"
+            dtype = "date_type" if table != "specimens" else "NULL"     # specimens hold none
             sql = (f"SELECT id, species_name, species_tvk, common_name, grid_ref, {mt.date}, "
                    f"site_name, {mt.person}, {mt.count}, vc_number, {rtype}, {gexpr}, "
-                   f"order_name, family FROM {table} WHERE {where}")
+                   f"order_name, family, {dtype} FROM {table} WHERE {where}")
             for (rid, sp, tvk, common, gr, d, site, person, extra, vc, rt, grp, order,
-                 family) in conn.execute(sql, params):
+                 family, dtype_v) in conn.execute(sql, params):
                 label = mt.label
                 if table == "observations":
                     label = "Commercial" if str(rt or "").lower().startswith("comm") else "Personal"
@@ -316,7 +334,7 @@ def fetch(selection: List[dict], source="personal", filters: Optional[MapFilters
                 res.records.append({
                     "source": label, "table": table, "id": rid, "species_name": sp or "",
                     "tvk": tvk or "", "common_name": common or "", "grid_ref": gr,
-                    "date": d or "", "year": _year(d), "site_name": site or "",
+                    "date": d or "", "date_type": dtype_v or "D", "year": _year(d), "site_name": site or "",
                     "person": person or "", "extra": "" if extra is None else str(extra),
                     "vc": vc if isinstance(vc, int) else None, "chips": chips,
                     "species": ctx.species_key(tvk, sp)})

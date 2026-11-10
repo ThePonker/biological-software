@@ -9,6 +9,7 @@ import sqlite3
 import time
 
 import pytest
+from _map_sync import sync
 
 import paths
 from shared.import_core import date_bounds
@@ -300,7 +301,7 @@ def tab():
     from PySide6.QtWidgets import QApplication
     QApplication.instance() or QApplication([])
     from src.views.mapping.mapping_tab import MappingTab
-    return MappingTab()
+    return sync(MappingTab())
 
 
 @needs_data

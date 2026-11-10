@@ -5,9 +5,11 @@
 Drawn like the vice-county labels (vc_labels.py): in DEVICE pixels at a whole-pixel size, never
 scaled by the zoom, as one path (a halo in the land colour stroked, the letters filled). Shown
 progressively by how wide the view is (place_classes: cities everywhere, towns from 250 km,
-villages from 60 km, hamlets from 20 km). Placed biggest class first; a name that would touch
-one already placed, a vice-county label, or a recorded square is left out. Only the points
-inside the view are looked at (a numpy index per file, made once), and each name is drawn
+villages from 60 km, hamlets from 20 km, small settlements from 8 km). Placed biggest class
+first; a name that would touch one already placed or a vice-county label is left out, and so is
+one that would touch a recorded square while the squares are fully solid (opacity 100 %); with
+see-through squares (below 100 %, GridMap.set_square_opacity) the names are drawn over them.
+Only the points inside the view are looked at (a numpy index per file, made once), and each name is drawn
 into a small image once (halo and letters; kept per size and colour) which is then just
 blitted, as stroking the outlines of a hundred names took 60 ms on every redraw. Display only.
 """
@@ -119,7 +121,8 @@ def draw_place_names(p: QPainter, fit, feature_lists_, span_m: float, ink, taken
                      occupied=None) -> list:
     """Draw the names through `fit`. span_m: the width in metres of what is shown (picks the
     classes). ink: the letters' colour. taken: device rects already used (the VC labels).
-    occupied(QRectF) -> bool: does this device rect cover a recorded square (left out if so).
+    occupied(QRectF) -> bool: does this device rect cover a recorded square (left out if so;
+    GridMap passes None when the squares are see-through, so the names are drawn over them).
     Returns [(name, device QRectF)] of those drawn."""
     ranks = place_classes.shown_at(span_m)
     dev = p.device()
@@ -176,3 +179,22 @@ def draw_place_names(p: QPainter, fit, feature_lists_, span_m: float, ink, taken
             p.drawImage(QPointF(round(home.x()) + dx, round(home.y()) + dy), img)
     p.restore()
     return placed
+
+
+_COMPASS = ("N", "NE", "E", "SE", "S", "SW", "W", "NW")
+
+
+def nearest(feature_lists_, e: float, n: float, span_m: float, radius: float = 2000.0):
+    """The place name nearest the point (e, n) within `radius` metres, among the classes drawn
+    when the view is `span_m` across: (name, distance in metres, compass point of the name as
+    seen from the point), or None. Uses the loaded files' indexes (no new reading); Identify."""
+    ranks = place_classes.shown_at(span_m)
+    best = None
+    for feats in feature_lists_:
+        idx = _index(feats)
+        for i in idx.query((e - radius, n - radius, e + radius, n + radius), ranks):
+            dx, dy = idx.e[i] - e, idx.n[i] - n
+            d = float(np.hypot(dx, dy))
+            if d <= radius and (best is None or d < best[1]):
+                best = (feats[i]["n"], d, _COMPASS[int(((np.degrees(np.arctan2(dx, dy)) + 22.5) % 360) // 45)])
+    return best

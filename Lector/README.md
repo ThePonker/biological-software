@@ -9,6 +9,8 @@ citation details, and stores it in `data/lector.db`.
 1. Get a free API key: https://www.biodiversitylibrary.org/getapikey.aspx
 2. Save it (key only, one line) to `data\bhl_api_key.txt`.
    Alternatives: `BHL_API_KEY` environment variable, or `--key` on the command line.
+   The window helps: with no key it opens a guide (open BHL's page, paste the key, "Test
+   key", "Save"); the same guide is the "BHL API key" line at the foot of the left menu.
 
 Searching and the text export need no extra packages. The Word dossier needs
 `python-docx`, and its Excel index needs `openpyxl`:
@@ -30,6 +32,11 @@ update). Nothing stored is changed or removed. Or run
 already fetched becomes a saved search with one run; the names the old fetch used are
 checked as a new search's are (held-back names are stored unticked, with the reason).
 
+Version 4 (Round 15, 25 Oct) only adds the `extracted_records` table (what you read off pages;
+Extracted records screen, CSV for `scripts\import_contributed.py`), the `user_tags` table (your own reading-list tags) and
+a `text_search` column on saved searches (free-text searches); the backup is
+`lector_pre_v4_<time>.db`.
+
 Version 3 (Round 8, 12 Oct) only adds: request counts split into name searches and
 page texts, and an activity table ("Fetch missing text" under Recent activity).
 
@@ -41,6 +48,14 @@ Lector can sit anywhere (e.g. the desktop) - it finds the suite's `paths.py` by
 itself. If it can't, put the full path of the `Biological Software` folder on
 one line in `Lector\biosoft_root.txt`. Keep `run_lector.bat` next to the
 `Lector` folder; when you move Lector into the suite root, move the .bat too.
+
+## Free-standing install (Round 15b)
+
+`packaging\lector\` builds a Lector that runs without Python or the suite (PyInstaller +
+Inno Setup; `BUILD.md`). Frozen, `config.py` keeps its data in `Documents\Lector\data`
+(`LECTOR_DATA_DIR` overrides) and has no `uksi.db`: names are searched as typed. The user
+manual with annotated pictures is `docs\manual\manual.md`; `docs\manual\make_screens.py`
+remakes the pictures.
 
 ## Commands
 

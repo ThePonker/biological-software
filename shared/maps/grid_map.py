@@ -22,15 +22,17 @@ from __future__ import annotations
 
 from typing import Dict, Optional
 
-from PySide6.QtCore import QPointF, QRectF, Qt, Signal
+from PySide6.QtCore import QPoint, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QPainter, QPen
 from PySide6.QtWidgets import QToolTip, QWidget
 
 from shared.maps import grid_squares as gs
 from shared.maps import layers
+from shared.maps.identify import IdentifyMixin
 from shared.maps.atlas_sheet import AtlasSheetMixin, draw_split  # noqa: F401 (draw_split: old import path)
 from shared.maps._theme import theme
 from shared.maps.panzoom import PanZoomMixin
+from shared.maps.map_ahead import LookAheadMixin
 from shared.maps.map_layers import BasemapLayersMixin
 from shared.maps.map_picture import StaticPictureMixin
 from shared.maps.map_timing import timed
@@ -42,14 +44,17 @@ ZOOM_MAX = 40.0          # R10 (18 Oct 2026): this map zooms further than the mi
 _CLICK_SLOP = 4          # px of movement still counted as a click, not a drag
 
 
-class GridMap(AtlasSheetMixin, BasemapLayersMixin, StaticPictureMixin, PanZoomMixin, QWidget):
+class GridMap(AtlasSheetMixin, IdentifyMixin, BasemapLayersMixin, LookAheadMixin, StaticPictureMixin, PanZoomMixin, QWidget):
     """GB basemap with coloured grid squares. Scroll to zoom, drag to pan, double-click resets.
 
     Signals:
         square_clicked(str)   label of a square holding records, when clicked
+        identify_requested(float, float, QPoint)   Identify mode on: a click at OSGB (e, n),
+                              with its global screen position (identify.py); no square is selected
     """
 
     square_clicked = Signal(str)
+    identify_requested = Signal(float, float, QPoint)
 
     def __init__(self, geojson_path: Optional[str] = None, maps_dir: Optional[str] = None,
                  parent=None):
@@ -84,6 +89,7 @@ class GridMap(AtlasSheetMixin, BasemapLayersMixin, StaticPictureMixin, PanZoomMi
         self._square_opacity = 1.0                # R8: the recorded squares' opacity (a slider)
         self._sq_ver = 0                          # bumped when the squares change (the kept picture)
         self._init_layers()
+        self._init_identify()
         self._init_picture()
         self._init_panzoom(True, zoom_max=ZOOM_MAX)
         self.setMouseTracking(True)
@@ -103,7 +109,12 @@ class GridMap(AtlasSheetMixin, BasemapLayersMixin, StaticPictureMixin, PanZoomMi
 
     def set_layers(self, keys):
         """The ticked Layers menu switches (layers.TOGGLES keys); those without a file draw nothing."""
-        self._layers_on = set(keys or ())
+        new = set(keys or ())
+        for t in layers.TOGGLES:        # an unticked layer's features leave the cache (big county files)
+            if t.key in self._layers_on and t.key not in new:
+                for f in t.files:
+                    layers.forget(f)
+        self._layers_on = new
         self.update()
 
     def layer_toggles_available(self) -> set:
@@ -168,7 +179,8 @@ class GridMap(AtlasSheetMixin, BasemapLayersMixin, StaticPictureMixin, PanZoomMi
 
     def set_square_opacity(self, percent: int):
         """How solid the recorded squares are drawn, 0-100 % (R8, Wil: to see the borders and
-        labels under them). 100 is the look before R8. On the map and its atlas page."""
+        labels under them). 100 is the look before R8. On the map and its atlas page. Below 100 the
+        place names are no longer kept off the squares (map_layers._draw_place_names)."""
         self._square_opacity = max(0, min(100, int(percent))) / 100.0
         self.update()
 
@@ -341,14 +353,21 @@ class GridMap(AtlasSheetMixin, BasemapLayersMixin, StaticPictureMixin, PanZoomMi
     def mousePressEvent(self, e):
         self._press = self._epos(e)
         PanZoomMixin.mousePressEvent(self, e)
+        if self._identify:
+            self._apply_cursor()
 
     def mouseReleaseEvent(self, e):
         start, self._press = self._press, None
         PanZoomMixin.mouseReleaseEvent(self, e)
+        if self._identify:
+            self._apply_cursor()
         if start is None or e.button() != Qt.MouseButton.LeftButton:
             return
         pos = self._epos(e)
         if abs(pos.x() - start.x()) + abs(pos.y() - start.y()) > _CLICK_SLOP:
+            return
+        if self._identify:                    # Identify on: report the point, select nothing
+            self.identify_requested.emit(*self.en_at(pos), e.globalPosition().toPoint())
             return
         label = self._square_under(e)
         if label and label in self._squares:

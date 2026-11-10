@@ -139,7 +139,7 @@ class GamificationLauncher(QFrame):
                 f"{tier['unique_species']:,} species"
             )
             self._stats_loaded = True
-        except Exception as e:
+        except Exception:
             if hasattr(self, 'tier_label'):
                 self.tier_label.setText("Track your naturalist progress")
 

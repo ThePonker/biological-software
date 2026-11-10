@@ -26,7 +26,6 @@ class ComboFilterWidget(QWidget):
     
     def _setup_ui(self):
         """Set up the combo filter UI."""
-        t = theme()
         
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)

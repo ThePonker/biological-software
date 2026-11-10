@@ -848,7 +848,7 @@ class RecordingSchemeTab(QWidget):
                     ])
             QMessageBox.information(
                 self, "Export Complete",
-                f"Exported {len(rows)} records to:\n{file_path}"
+                f"Exported {len(rows)} record{'' if len(rows) == 1 else 's'} to:\n{file_path}"
             )
         except Exception as e:
             QMessageBox.critical(self, "Export Error", f"Failed to export:\n{str(e)}")
@@ -922,4 +922,4 @@ class RecordingSchemeTab(QWidget):
                 dialog.navigate_to_collection.connect(self._on_navigate_to_collection)
                 dialog.exec()
         except Exception as e:
-            print(f"Error showing record {record_id}: {e}")
+            print(f"Error showing record {record_id}: {e}")

@@ -77,25 +77,38 @@ class ICSidebarMixin:
             db=get_database()
         )
         if dialog.exec():
-            specimen_data = dialog.get_specimen_data()
-            specimen_id = specimen.get('id')
-            if specimen_id:
-                import paths
-                from shared.photo_files import follow_redet, species_now
-                db_path = str(getattr(self._specimen_repo, '_db_path', '') or paths.OBSERVATUM_DB)
-                old_species = species_now(db_path, "specimen", specimen_id)
-                if self._specimen_repo:
-                    self._specimen_repo.update(specimen_id, specimen_data)
-                elif self._specimen_model:
-                    self._specimen_model.update_specimen(specimen_id, specimen_data)
-                # A re-determination: the specimen's linked photos follow (photos B5)
-                new_species = specimen_data.get('species_name') or ""
-                if old_species and new_species and new_species != old_species \
-                        and species_now(db_path, "specimen", specimen_id) == new_species:
-                    follow_redet(db_path, "specimen", specimen_id, old_species, new_species)
-                # its photos still in _Bench are filed once it has a species from UKSI
-                from shared.bench_photos import file_record_photos_at
-                file_record_photos_at(db_path, "specimen", [specimen_id])
+            try:
+                specimen_data = dialog.get_specimen_data()
+                specimen_id = specimen.get('id')
+                if specimen_id:
+                    import paths
+                    from shared.photo_files import follow_redet, species_now
+                    db_path = str(getattr(self._specimen_repo, '_db_path', '') or paths.OBSERVATUM_DB)
+                    old_species = species_now(db_path, "specimen", specimen_id)
+                    if self._specimen_repo:
+                        self._specimen_repo.update(specimen_id, specimen_data)
+                    elif self._specimen_model:
+                        self._specimen_model.update_specimen(specimen_id, specimen_data)
+                    try:
+                        # A re-determination: the specimen's linked photos follow (photos B5)
+                        new_species = specimen_data.get('species_name') or ""
+                        if old_species and new_species and new_species != old_species \
+                                and species_now(db_path, "specimen", specimen_id) == new_species:
+                            follow_redet(db_path, "specimen", specimen_id, old_species, new_species)
+                        # its photos still in _Bench are filed once it has a species from UKSI
+                        from shared.bench_photos import file_record_photos_at
+                        file_record_photos_at(db_path, "specimen", [specimen_id])
+                    except Exception as e:      # the specimen IS saved; only its photos lag
+                        print(f"[InsectCollectionTab] Photos not moved: {e}")
+                        from PySide6.QtWidgets import QMessageBox
+                        QMessageBox.warning(self, "Photos not moved",
+                                            "The specimen was saved, but its photos could not be "
+                                            f"moved or filed:\n\n{e}")
+            except Exception as e:
+                print(f"[InsectCollectionTab] Error updating specimen: {e}")
+                from PySide6.QtWidgets import QMessageBox
+                QMessageBox.warning(self, "Edit not saved",
+                                    f"The specimen could not be saved:\n\n{e}")
             self._load_data()
             self.data_changed.emit()
 
@@ -198,13 +211,13 @@ class ICSidebarMixin:
         if not self._taxonomic_sidebar:
             return
 
-        import sqlite3
         db = get_database()
         main_path = db.get_main_path() if hasattr(db, 'get_main_path') else str(db._main_db_path)
 
         try:
             uksi_path = db.get_uksi_path() if hasattr(db, 'get_uksi_path') else str(db._uksi_db_path)
-            conn = sqlite3.connect(main_path)
+            from shared.db_open import connect_ro      # only reads
+            conn = connect_ro(main_path)
             conn.execute(f"ATTACH DATABASE '{uksi_path}' AS uksi")
             # subfamily is stored as NULL on some rows and '' on others for the
             # same species; grouping on the raw column splits them in two and

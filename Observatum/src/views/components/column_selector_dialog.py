@@ -213,7 +213,6 @@ class ColumnSelectorDialog(QDialog):
     
     def _add_to_displayed(self, col_key: str, col_header: str, mandatory: bool):
         """Add a column to the displayed list."""
-        t = theme()
         display_text = f"{col_header} *" if mandatory else col_header
         item = QListWidgetItem(display_text)
         item.setData(Qt.ItemDataRole.UserRole, col_key)

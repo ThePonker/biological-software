@@ -32,7 +32,7 @@ from shapely.geometry.polygon import orient  # noqa: E402
 
 from scripts.map_gpkg import (Classes, Soft, count_rows, decode_gpkg, open_ro,  # noqa: E402,F401
                               point_features, read_rows, table_info)
-from shared.maps import place_classes  # noqa: E402
+from shared.maps import layer_bin, place_classes  # noqa: E402
 
 ZOOMSTACK_URL = "https://osdatahub.os.uk/downloads/open/OpenZoomstack"
 BOUNDARY_URL = "https://osdatahub.os.uk/downloads/open/BoundaryLine"
@@ -215,20 +215,28 @@ def build_layer(conn, gpkg, key, lod, out_dir):
     for typ, geoms in sorted(groups.items(), key=lambda kv: str(kv[0])):
         print(f"      joining {len(geoms)} {typ or 'untyped'} lines ...", flush=True)
         feats.extend(to_features(merge_lines(geoms), kind, tol, min_area, typ=typ))
-    doc = {"layer": key, "lod": lod, "kind": kind, "source": _source_text(src, gpkg, tables),
-           "attribution": ATTRIBUTION, "built": date.today().isoformat(),
+    write_doc(out_dir, key, lod, kind, _source_text(src, gpkg, tables), ATTRIBUTION, tol, min_area,
+              feats, rows)
+
+
+def write_doc(out_dir, key, lod, kind, source, attribution, tol, min_area, feats, rows):
+    """Write <key>_<lod>.json (through a .tmp and os.replace), then its binary form (layer_bin.py), and print its line; the one writer
+    for this script and build_env_layers.py."""
+    doc = {"layer": key, "lod": lod, "kind": kind, "source": source,
+           "attribution": attribution, "built": date.today().isoformat(),
            "tolerance_m": tol, "min_area_m2": min_area, "features": feats}
     target = Path(out_dir) / f"{key}_{lod}.json"
     tmp = target.with_name(target.name + ".tmp")
     tmp.write_text(json.dumps(doc, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     os.replace(tmp, target)
+    layer_bin.write(target, feats, {k: v for k, v in doc.items() if k != "features"})  # the fast form
     pts = sum(count_points(f) for f in feats)
     print(f"  {key}_{lod}: {rows} rows read, {len(feats)} features kept, {pts} points, "
           f"{target.stat().st_size:,} bytes", flush=True)
 
 
 def check_folder(out_dir):
-    files = sorted(Path(out_dir).glob("*.json")) if Path(out_dir).is_dir() else []
+    files = sorted(f for f in Path(out_dir).glob("*.json") if not f.name.endswith(".meta.json")) if Path(out_dir).is_dir() else []
     print(f"\nLayer files in {out_dir}")
     if not files:
         print("  (none)")

@@ -7,6 +7,7 @@ import json
 import os
 
 import pytest
+from _map_sync import sync
 
 import paths
 
@@ -41,7 +42,7 @@ def tab(settings_sandbox):
     if not HAVE_DATA:
         pytest.skip("needs data copies")
     from src.views.mapping.mapping_tab import MappingTab
-    t = MappingTab()
+    t = sync(MappingTab())
     t.resize(1920, 1040)
     t.show()
     yield t

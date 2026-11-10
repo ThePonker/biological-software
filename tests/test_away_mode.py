@@ -16,6 +16,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
+from _sandbox_child import child_code
 
 import paths
 from scripts import make_away_copy as mac
@@ -202,7 +203,7 @@ def test_paths_in_away_mode_never_point_at_root_data(tmp_path):
             "data=str(paths.DATA_DIR), root=str(paths.ROOT), db=str(paths.OBSERVATUM_DB), "
             "codex=str(paths.CODEX_DB), maps=str(paths.MAPS_DIR), man=str(paths.AWAY_MANIFEST))))")
     env = dict(os.environ, LOCALAPPDATA=str(local), BIOSOFT_ROOT=str(root))
-    out = subprocess.run([sys.executable, "-c", code], cwd=REPO, env=env,
+    out = subprocess.run([sys.executable, "-c", child_code(code)], cwd=REPO, env=env,
                          capture_output=True, text=True, check=True).stdout
     r = json.loads(out.strip().splitlines()[-1])
     away_data = local / "Flauna" / "away_data"
@@ -212,7 +213,7 @@ def test_paths_in_away_mode_never_point_at_root_data(tmp_path):
     for k in ("db", "codex", "maps", "man"):
         assert Path(r[k]).is_relative_to(away_data)
     env["LOCALAPPDATA"] = str(tmp_path / "nowhere")          # no marker: unchanged behaviour
-    out = subprocess.run([sys.executable, "-c", code], cwd=REPO, env=env,
+    out = subprocess.run([sys.executable, "-c", child_code(code)], cwd=REPO, env=env,
                          capture_output=True, text=True, check=True).stdout
     r = json.loads(out.strip().splitlines()[-1])
     assert r["mode"] is False and Path(r["data"]) == Path(r["root"]) / "data"

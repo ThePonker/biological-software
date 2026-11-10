@@ -7,7 +7,7 @@ Sandbox: before any test module imports app code, every worker gets its own temp
 holding HOME, USERPROFILE, APPDATA, LOCALAPPDATA, the Qt settings store (INI files, so
 QSettings never touches the Windows registry) and the photo library (BIOSOFT_MEDIA_ROOT),
 so a test run cannot change Wil's real settings, home folder or photo library. A guard
-fails any test that opens the live observatum.db read-write. Timing tests (marked `speed`)
+fails any test that opens a live data/*.db read-write. Timing tests (marked `speed`)
 only run with BIOSOFT_SPEED_TESTS=1. Tests that read Wil's live data work on copies.
 """
 import os
@@ -43,6 +43,8 @@ for _k, _v in (("HOME", _HOME), ("USERPROFILE", _HOME), ("APPDATA", _APPDATA),
 os.environ["BIOSOFT_MEDIA_ROOT"] = os.path.join(SANDBOX, "media")   # always: never the real library
 os.makedirs(os.environ["BIOSOFT_MEDIA_ROOT"], exist_ok=True)
 
+os.environ["BIOSOFT_TEST_QT_DIR"] = _QT       # children: tests/_sandbox_child.py
+
 from PySide6.QtCore import QSettings  # noqa: E402
 
 QSettings.setDefaultFormat(QSettings.Format.IniFormat)
@@ -51,23 +53,37 @@ for _scope in (QSettings.Scope.UserScope, QSettings.Scope.SystemScope):
 
 import pytest  # noqa: E402
 
-# The live observatum.db (the one under the real data folder), resolved now, before any
-# test patches paths.
-LIVE_OBSERVATUM_DB = None
+# Every *.db under the real data folder (observatum, codex, uksi, munia, lector, gamification,
+# examen, pantheon, vc_*, ...), resolved now, before any test patches paths. If paths cannot
+# be imported the guard cannot work, so fail loudly instead of switching off (24 Oct 2026).
+def _resolve_live_dbs():
+    import paths as _paths
+    data_dir = os.path.normcase(os.path.realpath(str(_paths.DATA_DIR)))
+    live = {os.path.normcase(os.path.realpath(str(_paths.OBSERVATUM_DB)))}
+    if os.path.isdir(data_dir):
+        for name in os.listdir(data_dir):
+            if name.lower().endswith(".db"):
+                live.add(os.path.normcase(os.path.realpath(os.path.join(data_dir, name))))
+    for attr in dir(_paths):
+        val = getattr(_paths, attr)
+        if attr.endswith("_DB") and isinstance(val, (str, os.PathLike)) and str(val).lower().endswith(".db"):
+            live.add(os.path.normcase(os.path.realpath(str(val))))
+    return frozenset(live)
+
+
 try:
-    import paths as _paths  # noqa: E402
-    LIVE_OBSERVATUM_DB = os.path.normcase(os.path.realpath(str(_paths.OBSERVATUM_DB)))
-except Exception:
-    pass
+    LIVE_DBS = _resolve_live_dbs()
+except Exception as _e:    # not silent: the whole run stops
+    raise RuntimeError("tests/conftest.py: cannot work out the live database paths, so the "
+                       f"read-write guard cannot be installed ({_e!r}); fix `import paths`") from _e
+LIVE_OBSERVATUM_DB = os.path.normcase(os.path.realpath(str(sys.modules["paths"].OBSERVATUM_DB)))
 
 _live_opens = []
 _real_connect = None
 
 
 def _live_rw_open(database, kwargs_uri):
-    """True if `database` names the live observatum.db and is not opened read-only."""
-    if LIVE_OBSERVATUM_DB is None:
-        return False
+    """True if `database` names one of the live data/*.db files and is not opened read-only."""
     try:
         text = os.fspath(database)
     except TypeError:
@@ -85,7 +101,7 @@ def _live_rw_open(database, kwargs_uri):
     else:
         path = text
     try:
-        return os.path.normcase(os.path.realpath(path)) == LIVE_OBSERVATUM_DB
+        return os.path.normcase(os.path.realpath(path)) in LIVE_DBS
     except (OSError, ValueError):
         return False
 
@@ -101,7 +117,7 @@ def _install_connect_guard():
         uri = kwargs.get("uri", args[6] if len(args) > 6 else False)
         if _live_rw_open(database, uri):
             _live_opens.append(str(database))
-            raise AssertionError(f"test opened the live observatum.db read-write: {database}")
+            raise AssertionError(f"test opened a live data/*.db read-write: {database}")
         return _real_connect(database, *args, **kwargs)
 
     sqlite3.connect = guarded
@@ -130,7 +146,7 @@ def pytest_collection_modifyitems(config, items):
 
 @pytest.fixture(autouse=True)
 def _live_observatum_never_opened_read_write():
-    """Fails a test that opened the live observatum.db without mode=ro (Round 12)."""
+    """Fails a test that opened a live data/*.db without mode=ro (Round 12; every db 24 Oct)."""
     _live_opens.clear()
     yield
     assert not _live_opens, f"opened the live observatum.db read-write: {_live_opens}"
@@ -142,7 +158,7 @@ def live_copy(tmp_path_factory):
     connection). Tests that need Wil's real data open this, never paths.OBSERVATUM_DB
     read-write. Skips when there is no live database."""
     import sqlite3
-    if LIVE_OBSERVATUM_DB is None or not os.path.exists(LIVE_OBSERVATUM_DB):
+    if not os.path.exists(LIVE_OBSERVATUM_DB):
         pytest.skip("real data copies not present")
     dest = tmp_path_factory.mktemp("livecopy") / "observatum.db"
     src = sqlite3.connect(f"file:{LIVE_OBSERVATUM_DB}?mode=ro", uri=True)
@@ -196,3 +212,66 @@ def _application_font_restored():
         if QApplication.instance() is app and QApplication.font() != font:
             QApplication.setFont(font)
 
+
+
+@pytest.fixture(autouse=True)
+def _photo_listeners_fresh(monkeypatch):
+    """shared.photo_files keeps a module-global list of listeners (the main window's photo
+    note). A MainWindow left alive by an earlier test made a later follow_redet open a modal
+    QMessageBox on it and abort the offscreen worker. Each test gets an empty list."""
+    try:
+        import shared.photo_files as pf
+    except Exception:
+        yield
+        return
+    monkeypatch.setattr(pf, "_listeners", [])
+    yield
+
+
+@pytest.fixture(autouse=True)
+def _message_boxes_never_block(monkeypatch):
+    """Safety net: a modal QMessageBox waits for a click that never comes offscreen. The
+    static helpers return at once; tests that assert on boxes patch them themselves (their
+    patch is applied after this one and wins)."""
+    from PySide6.QtWidgets import QMessageBox
+    ok = QMessageBox.StandardButton.Ok
+    for name in ("information", "warning", "critical", "question"):
+        monkeypatch.setattr(QMessageBox, name, staticmethod(lambda *a, **k: ok))
+    yield
+
+
+@pytest.fixture(autouse=True)
+def _scheme_tabs_stop_loading():
+    """After each test, any real RecordingSchemeTab still loading in the background is
+    stopped and its thread waited for (a QThread destroyed while running aborts the process)."""
+    yield
+    mod = sys.modules.get("src.views.scheme.recording_scheme_tab")
+    if mod is None or "PySide6.QtWidgets" not in sys.modules:
+        return
+    app = sys.modules["PySide6.QtWidgets"].QApplication.instance()
+    if app is None:
+        return
+    for w in app.allWidgets():
+        if isinstance(w, mod.RecordingSchemeTab):
+            try:
+                w.stop_loading()
+            except Exception:
+                pass
+
+
+def _worker_exit_without_finalisation():
+    """xdist workers only: after the last test has been reported and the worker is leaving,
+    skip interpreter finalisation. Destroying the Qt wrappers of widgets that tests left
+    alive then segfaulted ("pure virtual method called") and xdist reported
+    'node down: Not properly terminated', sometimes with an INTERNALERROR (KeyError in
+    xdist's scheduler) that cut the run short (24 Oct 2026). All results are already sent."""
+    try:
+        sys.stdout.flush()
+        sys.stderr.flush()
+    finally:
+        os._exit(0)
+
+
+if os.environ.get("PYTEST_XDIST_WORKER"):
+    import atexit
+    atexit.register(_worker_exit_without_finalisation)

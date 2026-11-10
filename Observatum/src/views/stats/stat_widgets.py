@@ -438,7 +438,6 @@ class MonthlyActivityChart(QFrame):
             if item.widget():
                 item.widget().deleteLater()
 
-        max_tick = max(ticks) if ticks else 1
         reversed_ticks = list(reversed(ticks))
 
         for i, tick in enumerate(reversed_ticks):

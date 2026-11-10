@@ -57,6 +57,12 @@ class DrawerSaveMixin:
         """Preview, backup, one guarded write. Returns the number of changes written."""
         if not self._preview(changes, storage, drawer, title):
             return 0
+        from shared.away_mode import away_active
+        if away_active():
+            QMessageBox.warning(self, "Drawer in hand",
+                                "This is a read-only copy (away mode), so nothing was written. "
+                                "Make the change on the desktop.")
+            return 0
         try:
             if not self._backup():
                 QMessageBox.warning(self, "Drawer in hand", "The backup failed, so nothing was written.")

@@ -190,6 +190,8 @@ class ObservationFilterMixin:
                 family=filters.get('family'),
                 vc_number=int(filters['vice_county']) if filters.get('vice_county') else None,
                 recorder=filters.get('recorder'),
+                data_reference=(filters.get('data_reference') or None)
+                if self._reference_available() else None,
                 record_type=record_type,
                 limit=999999  # Load all records
             )
@@ -277,6 +279,12 @@ class ObservationFilterMixin:
             result = [o for o in result if
                       search in self._get_attr(o, 'recorder', '').lower()]
 
+        # Reference filter (contains, ignoring case)
+        if filters.get('data_reference') and self._reference_available():
+            search = filters['data_reference'].strip().lower()
+            result = [o for o in result if
+                      search in self._get_attr(o, 'data_reference', '').lower()]
+
         # Method filter - field is 'method'
         if filters.get('method'):
             method = filters['method']
@@ -290,6 +298,12 @@ class ObservationFilterMixin:
                       status_is(self._get_attr(o, 'verification_status', ''), status)]
 
         return result
+
+    def _reference_available(self) -> bool:
+        """False when the Reference column is not added yet: the filter is then ignored, never
+        applied to records that cannot hold it (that would empty the list)."""
+        edit = getattr(getattr(self, 'filter_bar', None), 'reference_edit', None)
+        return True if edit is None else bool(edit.available)
 
     def _get_attr(self, obj, attr: str, default: str = '') -> str:
         """Safely get attribute from object or dict, returning default if not found or None."""

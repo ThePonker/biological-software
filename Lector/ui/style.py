@@ -6,9 +6,9 @@ Observatum tab uses its own accent. Buttons follow the suite's colour system:
 primary Moss Green (Save / Run / Create), navigate/view in the accent, cancel warm
 grey outlined, delete crimson outlined.
 """
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
-from PySide6.QtWidgets import QFrame, QLabel, QPushButton, QVBoxLayout
+from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap, QPolygonF
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 from src.themes import theme
 
 from shared.display_format import dmy, dmy_time
@@ -199,21 +199,64 @@ class Card(QFrame):
             self.body.addWidget(self.title)
 
 
-def dot_icon(colour_key, size=10):
-    """A small round icon in a theme colour (status marks in lists)."""
+# Status marks in the reading list. The theme has no colour-blind-safe set (its green and
+# crimson look alike to red-green colour blindness), so these are the Okabe-Ito palette, a
+# deliberate exception to "colours from the theme": relevant bluish green, not relevant
+# vermillion, record extracted blue; unreviewed takes the theme's muted grey. Each status
+# has its own SHAPE as well, so colour is never the only difference.
+OKABE_ITO = {"bluish_green": "#009E73", "vermillion": "#D55E00", "blue": "#0072B2"}
+STATUS_MARK = {"unreviewed": ("ring", None), "relevant": ("circle", OKABE_ITO["bluish_green"]),
+               "not_relevant": ("diamond", OKABE_ITO["vermillion"]),
+               "record_extracted": ("square", OKABE_ITO["blue"])}
+
+
+def status_icon(status, size=12):
+    """The mark of a review status: ring (unreviewed, outline only), circle (relevant),
+    diamond (not relevant), square (record extracted)."""
+    shape, colour = STATUS_MARK[status]
     pm = QPixmap(size, size)
     pm.fill(Qt.GlobalColor.transparent)
     p = QPainter(pm)
     p.setRenderHint(QPainter.RenderHint.Antialiasing)
-    p.setBrush(QColor(c(colour_key)))
-    p.setPen(Qt.PenStyle.NoPen)
-    p.drawEllipse(0, 0, size, size)
+    m = 1.5
+    box = QRectF(m, m, size - 2 * m, size - 2 * m)
+    if shape == "ring":
+        p.setPen(QPen(QColor(c("text_secondary")), 1.6))
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        p.drawEllipse(box)
+    else:
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor(colour))
+        if shape == "circle":
+            p.drawEllipse(box)
+        elif shape == "square":
+            p.drawRect(box.adjusted(0.8, 0.8, -0.8, -0.8))
+        else:
+            h = size / 2
+            p.drawPolygon(QPolygonF([QPointF(h, 0.5), QPointF(size - 0.5, h),
+                                     QPointF(h, size - 0.5), QPointF(0.5, h)]))
     p.end()
     return QIcon(pm)
 
 
-STATUS_DOT = {"unreviewed": "text_muted", "relevant": "success", "not_relevant": "danger",
-              "record_extracted": "info"}
+def status_key(parent=None):
+    """The key above the page list: each mark with its meaning."""
+    from Lector.ui.common import FlowLayout
+    w = QWidget(parent)
+    w.setObjectName("statusKey")
+    flow = FlowLayout(w, spacing=10)
+    for status in ("unreviewed", "relevant", "not_relevant", "record_extracted"):
+        cell = QWidget()
+        h = QHBoxLayout(cell)
+        h.setContentsMargins(0, 0, 0, 0)
+        h.setSpacing(4)
+        icon = QLabel()
+        icon.setPixmap(status_icon(status).pixmap(12, 12))
+        icon.setStyleSheet("background: transparent; border: none;")
+        h.addWidget(icon)
+        h.addWidget(label(STATUS_LABELS[status], "small"))
+        flow.addWidget(cell)
+    return w
 
 
 def fmt_when(iso, day_only=False):

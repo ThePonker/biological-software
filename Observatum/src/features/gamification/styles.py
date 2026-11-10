@@ -219,13 +219,11 @@ def get_light_stylesheet() -> str:
     # Colors from bridge (light mode)
     bg_primary = get_color('background_primary', dark_mode=False)
     bg_secondary = get_color('background_secondary', dark_mode=False)
-    bg_surface = get_color('background_surface', dark_mode=False)
     bg_border = get_color('border', dark_mode=False)
     
     text_primary = get_color('text_primary', dark_mode=False)
     text_secondary = get_color('text_secondary', dark_mode=False)
     text_muted = get_color('text_muted', dark_mode=False)
-    text_accent = get_color('text_accent', dark_mode=False)
     
     btn_primary = get_color('button_primary_bg', dark_mode=False)
     btn_primary_hover = get_color('button_primary_hover', dark_mode=False)

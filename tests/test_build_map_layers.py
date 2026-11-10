@@ -113,7 +113,7 @@ def test_missing_source_prints_download_pages(tmp_path, capsys):
 def test_apply_format_and_type_filtering(src, tmp_path):
     out = tmp_path / "out"
     assert run(src, out, "--apply") == 0
-    assert sorted(p.name for p in out.iterdir()) == sorted(
+    assert sorted(p.name for p in out.iterdir() if p.suffix == ".json" and ".meta." not in p.name) == sorted(
         f"{k}_{lod}.json" for k in bm.LAYERS for lod in bm.LODS)
     wgb, wco = load(out, "woodland_gb.json"), load(out, "woodland_county.json")
     assert (wgb["layer"], wgb["lod"], wgb["kind"]) == ("woodland", "gb", "polygon")
@@ -147,7 +147,7 @@ def test_districts_have_names_and_split_multipolygon(src, tmp_path):
 def test_only_limits_layers(src, tmp_path):
     out = tmp_path / "out"
     run(src, out, "--apply", "--only", "woodland,rivers")
-    assert sorted(p.name for p in out.iterdir()) == [
+    assert sorted(p.name for p in out.iterdir() if p.suffix == ".json" and ".meta." not in p.name) == [
         "rivers_county.json", "rivers_gb.json", "woodland_county.json", "woodland_gb.json"]
     assert not list(out.glob("*.tmp"))
     assert run(src, out, "--only", "nonsense") == 1

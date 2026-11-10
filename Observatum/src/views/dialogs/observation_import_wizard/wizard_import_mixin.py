@@ -370,6 +370,11 @@ class WizardImportMixin:
         if not records:
             return 0
         
+        from shared import data_reference
+        field = getattr(self, "reference_edit", None)
+        data_reference.stamp_records(self.db, "observations", records,
+                                     field.reference() if field is not None else None)
+        
         try:
             # Use first record to determine columns
             first_record = records[0]

@@ -134,6 +134,9 @@ class Observation:
     # Import tracking
     import_notes: Optional[str] = None
 
+    # Where the record came from other than iRecord/NBN (shared/data_reference.py)
+    data_reference: Optional[str] = None
+
     # iRecord sync
     observatum_key: Optional[str] = None
     irecord_key: Optional[str] = None
@@ -350,14 +353,6 @@ class ObservationModel:
             return self._row_to_observation(results[0])
         return None
 
-    def get_by_irecord_id(self, irecord_id: int) -> Optional[Observation]:
-        """Get observation by iRecord ID."""
-        query = "SELECT * FROM observations WHERE irecord_id = ?"
-        results = self.db.execute_main(query, (irecord_id,))
-        if results and len(results) > 0:
-            return self._row_to_observation(results[0])
-        return None
-
     def get_all(self, limit: int = 1000, offset: int = 0) -> List[Observation]:
         """Get all observations with pagination."""
         query = "SELECT * FROM observations ORDER BY date DESC LIMIT ? OFFSET ?"
@@ -510,19 +505,6 @@ class ObservationModel:
     # BACKWARD-COMPATIBLE METHODS (delegate to repository)
     # =========================================================================
 
-    def get_stats(self) -> Dict[str, Any]:
-        """Get quick stats. Delegates to repository."""
-        if self._repo:
-            stats = self._repo.get_quick_stats()
-            return {
-                'total_species': stats.get('total_species', 0),
-                'total_records': stats.get('total_records', 0),
-                'this_year_species': stats.get('this_year_species', 0),
-                'this_year_records': stats.get('this_year_records', 0),
-                'last_month_records': stats.get('last_month_records', 0)
-            }
-        return {'total_species': 0, 'total_records': 0, 'this_year_species': 0, 'this_year_records': 0}
-
     def get_species_record_count(self, species_tvk: str) -> int:
         """Get the count of records for a specific species by TVK."""
         if not species_tvk:
@@ -555,13 +537,6 @@ class ObservationModel:
             ]
         return []
 
-    def get_species_by_order(self, record_type: Optional[str] = None, limit: int = 10) -> List[Dict[str, Any]]:
-        """Get species count by order. Delegates to repository."""
-        if self._repo:
-            results = self._repo.count_by_order(limit=limit)
-            return [{'label': r.get('order_name', ''), 'value': r.get('count', 0)} for r in results]
-        return []
-
     def get_top_families(self, limit: int = 5, record_type: Optional[str] = None) -> List[Dict[str, Any]]:
         """Get top families. Delegates to repository."""
         if self._repo:
@@ -582,19 +557,11 @@ class ObservationModel:
             return self._repo.count_by_month()
         return [0] * 12
 
-    def get_monthly_counts(self) -> List[int]:
-        """Alias for get_monthly_activity."""
-        return self.get_monthly_activity()
-
     def get_year_by_year_stats(self, record_type: Optional[str] = None) -> Dict[int, Dict[str, int]]:
         """Get yearly stats. Delegates to repository."""
         if self._repo:
             return self._repo.count_by_year()
         return {}
-
-    def get_yearly_stats(self) -> Dict[int, Dict[str, int]]:
-        """Alias for get_year_by_year_stats."""
-        return self.get_year_by_year_stats()
 
     def count(self, filters: Optional[Dict[str, Any]] = None) -> int:
         """Count observations. Delegates to repository."""

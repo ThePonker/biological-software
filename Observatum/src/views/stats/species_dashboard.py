@@ -178,7 +178,6 @@ class SpeciesDashboard(QScrollArea):
     
     def initialize(self, main_db_path: str = None, uksi_db_path: str = None):
         """Initialize with database connections."""
-        print(f"[SpeciesDashboard] initialize called with main_db={main_db_path}, uksi_db={uksi_db_path}")
         
         db = get_database()
         if db:
@@ -187,11 +186,9 @@ class SpeciesDashboard(QScrollArea):
             if uksi_db_path:
                 db.set_uksi_path(uksi_db_path)
                 self._uksi_model = UKSIModel(db)
-                print(f"[SpeciesDashboard] Created UKSI model: {self._uksi_model}")
             
             if main_db_path:
                 self._obs_model = ObservationModel(db)
-                print(f"[SpeciesDashboard] Created Observation model: {self._obs_model}")
     
     def _clear_search(self):
         """Clear the search field and reset view."""
@@ -217,7 +214,6 @@ class SpeciesDashboard(QScrollArea):
     def _do_search(self):
         """Perform the actual UKSI search and populate dropdown."""
         text = getattr(self, '_search_text', '')
-        print(f"[SpeciesDashboard] _do_search called with text: '{text}'")
         
         if len(text) < 2:
             self._set_results([])

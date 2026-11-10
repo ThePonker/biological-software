@@ -195,7 +195,6 @@ class AchievementRenderer:
         display_name = family[:12] + "." if len(family) > 12 else family
         
         # Determine text colour (light on dark background)
-        text_colour = colours.get('vignette_light', '#ffffff')
         
         svg = f'''<svg viewBox="0 0 60 100" width="{px}" height="{height}" xmlns="http://www.w3.org/2000/svg">
   <defs>
@@ -580,13 +579,6 @@ class AchievementRenderer:
             print(f"[Gamification] Error loading group icon {icon_filename}: {e}")
             return None
     
-    def render_seal_unearned(
-        self,
-        size: str = "medium"
-    ) -> str:
-        """Render a greyed out unearned seal."""
-        return self.render_seal("#555555", earned=False, size=size)
-    
     def _lighten_colour(self, hex_colour: str, factor: float) -> str:
         """Lighten a hex colour by a factor (0-1)."""
         hex_colour = hex_colour.lstrip('#')
@@ -617,74 +609,3 @@ class AchievementRenderer:
     # UTILITY METHODS
     # =========================================================================
     
-    def render_achievement(
-        self,
-        achievement_type: str,
-        size: str = "medium",
-        **kwargs
-    ) -> str:
-        """
-        Render any achievement type by name.
-        
-        Args:
-            achievement_type: Type name (tier, vc_badge, etc.)
-            size: small, medium, or large
-            **kwargs: Type-specific parameters
-        """
-        if achievement_type == "tier":
-            return self.render_shield(
-                tier=kwargs.get("tier", 1),
-                stage=kwargs.get("stage", "beginner"),
-                size=size
-            )
-        elif achievement_type == "vc_badge":
-            return self.render_badge(
-                vc_number=kwargs.get("vc_number", 1),
-                region=kwargs.get("region", "england"),
-                size=size
-            )
-        elif achievement_type == "vc_completion":
-            return self.render_crown(
-                region=kwargs.get("region"),
-                size=size
-            )
-        elif achievement_type == "family_first":
-            return self.render_ribbon(
-                family=kwargs.get("family", "Unknown"),
-                taxonomic_group=kwargs.get("taxonomic_group", "other"),
-                size=size
-            )
-        elif achievement_type == "family_depth":
-            return self.render_medal(
-                trophy_tier=kwargs.get("trophy_tier", "bronze"),
-                size=size
-            )
-        elif achievement_type == "rare_species":
-            return self.render_pin(
-                rarity_tier=kwargs.get("rarity_tier", "uncommon"),
-                size=size
-            )
-        elif achievement_type == "rare_milestone":
-            return self.render_rosette(
-                trophy_tier=kwargs.get("trophy_tier", "bronze"),
-                size=size
-            )
-        else:
-            return ""
-    
-    def load_order_icon(self, order: str) -> Optional[str]:
-        """
-        Load an order icon SVG if it exists.
-        
-        Args:
-            order: Order name (e.g., "Coleoptera")
-        
-        Returns:
-            SVG content string or None if not found
-        """
-        if not self.icons_path.exists():
-            return None
-        icon_file = self.icons_path / f"{order.lower()}.svg"
-        if icon_file.exists():
-            return icon_file.read_text()
-        return None

@@ -27,6 +27,7 @@ SRC_SETTING_KEYS = {
     "staging": "srcStaging",
 }
 
+_COMPACT_KEY = "DataEntry/bannerCompact"   # remembered fold of the banner (banner_compact.py)
 _BANNER_H = 194  # least height of the banner cards; taller if the font needs it (R9-8)
 
 # Conservation chips sit in one 316 px row: full labels were cut off ("Priority (NER",
@@ -354,7 +355,25 @@ class InfoPanel(QWidget):
             lab.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
             lab.setWordWrap(True)
             lab.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
-            text_col.addWidget(lab)
+            if lab is not self._l4:
+                text_col.addWidget(lab)
+        # the location-warning line (usually empty) also holds the Fold link: no extra height
+        from DataEntry.banner_compact import CompactStrip, link_button
+        warn_row = QHBoxLayout()
+        warn_row.setContentsMargins(0, 0, 0, 0)
+        warn_row.setSpacing(4)
+        warn_row.addWidget(self._l4, 1)
+        self._fold_btn = link_button("\u25B4 Fold", "Fold the banner to one line (more grid rows on a "
+                                     "short screen). Remembered.")
+        self._fold_btn.setFixedHeight(16)
+        warn_row.addWidget(self._fold_btn, 0, Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
+        text_col.addLayout(warn_row)
+        self._compact = False
+        self._compact_strip = CompactStrip()
+        self._compact_strip.setVisible(False)
+        self._fold_btn.clicked.connect(lambda: self.set_compact(True))
+        self._compact_strip.unfold_btn.clicked.connect(lambda: self.set_compact(False))
+        outer.addWidget(self._compact_strip, 1, Qt.AlignmentFlag.AlignTop)
         # conservation chips + count pills (flow rows)
         self._chips_row = _FlowRow()
         self._pills_row = _FlowRow()
@@ -482,6 +501,7 @@ class InfoPanel(QWidget):
                 self._src_chk[k].toggled.connect(self._on_source_toggle)
 
         self.clear()
+        self.set_compact(bool(S.value(_COMPACT_KEY, False, type=bool)), save=False)
 
     def _build_legend(self):
         from PySide6.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel
@@ -577,6 +597,29 @@ class InfoPanel(QWidget):
         self._refresh_distribution()
         w.resize(460, 500); w.show()
 
+    # -- compact banner (B11 / Q54) ---------------------------------------
+    def is_compact(self) -> bool:
+        return bool(getattr(self, "_compact", False))
+
+    def set_compact(self, on: bool, save: bool = True):
+        """Fold every card into one line (or unfold); remembered in settings."""
+        self._compact = bool(on)
+        if save:
+            self._settings.setValue(_COMPACT_KEY, self._compact)
+        self._sync_strip()
+        self._fit_width()
+        self.updateGeometry()
+
+    def _sync_strip(self):
+        strip = getattr(self, "_compact_strip", None)
+        if strip is None:
+            return
+        text = self._l1.text()
+        extra = self._l3.text()
+        if extra and not text.startswith("Select a species"):
+            text += "   \u00b7   " + extra
+        strip.set_text(text)
+
     def clear(self):
         self._current_row = None
         self._l1.setText("Select a species row to see details")
@@ -595,6 +638,7 @@ class InfoPanel(QWidget):
             self._dist.clear()
         if self._popout_dist is not None:
             self._popout_dist.update_for_species(None, self._enabled_sources())
+        self._sync_strip()
 
     def set_controls_widget(self, w):
         """Insert the entry controls (boxes + buttons) as the middle column of the banner."""
@@ -640,6 +684,18 @@ class InfoPanel(QWidget):
         cards = getattr(self, "_banner_cards", None)
         if not cards:
             return
+        strip = getattr(self, "_compact_strip", None)
+        if self.is_compact():          # one line: only the strip, never wider than the window
+            for c in cards:
+                c.setVisible(False)
+            strip.setVisible(True)
+            if self.minimumWidth() != 0:
+                self.setMinimumWidth(0)
+            return
+        if strip is not None and not strip.isHidden():     # just unfolded: the cards come back
+            strip.setVisible(False)
+            for c in cards:
+                c.setVisible(True)
         for c in cards:
             if isinstance(c, BannerCard):
                 c.refit()
@@ -971,6 +1027,10 @@ class InfoPanel(QWidget):
             self._set_count_pills(tvk)
 
     def update_for_row(self, row: Optional[Dict]):
+        self._update_for_row(row)
+        self._sync_strip()
+
+    def _update_for_row(self, row: Optional[Dict]):
         self._current_row = row
         if self._map is not None:
             self._map.update_for_row(row)

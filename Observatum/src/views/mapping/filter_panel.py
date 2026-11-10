@@ -28,10 +28,14 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QCompleter, QFrame, QHBoxLa
                                QLineEdit, QPushButton, QScrollArea, QSizePolicy, QVBoxLayout,
                                QWidget)
 
+import paths
+from shared.data_reference import ReadOnlyDb
 from ...core.config import TabColors
-from ...services.map_selection import MapFilters, distinct_values, vc_choices
+from ...services.map_selection import (REFERENCE_NO_SPECIMENS, MapFilters, distinct_values,
+                                       vc_choices)
 from ...themes import theme
 from ..components.filter_styles import get_clear_button_style
+from ..components.reference_field import ReferenceField
 from .date_check import date_problems, reversed_text
 from .selection_box import MapSelectionBox
 from .source_picker import MapSourcePicker
@@ -203,6 +207,15 @@ class MapFilterPanel(QFrame):
         group.addWidget(self._label("Site"))
         self.site_edit = self._completing_edit("Part of a site name", "site")
         group.addWidget(self.site_edit)
+        group.addWidget(self._label("Reference"))
+        self.reference_edit = ReferenceField(ReadOnlyDb(paths.OBSERVATUM_DB), "observations",
+                                             filter_mode=True)
+        self.reference_edit.setMinimumHeight(28)
+        if self.reference_edit.available:
+            self.reference_edit.setToolTip(self.reference_edit.toolTip() + "\n"
+                                           + REFERENCE_NO_SPECIMENS)
+        self.reference_edit.returnPressed.connect(self.generate_requested.emit)
+        group.addWidget(self.reference_edit)
         layout.addLayout(group)
 
     def _completing_edit(self, placeholder: str, kind: str) -> QLineEdit:
@@ -317,14 +330,15 @@ class MapFilterPanel(QFrame):
         back to the start in one go; then one `cleared` (no signal per box). The tetrad
         choice is a setting, not a filter: it stays."""
         widgets = (self.selection_box, self.source_picker, self.date_from, self.date_to,
-                   self.vc_combo, self.recorder_edit, self.site_edit, self.project_combo,
-                   self.embargo_check)
+                   self.vc_combo, self.recorder_edit, self.site_edit, self.reference_edit,
+                   self.project_combo, self.embargo_check)
         for w in widgets:
             w.blockSignals(True)
         try:
             self.selection_box.clear(emit=False)
             self.source_picker.reset(emit=False)
-            for box in (self.date_from, self.date_to, self.recorder_edit, self.site_edit):
+            for box in (self.date_from, self.date_to, self.recorder_edit, self.site_edit,
+                        self.reference_edit):
                 box.clear()
             self.vc_combo.setCurrentIndex(0)
             self.project_combo.setCurrentIndex(0)
@@ -371,6 +385,7 @@ class MapFilterPanel(QFrame):
         return MapFilters(date_from=bounds["From"], date_to=bounds["To"],
                           vc=self.vc_combo.currentData(),
                           recorder=self.recorder_edit.text(), site=self.site_edit.text(),
+                          data_reference=self.reference_edit.text().strip(),
                           project=(self.project_combo.currentData() or "")
                           if self.project_combo.isEnabled() else "",
                           include_embargoed=self.embargo_check.isEnabled()

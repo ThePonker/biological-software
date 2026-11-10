@@ -274,6 +274,14 @@ class WizardPagesMixin(ImportProgressPagesMixin):
         self.file_info_label.setStyleSheet(f"color: {t.get('text_secondary')};")
         layout.addWidget(self.file_info_label)
         
+        # Optional Reference (data from a person or a source rather than iRecord/NBN)
+        from ...components.reference_field import ReferenceField
+        ref_row = QHBoxLayout()
+        ref_row.addWidget(QLabel("Reference"))
+        self.reference_edit = ReferenceField(self.db, "observations")
+        ref_row.addWidget(self.reference_edit, 1)
+        layout.addLayout(ref_row)
+        
         # Preview label
         preview_label = QLabel("Preview (first 5 rows):")
         preview_label.setStyleSheet("font-weight: 600;")

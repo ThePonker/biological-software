@@ -12,11 +12,13 @@ from datetime import date
 from typing import Sequence, Tuple
 
 from PySide6.QtCore import QRectF, Qt
-from PySide6.QtGui import QBrush, QColor, QFont, QImage, QPainter, QPen, QPolygonF
+from PySide6.QtGui import (QBrush, QColor, QFont, QFontMetricsF, QImage, QPainter, QPen,
+                           QPolygonF)
 
+from shared.maps import extras_panel
 from shared.maps import grid_squares as gs
 from shared.maps._theme import theme
-from shared.maps.layers import OS_CREDIT
+from shared.maps.layers import credit_lines
 from shared.maps.species_dist_map import _SEA_C
 
 
@@ -25,6 +27,9 @@ from shared.maps.species_dist_map import _SEA_C
 # and database right. Data licensed under the terms of the Open Government Licence").
 COAST_CREDIT = ("Coastline: ONS boundaries, contains OS data \u00a9 Crown copyright and database "
                 "right, Open Government Licence v3.0.")
+
+
+MIN_RESERVE_MM = 22.0          # the least room under the map for the legend and credits
 
 
 class AtlasSheetMixin:
@@ -45,23 +50,59 @@ class AtlasSheetMixin:
         return w, h, landscape
 
     @staticmethod
-    def _sheet_box(w: int, h: int, dpi: int) -> QRectF:
-        """The map's box on the page: under the title, above the legend and credits."""
+    def _sheet_box(w: int, h: int, dpi: int, reserve_mm: float = MIN_RESERVE_MM) -> QRectF:
+        """The map's box on the page: under the title, above the legend and credits, which
+        need `reserve_mm` above the bottom margin (more when there are many credits)."""
         mm = dpi / 25.4
         margin = 12 * mm
-        top, bottom = margin + 20 * mm, h - margin - 22 * mm
+        top, bottom = margin + 20 * mm, h - margin - reserve_mm * mm
         return QRectF(margin, top, w - 2 * margin, bottom - top)
 
-    def sheet_view(self, extent=None, paper: str = "A4", dpi: int = 300):
+    def _reserve_mm(self, w: int, dpi: int, legend, footer: str, dev=None) -> float:
+        """Millimetres under the map for the legend rows and the credit text, measured with the
+        page's own fonts and width, so the credits never overlap the legend or the map."""
+        if dev is None:
+            dev = QImage(1, 1, QImage.Format.Format_RGB32)
+            dev.setDotsPerMeterX(gs.dots_per_metre(dpi))
+            dev.setDotsPerMeterY(gs.dots_per_metre(dpi))
+        mm = dpi / 25.4
+        margin = 12 * mm
+        fm8 = QFontMetricsF(_font(8), dev)
+        x0, right, x, rows = margin, w - margin, margin, 1
+        for _c, label in legend:
+            need = 5.5 * mm + fm8.horizontalAdvance(label)
+            if x > x0 and x + need > right:
+                x, rows = x0, rows + 1
+            x += need + 8 * mm
+        credit_h = QFontMetricsF(_font(7), dev).boundingRect(
+            QRectF(0, 0, w - 2 * margin, 10 ** 6), int(Qt.AlignmentFlag.AlignLeft | Qt.TextFlag.TextWordWrap),
+            self.credit_line(footer)).height()
+        return max(MIN_RESERVE_MM, credit_h / mm + 10 + (rows - 1) * 6)
+
+    def sheet_view(self, extent=None, paper: str = "A4", dpi: int = 300, legend=(), footer: str = "",
+                   extras=None):
         """(the extent asked for, the OSGB box the page's map really shows). The page's box
-        has its own shape, so it shows a little more than the extent one way (R9-6)."""
+        has its own shape, so it shows a little more than the extent one way (R9-6); pass the
+        page's legend and footer to get the box when many credits make the map box shorter, and
+        its extras (the panel under the map) when it has any."""
         ext = self.resolve_extent(extent)
         w, h, _l = self._sheet_size(ext, paper, dpi)
-        box = self._sheet_box(w, h, dpi)
+        reserve = self._reserve_mm(w, dpi, legend, footer) + self._extras_mm(extras, w, dpi)
+        box = self._sheet_box(w, h, dpi, reserve)
         fit = gs.MapFit(ext, box.width(), box.height(), pad=0)
         e0, n1 = fit.to_en(0.0, 0.0)
         e1, n0 = fit.to_en(box.width(), box.height())
         return ext, (e0, n0, e1, n1)
+
+    @staticmethod
+    def _extras_mm(extras, w: int, dpi: int, dev=None) -> float:
+        if not extras:
+            return 0.0
+        if dev is None:
+            dev = QImage(1, 1, QImage.Format.Format_RGB32)
+            dev.setDotsPerMeterX(gs.dots_per_metre(dpi))
+            dev.setDotsPerMeterY(gs.dots_per_metre(dpi))
+        return extras_panel.height_mm(extras, w, dpi, dev)
 
     def squares_in(self, box) -> list:
         """Labels of the mapped squares that show (wholly or in part) inside an OSGB box."""
@@ -75,10 +116,12 @@ class AtlasSheetMixin:
 
     def render_sheet(self, title: str, subtitle: str = "",
                      legend: Sequence[Tuple[str, str]] = (), footer: str = "",
-                     paper: str = "A4", dpi: int = 300, extent=None) -> QImage:
+                     paper: str = "A4", dpi: int = 300, extent=None, extras=None) -> QImage:
         """An atlas page: title, map, legend and credits, at `dpi`. `extent`: an OSGB box,
         "full" / None (the whole view's extent, L14/L32: the default) or "current" (what is
-        on screen after zooming and panning). The clicked square's outline is never drawn."""
+        on screen after zooming and panning). The clicked square's outline is never drawn.
+        `extras`: an extras_panel.Extras (stat lines, phenology chart) drawn between the map
+        and the legend; None or empty leaves the page exactly as it was."""
         ext = self.resolve_extent(extent)
         w, h, landscape = self._sheet_size(ext, paper, dpi)
         img = QImage(w, h, QImage.Format.Format_RGB32)
@@ -99,7 +142,9 @@ class AtlasSheetMixin:
         p.setPen(QColor(theme.MUTED))
         p.drawText(QRectF(margin, margin + 10 * mm, w - 2 * margin, 7 * mm),
                    int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter), subtitle)
-        box = self._sheet_box(w, h, dpi)
+        extras_mm = self._extras_mm(extras, w, dpi, img)
+        reserve = self._reserve_mm(w, dpi, legend, footer, img) + extras_mm
+        box = self._sheet_box(w, h, dpi, reserve)
         bottom = box.bottom()
         p.fillRect(box, QColor(_SEA_C))
         p.save()
@@ -110,12 +155,15 @@ class AtlasSheetMixin:
         p.setPen(QPen(QColor(theme.LINE), 0.8 * k))
         p.setBrush(Qt.BrushStyle.NoBrush)
         p.drawRect(box)
-        self._draw_legend(p, legend, margin, bottom + 4 * mm, mm, k, w - margin)
+        if extras:
+            extras_panel.draw(p, extras, margin, bottom + 3 * mm, w, mm, k)
+        self._draw_legend(p, legend, margin, bottom + 4 * mm + extras_mm * mm, mm, k, w - margin)
         p.setFont(_font(7))
         p.setPen(QColor(theme.MUTED))
         credit = self.credit_line(footer)
-        # R4: two lines when it needs them (the coastline credit made it too long for one)
-        p.drawText(QRectF(margin, h - margin - 10 * mm, w - 2 * margin, 10 * mm),
+        # as many lines as the credits need (the box above was shortened to make room for them)
+        credit_h = h - margin - bottom - 10 * mm
+        p.drawText(QRectF(margin, h - margin - credit_h, w - 2 * margin, credit_h),
                    int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignBottom
                        | Qt.TextFlag.TextWordWrap), credit)
         p.end()
@@ -123,12 +171,13 @@ class AtlasSheetMixin:
 
     def credit_line(self, footer: str = "") -> str:
         """The page's last line(s): the footer, then the data credits for what is drawn: the OS
-        line once if any layers-folder file is drawn, the ONS one only while gb_outline.json is."""
-        return (footer + "   " if footer else "") + \
-            ("Vice-county boundaries: BRC. " if self._vc_rings else "") + \
-            (OS_CREDIT + " " if self.layers_drawn() else "") + \
-            (COAST_CREDIT + " " if self.outline_drawn() else "") + \
-            f"Produced {date.today():%d %B %Y} with Observatum."
+        line once if any layers-folder file is drawn, the credits and grid legends of the ticked
+        Environment layers (layers.credits_for), the ONS one only while gb_outline.json is."""
+        parts = ["Vice-county boundaries: BRC."] if self._vc_rings else []
+        parts += credit_lines(self._maps_dir, self.layers_drawn())
+        parts += [COAST_CREDIT] if self.outline_drawn() else []
+        parts.append(f"Produced {date.today():%d %B %Y} with Observatum.")
+        return (footer + "   " if footer else "") + " ".join(parts)
 
     @staticmethod
     def _draw_legend(p, legend, x, y, mm, k, right=None):

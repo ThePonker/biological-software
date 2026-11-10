@@ -199,11 +199,6 @@ class Paths:
         return cls._project_root
     
     @classmethod
-    def data_dir(cls) -> Path:
-        """Get the data directory."""
-        return cls.project_root() / "data"
-    
-    @classmethod
     def default_main_db(cls) -> str:
         """Get default path to main database."""
         return str(paths.DATA_DIR / cls.MAIN_DB_FILENAME)
@@ -217,28 +212,6 @@ class Paths:
     def default_vc_db(cls) -> str:
         """Get default path to VC lookup database."""
         return str(paths.DATA_DIR / cls.VC_DB_FILENAME)
-    
-    @classmethod
-    def find_database(cls, filename: str) -> Optional[Path]:
-        """
-        Search for a database file in standard locations.
-        
-        Returns the path if found, None otherwise.
-        """
-        candidates = [
-            paths.DATA_DIR / filename,
-            cls.project_root() / filename,
-            Path.cwd() / "data" / filename,
-            Path.cwd() / filename,
-            paths.DATA_DIR / filename,
-            Path.home() / "Documents" / "Observatum_V2" / "data" / filename,
-        ]
-        
-        for path in candidates:
-            if path.exists():
-                return path
-        
-        return None
 
 
 # =============================================================================

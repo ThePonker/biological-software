@@ -6,4 +6,5 @@ if not exist "paths.py" (
     exit /b 1
 )
 set "PYTHONPATH=%CD%;%CD%\Observatum"
+if not defined PYTHONPYCACHEPREFIX set "PYTHONPYCACHEPREFIX=%LOCALAPPDATA%\BiologicalSoftware\pycache"
 py -3.14 -m shared.away_mode %*

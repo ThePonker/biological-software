@@ -3,7 +3,7 @@
 Used for a saved search (service.preview) and for the search builder's unsaved
 names and filters (service.preview_draft), so the two always agree.
 """
-from . import config, engine, saved
+from . import config, engine, freetext, saved
 from .bhl_client import BHLError
 from .harvest import apply_filters, drop_duplicate_scans
 
@@ -14,7 +14,7 @@ def name_dict(n):
 
 
 def preview_pages(store, client, names, filters, use_network=False, refresh=False,
-                  progress=None, cancel=None, count_all=False):
+                  progress=None, cancel=None, count_all=False, text=False):
     """names: [str or {'name', 'included'}]; filters: dict of filter keys (missing
     keys take the defaults). Only ticked names count towards the totals; with
     count_all, unticked names are counted too (shown beside each name, so a held-back
@@ -31,7 +31,7 @@ def preview_pages(store, client, names, filters, use_network=False, refresh=Fals
             break
         if progress:
             progress("count", i, len(to_count), f"Counting {n}")
-        cached = store.cached_name_hits(n) is not None
+        cached = store.cached_name_hits(freetext.cache_key(n) if text else n) is not None
         if not cached:
             if n in included:
                 uncached += 1
@@ -42,7 +42,7 @@ def preview_pages(store, client, names, filters, use_network=False, refresh=Fals
                 continue
         try:
             found, _src = engine.name_pages(store, client() if not cached or refresh else None,
-                                            n, refresh and use_network)
+                                            n, refresh and use_network, text)
         except BHLError:
             name_found[n] = None
             if n in included:
@@ -64,7 +64,8 @@ def preview_pages(store, client, names, filters, use_network=False, refresh=Fals
     ids = [p["page_id"] for p in kept_list]
     have = {r[0] for r in store.conn.execute(
         "SELECT page_id FROM pages WHERE fetched_at IS NOT NULL")}
-    to_download = [p for p in ids if p not in have]
+    # free-text publications (negative ids) have no page text to download
+    to_download = [p for p in ids if p not in have and not freetext.is_publication_id(p)]
     est = len(included) + len(to_download)             # a run asks BHL for every name
     return {"found": len(pages), "within_filters": len(ids),
             "already_held": len(ids) - len(to_download), "to_download": len(to_download),

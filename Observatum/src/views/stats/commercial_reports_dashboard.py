@@ -574,6 +574,12 @@ class CommercialReportsDashboard(QScrollArea):
                                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                                 QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
             return
+        from shared.away_mode import away_active
+        if away_active():
+            QMessageBox.warning(self, "Edit project",
+                                "This is a read-only copy (away mode), so nothing was changed. "
+                                "Make the change on the desktop.")
+            return
         try:
             from shared.backup_service import backup_main_only
             if not backup_main_only("pre-project-rename"):

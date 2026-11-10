@@ -25,5 +25,20 @@
   "Slade Green 2026":               {"species": 344, "key": 44, "sqi": 153, "sqi_pantheon": 147, "sqi_strict": 147, "key_strict": 44},
   "Sundon 2026":                    {"species": 231, "key": 19, "sqi": 125, "sqi_pantheon": 114, "sqi_strict": 114, "key_strict": 19},
   "Tilbury  2025":                  {"species": 238, "key":  4, "sqi": 100, "sqi_pantheon":  99, "sqi_strict":  99, "key_strict":  5}
- }
+ },
+ "test_counts": {
+  "_about": "Counts that tests/test_review_fixes_20261010.py::test_real_figures checks against a read-only open of the live observatum.db: [table, text matched, count]. They live here, not in the test, so a data script that moves them is a one-line change (the same rule as the figures above); not read by check_reference_figures.py.",
+  "review_fixes_20261010": [
+   ["recording_scheme", "Golden-bloomed Grey Longhorn", 40],
+   ["recording_scheme", "Tawny Longhorn Beetle", 13],
+   ["recording_scheme", "agg", 120],
+   ["observations", "Oligia strigilis agg.", 5],
+   ["recording_scheme", "Spotted Longhorn", 282],
+   ["recording_scheme", "rhag mor", 4628],
+   ["recording_scheme", "Rhagium mordx", 4628],
+   ["observations", "Nicrophorus vespillo", 8],
+   ["specimens", "Nicrophorus vespillo", 4],
+   ["recording_scheme", "Strangalia maculata", 19976]
+  ]
+}
 }

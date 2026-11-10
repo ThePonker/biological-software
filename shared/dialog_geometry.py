@@ -8,6 +8,7 @@ Size only -- not position -- so a dialog never opens off-screen after a monitor 
 """
 from __future__ import annotations
 
+from shared import app_filter
 from PySide6.QtCore import QEvent, QObject, QSettings, QSize
 from PySide6.QtWidgets import (
     QColorDialog, QDialog, QErrorMessage, QFileDialog, QFontDialog, QInputDialog, QMessageBox,
@@ -84,7 +85,7 @@ def install(app) -> None:
     if app is None or _installed:
         return
     f = DialogSizes(app)
-    app.installEventFilter(f)
+    app_filter.register(app, "dialog_geometry", f.eventFilter, _WATCHED)
     _installed.append(f)
 
 

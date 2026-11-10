@@ -81,12 +81,17 @@ def backup(db_path, backup_dir):
 
 
 def apply(db_path, backup_dir, check=None):
+    from shared.db_open import AwayReadOnly
+    from shared.away_mode import away_active
+    if away_active():                  # the laptop's lector.db is a read-only copy
+        raise AwayReadOnly("Away mode: the Lector database can't be updated on a read-only copy.")
     if not status(db_path)["needs_update"]:
         report = dry_run(db_path, check)
         report["applied"] = False
         return report
     dest = backup(db_path, backup_dir)
-    conn = sqlite3.connect(str(db_path))
+    from shared.db_open import connect_rw
+    conn = connect_rw(db_path)
     try:
         before = schema.counts(conn)
         made = schema.migrate(conn, check)

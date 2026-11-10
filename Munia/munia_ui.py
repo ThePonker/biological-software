@@ -25,7 +25,14 @@ class MuniaWindow(QMainWindow):
         self.setStyleSheet(window_stylesheet())
         self.setWindowState(Qt.WindowMaximized)
         self._conn = db.get_connection()
-        db.ensure_schema(self._conn)
+        try:
+            db.ensure_schema(self._conn)
+        except Exception as e:      # e.g. munia.db could not be backed up before a migration
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.critical(None, "Munia could not start",
+                                 f"Munia's database could not be prepared, so nothing was "
+                                 f"changed:\n\n{e}")
+            raise
         self._year = db.current_biz_year()
         self._build_ui()
         self._connect_signals()

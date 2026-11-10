@@ -62,7 +62,10 @@ def clear_layout(layout):
         item = layout.takeAt(0)
         w = item.widget()
         if w is not None:
-            w.setParent(None)
+            # hide, not setParent(None): a parentless widget that is shown again (or was never
+            # hidden by Qt) becomes a stray top-level window (seen 26 Oct 2026: old tag buttons
+            # left as tiny windows); deleteLater removes it when the event loop next runs
+            w.hide()
             w.deleteLater()
         elif item.layout() is not None:
             clear_layout(item.layout())

@@ -9,7 +9,7 @@ it; closing the window cancels a task and closes once it has stopped.
 """
 import sys
 
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (QApplication, QButtonGroup, QFrame, QHBoxLayout, QLabel,
                                QMainWindow, QMessageBox, QProgressBar, QStackedWidget,
                                QVBoxLayout, QWidget)
@@ -35,6 +35,7 @@ class LectorWindow(QMainWindow):
         self.messages, self.answers = [], []
         self.tasks = TaskRunner(self)
         self._close_after_task = False
+        self.key_dialog = None
         self._here = None                 # (screen key, open() keywords) shown now
         self._trail = []                  # where "← Back" goes: earlier (key, kw), newest last
         self.setWindowTitle(WINDOW_TITLE)
@@ -52,6 +53,7 @@ class LectorWindow(QMainWindow):
         from Lector.ui.builder import BuilderScreen
         from Lector.ui.export_screen import ExportScreen
         from Lector.ui.history import HistoryScreen
+        from Lector.ui.records_screen import RecordsScreen
         from Lector.ui.review_screen import ReviewScreen
         from Lector.ui.searches import SearchesScreen
         root = QWidget()
@@ -66,7 +68,7 @@ class LectorWindow(QMainWindow):
         self.screens = {
             "searches": SearchesScreen(self), "builder": BuilderScreen(self),
             "history": HistoryScreen(self), "review": ReviewScreen(self),
-            "records": self._records_screen(), "export": ExportScreen(self)}
+            "records": RecordsScreen(self), "export": ExportScreen(self)}
         for w in self.screens.values():
             self.stack.addWidget(w)
         right.addWidget(self.stack, 1)
@@ -105,26 +107,15 @@ class LectorWindow(QMainWindow):
         widest = max(b.sizeHint().width() for b in self.nav_buttons.values())
         nav.setFixedWidth(min(260, max(196, widest + 8)))
         v.addStretch(1)
+        self.key_link = S.button("BHL API key: …", "link",
+                                 "How to get the free BHL key, and where to paste it",
+                                 lambda: self.show_key_guide())
+        self.key_link.setStyleSheet(S.button_qss("link") + " QPushButton { text-align: left; }")
+        v.addWidget(self.key_link, 0, Qt.AlignmentFlag.AlignLeft)
         self.nav_info = S.label("", "small", wrap=True)
         self.nav_info.setContentsMargins(16, 0, 12, 0)
         v.addWidget(self.nav_info)
         return nav
-
-    def _records_screen(self):
-        page = QWidget()
-        page.setObjectName("lectorPage")
-        v = QVBoxLayout(page)
-        v.setContentsMargins(32, 28, 32, 24)
-        v.addWidget(S.label("Extracted records", "h1"))
-        card = S.Card("Coming later")
-        card.body.addWidget(S.label(
-            "Taking records from BHL pages into Observatum is not built yet. For now, "
-            "when you have entered a page's record in Observatum by hand, mark the page "
-            "“Record extracted” in the Reading list (key 3): it is counted on the "
-            "Saved searches screen and kept in the dossier.", "body", wrap=True))
-        v.addWidget(card)
-        v.addStretch(1)
-        return page
 
     def _task_bar(self):
         bar = QFrame()
@@ -195,8 +186,10 @@ class LectorWindow(QMainWindow):
             info = self.svc.settings_info()
         except Exception:  # noqa: BLE001 - only a hint at the foot of the navigation
             return
-        key = "set" if info["api_key_set"] else "not set (see README)"
-        self.nav_info.setText(f"BHL API key: {key}\nDatabase: {info['db_path']}")
+        self.key_link.setText("BHL API key: set" if info["api_key_set"]
+                              else "BHL API key: not set")
+        self.nav_info.setText(f"Database: {info['db_path']}"
+                              + ("" if info["uksi_found"] else "\nUKSI: not installed"))
         self.nav_info.setToolTip(info["db_path"])
 
     # --- start-up: database update -------------------------------------------
@@ -221,7 +214,23 @@ class LectorWindow(QMainWindow):
                 return False
             self.say(f"lector.db updated. Backup copy: {done.get('backup')}", "info")
         self.go("searches")
+        self.show_key_guide(first_run=True)
         return True
+
+    def show_key_guide(self, first_run=False):
+        """The BHL key guide. On start-up it appears only when no key is found. Quiet (tests):
+        the dialog is made but not run."""
+        from Lector.ui.apikey_dialog import ApiKeyDialog
+        try:
+            if first_run and self.svc.settings_info()["api_key_set"]:
+                return None
+        except Exception:  # noqa: BLE001
+            return None
+        self.key_dialog = ApiKeyDialog(self.svc, self, first_run=first_run)
+        if not self.quiet:
+            self.key_dialog.exec()
+            self._update_nav_info()
+        return self.key_dialog
 
     # --- messages -------------------------------------------------------------
     def say(self, text, kind="info"):
@@ -240,9 +249,10 @@ class LectorWindow(QMainWindow):
             return self.answers.pop(0) if self.answers else False
         return QMessageBox.question(self, title, text) == QMessageBox.StandardButton.Yes
 
-    def choose(self, text, yes, no, title="Lector"):
+    def choose(self, text, yes, no, title="Lector", danger=False):
         """A question with two named buttons: yes (primary) and no (warm grey, the
-        default). True when yes is pressed; when quiet the next queued answer (default no)."""
+        default). True when yes is pressed (danger: a delete, in the delete colours); when quiet
+        the next queued answer (default no)."""
         self.messages.append(text)
         if self.quiet:
             return self.answers.pop(0) if self.answers else False
@@ -252,7 +262,7 @@ class LectorWindow(QMainWindow):
         box.setIcon(QMessageBox.Icon.Question)
         yes_btn = box.addButton(yes, QMessageBox.ButtonRole.AcceptRole)
         no_btn = box.addButton(no, QMessageBox.ButtonRole.RejectRole)
-        yes_btn.setStyleSheet(S.button_qss("primary"))
+        yes_btn.setStyleSheet(S.button_qss("delete" if danger else "primary"))
         no_btn.setStyleSheet(S.button_qss("cancel"))
         box.setDefaultButton(no_btn)
         box.setEscapeButton(no_btn)
@@ -340,7 +350,12 @@ def update_question(report):
 
 
 def main(argv=None):
+    from shared import crash_log             # data\logs\crash_lector_<month>.log
+    crash_log.install("lector")
+    from shared import light_scheme          # always light, even on a dark-mode PC
+    light_scheme.prepare()
     app = QApplication.instance() or QApplication(sys.argv[:1])
+    light_scheme.install(app)
     from shared.opaque_popups import install as solid_popups
     solid_popups(app, lambda: (S.c('surface'), S.c('text_primary')))   # F50: solid lists
     from shared.dialog_geometry import install as remember_dialog_sizes

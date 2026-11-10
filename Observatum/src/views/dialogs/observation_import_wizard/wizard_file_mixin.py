@@ -210,7 +210,6 @@ class WizardFileMixin(ProblemExportMixin):
     
     def _setup_column_mapping(self):
         """Set up the column mapping UI based on loaded columns and import mode."""
-        t = theme()
         
         # Clear existing mappings
         while self.mapping_layout.count():

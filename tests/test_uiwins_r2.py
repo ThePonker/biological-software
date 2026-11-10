@@ -362,6 +362,8 @@ def test_recent_species_popup_edit_delete_go_to_observation_tab(qapp, monkeypatc
     assert win.observation_tab.edits == [7] and win.observation_tab.deletes == [7]
     dlg.done(0)
     assert win.observation_tab._current_detail_dialog is None
+    win.close()
+    win.deleteLater()
 
 
 def test_dashboards_wire_the_recent_species_popup():
@@ -449,6 +451,19 @@ def test_conservation_chips_fit_the_readout(qapp):
     tvks = [r[0] for r in c.execute("SELECT tvk FROM status_summary GROUP BY tvk "
                                     "HAVING COUNT(DISTINCT status_track) >= 3")]
     c.close()
+    # A fixed sample, not all of them (all took 111 s): the 15 species with the most chips,
+    # then the longest chip text, across the three vice-counties (ties by TVK, so the same
+    # 15 every run). Chips are read without any widget here, which is cheap.
+
+    def _weight(tvk):
+        n = chars = 0
+        for vc in (23, 90, 35):
+            labs = s.conservation_chips(tvk, vc)
+            n += len(labs)
+            chars += sum(len(lab) for lab, _k in labs)
+        return (-n, -chars, tvk)
+
+    tvks = sorted(tvks, key=_weight)[:15]
     width = 316 - 2 * 12 - 2
     row = _FlowRow()
     row.resize(width, 22)

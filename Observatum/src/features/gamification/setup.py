@@ -18,13 +18,6 @@ except ImportError:
     USE_CONFIG = False
 
 
-def _find_data_dir() -> Path:
-    """Find the data directory when config is not available."""
-    this_file = Path(__file__).resolve()
-    project_root = this_file.parent.parent.parent.parent
-    return project_root / "data"
-
-
 def get_gamification_db_path() -> Path:
     """Get the path to the gamification database."""
     if USE_CONFIG:
@@ -471,21 +464,3 @@ def create_gamification_db(db_path: Optional[Path] = None) -> bool:
         return False
 
 
-def reset_gamification_db() -> bool:
-    """
-    Delete and recreate the gamification database.
-    Use this when schema changes require a fresh start.
-    
-    Returns True if successful.
-    """
-    db_path = get_gamification_db_path()
-    
-    try:
-        if db_path.exists():
-            db_path.unlink()
-            print(f"[Gamification] Deleted existing database: {db_path}")
-        
-        return create_gamification_db(db_path)
-    except Exception as e:
-        print(f"[Gamification] Error resetting database: {e}")
-        return False

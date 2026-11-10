@@ -647,14 +647,23 @@ def swap_in(new_path, codex_path):
     replaced = None
     if os.path.exists(codex_path):
         ref = os.path.join(backup_service.BACKUP_ROOT, backup_service.REFERENCE)
-        os.makedirs(ref, exist_ok=True)
+        try:
+            os.makedirs(ref, exist_ok=True)
+        except OSError as e:
+            raise SwapError(f"the backup folder {ref} could not be made ({e}); codex.db is "
+                            f"unchanged and the new build is left at {new_path}.") from e
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         replaced = os.path.join(ref, f"codex_replaced_{stamp}.db")
         n = 1
         while os.path.exists(replaced):
             n += 1
             replaced = os.path.join(ref, f"codex_replaced_{stamp}-{n}.db")
-        shutil.move(codex_path, replaced)
+        try:
+            shutil.move(codex_path, replaced)
+        except OSError as e:
+            raise SwapError(f"the old codex.db could not be moved to {replaced} ({e}); codex.db "
+                            f"is unchanged and the new build is left at {new_path}. Close Codex "
+                            "Manager, Examen and OneDrive's lock on the file, then run again.") from e
     try:
         os.replace(new_path, codex_path)
     except OSError as e:

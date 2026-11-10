@@ -296,54 +296,18 @@ class VCLookupService:
         
         return f"{letters}{e_digits:02d}{n_digits:02d}"
     
-    @classmethod
-    def get_10km_square(cls, grid_ref: str) -> Optional[str]:
-        """
-        Convert any grid reference to its 10km square (4-figure equivalent).
-        
-        Args:
-            grid_ref: OS Grid Reference of any precision
-            
-        Returns:
-            4-figure grid reference (e.g., "SP58") or None if invalid
-        """
-        parsed = cls.parse_grid_ref(grid_ref)
-        if not parsed:
-            return None
-        
-        easting, northing, precision = parsed
-        
-        # Round to 10km (floor division)
-        e_10km = (easting // 10000) * 10000
-        n_10km = (northing // 10000) * 10000
-        
-        # Convert back to grid reference
-        e100 = e_10km // 100000
-        n100 = n_10km // 100000
-        
-        # Find the letters
-        letters = None
-        for code, (e, n) in cls.GRID_LETTERS.items():
-            if e == e100 and n == n100:
-                letters = code
-                break
-        
-        if not letters:
-            return None
-        
-        # Get the 10km digits
-        e_digit = (e_10km % 100000) // 10000
-        n_digit = (n_10km % 100000) // 10000
-        
-        return f"{letters}{e_digit}{n_digit}"
-    
     # ------------------------------------------------------------ boundaries (F29, I3b)
 
     def _splits_connection(self) -> Optional[sqlite3.Connection]:
         if self._splits is None:
             self._splits = False
             p = self._get_db_path()
-            cand = (p.parent / "vc_splits.db") if p else None
+            # The suite's splits file (the away copy in away mode); only a lookup db given
+            # explicitly at construction (tests) has its splits file beside it.
+            if p and p != Path(paths.VC_LOOKUP_DB):
+                cand = p.parent / "vc_splits.db"
+            else:
+                cand = Path(paths.VC_SPLITS_DB) if p else None
             if cand and cand.exists():
                 try:
                     self._splits = sqlite3.connect(cand.resolve().as_uri() + "?mode=ro", uri=True)
@@ -566,19 +530,6 @@ class VCLookupService:
         
         return results
 
-    def get_vc_number(self, grid_ref: str) -> Optional[int]:
-        """
-        Get vice county number from grid reference.
-        
-        Args:
-            grid_ref: OS Grid Reference
-            
-        Returns:
-            VC number or None if not found
-        """
-        result = self.get_vc_from_grid_ref(grid_ref)
-        return result[0] if result else None
-    
     def get_vc_name(self, vc_number: int) -> Optional[str]:
         """Get full VC name from number."""
         # Try DB-loaded names first
@@ -621,36 +572,6 @@ class VCLookupService:
                 'short_name': self.get_vc_short_name(result[0])
             }
         return None
-    
-    def get_vc_number_from_name(self, vc_name: str) -> Optional[int]:
-        """Get VC number from name."""
-        vc_name_lower = vc_name.lower().strip()
-        
-        # Check DB names first
-        if VCLookupService._db_vc_names:
-            for num, name in VCLookupService._db_vc_names.items():
-                if name.lower() == vc_name_lower:
-                    return num
-        
-        # Fallback to class names
-        for num, name in self.VC_NAMES.items():
-            if name.lower() == vc_name_lower:
-                return num
-        return None
-    
-    def format_vc(self, vc_number: int) -> str:
-        """Format VC as 'number - name'."""
-        name = self.get_vc_name(vc_number)
-        if name:
-            return f"VC{vc_number} {name}"
-        return f"VC{vc_number}"
-    
-    def format_vc_short(self, vc_number: int) -> str:
-        """Format VC with short name as 'number - short_name'."""
-        name = self.get_vc_short_name(vc_number)
-        if name:
-            return f"{vc_number} - {name}"
-        return f"VC{vc_number}"
     
     def validate_grid_ref(self, grid_ref: str) -> Tuple[bool, str]:
         """

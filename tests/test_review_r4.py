@@ -64,6 +64,7 @@ def test_load_vc_polygons_same_as_point_by_point(tmp_path, monkeypatch, tol):
     ]}
     path = tmp_path / "vc.geojson"
     path.write_text(json.dumps(gj), encoding="utf-8")
+    monkeypatch.setenv("BIOSOFT_NO_MAP_CACHE", "1")       # R16: both loads computed, not read from disk
     monkeypatch.setattr(vm, "_CACHE", {})        # the process's own cache left alone
     monkeypatch.setattr(vm, "_NAMES", {})
     fast = vm.load_vc_polygons(str(path), tol=tol)

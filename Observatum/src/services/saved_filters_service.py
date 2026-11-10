@@ -6,6 +6,7 @@ Stores filters in a JSON file in the data directory.
 """
 
 import json
+import os
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from datetime import datetime
@@ -36,6 +37,9 @@ class SavedFiltersService:
     def __init__(self, filters_file=None):
         self._filters_file = Path(filters_file) if filters_file else self._get_filters_path()
         self._filters: Dict[str, Dict] = {}
+        # Set when the file exists but could not be read: later saves are refused so the
+        # file (still on disk, perhaps only briefly unreadable) is never overwritten with {}.
+        self.load_error: Optional[str] = None
         self._load_filters()
     
     def _get_filters_path(self) -> Path:
@@ -56,6 +60,7 @@ class SavedFiltersService:
     def _load_filters(self):
         """Load filters from file (old files keyed by name alone are re-keyed by tab)."""
         self._filters = {}
+        self.load_error = None
         if not self._filters_file.exists():
             return
         try:
@@ -67,20 +72,27 @@ class SavedFiltersService:
                 name = entry.get('name') or key
                 entry = dict(entry, name=name, tab=entry.get('tab') or 'observations')
                 self._filters[self._key(name, entry['tab'])] = entry
-            print(f"[SavedFilters] Loaded {len(self._filters)} saved filters")
         except Exception as e:
             print(f"[SavedFilters] Error loading filters: {e}")
             self._filters = {}
+            self.load_error = (f"{self._filters_file} could not be read ({e}); "
+                               "saved filters will not be changed until it can.")
     
-    def _save_filters(self):
-        """Save filters to file."""
+    def _save_filters(self) -> bool:
+        """Save filters to file (temp file, then os.replace). False if refused or failed."""
+        if self.load_error:
+            print(f"[SavedFilters] Not saved: {self.load_error}")
+            return False
+        tmp = self._filters_file.with_name(self._filters_file.name + ".tmp")
         try:
             data = {'filters': self._filters}
-            with open(self._filters_file, 'w', encoding='utf-8') as f:
+            with open(tmp, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
-            print(f"[SavedFilters] Saved {len(self._filters)} filters")
+            os.replace(tmp, self._filters_file)
+            return True
         except Exception as e:
             print(f"[SavedFilters] Error saving filters: {e}")
+            return False
     
     def save_filter(self, name: str, config: Dict[str, Any], tab: str = "observations") -> bool:
         """Save (or replace) the tab's filter of this name."""
@@ -93,8 +105,7 @@ class SavedFiltersService:
             'tab': tab,
             'config': config
         }
-        self._save_filters()
-        return True
+        return self._save_filters()
     
     def get_filter(self, name: str, tab: str = "observations") -> Optional[Dict[str, Any]]:
         """The tab's saved filter config, or None."""
@@ -119,15 +130,6 @@ class SavedFiltersService:
         key = self._key(name, tab)
         if key in self._filters:
             del self._filters[key]
-            self._save_filters()
-            return True
-        return False
-    
-    def rename_filter(self, old_name: str, new_name: str, tab: str = "observations") -> bool:
-        """Rename one of the tab's saved filters (not over an existing one)."""
-        old, new = self._key(old_name, tab), self._key(new_name, tab)
-        if old in self._filters and new not in self._filters:
-            self._filters[new] = dict(self._filters.pop(old), name=new_name)
             self._save_filters()
             return True
         return False

@@ -207,6 +207,24 @@ def build_records(body, index, vc_service=None):
                      "junk_tvks": junk}
 
 
+def find_mismatches(records, uksi_path=None):
+    """[(row_order, species name, TVK)] for rows whose TVK UKSI holds but whose Species cell is
+    not one of that TVK's names (recommended or synonym) -- the workbook's Species and TVK
+    columns are two cells, and a row whose Species was changed with the TVK left behind loads
+    as another species' record (R16, 10 Nov 2026). The same check as the Commit warning
+    (DataEntry.commit_service). TVKs UKSI does not hold are not judged. Raises if UKSI cannot
+    be read."""
+    from DataEntry import commit_service as cs
+    real = [r for r in records if r.get("species_name")]
+    names = cs.uksi_names_for_rows(real, uksi_path)
+    out = []
+    for r in real:
+        known = names.get((r.get("species_tvk") or "").strip())
+        if known and not cs._name_matches_tvk(r["species_name"], known):
+            out.append((r.get("row_order"), r["species_name"], r["species_tvk"]))
+    return out
+
+
 def insert(conn, job_name, mode, records, source_file):
     now = datetime.now().isoformat(timespec="seconds")
     cur = conn.execute(
@@ -239,6 +257,8 @@ def main():
     ap.add_argument("--mode", default="Commercial", help="Job mode (default: Commercial).")
     ap.add_argument("--name", default=None, help="Job name (default: workbook filename).")
     ap.add_argument("--dry-run", action="store_true", help="Report only; insert nothing.")
+    ap.add_argument("--allow-mismatch", action="store_true",
+                    help="Load even when a row's Species is not the name of its TVK.")
     args = ap.parse_args()
 
     path = args.workbook
@@ -274,9 +294,29 @@ def main():
         print(f"  unparsed dates: {len(stats['bad_dates'])} "
               f"(first few: {stats['bad_dates'][:5]})")
 
+    try:
+        mismatches = find_mismatches(records)
+    except Exception as e:
+        mismatches = None
+        print(f"  name/TVK check NOT done: {e}")
+    if mismatches:
+        print(f"  Species name is not the name of its TVK: {len(mismatches)} row(s) "
+              "(workbook order, species, TVK)")
+        for order, name, tvk in mismatches[:40]:
+            print(f"    {order:>5}  {name}  {tvk}")
+        if len(mismatches) > 40:
+            print(f"    ... and {len(mismatches) - 40} more")
+
     if args.dry_run:
         print("\n  DRY RUN — nothing written.\n")
         return
+
+    if (mismatches or mismatches is None) and not args.allow_mismatch:
+        raise SystemExit("\n  Refusing to load: " + (
+            f"{len(mismatches)} row(s) have a Species that is not the name of its TVK (listed above). "
+            "Fix them in the workbook, or load anyway with --allow-mismatch."
+            if mismatches else "the name/TVK check could not be done. Load anyway with --allow-mismatch.")
+            + "\n  Nothing has been written.")
 
     job_name = args.name or os.path.splitext(os.path.basename(path))[0]
     conn = sqlite3.connect(str(paths.OBSERVATUM_DB))

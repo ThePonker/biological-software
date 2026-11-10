@@ -13,7 +13,12 @@ from .examen_ui import ExamenWindow
 
 
 def main():
+    from shared import crash_log             # data\logs\crash_examen_<month>.log
+    crash_log.install("examen")
+    from shared import light_scheme          # always light, even on a dark-mode PC
+    light_scheme.prepare()
     app = QApplication(sys.argv)
+    light_scheme.install(app)
     app.setApplicationName("Examen")
     from shared.opaque_popups import install as solid_popups
     from .examen_ui import SURFACE, TEXT_PRIMARY

@@ -163,7 +163,12 @@ def to_current(tvk, depth=0):
 
 
 if os.path.exists(OUT):
-    os.remove(OUT)
+    # never deleted: moved into the backup folder's _expired folder (CLAUDE.md rule 1)
+    from shared import backup_service
+    backup_service._retire(OUT, "uksi_2025-replaced")
+    if os.path.exists(OUT):
+        raise SystemExit(f"{OUT} already exists and could not be moved aside -- move it aside "
+                         "first. Nothing has been changed.")
 new = sqlite3.connect(OUT)
 for n, s in schema:
     new.execute(s)

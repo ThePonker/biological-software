@@ -86,7 +86,8 @@ class TabColumns:
 
 
 TAB_COLUMNS: Dict[str, TabColumns] = {
-    'observations': TabColumns(table='observations'),
+    'observations': TabColumns(table='observations', notes=('comment', 'internal_notes', 'sample_comment',
+                                                           'identification_remarks')),
     # Every scheme row is record_type "Recording Scheme": nothing to choose
     'recording_scheme': TabColumns(table='recording_scheme', record_type=None,
                                    dataset='source'),

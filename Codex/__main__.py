@@ -10,7 +10,12 @@ from .codex_manager import CodexManager
 
 
 def main():
+    from shared import crash_log             # data\logs\crash_codex_<month>.log
+    crash_log.install("codex")
+    from shared import light_scheme          # always light, even on a dark-mode PC
+    light_scheme.prepare()
     app = QApplication(sys.argv)
+    light_scheme.install(app)
     app.setApplicationName("Codex Manager")
     from shared.opaque_popups import install as solid_popups
     from . import theme

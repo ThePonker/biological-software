@@ -13,7 +13,7 @@ Usage:
 """
 
 import sqlite3
-from typing import Optional, List, Tuple, Any, Dict, TypeVar
+from typing import Optional, List, Tuple, Any, TypeVar
 from datetime import datetime
 
 # Try to import from Observatum's database module
@@ -208,20 +208,6 @@ class BaseRepository:
         query = f"DELETE FROM {self.TABLE} WHERE {self.PRIMARY_KEY} = ?"
         return self._execute_write(query, (id,)) > 0
     
-    def delete_where(self, where: str, params: Tuple) -> int:
-        """
-        Delete records matching condition.
-        
-        Args:
-            where: WHERE clause without 'WHERE' keyword
-            params: Parameters for WHERE clause
-            
-        Returns:
-            Number of records deleted
-        """
-        query = f"DELETE FROM {self.TABLE} WHERE {where}"
-        return self._execute_write(query, params)
-    
     # =========================================================================
     # UTILITIES
     # =========================================================================
@@ -230,50 +216,3 @@ class BaseRepository:
         """Get current timestamp in ISO format."""
         return datetime.now().isoformat()
     
-    def _row_to_dict(self, row: sqlite3.Row) -> Dict[str, Any]:
-        """Convert a Row to a dictionary."""
-        return dict(row)
-    
-    def _rows_to_dicts(self, rows: List[sqlite3.Row]) -> List[Dict[str, Any]]:
-        """Convert multiple Rows to dictionaries."""
-        return [dict(row) for row in rows]
-    
-    def _build_where(
-        self, 
-        conditions: Dict[str, Any],
-        like_fields: set = None,
-        prefix_fields: set = None
-    ) -> Tuple[str, List]:
-        """
-        Build WHERE clause from conditions dict.
-        
-        Args:
-            conditions: Dict of field -> value (None values ignored)
-            like_fields: Fields to use LIKE %value% matching
-            prefix_fields: Fields to use LIKE value% matching
-            
-        Returns:
-            Tuple of (where_clause, params_list)
-        """
-        like_fields = like_fields or set()
-        prefix_fields = prefix_fields or set()
-        
-        clauses = []
-        params = []
-        
-        for field, value in conditions.items():
-            if value is None:
-                continue
-                
-            if field in like_fields:
-                clauses.append(f"{field} LIKE ?")
-                params.append(f"%{value}%")
-            elif field in prefix_fields:
-                clauses.append(f"{field} LIKE ?")
-                params.append(f"{value}%")
-            else:
-                clauses.append(f"{field} = ?")
-                params.append(value)
-        
-        where = " AND ".join(clauses) if clauses else "1=1"
-        return where, params

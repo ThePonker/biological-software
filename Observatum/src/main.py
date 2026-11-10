@@ -58,7 +58,12 @@ def main():
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
     )
 
+    from shared import crash_log             # data\logs\crash_observatum_<month>.log
+    crash_log.install("observatum")
+    from shared import light_scheme          # always light, even on a dark-mode PC
+    light_scheme.prepare()
     app = QApplication(sys.argv)
+    light_scheme.install(app)
     from shared.settings_store import APP, ORG, merge_flauna_store_once
     app.setApplicationName(APP)
     app.setOrganizationName(ORG)

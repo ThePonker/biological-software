@@ -186,6 +186,10 @@ class ObservationDetailMixin:
                                'vice_county', 'vc_number', 'latitude', 'longitude',
                                'geodetic_datum', 'recorder', 'determiner', 'comment'}
                     updates = {k: v for k, v in obs_data.items() if k in allowed and v is not None}
+                    # Reference: only when the column exists; cleared = NULL (None is kept here)
+                    reference_edit = ({'data_reference': obs_data['data_reference']}
+                                      if 'data_reference' in obs_data else {})
+                    updates.update(reference_edit)
                     updates.update(derived)         # may set NULLs: a VC that no longer applies
                     old_species = ""
                     if updates:
@@ -204,7 +208,9 @@ class ObservationDetailMixin:
                         # an edit made here: the next iRecord sync will not quietly undo it (A2).
                         # Only a real change counts (saving unchanged is not an edit).
                         from shared.sync_conflicts import differing, mark_edited, cleared
-                        if differing(dict(record), updates) or cleared(dict(record), updates):
+                        # the Reference is local only: changing it is not an edit for the sync
+                        synced = {k: v for k, v in updates.items() if k != 'data_reference'}
+                        if differing(dict(record), synced) or cleared(dict(record), synced):
                             mark_edited(conn, [record_id])
                         conn.commit()
                     # A re-determination: the record's linked photos follow (photos B5)
@@ -328,6 +334,9 @@ class ObservationDetailMixin:
                 self.records_changed.emit()
             except Exception as e:
                 print(f"[ObservationTab] Error deleting record: {e}")
+                from PySide6.QtWidgets import QMessageBox
+                QMessageBox.warning(self, "Delete Observation",
+                                    f"The record could not be deleted:\n\n{e}")
 
     def _on_detail_hide_requested(self, record: Dict):
         """"Deleted in iRecord -- remove here" (F72): hide the record, never delete it.
@@ -342,6 +351,9 @@ class ObservationDetailMixin:
                 self.records_changed.emit()
         except Exception as e:
             print(f"[ObservationTab] Error hiding record: {e}")
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Remove here",
+                                f"The record could not be hidden:\n\n{e}")
 
     def _on_profile_requested(self, record: Dict):
         """Handle profile view/create request from detail dialog."""

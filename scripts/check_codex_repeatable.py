@@ -54,6 +54,10 @@ def _copy_live(dest):
 
 def _build_here(path):
     """Child process: run the real build against `path`."""
+    from shared import backup_service
+    if not os.environ.get("BIOSOFT_BACKUP_ROOT"):      # never the real backup folder from here
+        sys.exit("BIOSOFT_BACKUP_ROOT is not set: refusing to build against the real backups.")
+    backup_service.BACKUP_ROOT = os.environ["BIOSOFT_BACKUP_ROOT"]
     bcd.CODEX_PATH = path
     bcd.datetime = _PinnedClock
     out = io.StringIO()
@@ -65,7 +69,10 @@ def _build_here(path):
 def _build(path, label, seed):
     """Run the build in a fresh process with its own hash seed. Returns its output."""
     print(f"  Building {label} (hash seed {seed}) ...", flush=True)
-    env = dict(os.environ, PYTHONHASHSEED=str(seed), PYTHONIOENCODING="utf-8")
+    # The build writes a kept copy and codex_replaced_* into the backup folder: point it at a
+    # temporary folder beside the copy so this "safe" check never touches the real backups.
+    env = dict(os.environ, PYTHONHASHSEED=str(seed), PYTHONIOENCODING="utf-8",
+               BIOSOFT_BACKUP_ROOT=os.path.join(os.path.dirname(os.path.abspath(path)), "backups"))
     r = subprocess.run([sys.executable, os.path.abspath(__file__), "--build-into", path],
                        env=env, capture_output=True, text=True, encoding="utf-8", errors="replace")
     return r.stdout + r.stderr

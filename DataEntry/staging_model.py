@@ -610,6 +610,19 @@ class StagingTableModel(QAbstractTableModel):
                                   [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole])
             return True
 
+        if kind == "species" and not isinstance(value, dict) and str(value or "").strip():
+            # Plain text into the Species cell (a paste where the cell's delegate cannot match
+            # it, a programmatic set): it used to change species_name only, leaving the previous
+            # species' TVK, common name, order, family and rank on the row (R16, 10 Nov 2026).
+            # A changed name is now set like an unmatched typed one: the old species' fields
+            # cleared, the cell flagged "Not matched" and listed by the commit check. The same
+            # name changes nothing.
+            name = str(value).strip()
+            if not virtual and " ".join((self._rows[r].get("species_name") or "").split()).casefold() == \
+                    " ".join(name.split()).casefold():
+                return True
+            return self._set_data(index, {"scientific_name": name}, role)
+
         if kind == "species" and not str(value or "").strip() and not virtual:
             row = self._rows[r]
             clears = {"species_name": None, "species_tvk": None, "common_name": None,
@@ -702,15 +715,6 @@ class StagingTableModel(QAbstractTableModel):
         self.endInsertRows()
         self._remember_last(new_id)
         return new_id
-
-    def remove_row(self, r: int) -> None:
-        if not (0 <= r < len(self._rows)):
-            return
-        row_id = self._rows[r]["id"]
-        self.beginRemoveRows(QModelIndex(), r, r)
-        del self._rows[r]
-        self.endRemoveRows()
-        repo.delete_row(self._conn, row_id)
 
     def row_id(self, r: int):
         return self._rows[r]["id"] if 0 <= r < len(self._rows) else None

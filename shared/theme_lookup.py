@@ -10,7 +10,7 @@ from pathlib import Path
 
 try:
     from src.themes import theme as _theme
-except ImportError:                                  # launched without Observatum on the path
+except Exception:                                    # launched without Observatum on the path
     try:
         import paths
         _obs_dir = paths.OBSERVATUM_DIR
@@ -20,7 +20,7 @@ except ImportError:                                  # launched without Observat
         sys.path.insert(0, str(_obs_dir))
     try:
         from src.themes import theme as _theme
-    except ImportError:
+    except Exception:                                # any failure: the fallbacks are used
         _theme = None
 
 

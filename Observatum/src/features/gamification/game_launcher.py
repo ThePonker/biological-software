@@ -16,7 +16,12 @@ from src.features.gamification import GamificationWindow, ensure_gamification_db
 def main():
     ensure_gamification_db()
     
+    from shared import crash_log             # data\logs\crash_game_<month>.log
+    crash_log.install("game")
+    from shared import light_scheme          # always light, even on a dark-mode PC
+    light_scheme.prepare()
     app = QApplication(sys.argv)
+    light_scheme.install(app)
     app.setApplicationName("Observatum Achievements")
     
     window = GamificationWindow()

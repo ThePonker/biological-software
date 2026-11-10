@@ -1,6 +1,6 @@
 # Backlog
 
-## Updated 24 October 2026 (docs refresh after Round 11; see "Next (24 Oct)")
+## Updated 26 October 2026 (Round 15 overnight; see "Next (26 Oct)"); 24 Oct refresh below
 ## Check this before starting a session.
 
 This file is the working list: how we work, what is next, what is decided but not built,
@@ -27,6 +27,39 @@ comes first either way. *(Update 24 Oct: Q1 was settled by the order of work of 
 24 Oct plan below; Rounds 5–11 are built, see "Next (24 Oct)".)*
 
 ---
+
+## Next (26 Oct): Round 15 built overnight, waiting for Wil's tests (`202e586`)
+
+Built since 24 Oct, delivered and byte-checked on the PC, none of it committed by Wil yet: Round 14
+part 1 (`cb17dbf`), light scheme (`9676d04`), maps round 1 (`9a9056d`), environment data fixes
+(`71b195a`, `c9a7915`), maps round 2 (`74ef858`: Layers window, classes, Identify details, 3D aspect,
+crash log), Round 15 (`202e586`). Handover: project note `claude/55_Overnight_Round15_20261026.md`.
+
+**Wil's notes of 25 Oct (20:54), built in Round 15:** Lector delete search; not-relevant pages hidden
+and removable; fuzzy species suggestions; free-text (author/place) searches via BHL PublicationSearch;
+user tags; colour-blind-safe status marks with a key; reading-list filters and sorts; Translate (Google
+Translate in the browser); extracted records (form, list, CSV for `import_contributed.py`); BHL key guide;
+installer files (`packaging/lector`, not yet built); manual with annotated screenshots
+(`Lector/docs/manual`). Observatum data reference column (migration `scripts/add_data_reference.py`, not
+yet applied). Map export preview with counts, first/last record, decades and phenology (off by default).
+
+**Open from Round 15 (decide or check):**
+- BHL PublicationSearch parameter names (`searchterm`, `searchtype=F`) were taken from the rbhl package;
+  check with a live search. Results are books/articles, stored as pages with negative ids and no text.
+- `import_contributed.py` reads .xlsx only: the Lector CSV must be saved as a workbook first, and the
+  reference is given with `--reference`, not read from the column.
+- "All columns" client exports now include `data_reference` (a private note such as "Joe Bloggs, data
+  to 1990"): leave it in or keep it out of client exports? (review MINOR)
+- Lector backups go to `data\_backups` (as `upgrade.py` always has); CLAUDE.md names
+  `C:\BiologicalSoftware_Backups\reference\`: which?
+- A Reference edit is not counted as an iRecord edit (review: correct, the sync never writes it).
+- Imports stamp the Reference on new rows only; rows an import updates keep theirs.
+- Recorders on the export page are names as given (split on ";", "&", "and"); "Lyons, G." and
+  "Graeme Lyons" count twice.
+- Speed, measured after the converter runs on the PC: a third level of detail (visible: small woods go at
+  wide views) and tiled drawing only if still needed. Database speed-ups (one kept connection, batched
+  importer lookups, Examen's lazy openpyxl) are a separate reviewed round (`speed_report` D1, D2, S1).
+- Python 3.14.0 on the PC: update to 3.14.7 (the GC crash; Round 15 also removed the crash site).
 
 ## Next (24 Oct): the plan, and what is open
 

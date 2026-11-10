@@ -11,6 +11,7 @@ import json
 import os
 
 import pytest
+from _map_sync import sync
 
 import paths
 
@@ -147,7 +148,7 @@ def tab(qapp):
     QCoreApplication.setOrganizationName("ObservatumTests_mapfix_20261010")
     QSettings().clear()
     from src.views.mapping.mapping_tab import MappingTab
-    t = MappingTab()
+    t = sync(MappingTab())
     t.filter_panel.source_picker.set_sources("all")  # L8: tick boxes
     yield t
     QSettings().clear()

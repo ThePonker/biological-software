@@ -185,21 +185,3 @@ class UserProgress:
     recent_achievements: List[Achievement] = field(default_factory=list)
 
 
-@dataclass
-class NewAchievementNotification:
-    """Notification for a newly earned achievement."""
-    achievement: Achievement
-    timestamp: datetime = field(default_factory=datetime.now)
-    seen: bool = False
-    
-    @property
-    def title(self) -> str:
-        return self.achievement.name
-    
-    @property
-    def description(self) -> str:
-        return self.achievement.description
-    
-    @property
-    def achievement_type(self) -> AchievementType:
-        return self.achievement.achievement_type

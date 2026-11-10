@@ -20,6 +20,7 @@ import subprocess
 import sys
 
 import pytest
+from _sandbox_child import child_code
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -230,9 +231,11 @@ def window(qapp, monkeypatch):
     import src.views.main_window as m2
     monkeypatch.setattr(m2, "get_database", lambda: None)
 
+    monkeypatch.setattr(mw.MainWindow, "closeEvent", lambda self, e: e.accept())
     w = mw.MainWindow()
     w.connect_tab_signal()
     yield w, f
+    w.close()
     w.deleteLater()
 
 
@@ -378,7 +381,7 @@ def test_startup_does_not_import_pandas_or_lazy_tabs():
             "'src.views.stats.stats_reports_tab', 'src.views.main_window') if m in sys.modules))")
     env = dict(os.environ, PYTHONPATH=os.pathsep.join([ROOT, os.path.join(ROOT, "Observatum")]),
                QT_QPA_PLATFORM="offscreen", PYTHONIOENCODING="utf-8")
-    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, encoding="utf-8",
+    out = subprocess.run([sys.executable, "-c", child_code(code)], capture_output=True, text=True, encoding="utf-8",
                          env=env, cwd=ROOT, timeout=120)
     assert out.returncode == 0, out.stderr
     assert out.stdout.strip().splitlines()[-1] == "['src.views.main_window']"

@@ -200,6 +200,7 @@ def test_loader_status_line_and_timing(qapp):
     assert marks[:2] == ["loaded: scheme (background)", "loaded: stats (background)"]
     assert marks[-1].startswith("everything ready (longest GUI pause ")
     win.close()
+    win.deleteLater()
 
 
 # ── the lazy pages ──────────────────────────────────────────────────

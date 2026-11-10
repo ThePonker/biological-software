@@ -917,7 +917,6 @@ class ObservationValidationWorker(QThread):
     def _build_validated_rows(self, df: pd.DataFrame) -> List[ObservationImportRow]:
         """Build final ObservationImportRow objects from DataFrame."""
         validated = []
-        total = len(df)
 
         for idx, row_data in df.iterrows():
             if self._cancelled:

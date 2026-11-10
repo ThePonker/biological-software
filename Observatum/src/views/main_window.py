@@ -411,7 +411,7 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
                 except (ValueError, IndexError):
                     continue
             self.observation_tab._show_list(filtered)   # dims and counts by the switches
-            self.statusBar().showMessage(f"Showing {len(filtered):,} records for {month_name} (all years)", 5000)
+            self.statusBar().showMessage(f"Showing {len(filtered):,} record{'' if len(filtered) == 1 else 's'} for {month_name} (all years)", 5000)
 
     def _navigate_to_observation_tab_by_project(self, project: str, client: str = ""):
         """Observation Data showing only one commercial project's records (Commercial Reports).
@@ -444,7 +444,7 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
         species = len({getattr(o, 'species_name', '') for o in records if getattr(o, 'species_name', '')})
         self.observation_tab._update_stats(len(records), species)
         label = (project or '(no project)') + (f' \u2014 {client}' if client else '')
-        self.statusBar().showMessage(f"Showing {len(records):,} records for {label}", 8000)
+        self.statusBar().showMessage(f"Showing {len(records):,} record{'' if len(records) == 1 else 's'} for {label}", 8000)
 
     def _open_data_entry_for_project(self, project: str, client: str = "", embargo_until: str = ""):
         """Data Entry on this project's job -- reopened, or created -- from Commercial Reports."""
@@ -1207,7 +1207,8 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
         try:
             import sqlite3 as _sqlite3
             import paths as _paths
-            for _db in (_paths.OBSERVATUM_DB, _paths.UKSI_DB):
+            from shared.away_mode import away_active as _away_active
+            for _db in (() if _away_active() else (_paths.OBSERVATUM_DB, _paths.UKSI_DB)):
                 _conn = _sqlite3.connect(str(_db))
                 _conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
                 _conn.close()

@@ -45,6 +45,18 @@ def decode_gpkg(blob):
     return shapely.wkb.loads(blob[8 + _ENVELOPE[ind]:])
 
 
+def _srs_is_bng(conn, srs_id):
+    """True when the GeoPackage's own definition of `srs_id` is the British National Grid: BGS's
+    625k GeoPackage registers it under its own id (100000) with the BNG text (25 Oct 2026)."""
+    from scripts.env_shp import _prj_is_bng
+    try:
+        row = conn.execute("SELECT definition FROM gpkg_spatial_ref_sys WHERE srs_id=?",
+                           (srs_id,)).fetchone()
+    except sqlite3.Error:               # no srs table: only 27700 itself is accepted
+        return False
+    return bool(row and row[0] and _prj_is_bng(row[0]))
+
+
 def table_info(conn, table):
     """(geometry column, type column or None, name column or None, canonical table name).
 
@@ -60,7 +72,7 @@ def table_info(conn, table):
                      "WHERE lower(table_name)=lower(?)", (table,)).fetchone()
     if not g:
         raise ValueError(f"table {table} has no geometry column registered")
-    if g[1] != 27700:
+    if g[1] != 27700 and not _srs_is_bng(conn, g[1]):
         raise ValueError(f"table {table} is in srs {g[1]}, not 27700 - refusing")
     cols = {r[1].lower(): r[1] for r in conn.execute(f'PRAGMA table_info("{real}")')}
     first = lambda names: next((cols[c] for c in names if c in cols), None)    # noqa: E731
@@ -141,3 +153,35 @@ def point_features(conn, tables):
                 feats.append({"bbox": [e, n, e, n], "pt": [e, n], "n": name, "t": typ})
     feats.sort(key=lambda f: (place_classes.rank_of(f["t"]), f["n"], f["pt"]))
     return feats, rows
+
+
+# ---- any table, any columns (build_env_layers.py: designated sites, geology, habitats ...) ----
+def feature_tables(conn):
+    """The names of the GeoPackage's feature tables."""
+    return [r[0] for r in conn.execute(
+        "SELECT table_name FROM gpkg_contents WHERE lower(data_type) IN ('features', '')"
+        " OR data_type IS NULL")]
+
+
+def table_columns(conn, table):
+    """The table's column names, as stored."""
+    return [r[1] for r in conn.execute(f'PRAGMA table_info("{table}")')]
+
+
+def count_all(conn, table):
+    gcol, _t, _n, real = table_info(conn, table)          # also refuses a srs other than 27700
+    return conn.execute(f'SELECT COUNT(*) FROM "{real}"').fetchone()[0]
+
+
+def read_attrs(conn, table, columns):
+    """Yield (geometry, [value of each of `columns`]) for every row; refuses a srs other than 27700."""
+    gcol, _t, _n, real = table_info(conn, table)
+    sel = ", ".join([f'"{gcol}"'] + [f'"{c}"' for c in columns])
+    cur = conn.execute(f'SELECT {sel} FROM "{real}"')
+    while True:
+        chunk = cur.fetchmany(2000)
+        if not chunk:
+            return
+        for row in chunk:
+            if row[0] is not None:
+                yield decode_gpkg(row[0]), list(row[1:])

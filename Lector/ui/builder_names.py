@@ -7,6 +7,12 @@ from PySide6.QtWidgets import (QCheckBox, QFrame, QHBoxLayout, QLabel, QLineEdit
 from Lector.ui import style as S
 from Lector.ui.common import clear_layout
 
+SPECIES_INTRO = ("BHL indexes names exactly as printed, so older names find older papers. Each "
+                 "name is checked before it is used; a name UKSI gives for this species but "
+                 "which looks wrong is held back (not ticked) with the reason.")
+TEXT_INTRO = ("Free-text search: each term (an author, a place...) is sent to BHL as it is "
+              "typed, with no UKSI name checks. BHL answers with whole books and articles "
+              "whose catalogue entry or text mentions the term, not with pages.")
 ORIGIN_TEXT = {"accepted": "accepted name", "uksi_synonym": "UKSI synonym",
                "user_added": "added by you"}
 
@@ -17,10 +23,9 @@ class NamesPanel(S.Card):
 
     def __init__(self):
         super().__init__("2. Names to search")
-        self.body.addWidget(S.label(
-            "BHL indexes names exactly as printed, so older names find older papers. Each "
-            "name is checked before it is used; a name UKSI gives for this species but which "
-            "looks wrong is held back (not ticked) with the reason.", "muted", wrap=True))
+        self.intro = S.label(SPECIES_INTRO, "muted", wrap=True)
+        self.body.addWidget(self.intro)
+        self.text_mode = False
         self.box = QFrame()
         self.box.setObjectName("namesBox")
         self.box.setStyleSheet(f"QFrame#namesBox {{ border: 1px solid {S.c('border')};"
@@ -52,6 +57,16 @@ class NamesPanel(S.Card):
         self._defaults = dict(defaults or {n["name"]: n.get("included", True) for n in names})
         self._rebuild()
 
+    def set_text_mode(self, on):
+        """Free-text terms instead of species names (no UKSI checks, publications)."""
+        self.text_mode = on
+        self.title.setText("2. Terms to search" if on else "2. Names to search")
+        self.intro.setText(TEXT_INTRO if on else SPECIES_INTRO)
+        self.add_edit.setPlaceholderText("Add a term, e.g. an author or a place" if on else
+                                         "Add a name, e.g. an original combination")
+        self.remember.setVisible(not on)
+        self._rebuild()
+
     def names(self):
         return [dict(n) for n in self._names]
 
@@ -78,13 +93,16 @@ class NamesPanel(S.Card):
     # --- rows -----------------------------------------------------------------
     def _count_text(self, name):
         n = self._counts.get(name)
-        return "not counted yet" if n is None else f"{n:,} page{'s' if n != 1 else ''}"
+        unit = "publication" if self.text_mode else "page"
+        return "not counted yet" if n is None else f"{n:,} {unit}{'s' if n != 1 else ''}"
 
     def _rebuild(self):
         clear_layout(self.rows_layout)
         self._checks = {}
         if not self._names:
-            empty = S.label("Find a species first: its names appear here.", "muted")
+            empty = S.label("Type the terms above and press Use terms: they appear here."
+                            if self.text_mode else
+                            "Find a species first: its names appear here.", "muted")
             empty.setContentsMargins(12, 10, 12, 10)
             self.rows_layout.addWidget(empty)
         for i, n in enumerate(self._names):
@@ -150,7 +168,9 @@ class NamesPanel(S.Card):
         if not name or name.lower() in {n["name"].lower() for n in self._names}:
             return False
         self._names.append({"name": name, "origin": "user_added", "included": True,
-                            "held_back_reason": None})
+                            "held_back_reason": None, "accepted_name": name} if self.text_mode
+                           else {"name": name, "origin": "user_added", "included": True,
+                                 "held_back_reason": None})
         self._rebuild()
         self.changed.emit()
         return True

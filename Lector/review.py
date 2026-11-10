@@ -30,8 +30,10 @@ def search_rows(conn, sid, states=("current", "kept")):
         f"SELECT p.*, sp.state, sp.matched_names AS sp_names,"
         f" GROUP_CONCAT(DISTINCT h.query_name) AS matched_names, MAX(h.tvk) AS tvk,"
         f" GROUP_CONCAT(DISTINCT h.review_status) AS statuses, MAX(h.notes) AS notes,"
-        f" MAX(h.review_tag) AS review_tag, MAX(h.reviewed_at) AS reviewed_at"
+        f" MAX(h.review_tag) AS review_tag, MAX(h.reviewed_at) AS reviewed_at,"
+        f" MAX(fr.started) AS found_at"
         f" FROM search_pages sp JOIN pages p USING(page_id)"
+        f" LEFT JOIN runs fr ON fr.run_id=sp.first_run"
         f" LEFT JOIN page_hits h ON h.page_id=p.page_id AND h.accepted_name IN ({_marks(len(accepted))})"
         f" WHERE sp.search_id=? AND sp.state IN ({_marks(len(states))})"
         f" GROUP BY p.page_id", list(accepted) + [sid] + list(states)).fetchall()
@@ -72,6 +74,8 @@ def queue(conn, sid, status=None, order="year", include_withdrawn=False):
     rows, accepted = search_rows(conn, sid, states)
     main, index, no_match = build_entries(rows, order == "journal", accepted)
     new_ids = _runs_new_pages(conn, sid)
+    from . import tags
+    tag_labels = tags.label_map(conn)
     items = []
     for e in sorted(main + index + no_match, key=lambda e: _order(e.row, order)):
         r = e.row
@@ -92,6 +96,8 @@ def queue(conn, sid, status=None, order="year", include_withdrawn=False):
             "copies": [_short(c) for c in e.copies],
             "bhl_url": r["page_url"], "matched_names": r["matched_names"],
             "review_status": r["review_status"], "review_tag": r["review_tag"],
+            "review_tag_label": tag_labels.get(r["review_tag"], r["review_tag"]),
+            "journal": r["title"], "found_at": r.get("found_at"),
             "notes": r["notes"] or "", "state": r["state"], "has_text": r["fetched_at"] is not None,
             "copyright_note": copyright_flag(r), "new_in_last_run": r["page_id"] in new_ids,
         })
@@ -121,7 +127,9 @@ def set_review(conn, sid, page_id, status=None, tag=None, notes=None):
     if status is not None and status not in REVIEW_STATUSES:
         raise ValueError(f"status must be one of {REVIEW_STATUSES}")
     if tag not in (None, "") and tag not in REVIEW_TAGS:
-        raise ValueError(f"tag must be one of {REVIEW_TAGS}")
+        from . import tags
+        if not tags.exists(conn, tag):
+            raise ValueError(f"tag must be one of {REVIEW_TAGS} or one of your own tags")
     accepted = saved.accepted_names(conn, sid)
     sets, vals = ["reviewed_at=?"], [now()]
     if status is not None:

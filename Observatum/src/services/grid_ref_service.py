@@ -97,35 +97,3 @@ class GridRefService:
         
         return precision_map.get(digit_count)
     
-    @classmethod
-    def format_grid_ref(cls, grid_ref: str, target_precision: int = 6) -> Optional[str]:
-        """
-        Format a grid reference to a target precision.
-        
-        Args:
-            grid_ref: Grid reference string
-            target_precision: Number of digits (2, 4, 6, 8, 10)
-            
-        Returns:
-            Formatted grid reference, or None if invalid
-        """
-        if not cls.validate(grid_ref):
-            return None
-        
-        gr = grid_ref.replace(' ', '').upper()
-        letters = gr[:2]
-        digits = gr[2:]
-        
-        current_len = len(digits)
-        target_len = target_precision
-        
-        if target_len > current_len:
-            # Cannot increase precision
-            return None
-        
-        # Truncate to target precision
-        half = target_len // 2
-        easting = digits[:current_len // 2][:half]
-        northing = digits[current_len // 2:][:half]
-        
-        return f"{letters}{easting}{northing}"

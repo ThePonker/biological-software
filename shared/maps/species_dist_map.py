@@ -12,11 +12,12 @@ from __future__ import annotations
 import sqlite3
 from typing import Optional
 
-from PySide6.QtCore import Qt, QPointF
-from PySide6.QtGui import QPainter, QPen, QBrush, QColor, QPolygonF
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QPainter, QPen, QBrush, QColor
 from PySide6.QtWidgets import QWidget
 
 from shared.maps._theme import theme
+from shared.maps.ring_paths import rings_path
 from shared.maps.vc_map import load_vc_polygons
 
 _DEDUP_M = 1000  # collapse points to a 1 km grid so dots don't overplot
@@ -290,6 +291,17 @@ class DistributionMiniMap(PanZoomMixin, QWidget):
         offy = pad + (availh - (maxN - minN) * s) / 2.0   # centre vertically
         return offx + (e - minE) * s, self.height() - offy - (n - minN) * s
 
+    def _to_px_many(self, e, n):
+        """_to_px for numpy arrays of eastings and northings (the same sums): (x, y) arrays."""
+        minE, minN, maxE, maxN = self._extent
+        pad = 5
+        availw = self.width() - 2 * pad
+        availh = self.height() - 2 * pad
+        s = min(availw / (maxE - minE), availh / (maxN - minN))
+        offx = pad + (availw - (maxE - minE) * s) / 2.0
+        offy = pad + (availh - (maxN - minN) * s) / 2.0
+        return offx + (e - minE) * s, self.height() - offy - (n - minN) * s
+
     def _build_land_pixmap(self):
         from PySide6.QtGui import QPixmap
         pm = QPixmap(self.size())
@@ -299,23 +311,19 @@ class DistributionMiniMap(PanZoomMixin, QWidget):
         # land fill + coastline
         land = QColor(self._LAND)
         coast = QColor(self._COAST)
-        polys = []
-        for _vc, rings in self._rings.items():
-            for ring in rings:
-                polys.append(QPolygonF([QPointF(*self._to_px(e, n)) for e, n in ring]))
+        all_rings = [ring for rings in self._rings.values() for ring in rings]
+        fill = rings_path(all_rings, self._to_px_many)                     # one path, not a polygon a ring
+        edge = rings_path(all_rings, self._to_px_many, closed=False)
         p.setPen(QPen(land, 0.8)); p.setBrush(QBrush(land))
-        for poly in polys:
-            p.drawPolygon(poly)
+        p.drawPath(fill)
         # vice-county boundaries (thin) -- fade in a touch with zoom
         z = getattr(self, "_zoom", 1.0)
         vc_w = 0.35 + 0.20 * min(z, 4.0)
         p.setPen(QPen(QColor(self._VCLINE), vc_w)); p.setBrush(Qt.BrushStyle.NoBrush)
-        for poly in polys:
-            p.drawPolyline(poly)
+        p.drawPath(edge)
         # coastline on top of the land edge
         p.setPen(QPen(coast, 0.7)); p.setBrush(Qt.BrushStyle.NoBrush)
-        for poly in polys:
-            p.drawPolyline(poly)
+        p.drawPath(edge)
         # faint national grid: 100 km always; 10 km fades in when zoomed
         self._draw_grid(p, z)
         p.end()

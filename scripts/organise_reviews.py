@@ -6,7 +6,7 @@
   data\\reviews\\_archive\\2026-03_prep\\   the March hand-made CSVs
 
 Each file is COPIED, the copy checked against the original by SHA-256, and only
-then is the original removed. Where the same file exists in both Downloads and
+then is the original MOVED to a _filed folder beside it (never deleted). Where the same file exists in both Downloads and
 data\\reviews, the two are compared: identical -> one kept; different -> both
 kept (the Downloads one with a suffix) and flagged.
 
@@ -50,6 +50,19 @@ def sha(p):
         for b in iter(lambda: f.read(1 << 20), b""):
             h.update(b)
     return h.hexdigest()
+
+
+def file_away(p):
+    """Never delete: move the original into a _filed folder beside it (name kept; a
+    timestamp is added if that name is already there). Returns the new path."""
+    d = os.path.join(os.path.dirname(p), "_filed")
+    os.makedirs(d, exist_ok=True)
+    dest = os.path.join(d, os.path.basename(p))
+    if os.path.exists(dest):
+        stem, ext = os.path.splitext(os.path.basename(p))
+        dest = os.path.join(d, f"{stem}_{__import__('datetime').datetime.now():%Y%m%d_%H%M%S}{ext}")
+    os.replace(p, dest)
+    return dest
 
 
 print("Organise status reviews  --  " + ("APPLY" if APPLY else "DRY RUN"))
@@ -124,9 +137,9 @@ for src, dst, extra in moves:
     if sha(dst) != sha(src):
         sys.exit(f"  x copy of {src} does not verify -- original kept. Moved so far: {done}")
     for p in [src] + extra:
-        os.remove(p)
+        file_away(p)
     done += 1
-    print(f"  ok {os.path.relpath(dst, ROOT)}  (verified, original removed)")
+    print(f"  ok {os.path.relpath(dst, ROOT)}  (verified, original moved to _filed)")
 print(f"\n{done} files moved and verified.")
 for folder in sorted(os.listdir(R)):
     d = os.path.join(R, folder)

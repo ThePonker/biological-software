@@ -83,11 +83,6 @@ class ThemeManager(QObject):
         return f'{size}pt'
     
     @property
-    def current_theme(self) -> str:
-        """Get the current theme name."""
-        return self._name
-    
-    @property
     def available_themes(self) -> list:
         """Get list of available theme names."""
         return ['Naturalist']
@@ -104,14 +99,6 @@ class ThemeManager(QObject):
     # =========================================================================
     # Preset Styles - Common component styles
     # =========================================================================
-    
-    def card_style(self) -> str:
-        """Get card/panel style."""
-        return f"""
-            background-color: {self.get('surface')};
-            border: 1px solid {self.get('border')};
-            border-radius: {self.get('radius_lg')};
-        """
     
     def button_primary_style(self) -> str:
         """Get primary button style (Moss Green - Save/Add/Create).
@@ -329,72 +316,6 @@ class ThemeManager(QObject):
             }}
             QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
                 width: 0;
-            }}
-        """
-    
-    def sidebar_button_style(self) -> str:
-        """Get sidebar navigation button style."""
-        return f"""
-            QPushButton {{
-                text-align: left;
-                padding: 10px 12px;
-                border: none;
-                border-radius: {self.get('radius_md')};
-                background: transparent;
-                color: {self.get('text_secondary')};
-                font-size: {self.font_size('base')};
-            }}
-            QPushButton:hover {{
-                background-color: {self.get('hover')};
-            }}
-            QPushButton:checked {{
-                background-color: {self.get('success_bg')};
-                color: {self.get('success')};
-                font-weight: 600;
-            }}
-        """
-    
-    def tab_button_style(self, accent_color: str = None) -> str:
-        """Get tab/view selector button style."""
-        accent = accent_color or self.get('primary')
-        accent_bg = self.get('primary_bg')
-        accent_text = self.get('primary_dark')
-        
-        return f"""
-            QPushButton {{
-                padding: 6px 12px;
-                border: none;
-                border-radius: {self.get('radius_sm')};
-                background: transparent;
-                color: {self.get('text_secondary')};
-                font-size: {self.font_size('sm')};
-            }}
-            QPushButton:hover {{
-                background-color: {self.get('hover')};
-            }}
-            QPushButton:checked {{
-                background-color: {accent_bg};
-                color: {accent_text};
-                font-weight: 600;
-            }}
-        """
-    
-    def group_box_style(self) -> str:
-        """Get QGroupBox style."""
-        return f"""
-            QGroupBox {{
-                font-weight: 600;
-                color: {self.get('text_primary')};
-                border: 1px solid {self.get('border')};
-                border-radius: {self.get('radius_md')};
-                margin-top: 12px;
-                padding-top: 8px;
-            }}
-            QGroupBox::title {{
-                subcontrol-origin: margin;
-                left: 12px;
-                padding: 0 8px;
-                background-color: {self.get('background')};
             }}
         """
     

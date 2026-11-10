@@ -68,7 +68,12 @@ def main(argv=None) -> int:
     from PySide6.QtWidgets import QApplication
     from DataEntry.data_entry_widget import DataEntryWidget
 
+    from shared import crash_log             # data\logs\crash_dataentry_<month>.log
+    crash_log.install("dataentry")
+    from shared import light_scheme          # always light, even on a dark-mode PC
+    light_scheme.prepare()
     app = QApplication.instance() or QApplication(sys.argv)
+    light_scheme.install(app)
     from shared.settings_store import APP, ORG, merge_flauna_store_once
     app.setOrganizationName(ORG)          # the same store as Observatum
     app.setApplicationName(APP)

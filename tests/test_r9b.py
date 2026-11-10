@@ -405,7 +405,9 @@ def test_real_copy_dry_run_finds_the_irecord_copies():
         p = m.plan(ro)
     finally:
         ro.close()
-    assert 30000 <= len(p["copies"]) <= 40000              # 34,121 on the 10 Oct copy
+    # a sanity bound, not a pin: the live number of copies moves with every data script
+    # (34,121 on the 10 Oct copy)
+    assert 10000 <= len(p["copies"]) <= 100000
     assert p["datasets"].most_common(1)[0][0] == "Longhorn beetle (Cerambycidae) data from iRecord"
 
 

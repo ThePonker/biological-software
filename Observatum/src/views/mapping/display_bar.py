@@ -15,14 +15,14 @@ from typing import List, Tuple
 
 from PySide6.QtCore import QSettings, Qt, Signal
 from PySide6.QtGui import QAction
-from PySide6.QtWidgets import (QCheckBox, QComboBox, QFrame, QHBoxLayout, QLabel, QMenu,
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QFrame, QHBoxLayout, QLabel,
                                QSizePolicy, QSlider, QToolButton, QWidget)
 
-from shared.maps import layers as map_layers
+from shared.maps import layer_opacity, layers as map_layers
 
 from ...services.map_square_service import BAND_PRESET_LABELS
 from ...themes import theme
-from .layer_colours import LayerColoursDialog
+from .layers_window import LayersWindow
 from .square_style import STYLES
 
 VC_LABELS_SETTING = "mapping/vc_labels"      # R9-5: VC numbers / names on the map (default on)
@@ -62,7 +62,8 @@ def saved_square_opacity() -> int:
 def saved_layers() -> set:
     """The Layers menu switches that are ticked (layers.TOGGLES keys): remembered, else the
     defaults. The batch maps use this too."""
-    return {t.key for t in map_layers.TOGGLES if _saved(LAYERS_SETTING + t.key, t.default)}
+    return {t.key for t in map_layers.visible_toggles()
+            if _saved(LAYERS_SETTING + t.key, t.default)}
 
 
 def _save(key: str, on: bool):
@@ -203,37 +204,41 @@ class MapDisplayBar(QFrame):
         self.vc_boundaries_changed.emit(bool(on))
 
     def _add_layers_menu(self, lay, lab_style: str):
-        """"Layers ▾": the map's background layers (woodland, towns, rivers and lakes, main
-        roads), each ticked or not and remembered; "Reset to defaults" at the bottom."""
+        """"Layers": opens the Layers window (layers_window.py). The switches live here as
+        checkable actions (in no menu): the window's tick boxes mirror them, and they are what
+        is saved, signalled and read by layers() / saved_layers()."""
         t = theme()
         self.layers_button = QToolButton()
-        self.layers_button.setText("Layers \u25be")
-        self.layers_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.layers_button.setText("Layers")
         self.layers_button.setStyleSheet(
             f"QToolButton {{ {lab_style} border: 1px solid {t.get('border')}; "
-            f"border-radius: 4px; padding: 2px 8px; background: {t.get('surface')}; }}"
-            "QToolButton::menu-indicator { image: none; width: 0px; }")
+            f"border-radius: 4px; padding: 2px 8px; background: {t.get('surface')}; }}")
         self.layers_button.setToolTip("Background layers under the squares, on the map and on "
                                       "the atlas PNG. Remembered.")
-        self.layers_menu = QMenu(self.layers_button)
-        self.layers_menu.setToolTipsVisible(True)
-        self.layer_actions = {}
+        self.layers_button.clicked.connect(self.show_layers_window)
+        self._layers_window, self._map, self.layer_actions = None, None, {}
         ticked = saved_layers()
-        for tg in map_layers.TOGGLES:
-            act = QAction(tg.label, self.layers_menu)
+        for tg in map_layers.visible_toggles():
+            act = QAction(tg.label, self)
             act.setCheckable(True)
             act.setChecked(tg.key in ticked)
             act.toggled.connect(lambda on, key=tg.key: self._on_layer(key, on))
-            self.layers_menu.addAction(act)
             self.layer_actions[tg.key] = act
-        self.layers_menu.addSeparator()
-        self.layers_colours = self.layers_menu.addAction("Colours\u2026")
-        self.layers_colours.triggered.connect(self.edit_layer_colours)
-        self.layers_reset = self.layers_menu.addAction("Reset to defaults")
-        self.layers_reset.triggered.connect(self.reset_layers)
-        self.layers_button.setMenu(self.layers_menu)
         lay.addWidget(self.layers_button)
 
+    def layers_window(self) -> LayersWindow:
+        """The Layers window, made on first use (its parent is the tab's window then)."""
+        if self._layers_window is None:
+            self._layers_window = LayersWindow(self, self.window())
+        return self._layers_window
+
+    def show_layers_window(self):
+        w = self.layers_window()
+        w.show()
+        w.raise_()
+
+    def attached_map(self):
+        return self._map
     def layers(self) -> set:
         """The ticked Layers switches."""
         return {k for k, a in self.layer_actions.items() if a.isChecked()}
@@ -243,31 +248,34 @@ class MapDisplayBar(QFrame):
         self.layers_changed.emit(self.layers())
 
     def edit_layer_colours(self):
-        """Layers > Colours...: the small dialog (modal); the map repaints as each is chosen."""
-        dlg = LayerColoursDialog(self)
-        dlg.colours_changed.connect(self.layer_colours_changed)
-        dlg.exec()
+        """Colours are chosen in the Layers window now: open it."""
+        self.show_layers_window()
 
     def reset_layers(self):
-        """Every Layers switch back to its default (rivers and lakes on, the rest off) and
-        every layer colour back to the theme's."""
+        """Every Layers switch back to its default (rivers and lakes on, the rest off), every
+        layer colour back to the theme's and every opacity to its style's."""
         map_layers.reset_colours()
-        for tg in map_layers.TOGGLES:
+        layer_opacity.reset_opacities()
+        for tg in map_layers.visible_toggles():
             act = self.layer_actions[tg.key]
             act.blockSignals(True)
             act.setChecked(tg.default)
             act.blockSignals(False)
             _save(LAYERS_SETTING + tg.key, tg.default)
+        if self._layers_window is not None:
+            self._layers_window.sync()
         self.layer_colours_changed.emit()
         self.layers_changed.emit(self.layers())
 
     def set_layers_available(self, keys):
         """An item whose layer file is not installed is greyed out, with the reason."""
-        for tg in map_layers.TOGGLES:
+        for tg in map_layers.visible_toggles():
             act = self.layer_actions[tg.key]
             ok = tg.key in keys
             act.setEnabled(ok)
             act.setToolTip("" if ok else map_layers.NOT_INSTALLED)
+        if self._layers_window is not None:
+            self._layers_window.sync()
 
     def _add_opacity_slider(self, lay, lab_style: str):
         """"Square opacity" 0-100 % (R8), remembered."""
@@ -326,6 +334,7 @@ class MapDisplayBar(QFrame):
         self.districts_changed.connect(m.set_districts)
         m.set_districts(self.districts())
         self.set_districts_available(m.has_districts())
+        self._map = m
         if hasattr(m, "set_layers"):
             self.layers_changed.connect(m.set_layers)
             m.set_layers(self.layers())

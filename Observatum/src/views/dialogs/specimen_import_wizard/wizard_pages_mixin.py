@@ -403,7 +403,6 @@ class WizardPagesMixin:
     
     def _get_radio_style(self) -> str:
         """Get consistent radio button styling."""
-        t = theme()
         return f"""
             QRadioButton {{
                 spacing: 6px;
@@ -412,7 +411,6 @@ class WizardPagesMixin:
     
     def _get_checkbox_style(self) -> str:
         """Get consistent checkbox styling."""
-        t = theme()
         return f"""
             QCheckBox {{
                 spacing: 6px;

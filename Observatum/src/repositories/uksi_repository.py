@@ -20,7 +20,6 @@ Usage:
 """
 
 import sqlite3
-from pathlib import Path
 from typing import List, Dict, Any, Optional
 import paths
 from shared.db_open import connect_ro  # D9: reference data, read-only
@@ -31,13 +30,6 @@ try:
     USE_CONFIG = True
 except ImportError:
     USE_CONFIG = False
-
-
-def _find_data_dir() -> Path:
-    """Find the data directory when config is not available."""
-    this_file = Path(__file__).resolve()
-    project_root = this_file.parent.parent.parent
-    return project_root / "data"
 
 
 class UKSIRepository:
@@ -661,32 +653,6 @@ class UKSIRepository:
         """)
         return [row['scientific_name'] for row in rows if row['scientific_name']]
     
-    def get_genera(self, family: Optional[str] = None) -> List[str]:
-        """
-        Get list of distinct genera, optionally filtered by family.
-        
-        Args:
-            family: Filter to specific family (optional)
-            
-        Returns:
-            Sorted list of genus names
-        """
-        if family:
-            rows = self._execute("""
-                SELECT DISTINCT scientific_name
-                FROM taxa
-                WHERE rank = 'Genus' AND family = ?
-                ORDER BY scientific_name
-            """, (family,))
-        else:
-            rows = self._execute("""
-                SELECT DISTINCT scientific_name
-                FROM taxa
-                WHERE rank = 'Genus'
-                ORDER BY scientific_name
-            """)
-        return [row['scientific_name'] for row in rows if row['scientific_name']]
-    
     # =========================================================================
     # HIERARCHY NAVIGATION
     # =========================================================================
@@ -799,46 +765,3 @@ class UKSIRepository:
     # VALIDATION
     # =========================================================================
     
-    def validate_tvk(self, tvk: str) -> bool:
-        """
-        Check if a TVK exists in UKSI.
-        
-        Args:
-            tvk: The TaxonVersionKey to validate
-            
-        Returns:
-            True if valid, False otherwise
-        """
-        rows = self._execute(
-            "SELECT 1 FROM taxa WHERE tvk = ? LIMIT 1",
-            (tvk,)
-        )
-        return len(rows) > 0
-    
-    def resolve_synonym(self, name: str) -> Optional[str]:
-        """
-        Resolve a synonym to its accepted TVK.
-        
-        Args:
-            name: The scientific name (possibly a synonym)
-            
-        Returns:
-            The accepted TVK or None if not found
-        """
-        # First check if it's an accepted name
-        rows = self._execute(
-            "SELECT tvk FROM taxa WHERE scientific_name = ? LIMIT 1",
-            (name,)
-        )
-        if rows:
-            return rows[0]['tvk']
-        
-        # Check synonyms
-        rows = self._execute(
-            "SELECT tvk FROM synonyms WHERE synonym = ? LIMIT 1",
-            (name,)
-        )
-        if rows:
-            return rows[0]['tvk']
-        
-        return None

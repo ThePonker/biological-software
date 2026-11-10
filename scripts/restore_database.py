@@ -15,8 +15,8 @@ What it does
 1. Refuses to run if observatum.db looks to be in use.
 2. Verifies the chosen backup with PRAGMA integrity_check BEFORE touching anything.
 3. Takes a safety copy of the current database via the SQLite backup API.
-4. Removes stale -wal / -shm side-files.
-5. Copies the backup into place and verifies it again.
+4. Moves stale -wal / -shm side-files to the backup folder's _expired folder (never deletes).
+5. Copies the backup into place (via a temporary file, then os.replace) and verifies it again.
 
 Nothing is overwritten until the source has been checked.
 """
@@ -30,7 +30,10 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, _ROOT)
 import paths  # noqa: E402
 
-BACKUP_ROOT = r"C:\BiologicalSoftware_Backups"
+from shared import backup_service  # noqa: E402
+from shared.away_mode import refuse_if_away  # noqa: E402
+
+BACKUP_ROOT = backup_service.BACKUP_ROOT
 
 
 def integrity_ok(path: str) -> bool:
@@ -63,11 +66,14 @@ def describe(path: str) -> str:
 
 def in_use(path: str) -> bool:
     """Best-effort check that nothing holds the database."""
-    for ext in ("-wal", "-shm"):
-        if os.path.exists(path + ext) and os.path.getsize(path + ext) > 0:
-            return True
+    if not os.path.exists(path):           # never create an empty database by looking
+        return False
+    # Unsaved changes sit in a non-empty -wal. An -shm alone is left by any closed reader
+    # in WAL mode, so it proves nothing; the lock test below decides.
+    if os.path.exists(path + "-wal") and os.path.getsize(path + "-wal") > 0:
+        return True
     try:                                   # an exclusive lock fails if it is open
-        c = sqlite3.connect(path, timeout=1)
+        c = sqlite3.connect(f"file:{path}?mode=rw", uri=True, timeout=1)
         c.execute("PRAGMA locking_mode = EXCLUSIVE")
         c.execute("BEGIN EXCLUSIVE")
         c.execute("COMMIT")
@@ -100,18 +106,19 @@ def choose_backup() -> str:
 
 
 def main() -> int:
+    refuse_if_away("restore_database")
     live = str(paths.OBSERVATUM_DB)
 
     print("\nRestore observatum.db")
     print("=" * 60)
     print(f"  live database: {live}")
-    if os.path.exists(live):
-        print(f"  currently:     {describe(live)}")
-
+    # Checked before describe(): a read-only look at a WAL database leaves a -shm behind.
     if in_use(live):
         print("\n  The database appears to be IN USE.")
         print("  Close Observatum (and any other tool using it) and run this again.")
         return 1
+    if os.path.exists(live):
+        print(f"  currently:     {describe(live)}")
 
     src = sys.argv[1] if len(sys.argv) > 1 else choose_backup()
     if not src:
@@ -150,20 +157,22 @@ def main() -> int:
             print("  stopping - nothing has been changed.")
             return 1
 
-    # clear stale side-files, then copy in
+    # move stale side-files aside (to _expired, never deleted), then copy in
     for ext in ("-wal", "-shm"):
         p = live + ext
         if os.path.exists(p):
-            try:
-                os.remove(p)
-                print(f"  removed stale {os.path.basename(p)}")
-            except OSError as e:
-                print(f"  could not remove {p}: {e}")
+            backup_service.BACKUP_ROOT = BACKUP_ROOT
+            backup_service._retire(p, "stale-restore")
+            if os.path.exists(p):
+                print(f"  could not move {p} aside")
                 print("  stopping - nothing has been changed.")
                 return 1
+            print(f"  moved stale {os.path.basename(p)} to {os.path.join(BACKUP_ROOT, backup_service.EXPIRED)}")
 
+    tmp = live + ".restoring"
     try:
-        shutil.copy2(src, live)
+        shutil.copy2(src, tmp)
+        os.replace(tmp, live)
     except Exception as e:
         print(f"\n  RESTORE FAILED: {e}")
         print(f"  your data is still in the safety copy: {safety}")

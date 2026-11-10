@@ -33,9 +33,16 @@ PAGE_COLUMNS = ("item_id", "title_id", "title", "volume", "year", "page_label",
 class LectorStore:
     def __init__(self, db_path=None, check_same_thread=True):
         db_path = Path(db_path or config.LECTOR_DB)
+        from shared.away_mode import away_active
+        from shared.db_open import AwayReadOnly, connect_rw
+        if away_active():
+            # Lector writes as it works (searches, pages, notes) and checks its schema on
+            # open, so it cannot run on a read-only copy.
+            raise AwayReadOnly("Away mode: Lector needs to write to lector.db and this is a "
+                               "read-only copy, so it cannot be opened here. Use it on the desktop.")
         db_path.parent.mkdir(parents=True, exist_ok=True)
         self.path = db_path
-        self.conn = sqlite3.connect(str(db_path), check_same_thread=check_same_thread)
+        self.conn = connect_rw(db_path, check_same_thread=check_same_thread)
         self.conn.row_factory = sqlite3.Row
         try:
             create_or_check(self.conn)
@@ -111,12 +118,13 @@ class LectorStore:
                 return []
             marks = ",".join("?" * len(ids))
             rows = self.conn.execute(
-                f"SELECT page_id FROM pages WHERE fetched_at IS NULL AND page_id IN ({marks})"
+                f"SELECT page_id FROM pages WHERE fetched_at IS NULL AND page_id > 0"   # < 0: free-text
+                f" AND page_id IN ({marks})"
                 " ORDER BY year, page_id", ids).fetchall()
             return [r["page_id"] for r in rows]
         rows = self.conn.execute(
             "SELECT DISTINCT p.page_id FROM pages p JOIN page_hits h USING(page_id)"
-            " WHERE h.accepted_name=? AND p.fetched_at IS NULL"
+            " WHERE h.accepted_name=? AND p.fetched_at IS NULL AND p.page_id > 0"
             " ORDER BY p.year, p.page_id", (accepted_name,)).fetchall()
         return [r["page_id"] for r in rows]
 

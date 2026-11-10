@@ -765,11 +765,6 @@ def get_achievements_by_group(group: str) -> list:
     return [a for a in ONE_TIME_ACHIEVEMENTS if a["group"] == group]
 
 
-def get_achievements_by_period(period: str) -> list:
-    """Return all achievements for a specific period (daily/annual)."""
-    return [a for a in ONE_TIME_ACHIEVEMENTS if a["period"] == period]
-
-
 def get_seal_colour(group: str) -> str:
     """Return the seal colour for a taxonomic group."""
     return SEAL_COLOURS.get(group, "#c9a227")

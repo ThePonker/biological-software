@@ -10,7 +10,7 @@ from . import config
 from .harvest import HarvestOptions
 from .store import now
 
-KINDS = ("species", "family", "list")
+KINDS = ("species", "family", "list", "text")   # text = free-text (author/place) search
 STATUSES = ("draft", "active")
 ORIGINS = ("accepted", "uksi_synonym", "user_added")
 
@@ -26,6 +26,20 @@ def _row(r):
     return dict(r) if r is not None else None
 
 
+def public_kind(row):
+    """A free-text search is stored as kind 'list' with text_search=1 (the version 2 CHECK on
+    kind cannot be widened in place); everywhere else it is kind 'text'."""
+    d = dict(row)
+    if d.get("text_search"):
+        d["kind"] = "text"
+    return d
+
+
+def is_text_search(conn, sid):
+    r = conn.execute("SELECT text_search FROM saved_searches WHERE search_id=?", (sid,)).fetchone()
+    return bool(r and r[0])
+
+
 # --- searches -------------------------------------------------------------
 def create_search(conn, name, target_name, target_tvk=None, kind="species", status="draft",
                   names=None, filters=None, notes=None):
@@ -35,8 +49,9 @@ def create_search(conn, name, target_name, target_tvk=None, kind="species", stat
         raise ValueError(f"status must be one of {STATUSES}")
     sid = conn.execute(
         "INSERT INTO saved_searches (name, target_tvk, target_name, kind, status, created,"
-        " updated, notes) VALUES (?,?,?,?,?,?,?,?)",
-        (name, target_tvk, target_name, kind, status, now(), now(), notes)).lastrowid
+        " updated, notes, text_search) VALUES (?,?,?,?,?,?,?,?,?)",
+        (name, target_tvk, target_name, "list" if kind == "text" else kind, status, now(),
+         now(), notes, int(kind == "text"))).lastrowid
     set_names(conn, sid, names if names is not None else
               [{"name": target_name, "origin": "accepted"}],
               default_accepted=(target_name, target_tvk))
@@ -49,6 +64,7 @@ def get_search(conn, sid):
     s = _row(conn.execute("SELECT * FROM saved_searches WHERE search_id=?", (sid,)).fetchone())
     if s is None:
         raise KeyError(f"No saved search {sid}")
+    s = public_kind(s)
     s["names"] = get_names(conn, sid)
     s["filters"] = get_filters(conn, sid)
     return s

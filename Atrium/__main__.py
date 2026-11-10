@@ -12,7 +12,12 @@ from Atrium.single_instance import SingleInstance
 
 
 def main():
+    from shared import crash_log             # data\logs\crash_atrium_<month>.log
+    crash_log.install("atrium")
+    from shared import light_scheme          # always light, even on a dark-mode PC
+    light_scheme.prepare()
     app = QApplication(sys.argv)
+    light_scheme.install(app)
     from shared.dialog_geometry import install as remember_dialog_sizes
     remember_dialog_sizes(app)                                   # every dialog keeps its size
     from Atrium.process_manager import _theme

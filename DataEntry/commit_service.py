@@ -17,13 +17,65 @@ from DataEntry import staging_repo as repo
 from DataEntry.write_service import _ALLOWED_FIELDS, CERTAINTY
 
 
+# What a row named by a UKSI synonym is stored as (R16, 10 Nov 2026). Both rules exist in the
+# suite: "recommended" is the import wizards' (shared/species_lookup.lookup_names: the current
+# UKSI name and TVK, the name as typed in the notes); "as_recorded" is Wil's 11 Oct 2026 rule
+# for existing records (scripts/_oneoff/fix_tvks_not_in_uksi_20261011.py: keep the name, move
+# only the TVK). In both the TVK, common name and taxonomy come from the recommended taxon.
+# To be decided by Wil.
+SYNONYM_NAME_RULE = "recommended"        # "recommended" | "as_recorded"
+
+
+def synonym_status(row: Dict, tax: Dict) -> Optional[str]:
+    """Does this row's name make it a UKSI synonym to be written under the recommended taxon?
+
+    tax: the row's taxonomy entry with a "recommended" taxon (taxonomy_with_synonyms). Returns
+    None (no recommended taxon), "rename" (go ahead), or why not -- the row is then written
+    exactly as staged:
+      "differ"    the row's name is not the name UKSI gives that TVK (the species was changed
+                  and the TVK left, or the TVK is a vernacular-name row);
+      "ambiguous" that name points to more than one recommended taxon (a homonym);
+      "qualified" 'agg.', 's.l.' or 's.str.' (another taxon concept than the synonym's), or a
+                  'cf.' that cannot be carried onto the recommended name cleanly."""
+    rec = (tax or {}).get("recommended")
+    if not rec:
+        return None
+    from shared.species_lookup import parse_qualifier
+    from shared.taxon_groups import _plain_name
+    qualifier, bare = parse_qualifier(row.get("species_name") or "")
+    if not rec.get("name") or _plain_name(bare) != _plain_name(rec["name"]):
+        return "differ"
+    if int(rec.get("targets") or 1) > 1:
+        return "ambiguous"
+    if SYNONYM_NAME_RULE == "recommended" and _name_with_qualifier(
+            rec.get("scientific_name") or "", qualifier) is None:
+        return "qualified"
+    if SYNONYM_NAME_RULE != "recommended" and qualifier in ("agg.", "s.l.", "s.str."):
+        return "qualified"
+    return "rename"
+
+
+def _name_with_qualifier(name: str, qualifier: Optional[str]) -> Optional[str]:
+    """The recommended name carrying the entered 'cf.'; None when that is not clean (agg.,
+    s.l. and s.str. are not carried; cf. only onto a two-word name)."""
+    if not qualifier:
+        return name
+    words = name.split()
+    if qualifier == "cf." and len(words) == 2:
+        return f"{words[0]} cf. {words[1]}"
+    return None
+
+
 def build_kwargs_from_row(row: Dict, job: Dict, embargo_until: Optional[str] = None,
                           taxonomy: Optional[Dict] = None) -> Dict:
     """Map one staging row + its job to Observatum Observation kwargs (pure).
 
     taxonomy: this row's TVK in shared.taxon_groups.taxonomy_for_tvks() -- kingdom, rank and
     taxon group from UKSI (9 Oct 2026; commits wrote none of them before, 1,440 records).
-    Without it the group still comes from the row's own order and family."""
+    Without it the group still comes from the row's own order and family. When the entry
+    carries a "recommended" taxon ({tvk, scientific_name, common_name}: the row's TVK is a UKSI
+    synonym, see taxonomy_with_synonyms) the record is written under the recommended name and
+    TVK with its taxonomy, and the name as entered goes to identification_remarks."""
     qty = read_qty(row.get("quantity")) or 1     # an unreadable No. never gets here (DE9)
 
     vc_number = read_vc(row.get("vc_number"))[1]   # an unreadable VC never gets here
@@ -36,16 +88,39 @@ def build_kwargs_from_row(row: Dict, job: Dict, embargo_until: Optional[str] = N
     # a year or month-year commits as the period's first day with its date type (DE1)
     iso_date = date_utils.start_iso(row.get("date")) or row.get("date")
     tax = taxonomy or {}
+    name = (row.get("species_name") or "").strip()
+    tvk, common = row.get("species_tvk"), row.get("common_name")
+    order, family = row.get("order_name"), row.get("family")
+    remarks = None
+    rec = tax.get("recommended")
+    if rec and rec.get("tvk") and rec.get("scientific_name") and synonym_status(row, tax) == "rename":
+        # The row's name is a non-recommended name (a UKSI synonym) of that TVK: see
+        # SYNONYM_NAME_RULE. The TVK, common name, order and family are the recommended taxon's.
+        from shared.species_lookup import parse_qualifier
+        stored = rec["scientific_name"]
+        if SYNONYM_NAME_RULE == "recommended":
+            stored = _name_with_qualifier(stored, parse_qualifier(name)[0])
+            if " ".join(name.lower().split()) != " ".join(stored.lower().split()):
+                remarks = f"Entered as '{name}' (UKSI synonym of '{rec['scientific_name']}')"
+            name = stored
+        else:
+            remarks = f"Recorded name '{name}' is a UKSI synonym of '{stored}': TVK is the recommended taxon's"
+        tvk = rec["tvk"]
+        common = rec.get("common_name") or common
+        order, family = tax.get("order_name") or order, tax.get("family") or family
+    elif rec:
+        tax = {}            # not a synonym of this name: as staged, no taxonomy of another taxon
 
     kwargs = {
-        "species_name": (row.get("species_name") or "").strip(),
-        "species_tvk": row.get("species_tvk"),
-        "common_name": row.get("common_name"),
-        "order_name": row.get("order_name"),
-        "family": row.get("family"),
+        "species_name": name,
+        "species_tvk": tvk,
+        "common_name": common,
+        "order_name": order,
+        "family": family,
+        "identification_remarks": remarks,
         "taxon_rank": tax.get("taxon_rank") or row.get("taxon_rank"),
         "kingdom": tax.get("kingdom"),
-        "taxon_group": tax.get("taxon_group") or taxon_group(row.get("order_name"), row.get("family")),
+        "taxon_group": tax.get("taxon_group") or taxon_group(order, family),
         "recorder_certainty": CERTAINTY,
         "date": iso_date,
         "date_type": date_utils.date_type(row.get("date")) or "D",
@@ -163,21 +238,40 @@ def _eligibility(row: Dict) -> Optional[str]:
 DOUBLE_KEY = ("species_name", "date", "grid_ref", "method", "trap_number", "sex", "stage")
 
 
-def precommit_issues(rows) -> Dict[str, list]:
+def uksi_names_for_rows(rows, uksi_path=None) -> Dict[str, set]:
+    """{tvk: UKSI's names for it} for the rows' TVKs, for precommit_issues' name/TVK check
+    (shared.taxon_groups.names_for_tvks). Raises on a UKSI failure; the caller skips the check."""
+    from shared.taxon_groups import names_for_tvks
+    return names_for_tvks(((r.get("species_tvk") or "").strip() for r in rows), uksi_path)
+
+
+def _name_matches_tvk(name: str, names: set) -> bool:
+    """Is the row's species name one of the names UKSI gives its TVK (recommended or synonym)?
+    Qualifiers (cf., agg., s.l.) and subgenus brackets are ignored."""
+    from shared.species_lookup import parse_qualifier, tidy
+    from shared.taxon_groups import _plain_name
+    name = tidy(name)
+    return _plain_name(name) in names or _plain_name(parse_qualifier(name)[1]) in names
+
+
+def precommit_issues(rows, uksi_names: Optional[Dict[str, set]] = None) -> Dict[str, list]:
     """What a commit would write with gaps or doubles in it (pure; backlog B8).
 
     rows: staging rows in grid order (repo.fetch_rows). Only rows commit would write
     (species and date present) are checked, plus 'unreadable date' for rows with a species
     and a date that cannot be read (those stay in staging). Returns {issue: [grid row
     numbers]} for 'unreadable date', 'count of 0', 'unreadable No.', 'unreadable VC No.', 'future date', 'no site', 'no grid ref', 'no VC',
-    'no recorder', 'no TVK', and 'double' (each later copy of a repeated entry, with the
+    'no recorder', 'no TVK', 'name and TVK differ' (uksi_names, {tvk: UKSI's names for it},
+    given: the TVK is UKSI's but the species name is not one of its names -- the species was
+    changed and the TVK left from the old one; rows whose TVK UKSI does not hold are not judged),
+    and 'double' (each later copy of a repeated entry, with the
     row it repeats), and 'to check (held back)' (rows marked To check, which commit leaves in
     staging on purpose and which are not checked for gaps), leaving out issues with no rows.
     """
     from DataEntry import date_utils
     issues = {"unreadable date": [], "count of 0": [], "unreadable No.": [], "unreadable VC No.": [],
               "future date": [], "no site": [], "no grid ref": [],
-              "no VC": [], "no recorder": [], "no TVK": [], "double": [],
+              "no VC": [], "no recorder": [], "no TVK": [], "name and TVK differ": [], "double": [],
               "to check (held back)": []}
     seen = {}
     for n, row in enumerate(rows, start=1):
@@ -206,6 +300,10 @@ def precommit_issues(rows) -> Dict[str, list]:
             issues["no recorder"].append(n)
         if blank("species_tvk"):
             issues["no TVK"].append(n)
+        elif uksi_names:
+            known = uksi_names.get(str(row.get("species_tvk")).strip())
+            if known and not _name_matches_tvk(row.get("species_name") or "", known):
+                issues["name and TVK differ"].append(n)
         key = tuple(str(row.get(k) or "").strip().lower() for k in DOUBLE_KEY)
         if key in seen:
             issues["double"].append((n, seen[key]))
@@ -254,8 +352,25 @@ def _out_of_staging(conn, row: Dict, new_id: int, release_photos: bool) -> Optio
                 "or it will be written twice")
 
 
+def taxonomy_with_synonyms(rows, uksi_path=None) -> Dict[str, dict]:
+    """{tvk: taxonomy} for the rows' TVKs (shared.taxon_groups.taxonomy_for_tvks), and for a
+    TVK UKSI holds only as a synonym, the RECOMMENDED taxon's taxonomy under the synonym's TVK,
+    with a "recommended" entry ({tvk, scientific_name, common_name}) that build_kwargs_from_row
+    writes the record under. Raises on a UKSI failure (commit_job reports it)."""
+    from shared.taxon_groups import recommended_for_tvks, taxonomy_for_tvks
+    tvks = [(r.get("species_tvk") or "").strip() for r in rows]
+    taxonomy = taxonomy_for_tvks(tvks, uksi_path)
+    rec = recommended_for_tvks([t for t in tvks if t and t not in taxonomy], uksi_path)
+    if rec:
+        base = taxonomy_for_tvks([v["tvk"] for v in rec.values()], uksi_path)
+        for tvk, v in rec.items():
+            if v["tvk"] in base:
+                taxonomy[tvk] = {**base[v["tvk"]], "recommended": v}
+    return taxonomy
+
+
 def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
-               observation_cls=None, taxonomy: Optional[Dict] = None) -> Dict:
+               observation_cls=None, taxonomy: Optional[Dict] = None, uksi_path=None) -> Dict:
     """Write eligible staging rows into observations; delete the committed ones.
 
     Rows missing species or date, or with an unreadable date, are left in staging and
@@ -284,6 +399,10 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
     skipped_bad_vc = 0
     skipped_check = 0              # marked "To check": held back on purpose
     unresolved = 0
+    synonyms = []                  # names written under their current UKSI TVK ("X -> Y")
+    name_tvk_differ = []           # name is not its TVK's: written as staged
+    ambiguous_names = []           # name is a homonym of several taxa: written as staged
+    qualified_names = []           # agg./s.l./s.str./cf. not carried: written as staged
     future = 0
     error = None
     taxonomy_error = None
@@ -295,8 +414,7 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
     photo_problems = []            # bench photos whose link could not follow (row -> record)
     if taxonomy is None:
         try:
-            from shared.taxon_groups import taxonomy_for_tvks
-            taxonomy = taxonomy_for_tvks(r.get("species_tvk") for r in rows)
+            taxonomy = taxonomy_with_synonyms(rows, uksi_path)
         except Exception as e:          # commit without; say so (the backfill script fills later)
             taxonomy, taxonomy_error = {}, str(e)
     for row in rows:
@@ -322,7 +440,12 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
         if reason == "bad_vc":
             skipped_bad_vc += 1
             continue
-        tax = taxonomy.get(row.get("species_tvk") or "") or {}
+        tax = taxonomy.get((row.get("species_tvk") or "").strip()) or {}
+        why_not = synonym_status(row, tax)
+        if why_not and why_not != "rename":       # written exactly as staged, and said so
+            {"differ": name_tvk_differ, "ambiguous": ambiguous_names,
+             "qualified": qualified_names}[why_not].append((row.get("species_name") or "").strip())
+            tax = {}
         try:
             kwargs = build_kwargs_from_row(row, job, embargo_until, tax)
             new_id = model.create(observation_cls(**kwargs))
@@ -332,6 +455,13 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
         if not new_id:
             error = f"{row.get('species_name')}: Observatum did not return a record id"
             break
+        filing = row
+        if tax.get("recommended"):
+            # photos are filed under the record's species, not the synonym it was entered as
+            filing = dict(row, species_name=kwargs["species_name"], species_tvk=kwargs["species_tvk"],
+                          order_name=kwargs["order_name"], family=kwargs["family"])
+            synonyms.append(f"{(row.get('species_name') or '').strip()} -> {kwargs['species_name']}"
+                            + (f" ({kwargs['species_tvk']})" if SYNONYM_NAME_RULE != "recommended" else ""))
         if not (row.get("species_tvk") or "").strip():
             unresolved += 1  # committed anyway (species_name is the required field), but flagged
         if date_utils.is_future(row.get("date")):
@@ -349,7 +479,7 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
             error = f"{row.get('species_name')} was written (id {new_id}) but its survey " \
                     f"fields were not: {e}"
             committed_rows.append((dict(row), new_id))
-            safe = _photos_follow_row(conn, row["id"], new_id, photo_problems, row)
+            safe = _photos_follow_row(conn, row["id"], new_id, photo_problems, filing)
             _specimens_follow_row(conn, row["id"], new_id, photo_problems)
             gone = _out_of_staging(conn, row, new_id, safe)
             if gone:
@@ -357,7 +487,7 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
             committed += 1
             break
         committed_rows.append((dict(row), new_id))
-        safe = _photos_follow_row(conn, row["id"], new_id, photo_problems, row)
+        safe = _photos_follow_row(conn, row["id"], new_id, photo_problems, filing)
         _specimens_follow_row(conn, row["id"], new_id, photo_problems)
         committed += 1
         gone = _out_of_staging(conn, row, new_id, safe)
@@ -378,6 +508,10 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
         "skipped_bad_vc": skipped_bad_vc,
         "skipped_check": skipped_check,
         "unresolved": unresolved,
+        "synonyms": synonyms,
+        "name_tvk_differ": name_tvk_differ,
+        "ambiguous_names": ambiguous_names,
+        "qualified_names": qualified_names,
         "future": future,
         "remaining": remaining,
         "batch": batch,

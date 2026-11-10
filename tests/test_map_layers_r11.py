@@ -21,14 +21,22 @@ def qapp():
     return QApplication.instance() or QApplication([])
 
 
+def _forget_cached_settings():      # colours and opacities are kept in memory (25 Oct 2026)
+    from shared.maps import layer_opacity, layers
+    layers.reload_settings()
+    layer_opacity.reload_settings()
+
+
 @pytest.fixture()
 def settings_sandbox(qapp):
     from PySide6.QtCore import QCoreApplication, QSettings
     org = QCoreApplication.organizationName()
     QCoreApplication.setOrganizationName("ObservatumTests_map_layers_r11")
     QSettings().clear()
+    _forget_cached_settings()
     yield
     QSettings().clear()
+    _forget_cached_settings()
     QCoreApplication.setOrganizationName(org)
 
 
@@ -98,7 +106,7 @@ def test_missing_folder_or_bad_file_gives_nothing(tmp_path):
 
 def test_defaults_rivers_and_lakes_only():
     assert layers.defaults() == {"water"}
-    assert [t.label for t in layers.TOGGLES] == [
+    assert [t.label for t in layers.TOGGLES if not t.group] == [
         "Woodland", "Towns", "Rivers and lakes", "Main roads", "Place names", "Railways",
         "National parks", "Foreshore", "Parks and green space", "Relief"]
 
@@ -196,10 +204,11 @@ def test_menu_items_disabled_when_not_installed_and_remembered(qapp, tmp_path, s
     bar = MapDisplayBar()
     bar.attach_map(m)
     acts = bar.layer_actions
-    assert [a.text() for a in bar.layers_menu.actions() if a.text()] == [
+    win = bar.layers_window()           # the Layers window replaced the menu
+    assert [cb.text() for cb in list(win.checks.values())[:10]] == [
         "Woodland", "Towns", "Rivers and lakes", "Main roads", "Place names", "Railways",
-        "National parks", "Foreshore", "Parks and green space", "Relief", "Colours\u2026",
-        "Reset to defaults"]
+        "National parks", "Foreshore", "Parks and green space", "Relief"]
+    assert win.group_titles[0] == "Base map" and len(win.group_titles) > 1
     assert acts["woodland"].isEnabled() and not acts["towns"].isEnabled()
     assert acts["towns"].toolTip() == "Not installed: run scripts\\build_map_layers.py"
     assert bar.layers() == {"water"} and saved_layers() == {"water"}

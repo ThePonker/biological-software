@@ -5,6 +5,7 @@ for the same settings.
 import os
 
 import pytest
+from _map_sync import sync
 
 import paths
 
@@ -111,7 +112,7 @@ def tab():
     QCoreApplication.setOrganizationName("ObservatumTests_batch_maps_r3")
     QSettings().clear()
     from src.views.mapping.mapping_tab import MappingTab
-    t = MappingTab()
+    t = sync(MappingTab())
     t.resize(1600, 1000)
     yield t
     t.close()

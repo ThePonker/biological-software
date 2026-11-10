@@ -300,7 +300,6 @@ class SpeciesInfoPanel(Card):
         _current_profile holds YOUR account only. The preview may show the
         review's text, cited, but it must never become editable text of yours.
         """
-        t = theme()
         self._current_profile = ""
         self.profile_preview.clear()
         self.profile_btn.setText("Create")

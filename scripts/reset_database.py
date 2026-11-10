@@ -661,9 +661,10 @@ def _ensure_app_schema(conn):
     for p in (root, os.path.join(root, "Observatum"), here):
         if p not in sys.path:
             sys.path.insert(0, p)
-    from shared import hidden_records, irecord_exported, scheme_duplicates, specimen_staging
+    from shared import data_reference, hidden_records, irecord_exported, scheme_duplicates, specimen_staging
     hidden_records.ensure_schema(conn)
     irecord_exported.ensure_schema(conn)
+    data_reference.ensure_schema(conn)            # data_reference + index on the three record tables
     specimen_staging.ensure_schema(conn)          # staging_specimens + its index
     _photo_links.ensure_schema(conn)              # photo_links.staging_id + its index
     # recording_scheme.duplicate_of (scripts/mark_scheme_irecord_duplicates.py adds it live)

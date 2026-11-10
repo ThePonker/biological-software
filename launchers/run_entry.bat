@@ -5,4 +5,5 @@ REM so it never opens the live database by accident. Console kept visible on pur
 REM during development; switch to pythonw for a clean standalone window later.
 cd /d "%~dp0.."
 set PYTHONPATH=%CD%;%CD%\Observatum
+if not defined PYTHONPYCACHEPREFIX set "PYTHONPYCACHEPREFIX=%LOCALAPPDATA%\BiologicalSoftware\pycache"
 py -3.14 -m DataEntry %*

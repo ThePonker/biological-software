@@ -198,7 +198,6 @@ class MarkCommercialDialog(QDialog):
 
     def _browse_values(self, column: str, target_input: QLineEdit):
         """Browse existing values for a field."""
-        t = theme()
         db = get_database()
         try:
             results = db.execute_main_read(

@@ -184,7 +184,6 @@ class BoxCanvas(QWidget):
             painter.setFont(QFont("Segoe UI", 8))
 
             family_text = section["family"]
-            count_text = f"  ({section['specimen_count']})"
 
             painter.setFont(QFont("Segoe UI", 8, QFont.Weight.Bold))
             painter.drawText(

@@ -50,6 +50,17 @@ class BHLClient:
         result = self.call("GetPageMetadata", pageid=page_id, ocr="t", names="t")
         return result[0] if result else {}
 
+    def publication_search(self, term, page=1):
+        """One page (up to 200) of BHL's PublicationSearch for a free-text term: items and
+        parts (and titles) whose catalogue entry or full text matches. searchtype 'F' =
+        catalogue and full text. Returns the Result list; one counted, throttled request."""
+        return self.call("PublicationSearch", searchterm=term, searchtype="F", page=page)
+
+    def check_key(self):
+        """One cheap request (BHL's list of languages) to see whether the key is accepted.
+        Raises BHLError when it is not."""
+        return self.call("GetLanguages")
+
     # --- internals ------------------------------------------------------
     def _throttle(self):
         wait = self._interval - (time.monotonic() - self._last)

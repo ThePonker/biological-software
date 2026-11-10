@@ -122,8 +122,9 @@ class ReviewsTab(QWidget):
             count = repo.get_species_count()
             repo.close()
 
-            import sqlite3, paths
-            conn = sqlite3.connect(str(paths.CODEX_DB))
+            import paths
+            from shared.db_open import connect_ro      # only reads
+            conn = connect_ro(paths.CODEX_DB)
             sqs_count = conn.execute("SELECT COUNT(*) FROM sqs_scores").fetchone()[0]
             conn.close()
         except Exception as e:

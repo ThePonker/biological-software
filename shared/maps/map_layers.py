@@ -40,13 +40,16 @@ Display only.
 """
 from __future__ import annotations
 
+import os
+from collections.abc import Mapping
 from typing import Dict, List
 
 from PySide6.QtCore import QPointF, Qt
-from PySide6.QtGui import (QBrush, QColor, QPainter, QPainterPath, QPen, QPolygonF,
-                           QTransform)
+from PySide6.QtGui import QBrush, QColor, QPainter, QPainterPath, QPen, QPolygonF, QTransform
 
-from shared.maps import layers, place_names, relief
+from shared.maps import env_classes, layer_bin, layer_opacity, layers, place_names, relief, value_grid
+from shared.maps import env_registry as env
+from shared.maps.map_ahead import bytes_bin, bytes_feats, layer_parts
 from shared.maps.map_timing import timed
 from shared.maps._theme import theme
 from shared.maps.coast import split_edges_cached
@@ -59,6 +62,8 @@ DISTRICT_W = 0.8            # the district lines, in screen pixels (x k on the p
 DISTRICT_DASH = [4.0, 3.0]  # dash, gap: in line widths
 TINT_ALPHA = 40             # the VCs-with-records tint over the land
 SNAP = 25000                # metres: county-detail areas are cut on this grid (cache reuse)
+OUTLINE_W = 0.6             # the thin outline of designated sites and access land, px at k = 1
+OUTLINED_SECTIONS = (env.DESIG, env.ACC)    # their fills are pale: a darker edge makes them read
 
 
 def layer_transform(fit) -> QTransform:
@@ -80,28 +85,49 @@ def district_pen(k: float = 1.0, scale: float = 1.0) -> QPen:
     return pen
 
 
+class _VcPolygons(Mapping):
+    """{vc: [QPolygonF in pixels]} that makes a VC's polygons the first time it is looked up."""
+
+    def __init__(self, owner, transform: QTransform):
+        self._owner, self._tr, self._done = owner, transform, {}
+
+    def __getitem__(self, vc):
+        got = self._done.get(vc)
+        if got is None:
+            got = self._done[vc] = self._owner._metre_vc(vc).toSubpathPolygons(self._tr)
+        return got
+
+    def __contains__(self, vc):
+        return vc in self._owner._topo()
+
+    def __iter__(self):
+        return iter(self._owner._topo())
+
+    def __len__(self):
+        return len(self._owner._topo())
+
+
 class BasemapLayersMixin:
     """Uses GridMap's _land, _land_source, _vc_rings, _geojson, _vc_highlight, _districts_on,
     _vc_bounds_on and has_districts()."""
 
     def _init_layers(self):
-        self._poly_cache = None                    # (fit key, land polygons, {vc: polygons})
+        self._poly_cache = None                    # (fit key, land polygons, {vc: polygons}) in pixels
         self._line_cache: Dict[str, tuple] = {}    # name -> (fit key, projected polylines)
+        self._metre_polys = None                   # (land path, {vc: path}): the rings in metres, once
+        self._metre_lines: Dict[str, QPainterPath] = {}     # name -> its chains in metres, once
         self._fast_fill = False                    # the screen's picture only (not the atlas page)
-        self._layer_cache: Dict[tuple, QPainterPath] = {}   # (layer, lod, area) -> path in metres
+        self._layer_cache: Dict[tuple, QPainterPath] = {}   # (layer, lod, area, class) -> path in metres
+        self._class_index: Dict[tuple, List[str]] = {}      # (layer, lod, area) -> its classes
+        self._init_ahead()                         # R16: the look-ahead worker (map_ahead.py)
 
     def _use_layer_land(self) -> bool:
         return "land" in self._layer_files
 
-    def _layer_shape(self, fit, key: str, view=None) -> QPainterPath:
-        """A layer round the view as one QPainterPath in OSGB metres (draw it through
-        layer_transform(fit)), kept per (layer, level of detail, area): a polygon layer
-        (WindingFill, so holes are holes), a line layer (one subpath per line) or the
-        districts (each shared edge once)."""
-        cache = self._layer_cache
-        # the level of detail follows what is on screen (zoomed in on the GB view: county
-        # detail); county detail is only taken for the area round the view, snapped to 25 km
-        # so panning reuses it (17 Oct 2026)
+    def _layer_ck(self, fit, key: str, view=None):
+        """(level of detail, area box) the layer is built for: what is on screen decides the
+        level of detail; county detail is only taken for the area round the view, snapped to
+        25 km so panning reuses it (17 Oct 2026)."""
         view = view or getattr(self, "_layer_view", None) or fit.extent
         lod = layers.lod_for_extent(view)
         if lod == "county":
@@ -113,37 +139,53 @@ class BasemapLayersMixin:
             e0, n1 = fit.to_en(fit.x0, fit.y0)
             e1, n0 = fit.to_en(fit.x0 + fit.w, fit.y0 + fit.h)
             box = (e0, n0, e1, n1)
-        ck = (key, lod, box)
+        return lod, box
+
+    def _layer_shape(self, fit, key: str, view=None, cls=None) -> QPainterPath:
+        """A layer round the view as one QPainterPath in OSGB metres (draw it through
+        layer_transform(fit)), kept per (layer, level of detail, area, class): a polygon layer
+        (WindingFill, so holes are holes), a line layer (one subpath per line) or the
+        districts (each shared edge once). cls: for a classed Environment layer, the path of
+        the features of that class "t" only (see _layer_classes)."""
+        cache = self._layer_cache
+        lod, box = self._layer_ck(fit, key, view)
+        ck = (key, lod, box, cls)
         if ck not in cache:
-            if sum(1 for c in cache if c[0] == key) >= 4:        # keep a few areas per layer
-                for old in [c for c in cache if c[0] == key][:-3]:
-                    cache.pop(old, None)
-            with timed("build", f"{key} {lod}"):
-                feats = layers.features_in(layers.load(self._maps_dir, key, lod), box)
-                cache[ck] = self._build_path(key, feats)
-        return cache[ck]
+            areas = list(dict.fromkeys((c[1], c[2]) for c in cache if c[0] == key))
+            if (lod, box) not in areas and len(areas) >= 4:      # keep a few areas per layer
+                for old in areas[:-3]:
+                    for c in [c for c in cache if c[0] == key and (c[1], c[2]) == old]:
+                        cache.pop(c, None)
+                        self._class_index.pop(c[:3], None)
+            classed = cls is not None
+            pre = self._ahead_take(key, lod, box, classed)      # the numpy half, done ahead (map_ahead.py)
+            if pre is None:
+                with timed("build", f"{key} {lod}"):
+                    pre = layer_parts(key, layers.load(self._maps_dir, key, lod), box, classed)
+            with timed("build", f"{key} {lod} path"):
+                for c, pb in pre[0].items():
+                    cache[(key, lod, box, c)] = layer_bin.path_from_bytes(pb)
+            if classed:
+                self._class_index[(key, lod, box)] = pre[1]
+        hit = cache.get(ck)
+        return QPainterPath() if hit is None else hit
+
+    def _layer_classes(self, fit, key: str) -> List[str]:
+        """The classes of a classed layer present round the view."""
+        lod, box = self._layer_ck(fit, key)
+        if (key, lod, box) not in self._class_index:
+            self._layer_shape(fit, key, cls="")
+        return self._class_index.get((key, lod, box), [])
+
+    @staticmethod
+    def _build_path_bin(key, data, idx) -> QPainterPath:
+        """The path of a LayerBin's features `idx` (map_ahead.bytes_bin, then the Qt step)."""
+        return layer_bin.path_from_bytes(bytes_bin(key, data, idx))
 
     @staticmethod
     def _build_path(key, feats) -> QPainterPath:
-        def poly(pts):
-            return QPolygonF([QPointF(e, n) for e, n in pts])
-        path = QPainterPath()
-        if key == "districts":      # each shared edge once (the dashes would double up)
-            for c in unique_chains([r for f in feats for r in f.get("rings", ())]):
-                path.addPolygon(poly(c))
-        elif next((lay.kind for lay in layers.LAYERS if lay.key == key), "") == "line":
-            for f in feats:
-                if f.get("line"):
-                    path.addPolygon(poly(f["line"]))
-        else:
-            # WindingFill: build_map_layers.py writes outer rings one way round and holes the
-            # other, so a hole is a hole and two features that touch or overlap do not cancel
-            path.setFillRule(Qt.FillRule.WindingFill)
-            for f in feats:
-                for ring in f.get("rings", ()):
-                    path.addPolygon(poly(ring))
-                    path.closeSubpath()
-        return path
+        """One path from feature dicts, built through numpy (layer_bin), not one QPointF per point."""
+        return layer_bin.path_from_bytes(bytes_feats(key, feats))
 
     def _paint_path(self, p: QPainter, fit, path: QPainterPath, pen, brush, label: str):
         """Draw a metres path through layer_transform(fit) with `pen` (widths in metres)."""
@@ -171,25 +213,50 @@ class BasemapLayersMixin:
         """The VC rings with their shared borders made common (vc_topology), once."""
         if not self._vc_rings:
             return {}
-        return snap_rings_cached(("vc", self._geojson, _SIMPLIFY_TOL), self._vc_rings)
+        return snap_rings_cached(("vc", self._geojson, _SIMPLIFY_TOL), self._vc_rings,
+                                 source=self._geojson)
+
+    def _split_disk(self, which: str):
+        """(source file, cache name) for the on-disk copy of a coast / inland split (R16,
+        map_disk_cache): which "topo" is the VC rings' split, "land" the land's."""
+        if which == "topo":
+            return (self._geojson, "vc_topo") if self._geojson else None
+        src = self._land_source
+        if not src:
+            return None
+        if src[0] == "outline":
+            return os.path.join(src[1], "gb_outline.json"), "land_outline"
+        return src[1], "land_vc"
 
     @staticmethod
     def _fit_key(fit):
         return (fit.extent, fit.w, fit.h, fit.x0, fit.y0)
 
     def _polygons(self, fit):
-        """(the land polygons, {vc: its shared-border polygons}) projected through `fit`;
-        the last projection is kept (paint is hot)."""
+        """(the land polygons, {vc: its shared-border polygons}) as QPolygonF in the pixels of
+        `fit`; the last projection is kept (paint is hot). R16: the rings are built once as ONE
+        path in OSGB metres (numpy, layer_bin.lists_path: no QPointF per point, the pattern that
+        crashed Python 3.14.0's GC), and Qt turns it into the polygons for each fit
+        (toSubpathPolygons through layer_transform(fit): the same sums as MapFit.to_px, in C++).
+        Drawn as before, a polygon at a time, so the picture is unchanged. A VC's path is only
+        built when asked for (the tint, the selected outline: a few VCs, not 112)."""
         key = self._fit_key(fit)
         if self._poly_cache and self._poly_cache[0] == key:
             return self._poly_cache[1], self._poly_cache[2]
+        if self._metre_polys is None:
+            land = None if self._use_layer_land() else layer_bin.lists_path(self._land, False, False)
+            self._metre_polys = (land, {})
+        tr = layer_transform(fit)
+        land = [] if self._metre_polys[0] is None else self._metre_polys[0].toSubpathPolygons(tr)
+        self._poly_cache = (key, land, _VcPolygons(self, tr))
+        return self._poly_cache[1], self._poly_cache[2]
 
-        def poly(ring):
-            return QPolygonF([QPointF(*fit.to_px(e, n)) for e, n in ring])
-        land = [] if self._use_layer_land() else [poly(r) for r in self._land]
-        vcs = {vc: [poly(r) for r in rings] for vc, rings in self._topo().items()}
-        self._poly_cache = (key, land, vcs)
-        return land, vcs
+    def _metre_vc(self, vc) -> QPainterPath:
+        """One VC's shared-border rings as a path in metres (built once); KeyError if it has none."""
+        got = self._metre_polys[1].get(vc)
+        if got is None:
+            got = self._metre_polys[1][vc] = layer_bin.lists_path(self._topo()[vc], False, False)
+        return got
 
     def _chains(self, name) -> List[list]:
         """OSGB polylines, each edge once: "coast" / "districts" (the land's sea-facing /
@@ -203,20 +270,25 @@ class BasemapLayersMixin:
             # instead of 19,136 km).
             topo = [r for rs in self._topo().values() for r in rs]
             return split_edges_cached(("vc_topo", self._geojson, _SIMPLIFY_TOL, "r5"), topo,
-                                      lambda: unique_chains(topo))[1]
+                                      lambda: unique_chains(topo), disk=self._split_disk("topo"))[1]
         if not self._land_source:
             return []
         coast, inland = split_edges_cached(self._land_source + ("r5",), self._land,
-                                           lambda: unique_chains(self._land))
+                                           lambda: unique_chains(self._land),
+                                           disk=self._split_disk("land"))
         return coast if name == "coast" else inland
 
-    def _lines(self, name, fit):
-        """_chains(name) projected through `fit` (kept until the fit changes)."""
+    def _lines(self, name, fit) -> List[QPolygonF]:
+        """_chains(name) as one QPolygonF per chain in the pixels of `fit` (kept until the fit
+        changes): built once as one path in metres (numpy) and turned into polygons by Qt for
+        each fit (see _polygons), drawn a polyline at a time as before (R16)."""
         key = self._fit_key(fit)
         hit = self._line_cache.get(name)
         if hit is None or hit[0] != key:
-            hit = (key, [QPolygonF([QPointF(*fit.to_px(e, n)) for e, n in c])
-                         for c in self._chains(name)])
+            metres = self._metre_lines.get(name)
+            if metres is None:
+                metres = self._metre_lines[name] = layer_bin.lists_path(self._chains(name), False, False)
+            hit = (key, metres.toSubpathPolygons(layer_transform(fit)))
             self._line_cache[name] = hit
         return hit[1]
 
@@ -274,6 +346,15 @@ class BasemapLayersMixin:
                     with timed("paint", lay.key):
                         relief.draw(p, rel, layer_transform(fit))
                 continue
+            if lay.kind == "grid":      # HadUK-Grid averages: a shaded image (value_grid.py)
+                grid = value_grid.load(self._maps_dir, lay.key)
+                if grid is not None:
+                    with timed("paint", lay.key):
+                        value_grid.draw(p, grid, layers.grid_ramp(lay.key), layer_transform(fit))
+                continue
+            if layer_opacity.has_opacity(lay.key):
+                self._draw_env_polygon(p, fit, k, lay.key)
+                continue
             fill, line, w = layers.style(lay.key)
             shape = self._layer_shape(fit, lay.key)
             if fill is not None:
@@ -289,15 +370,41 @@ class BasemapLayersMixin:
             pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
             self._paint_path(p, fit, shape, pen, Qt.BrushStyle.NoBrush, lay.key)
 
+    def _draw_env_polygon(self, p: QPainter, fit, k: float, key: str):
+        """An Environment polygon layer at its remembered opacity: one colour per class when the
+        layer is classed (env_classes), else its single colour. Designated sites and access
+        land also get a thin outline (the fill darkened, solid) so a pale fill still shows."""
+        fill, _line, w = layers.style(key)
+        a = layer_opacity.alpha(key)
+        outlined = env.ENV_BY_KEY[key].section in OUTLINED_SECTIONS
+        if env_classes.is_classed(key):
+            todo = [(env_classes.class_colour(key, c), c) for c in self._layer_classes(fit, key)]
+            todo = [(QColor(hx), c) for hx, c in todo]
+        else:
+            todo = [(QColor(fill), None)]
+        for col, cls in todo:
+            col.setAlpha(a)
+            shape = self._layer_shape(fit, key, cls=cls)
+            self._paint_path(p, fit, shape, QPen(col, w * k / fit.scale), QBrush(col), key)
+            if outlined:
+                edge = col.darker(160)
+                edge.setAlpha(255)
+                self._paint_path(p, fit, shape, QPen(edge, OUTLINE_W * k / fit.scale),
+                                 Qt.BrushStyle.NoBrush, key)
+
     def _draw_place_names(self, p: QPainter, fit, zoom: float, vc_labels=()):
         """The place names, when ticked and installed: over everything, after the VC labels
-        (`vc_labels`: what draw_labels returned) so they never cover those."""
+        (`vc_labels`: what draw_labels returned) so they never cover those. A name that would touch a
+        recorded square is left out only while the squares are solid (opacity 100 %); with
+        see-through squares (set_square_opacity) it is drawn over them. Screen and page alike."""
         if "names" not in self._layers_on or "names" not in self._layer_files:
             return
         view = getattr(self, "_layer_view", None) or fit.extent
         lists = place_names.feature_lists(self._maps_dir, layers.lod_for_extent(view))
         span = max(fit.w, fit.h) / fit.scale / max(zoom, 1.0)       # metres across the view
         occupied, _inside = self._label_tests(p, fit)
+        if self._square_opacity < 1.0:      # see-through squares: names are drawn over them
+            occupied = None
         taken = [r.adjusted(-2, -2, 2, 2) for _vc, _t, r, _s in vc_labels]
         with timed("paint", "names"):
             place_names.draw_place_names(p, fit, lists, span, layers.style("names")[1], taken,

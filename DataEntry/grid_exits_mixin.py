@@ -102,6 +102,21 @@ class GridExitsMixin:
             detail.append(f"{summary['future']} have a future date \u2014 worth checking")
         if detail:
             bits.append("; ".join(detail))
+        def listed(names, limit=10):
+            return ", ".join(names[:limit]) + (f" \u2026 (+{len(names) - limit} more)"
+                                              if len(names) > limit else "")
+        syn = summary.get("synonyms") or []
+        if syn:
+            bits.append(f"\n{len(syn)} written under their current UKSI name: "
+                        + listed([x.replace(" -> ", " \u2192 ") for x in syn]))
+        for key, text in (("name_tvk_differ", "name is not the name of its TVK (written as entered, "
+                                              "check them)"),
+                          ("ambiguous_names", "ambiguous name, matches more than one UKSI taxon "
+                                              "(written as entered)"),
+                          ("qualified_names", "qualified name not changed to the current UKSI name "
+                                              "(written as entered)")):
+            if summary.get(key):
+                bits.append(f"\n{len(summary[key])} {text}: {listed(summary[key])}")
         probs = summary.get("photo_problems") or []
         if probs:
             more = f"\n\u2026 and {len(probs) - 20} more" if len(probs) > 20 else ""
@@ -116,7 +131,13 @@ class GridExitsMixin:
     def _confirm_precommit_issues(self, cs) -> bool:
         """Show gaps and doubles before commit (backlog B8). True = go ahead."""
         try:
-            found = cs.precommit_issues(repo.fetch_rows(self._conn, self._job_id))
+            rows = repo.fetch_rows(self._conn, self._job_id)
+            try:
+                names = cs.uksi_names_for_rows(rows)
+            except Exception as e:      # the name/TVK check is skipped; the other checks still run
+                print(f"[DataEntry] name/TVK check skipped: {e}")
+                names = None
+            found = cs.precommit_issues(rows, names)
         except Exception as e:  # a failed check must not block a commit silently
             print(f"[DataEntry] pre-commit check skipped: {e}")
             return True
@@ -135,11 +156,13 @@ class GridExitsMixin:
                   "future date": "a date in the future",
                   "no site": "no site name", "no grid ref": "no grid reference",
                   "no VC": "no vice-county", "no recorder": "no recorder",
-                  "no TVK": "species not matched (no TVK)"}
+                  "no TVK": "species not matched (no TVK)",
+                  "name and TVK differ": "a species name that is not the name of its TVK "
+                                         "(the species was changed and the old TVK left)"}
         lines = []
         for key in ("unreadable date", "count of 0", "unreadable No.", "unreadable VC No.", "future date", "no site",
                     "no grid ref", "no VC",
-                    "no recorder", "no TVK"):
+                    "no recorder", "no TVK", "name and TVK differ"):
             if key in found:
                 v = found[key]
                 lines.append(f"\u2022 {len(v)} with {labels[key]}: rows {rows_text(v)}")

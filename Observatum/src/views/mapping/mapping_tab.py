@@ -36,24 +36,24 @@ so it is never mistaken for the new one (R9-4); VC labels with a switch, and the
 outlined (R9-5); the atlas footer counts what is in view on a "Current view" page (R9-6).
 """
 
-import time
-
 from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QFrame, QSplitter)
 
 from .atlas_export import AtlasExportMixin, safe_filename  # noqa: F401 (safe_filename: old import path)
 from .toolbar import MapToolbar
+from .view3d import open_view3d
 from .filter_panel import MapFilterPanel
 from .header import MapHeader, selection_title
-from .map_notes import hold_tetrads, left_out_text, map_note
+from .map_job import MapData, MapJobMixin, MapRequest
+from .map_notes import left_out_text, map_note
 from .display_bar import MapDisplayBar
+from .identify_popup import IdentifyController
 from .selection_box import MapSelectionBox
 from .square_records_dialog import SquareRecordsDialog
 from .square_style import band_colours, colour_squares
 
 from ...themes import theme
 from ...core.config import TabColors
-from ...services import map_selection
 from ...services import map_square_service as squares_svc
 from shared.maps.grid_map import GridMap
 from shared.maps.grid_squares import GRID_LABELS, HECTAD
@@ -63,7 +63,7 @@ SPLITTER_SETTING = "mapping/splitter"       # L11: the divider, remembered
 PANEL_WIDTH = 340                           # the panel's first width (was fixed at 300)
 
 
-class MappingTab(AtlasExportMixin, QWidget):
+class MappingTab(MapJobMixin, AtlasExportMixin, QWidget):
     """Mapping tab for distribution visualization."""
 
     def __init__(self, parent=None):
@@ -76,7 +76,9 @@ class MappingTab(AtlasExportMixin, QWidget):
         self._mapped_selection = []
         self._mapped_filters = None        # the filters the map on screen was made with
         self._tetrads_held = 0             # tetrad grid refs left off (decision 10)
+        self._view3d = None                # the open 3D view window (one at a time)
         self.last_timing = None            # (fetch s, squares s) of the last map, for checks
+        self._init_job()
         self._setup_ui()
         self._connect_signals()
         self._initial_update()
@@ -159,6 +161,7 @@ class MappingTab(AtlasExportMixin, QWidget):
         self.toolbar.grid_changed.connect(self._on_grid_changed)
         self.toolbar.filters_toggled.connect(self._on_filters_toggled)
         self.toolbar.export_requested.connect(self._on_export)
+        self.toolbar.view3d_requested.connect(self._on_view3d)
 
         self.filter_panel.selection_changed.connect(self._on_selection_changed)
         self.filter_panel.sources_changed.connect(self._on_data_changed)
@@ -175,6 +178,7 @@ class MappingTab(AtlasExportMixin, QWidget):
         self.display_bar.attach_map(self.map_widget)   # VC labels / boundaries / districts
 
         self.map_widget.square_clicked.connect(self._on_grid_clicked)
+        self._identify = IdentifyController(self.map_widget, self.toolbar, lambda: self._squares, self)
 
     def _initial_update(self):
         self._update_header()
@@ -210,6 +214,7 @@ class MappingTab(AtlasExportMixin, QWidget):
             self._clear_map()
 
     def _clear_map(self):
+        self._job_discard()                        # R16: a map still being made is no longer wanted
         self._records, self._squares, self._result = [], {}, None
         self._mapped_selection = []
         self._mapped_filters = None
@@ -239,16 +244,21 @@ class MappingTab(AtlasExportMixin, QWidget):
             self.map_widget.set_message("Tick at least one data source.")
             return
         selection = self.filter_panel.selection()
-        size = self._grid_size()
-        t0 = time.perf_counter()
-        self._result = map_selection.fetch(selection, sources, filters)
-        t1 = time.perf_counter()
+        # R16: the records are read and the squares built in a worker thread (map_job.py); the
+        # rest of the old method is _apply_map, run here when it is done
+        self._job_request(MapRequest(selection, sources, filters, self._grid_size(),
+                                     self.filter_panel.include_tetrads(), self._bands))
+
+    def _apply_map(self, req: MapRequest, data: MapData):
+        """The GUI half of making the map: show what the worker made (map_job.make_map_data)."""
+        selection, size = req.selection, req.size
+        self._result = data.result
+        self.last_timing = data.timing
         self._records = self._result.records
-        self._mapped_filters = filters
-        mappable, self._tetrads_held = hold_tetrads(self._records,     # decision 10
-                                                    self.filter_panel.include_tetrads())
-        squares, coarse, unparsed = squares_svc.squares_for(mappable, size, self._year_to_band)
-        self.last_timing = (t1 - t0, time.perf_counter() - t1)
+        self._mapped_filters = req.filters
+        self._tetrads_held = data.tetrads_held
+        coarse, unparsed = data.coarse, data.unparsed
+        squares = data.squares
         self._squares = squares
         self._mapped_selection = selection
         self._name_taxa(squares, selection)
@@ -359,6 +369,10 @@ class MappingTab(AtlasExportMixin, QWidget):
         self._clear_map()
         self.map_widget.set_outlined_vc(None)      # the VC box went back to "All" (no signal)
         self._initial_update()
+
+    def _on_view3d(self):
+        """3D view of the area on screen (view3d.py); one window at a time."""
+        self._view3d = open_view3d(self._view3d, self.map_widget, parent=None)
 
     def _on_filters_toggled(self, visible: bool):
         self.filter_panel.setVisible(visible)

@@ -88,46 +88,110 @@ def ensure_schema(conn: sqlite3.Connection):
     """)
     conn.commit()
 
-def _migrate(conn):
-    try:
-        cols = [r[1] for r in conn.execute("PRAGMA table_info(projects)").fetchall()]
-        if not cols:
-            return
-        if "start_year" not in cols:
-            for t in ("capacity", "annual_capacity", "projects",
+_OLD_SCHEMA_TABLES = ("capacity", "annual_capacity", "projects",
                       "project_field_months", "project_annual_days",
                       "project_months", "day_entries",
-                      "sync_settings", "sync_log", "planned_days"):
-                conn.execute(f"DROP TABLE IF EXISTS {t}")
-            conn.commit()
-            return
-        if "id_deadline" in cols:
-            ad_cols = [r[1] for r in
-                       conn.execute("PRAGMA table_info(project_annual_days)").fetchall()]
-            if "id_deadline" not in ad_cols:
-                conn.execute("ALTER TABLE project_annual_days ADD COLUMN id_deadline TEXT DEFAULT ''")
-                conn.execute("ALTER TABLE project_annual_days ADD COLUMN report_deadline TEXT DEFAULT ''")
-                conn.execute("ALTER TABLE project_annual_days ADD COLUMN notes TEXT DEFAULT ''")
-            conn.executescript("""
-                CREATE TABLE IF NOT EXISTS projects_new (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    start_year INTEGER NOT NULL, end_year INTEGER NOT NULL,
-                    project_name TEXT NOT NULL, client TEXT DEFAULT '',
-                    status TEXT DEFAULT 'quoted' CHECK(status IN (
-                        'quoted','accepted','complete','declined','no_response')),
-                    quote_value REAL DEFAULT 0,
-                    created_at TEXT DEFAULT (datetime('now')),
-                    UNIQUE(start_year, project_name));
-                INSERT INTO projects_new (id, start_year, end_year, project_name,
-                    client, status, quote_value, created_at)
-                SELECT id, start_year, end_year, project_name, client,
-                       status, quote_value, created_at FROM projects;
-                DROP TABLE projects;
-                ALTER TABLE projects_new RENAME TO projects;
-            """)
-            conn.commit()
+                      "sync_settings", "sync_log", "planned_days")
+
+
+def _main_db_file(conn) -> str:
+    for _seq, name, path in conn.execute("PRAGMA database_list").fetchall():
+        if name == "main":
+            return path or ""
+    return ""
+
+
+def _retire_old_schema(conn):
+    """Old-schema tables are backed up, then RENAMED to <name>_old_YYYYMMDD (never dropped).
+
+    Raises if munia.db cannot be backed up first; nothing is touched in that case.
+    """
+    from datetime import date
+    _backup_before_migrate(conn)
+    stamp = date.today().strftime("%Y%m%d")
+    existing = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    # One transaction: Python's sqlite3 commits each DDL statement on its own otherwise, so a
+    # failure half way (e.g. "database is locked") would leave some tables renamed and some not.
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        for t in _OLD_SCHEMA_TABLES:
+            if t not in existing:
+                continue
+            # Indexes keep their names when a table is renamed and would block the new
+            # CREATE INDEX; dropping an index loses no data.
+            for (idx,) in conn.execute("SELECT name FROM sqlite_master WHERE type='index' "
+                                       "AND tbl_name=? AND sql IS NOT NULL", (t,)).fetchall():
+                conn.execute(f'DROP INDEX IF EXISTS "{idx}"')
+            new, n = f"{t}_old_{stamp}", 1
+            while new in existing:
+                n += 1
+                new = f"{t}_old_{stamp}_{n}"
+            conn.execute(f'ALTER TABLE "{t}" RENAME TO "{new}"')
+            existing.add(new)
+        conn.commit()
     except Exception:
-        pass
+        conn.rollback()
+        raise
+
+
+def _migrate(conn):
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(projects)").fetchall()]
+    if not cols:
+        return
+    if "start_year" not in cols:
+        _retire_old_schema(conn)
+        return
+    if "id_deadline" in cols:
+        _backup_before_migrate(conn)
+        # DROP TABLE projects with foreign keys ON deletes every child row through
+        # ON DELETE CASCADE: switch them off for the rebuild (only possible outside a transaction).
+        conn.commit()
+        conn.execute("PRAGMA foreign_keys=OFF")
+        try:
+            _rebuild_projects_without_deadline(conn)
+        finally:
+            conn.execute("PRAGMA foreign_keys=ON")
+
+
+def _backup_before_migrate(conn):
+    """A kept copy of munia.db before a migration; raises (changing nothing) if it fails."""
+    db_file = _main_db_file(conn)
+    if db_file:
+        conn.commit()
+        from shared import backup_service
+        if not backup_service.backup_file_written(db_file, "pre-munia-migrate"):
+            raise RuntimeError("Munia: the database was not changed because "
+                               "munia.db could not be backed up first.")
+
+
+def _rebuild_projects_without_deadline(conn):
+    """Moves the deadlines off `projects` (an intermediate schema): one transaction."""
+    ad_cols = [r[1] for r in conn.execute("PRAGMA table_info(project_annual_days)").fetchall()]
+    if "id_deadline" not in ad_cols:
+        conn.execute("ALTER TABLE project_annual_days ADD COLUMN id_deadline TEXT DEFAULT ''")
+        conn.execute("ALTER TABLE project_annual_days ADD COLUMN report_deadline TEXT DEFAULT ''")
+        conn.execute("ALTER TABLE project_annual_days ADD COLUMN notes TEXT DEFAULT ''")
+    conn.commit()
+    conn.executescript("""
+        BEGIN IMMEDIATE;
+        CREATE TABLE IF NOT EXISTS projects_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            start_year INTEGER NOT NULL, end_year INTEGER NOT NULL,
+            project_name TEXT NOT NULL, client TEXT DEFAULT '',
+            status TEXT DEFAULT 'quoted' CHECK(status IN (
+                'quoted','accepted','complete','declined','no_response')),
+            quote_value REAL DEFAULT 0,
+            created_at TEXT DEFAULT (datetime('now')),
+            UNIQUE(start_year, project_name));
+        INSERT INTO projects_new (id, start_year, end_year, project_name,
+            client, status, quote_value, created_at)
+        SELECT id, start_year, end_year, project_name, client,
+               status, quote_value, created_at FROM projects;
+        DROP TABLE projects;
+        ALTER TABLE projects_new RENAME TO projects;
+        COMMIT;
+    """)
+
 
 def get_field_capacity(conn, year: int) -> list[dict]:
     rows = conn.execute(

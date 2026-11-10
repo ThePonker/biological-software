@@ -25,6 +25,8 @@ from PySide6.QtCore import QEvent, QObject, Qt
 from PySide6.QtGui import QPalette
 from PySide6.QtWidgets import QAbstractItemView, QApplication, QComboBox, QWidget
 
+from shared import app_filter
+
 _MARK = "_opaque_popup_qss"     # the style sheet this module gave a widget (so it can be renewed)
 
 
@@ -113,7 +115,7 @@ def install(app: Optional[QApplication] = None,
         _installed._colours = colours or _installed._colours
         return _installed
     _installed = _PopupFilter(colours, app)
-    app.installEventFilter(_installed)
+    app_filter.register(app, "opaque_popups", _installed.eventFilter, (QEvent.Type.Show,))
     return _installed
 
 

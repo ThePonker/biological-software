@@ -28,7 +28,6 @@ class QuantitySpinner(QWidget):
     
     def _setup_ui(self):
         """Set up the widget UI."""
-        t = theme()
         
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)

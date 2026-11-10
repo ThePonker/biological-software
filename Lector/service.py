@@ -13,12 +13,14 @@ English); NeedsUpdate means lector.db must be updated first (update_database).
 Full reference with examples: Lector/SERVICE_API.md.
 """
 import os
+import threading
 from contextlib import contextmanager
 from pathlib import Path
 
-from . import config, engine, review, saved, summary, upgrade
+from . import config, engine, removal, review, saved, summary, tags, upgrade
 from .bhl_client import BHLClient, BHLError
 from .previewing import preview_pages
+from .records_service import RecordsMixin
 from .schema import NeedsMigration
 from .species_source import TVK_RE, UksiLookup
 from .store import LectorStore
@@ -36,16 +38,19 @@ class NeedsUpdate(LectorError):
     """lector.db was made by an older Lector: call update_database() (after asking)."""
 
 
-class LectorService:
+class LectorService(RecordsMixin):
     def __init__(self, db_path=None, uksi_db=None, client_factory=None, export_dir=None,
-                 synonym_file=None, backup_dir=None):
+                 synonym_file=None, backup_dir=None, key_client_factory=None):
         self.db_path = Path(db_path or config.LECTOR_DB)
         self.uksi_db = Path(uksi_db or config.UKSI_DB)
         self.export_dir = Path(export_dir or config.EXPORT_DIR)
         self.synonym_file = Path(synonym_file or config.SYNONYM_FILE)
         self.backup_dir = Path(backup_dir or self.db_path.parent / "_backups")
         self._client_factory = client_factory or self._real_client
+        self._key_client_factory = key_client_factory or BHLClient   # tests pass a fake
         self._client = None
+        self._suggest = None                    # (uksi.db stamp, NameIndex)
+        self._suggest_lock = threading.Lock()
 
     # --- plumbing -------------------------------------------------------
     @contextmanager
@@ -131,6 +136,13 @@ class LectorService:
                "family": None, "genus": None, "matched_as": None, "alternatives": []}
         if not text:
             return out
+        if not self.uksi_db.exists() and not TVK_RE.match(text.upper()):
+            # No uksi.db (the free-standing install has none): search by the name as typed,
+            # with no synonym checks. The window says so.
+            name = " ".join(text.split())
+            name = name[:1].upper() + name[1:].lower()
+            return dict(out, found=True, name=name, rank="Species", matched_as=None,
+                        uksi_missing=True)
         with self._uksi() as u:
             if TVK_RE.match(text.upper()):
                 rows, how = [t for t in [u.taxon(text.upper())] if t], "tvk"
@@ -151,7 +163,8 @@ class LectorService:
 
     def candidate_names(self, tvk, name=None):
         """Names that could be searched for a species, each checked (LEC3). No network.
-        Items: name, origin, included, held_back_reason, conflict_name, conflict_tvk, source."""
+        Items: name, origin, included, held_back_reason, conflict_name, conflict_tvk, source.
+        Without uksi.db: the name as typed, plus any names on your own list."""
         with self._uksi() as u:
             if name is None:
                 name = (u.taxon(tvk) or {}).get("scientific_name")
@@ -222,6 +235,14 @@ class LectorService:
         name plus checked UKSI synonyms (held-back ones stored, not ticked).
         kind 'family': every UKSI species of the family, accepted names only.
         kind 'list': names = list of names/TVKs, each resolved. Returns the id."""
+        if kind == "text":                     # author / place terms: no UKSI, no name checks
+            terms = [x for x in (names or []) if (x if isinstance(x, str) else x.get("name"))]
+            if not terms:
+                raise LectorError("Type at least one term to search for.")
+            terms = [self._text_name(x) for x in terms]
+            with self._store() as st:
+                return saved.create_search(st.conn, name or terms[0]["name"], terms[0]["name"],
+                                           None, "text", status, terms, filters)
         t = target if isinstance(target, dict) else self.resolve_taxon(target)
         if kind != "list" and not t.get("found"):
             raise LectorError(f"{t.get('typed') or target} is not in UKSI - check the spelling.")
@@ -237,6 +258,15 @@ class LectorService:
             return saved.create_search(st.conn, name or t["name"], t["name"], t["tvk"], kind,
                                        status, names, filters)
 
+    @staticmethod
+    def _text_name(raw):
+        """A free-text term as a search name: its own 'species', so reading marks are kept
+        per term."""
+        d = {"name": raw} if isinstance(raw, str) else dict(raw)
+        term = " ".join(d["name"].split())
+        return dict(d, name=term, origin="user_added", accepted_name=term, accepted_tvk=None,
+                    included=d.get("included", True), held_back_reason=None)
+
     def _list_name(self, raw):
         if isinstance(raw, dict):
             return raw
@@ -250,6 +280,9 @@ class LectorService:
                       names=None):
         """Change any of: name, status ('draft'/'active'), notes, filters (dict of
         filter keys to change), names (full list: strings or dicts)."""
+        if names is not None and self.get_search(search_id)["kind"] == "text":
+            names = [self._text_name(x) for x in names
+                     if (x if isinstance(x, str) else x.get("name"))]
         with self._store() as st:
             fields = {k: v for k, v in (("name", name), ("status", status), ("notes", notes))
                       if v is not None}
@@ -276,9 +309,10 @@ class LectorService:
             saved.save_preset(st.conn, name, include_words, exclude_words, description)
 
     # --- counts, preview, runs (NETWORK) ------------------------------------
-    def name_counts(self, names, refresh=False, progress=None, cancel=None):
+    def name_counts(self, names, refresh=False, progress=None, cancel=None, text=False):
         """NETWORK unless cached: pages BHL has for each name, before filters.
-        {name: {'found': int|None, 'source': 'BHL'|'cache'|..., 'error': str|None}}."""
+        {name: {'found': int|None, 'source': 'BHL'|'cache'|..., 'error': str|None}}.
+        text=True: the names are free-text terms (publications, not pages)."""
         out = {}
         with self._store() as st:
             for i, n in enumerate(names):
@@ -287,7 +321,7 @@ class LectorService:
                 if progress:
                     progress("count", i, len(names), f"Counting {n} on BHL")
                 try:
-                    pages, src = engine.name_pages(st, self.client(), n, refresh)
+                    pages, src = engine.name_pages(st, self.client(), n, refresh, text, cancel)
                     out[n] = {"found": len(pages), "source": src, "error": None}
                 except BHLError as exc:
                     out[n] = {"found": None, "source": None, "error": str(exc)}
@@ -299,17 +333,17 @@ class LectorService:
         with self._store() as st:
             s = saved.get_search(st.conn, search_id)
             return preview_pages(st, self.client, s["names"], s["filters"], use_network,
-                                 refresh, progress, cancel)
+                                 refresh, progress, cancel, text=s["kind"] == "text")
 
     def preview_draft(self, names, filters=None, use_network=False, refresh=False,
-                      progress=None, cancel=None, count_all=True):
+                      progress=None, cancel=None, count_all=True, text=False):
         """NETWORK only with use_network. Preview of names and filters not saved yet
         (the search builder). names: [str or {'name', 'included'}]; filters: dict
         (missing keys = defaults). As preview(), plus name_found {name: pages or None}
         for every name (ticked or not, unless count_all=False)."""
         with self._store() as st:
             return preview_pages(st, self.client, names, filters, use_network, refresh,
-                                 progress, cancel, count_all)
+                                 progress, cancel, count_all, text)
 
     def default_filters(self):
         """The filters a new search starts with."""
@@ -426,3 +460,80 @@ class LectorService:
                                                      (search_id,) if search_id else ())]
 
 
+
+    # --- fuzzy species suggestions (Round 15) --------------------------------
+    def _suggest_index(self):
+        from .suggest import NameIndex
+        stamp = (str(self.uksi_db), self.uksi_db.stat().st_mtime_ns if self.uksi_db.exists() else 0)
+        with self._suggest_lock:
+            if self._suggest is None or self._suggest[0] != stamp:
+                with self._uksi() as u:
+                    self._suggest = (stamp, NameIndex(u.suggestion_names()))
+            return self._suggest[1]
+
+    def warm_suggestions(self):
+        """Build the suggestion index in the background (the builder calls this on opening)."""
+        t = threading.Thread(target=lambda: self._suggest_index(), daemon=True)
+        t.start()
+        return t
+
+    def suggest_taxa(self, text, limit=8):
+        """Names in UKSI close to what was typed, tolerating typos and partial words, best
+        first: [{name, tvk, rank, family, score}]. No network."""
+        return self._suggest_index().suggest(text, limit)
+
+    # --- delete a search, remove not-relevant pages (Round 15) -----------------
+    def delete_search_preview(self, search_id):
+        """{name, runs, names, pages, pages_shared, marks}: what deleting would remove."""
+        with self._store() as st:
+            try:
+                return removal.delete_preview(st.conn, search_id)
+            except KeyError as exc:
+                raise LectorError(str(exc)) from None
+
+    def delete_search(self, search_id):
+        """Back lector.db up (conn.backup -> backup_dir/lector_pre_delete_<time>.db), then
+        delete the search, its runs, names, filters, page links and the review marks that
+        belong only to it, in one transaction. Page texts stay."""
+        with self._store() as st:
+            try:
+                return removal.delete_search(st.conn, search_id, self.backup_dir)
+            except KeyError as exc:
+                raise LectorError(str(exc)) from None
+
+    def remove_not_relevant_preview(self, search_id):
+        """{pages, pages_shared, pages_deleted}: how many not-relevant pages would go."""
+        with self._store() as st:
+            return removal.remove_preview(st.conn, search_id)
+
+    def remove_not_relevant(self, search_id):
+        """Back up (lector_pre_remove_<time>.db), then take the search's not-relevant pages
+        out of it in one transaction. Other statuses are never touched."""
+        with self._store() as st:
+            return removal.remove_not_relevant(st.conn, search_id, self.backup_dir)
+
+    # --- reading-list tags (Round 15) -----------------------------------------
+    def list_tags(self, include_hidden=True):
+        """[{key, label, standard, hidden, in_use}]: record/biology/mention/index, then yours."""
+        with self._store() as st:
+            return tags.list_tags(st.conn, include_hidden)
+
+    def add_tag(self, label):
+        return self._tag_call(tags.add_tag, label)
+
+    def rename_tag(self, key, label):
+        return self._tag_call(tags.rename_tag, key, label)
+
+    def hide_tag(self, key, hidden=True):
+        return self._tag_call(tags.set_hidden, key, hidden)
+
+    def delete_tag(self, key):
+        """Only a tag no page carries; a tag in use can only be hidden (LectorError)."""
+        return self._tag_call(tags.delete_tag, key)
+
+    def _tag_call(self, fn, *args):
+        with self._store() as st:
+            try:
+                return fn(st.conn, *args)
+            except (ValueError, KeyError) as exc:
+                raise LectorError(str(exc).strip("'\"")) from None

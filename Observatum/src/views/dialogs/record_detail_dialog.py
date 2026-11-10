@@ -580,6 +580,11 @@ class RecordDetailDialog(QDialog):
         method = self.record.get('method', '')
         if method:
             self._add_label_value_row(layout, "Method", method)
+
+        # Reference (data from a person or a source rather than iRecord/NBN)
+        reference = self.record.get('data_reference', '')
+        if reference:
+            self._add_label_value_row(layout, "Reference", reference)
         
         # Observation type
         

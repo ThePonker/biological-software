@@ -26,6 +26,7 @@ from PySide6.QtCore import QDate, QEvent, QObject, QPointF, Qt
 from PySide6.QtGui import QBrush, QColor, QFont, QImage, QPainter, QPen, QTextCharFormat
 from PySide6.QtWidgets import QApplication, QCalendarWidget
 
+from shared import app_filter
 from shared.tick_mark import CACHE
 
 COLOURS = ("surface", "surface_alt", "text_primary", "text_secondary", "text_muted", "border",
@@ -144,7 +145,8 @@ def install(app: Optional[QApplication] = None,
         _installed._colours = colours or _installed._colours
         return _installed
     _installed = _CalendarFilter(colours, app)
-    app.installEventFilter(_installed)
+    app_filter.register(app, "calendar_style", _installed.eventFilter,
+                        (QEvent.Type.Polish, QEvent.Type.Show))
     return _installed
 
 

@@ -26,8 +26,11 @@ PLACE_CLASSES = (
     PlaceClass("city", ("city", "capital"), None, 10.0, True, "gb"),
     PlaceClass("town", ("town",), 250_000.0, 9.0, False, "county"),
     PlaceClass("village", ("village",), 60_000.0, 8.0, False, "county"),
-    PlaceClass("hamlet", ("hamlet", "suburban area", "other settlement", "small settlement"),
+    PlaceClass("hamlet", ("hamlet", "suburban area", "other settlement"),
                20_000.0, 7.5, False, "county"),
+    # Zoomstack spells this type "Small Settlements" (plural); both spellings are matched
+    PlaceClass("small settlement", ("small settlements", "small settlement"),
+               8_000.0, 7.0, False, "county"),
 )
 
 _BY_VALUE: Dict[str, int] = {v: i for i, c in enumerate(PLACE_CLASSES) for v in c.values}

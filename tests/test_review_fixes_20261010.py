@@ -10,6 +10,7 @@
   7  import dates: a time part is ignored; a range is refused only if it starts after today
   8  backfill_taxon_groups dry run: per column, samples, blanks only
 """
+import json
 import os
 import sqlite3
 
@@ -91,19 +92,9 @@ def test_aggregate_typed_selects_aggregate(small):
 @needs_obs
 def test_real_figures():
     conn = sqlite3.connect(f"file:{paths.OBSERVATUM_DB}?mode=ro", uri=True)
-    old = {  # the review's losses come back
-        ("recording_scheme", "Golden-bloomed Grey Longhorn"): 40,
-        ("recording_scheme", "Tawny Longhorn Beetle"): 13,
-        ("recording_scheme", "agg"): 120,
-        ("observations", "Oligia strigilis agg."): 5,
-        # the earlier agent's figures hold
-        ("recording_scheme", "Spotted Longhorn"): 282,
-        ("recording_scheme", "rhag mor"): 4628,
-        ("recording_scheme", "Rhagium mordx"): 4628,
-        ("observations", "Nicrophorus vespillo"): 8,
-        ("specimens", "Nicrophorus vespillo"): 4,
-        ("recording_scheme", "Strangalia maculata"): 19976,
-    }
+    # the counts live in scripts/reference_figures.json ("test_counts"), not in the test
+    with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts", "reference_figures.json"), encoding="utf-8") as f:
+        old = {(table, text): n for table, text, n in json.load(f)["test_counts"]["review_fixes_20261010"]}
     for (table, text), n in old.items():
         assert _count(conn, table, text) == n, (table, text)
     n = conn.execute("SELECT COUNT(*) FROM observations WHERE species_name = "

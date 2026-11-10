@@ -14,7 +14,7 @@ progress(stage, done, total, message) is called as work proceeds, and cancel
 import json
 from collections import defaultdict
 
-from . import saved
+from . import freetext, saved
 from .bhl_client import BHLError
 from .harvest import apply_filters, drop_duplicate_scans, extract_pages
 from .species_source import SpeciesEntry
@@ -40,21 +40,26 @@ def _quiet(*_args, **_kw):
     pass
 
 
-def name_pages(store, client, name, refresh=False):
+def name_pages(store, client, name, refresh=False, text=False, cancel=None):
     """(pages, source) for a name: BHL's list, from the cache unless refresh
     or never searched. source is 'BHL' or 'cache'. Raises BHLError only when
-    BHL fails and nothing is cached."""
-    pages = None if refresh else store.cached_name_hits(name)
+    BHL fails and nothing is cached. text=True: `name` is a free-text term, asked of
+    PublicationSearch (freetext.py) and cached apart from species names."""
+    key = freetext.cache_key(name) if text else name
+    pages = None if refresh else store.cached_name_hits(key)
     if pages is not None:
         return pages, "cache"
     try:
-        pages = extract_pages(client.name_metadata(name))
+        pages = (freetext.search_term(client, name, cancel=cancel) if text
+                 else extract_pages(client.name_metadata(name)))
     except BHLError:
-        cached = store.cached_name_hits(name)
+        cached = store.cached_name_hits(key)
         if cached is None:
             raise
         return cached, "cache (BHL failed)"
-    store.cache_name_hits(name, pages)
+    if text and is_cancelled(cancel):
+        raise Cancelled                        # a half-read answer is never cached
+    store.cache_name_hits(key, pages)
     return pages, "BHL"
 
 
@@ -80,11 +85,14 @@ def run_search(store, search_id, client, mode="fetch", refresh=False, progress=N
     if mode == "fetch" and not s["filters"]["recorded"]:
         raise ValueError(f"{s['name']} was fetched before Lector kept each search's filters. "
                          "Set its filters first (years, journals, page limit), then run it.")
+    text = s["kind"] == "text"                     # free-text terms: no UKSI, publications
     opts = saved.options_from_filters(s["filters"])
     settings = {"names": [n["name"] for n in names],
                 "held_back": [[n["name"], n["held_back_reason"]] for n in s["names"]
                               if not n["included"]],
                 "filters": s["filters"], "refresh": refresh}
+    if text:
+        settings["free_text"] = True
     r0 = client.request_count
     run_id = conn.execute(
         "INSERT INTO runs (search_id, started, mode, settings, status) VALUES (?,?,?,?,?)",
@@ -108,7 +116,7 @@ def run_search(store, search_id, client, mode="fetch", refresh=False, progress=N
             if is_cancelled(cancel):
                 raise Cancelled
             try:
-                pages, source = name_pages(store, client, n["name"], refresh)
+                pages, source = name_pages(store, client, n["name"], refresh, text, cancel)
             except BHLError as exc:
                 failed_names.append(n["name"])
                 summary["names"].append({"name": n["name"], "error": str(exc)})
@@ -123,7 +131,7 @@ def run_search(store, search_id, client, mode="fetch", refresh=False, progress=N
             log(f"  ✓ {n['name']} ({role}) - {len(pages)} pages, {len(kept)} kept"
                 + (" (capped)" if capped else "")
                 + ("" if source == "BHL" else f"  [{source}; --refresh asks BHL again]"))
-            if source == "BHL" and mode == "fetch":
+            if source == "BHL" and mode == "fetch" and not text:
                 store.record_search(SpeciesEntry(n["accepted_name"], n["accepted_tvk"]),
                                     n["name"], role, len(pages), len(kept))
         progress("search", len(names), len(names), "Searched")

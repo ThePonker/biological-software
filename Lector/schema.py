@@ -1,4 +1,4 @@
-"""lector.db schema, version 3 (12 Oct 2026), and the in-place migration to it.
+"""lector.db schema, version 4 (25 Oct 2026), and the in-place migration to it.
 
 Version 2 adds, without changing or removing anything already stored:
   pages            + page_type (fix2), part_id, article_title, authors
@@ -19,13 +19,25 @@ fetched becomes a saved search with one run (migrate_legacy below).
 Version 3 (12 Oct 2026, Round 8) adds, again without changing stored rows:
   runs             + name_requests, text_requests (BHL requests split by kind)
   activity         other work shown under Recent activity ("Fetch missing text")
+
+Version 4 (25 Oct 2026, Round 15) adds, again without changing stored rows:
+  user_tags        your own reading-list tags beside the four standard ones (label, hidden,
+                   position); pages keep using page_hits.review_tag, holding the tag's key
+  saved_searches   + text_search (0/1): 1 marks a free-text search (author or place terms
+                   sent to BHL's PublicationSearch). Its kind is stored as 'list' because
+                   the version 2 CHECK on kind cannot be widened without rebuilding the
+                   table; the service reports it as kind 'text'.
+  extracted_records  what a page says, typed in by you (species, date, place, grid
+                   reference, recorder...), with the page's citation copied in so the record
+                   survives if the page later leaves a search. Added to version 4 before it
+                   was released, so there is no version 5.
 """
 import json
 import sqlite3
 
 from .presets import BUILTIN_PRESETS
 
-VERSION = 3
+VERSION = 4
 
 
 class NeedsMigration(RuntimeError):
@@ -77,6 +89,47 @@ NEW_COLUMNS = {
     "page_hits": [("notes", "TEXT"), ("review_tag", "TEXT"), ("reviewed_at", "TEXT")],
 }
 V3_COLUMNS = {"runs": [("name_requests", "INTEGER"), ("text_requests", "INTEGER")]}
+V4_COLUMNS = {"saved_searches": [("text_search", "INTEGER NOT NULL DEFAULT 0")]}
+
+V4 = """
+CREATE TABLE IF NOT EXISTS user_tags (
+    tag_key  TEXT PRIMARY KEY,        -- stored in page_hits.review_tag; never changes
+    label    TEXT NOT NULL,           -- what the buttons show; can be renamed
+    hidden   INTEGER NOT NULL DEFAULT 0,
+    position INTEGER NOT NULL DEFAULT 0,
+    created  TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS extracted_records (
+    record_id    INTEGER PRIMARY KEY AUTOINCREMENT,
+    page_id      INTEGER,             -- the BHL page it was read from (may later leave lector.db)
+    search_id    INTEGER,             -- the search it was read in
+    species      TEXT NOT NULL,       -- UKSI name when the name was found there
+    species_tvk  TEXT,
+    date_printed TEXT,                -- as printed, free text
+    day          INTEGER,
+    month        INTEGER,
+    year         INTEGER,
+    place        TEXT,                -- as printed
+    vice_county  INTEGER,
+    grid_ref     TEXT,                -- validated with shared.osgb, upper case, no spaces
+    recorder     TEXT,                -- recorder / collector as printed
+    determiner   TEXT,
+    count        TEXT,                -- free text
+    sex          TEXT,
+    stage        TEXT,
+    comment      TEXT,
+    citation     TEXT,                -- full citation of the page
+    source_title TEXT,
+    source_volume TEXT,
+    source_page  TEXT,
+    source_year  INTEGER,
+    bhl_url      TEXT,
+    created      TEXT NOT NULL,
+    updated      TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_extracted_page ON extracted_records(page_id);
+CREATE INDEX IF NOT EXISTS idx_extracted_search ON extracted_records(search_id);
+"""
 
 V2 = """
 CREATE TABLE IF NOT EXISTS saved_searches (
@@ -224,6 +277,8 @@ def _apply(conn):
     _add_columns(conn, NEW_COLUMNS)
     conn.executescript(V2)
     _add_columns(conn, V3_COLUMNS)              # runs made by version 2
+    conn.executescript(V4)
+    _add_columns(conn, V4_COLUMNS)
     for p in BUILTIN_PRESETS:
         conn.execute(
             "INSERT OR IGNORE INTO journal_presets (name, description, include_words,"
@@ -236,7 +291,8 @@ def counts(conn):
     t = _tables(conn)
     out = {}
     for table in ("searches", "pages", "page_hits", "saved_searches", "search_names",
-                  "runs", "run_pages", "search_pages", "journal_presets", "activity"):
+                  "runs", "run_pages", "search_pages", "journal_presets", "activity",
+                  "user_tags", "extracted_records"):
         out[table] = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] \
             if table in t else None
     if "pages" in t:

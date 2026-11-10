@@ -47,7 +47,6 @@ class QuickEntryForm(QuickEntryFieldsMixin, Card):
     
     def _setup_ui(self):
         """Set up the form UI with all fields."""
-        t = theme()
         
         self.setAutoFillBackground(True)
         self.setStyleSheet(self._get_form_stylesheet())
@@ -141,7 +140,6 @@ class QuickEntryForm(QuickEntryFieldsMixin, Card):
     
     def _get_sticky_checkbox_style(self) -> str:
         """Get the green toggle style for sticky checkboxes."""
-        t = theme()
         return f"""
             QCheckBox {{ spacing: 0px; }}
         """
@@ -204,6 +202,7 @@ class QuickEntryForm(QuickEntryFieldsMixin, Card):
             db = get_database()
             model = ObservationModel(db)
             new_id = model.create(observation)
+            tax_error = None
             
             if new_id and (tax.get('superfamily') or tax.get('taxonomic_sort_key')):
                 # the two taxonomy columns create() does not write (as Data Entry's commit);
@@ -214,12 +213,20 @@ class QuickEntryForm(QuickEntryFieldsMixin, Card):
                         (tax.get('superfamily'), tax.get('taxonomic_sort_key'), new_id))
                 except Exception as e:
                     print(f"[QuickEntry] superfamily/sort key not written for {new_id}: {e}")
+                    tax_error = e
 
             if new_id:
                 species_name = self._selected_species.get('scientific_name', 'Unknown')
                 note = ""
                 if form_data.get('record_type') == 'Commercial' and not observation.embargo_until:
                     note = " (no embargo set: the project's records differ or have none)"
+                if tax_error is not None:
+                    note += " -- saved WITHOUT its superfamily / sort-order fields"
+                    QMessageBox.warning(
+                        self, "Saved without taxonomy fields",
+                        f"The record was saved, but its superfamily and taxonomic sort-order "
+                        f"fields could not be written:\n\n{tax_error}\n\n"
+                        "It may sit in the wrong place in taxonomic lists until they are filled in.")
                 self.status_bar.show_success(f"Record saved - {species_name}{note}")
                 
                 tvk = self._selected_species.get('tvk')

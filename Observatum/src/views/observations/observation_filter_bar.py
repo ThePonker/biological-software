@@ -19,6 +19,7 @@ from ...core.config import TabColors
 
 # Shared components
 from ..components.date_filter_widget import DateFilterWidget
+from ..components.reference_field import ReferenceField
 from ..components.combo_filter_widget import ComboFilterWidget
 from ..components.filter_debounce import debounce_text, cancel_pending
 from ..components.species_box import attach_species_completer, species_items
@@ -31,6 +32,9 @@ from ..components.filter_styles import (
     get_input_style, get_clear_button_style, create_filter_label,
 )
 from ...services.vc_lookup_service import VCLookupService
+
+
+COL_REFERENCE = 130    # Reference (data_reference)
 
 
 def _index_ignoring_case(combo, text) -> int:
@@ -183,7 +187,6 @@ class ObservationFilterBar(QFrame, SavedFiltersMixin):
 
     def _setup_filters_row(self, content_layout):
         """Set up main filters row with unified column widths."""
-        t = theme()
         input_style = get_input_style()
         
         filters_row = QHBoxLayout()
@@ -327,6 +330,19 @@ class ObservationFilterBar(QFrame, SavedFiltersMixin):
         recorder_box.addWidget(self.recorder_edit)
         filters_row.addWidget(recorder_container)
 
+        # Reference (data_reference: where data came from other than iRecord/NBN)
+        reference_container = QWidget()
+        reference_container.setFixedWidth(COL_REFERENCE)
+        reference_box = QVBoxLayout(reference_container)
+        reference_box.setContentsMargins(0, 0, 0, 0)
+        reference_box.setSpacing(4)
+        reference_box.addWidget(create_filter_label("Reference"))
+        self.reference_edit = ReferenceField(None, "observations", filter_mode=True)
+        self.reference_edit.setFixedHeight(STANDARD_INPUT_HEIGHT)
+        self.reference_edit.setStyleSheet(f"QLineEdit {{ {input_style} }}")
+        reference_box.addWidget(self.reference_edit)
+        filters_row.addWidget(reference_container)
+
         # Column 9: Method
         method_container = QWidget()
         method_container.setFixedWidth(COL_METHOD)
@@ -366,6 +382,7 @@ class ObservationFilterBar(QFrame, SavedFiltersMixin):
         debounce_text(self.species_edit, self._emit_filters, apply_on_enter=False)
         debounce_text(self.location_edit, self._emit_filters, apply_on_enter=False)
         debounce_text(self.recorder_edit, self._emit_filters, apply_on_enter=False)
+        debounce_text(self.reference_edit, self._emit_filters)
         self.date_from_edit.dateChanged.connect(self._emit_filters)
         self.date_to_edit.dateChanged.connect(self._emit_filters)
         self.order_combo.currentTextChanged.connect(self._emit_filters)
@@ -439,6 +456,7 @@ class ObservationFilterBar(QFrame, SavedFiltersMixin):
             'family': family,
             'vice_county': vc,
             'recorder': self.recorder_edit.text().strip(),
+            'data_reference': self.reference_edit.text().strip(),
             'method': method,
             'verification_status': verification,
         }
@@ -451,13 +469,13 @@ class ObservationFilterBar(QFrame, SavedFiltersMixin):
         """Every filter back to empty / All, emitting nothing."""
         # Block signals to prevent multiple reloads during clear
         widgets = [
-            self.species_edit, self.location_edit, self.recorder_edit,
+            self.species_edit, self.location_edit, self.recorder_edit, self.reference_edit,
             self.date_from_edit, self.date_to_edit,
             self.order_combo, self.family_edit, self.vc_combo,
             self.method_combo, self.status_combo,
             self.saved_combo, self.only_excluded_chk
         ]
-        cancel_pending(self.species_edit, self.location_edit, self.recorder_edit,
+        cancel_pending(self.species_edit, self.location_edit, self.recorder_edit, self.reference_edit,
                        self.family_edit)
         for w in widgets:
             w.blockSignals(True)
@@ -469,6 +487,7 @@ class ObservationFilterBar(QFrame, SavedFiltersMixin):
             self.species_edit.clear()
             self.location_edit.clear()
             self.recorder_edit.clear()
+            self.reference_edit.clear()
             self.date_from_edit.clear()
             self.date_to_edit.clear()
             self.order_combo.resetToFirst()
@@ -499,10 +518,10 @@ class ObservationFilterBar(QFrame, SavedFiltersMixin):
     def _apply_saved_filter(self, filters: dict):
         """Apply saved filter values to the UI, then reload once (each widget reloaded
         as it was set). Required by SavedFiltersMixin."""
-        quiet = [self.species_edit, self.location_edit, self.recorder_edit,
+        quiet = [self.species_edit, self.location_edit, self.recorder_edit, self.reference_edit,
                  self.date_from_edit, self.date_to_edit, self.order_combo, self.family_edit,
                  self.vc_combo, self.method_combo, self.status_combo]
-        cancel_pending(self.species_edit, self.location_edit, self.recorder_edit,
+        cancel_pending(self.species_edit, self.location_edit, self.recorder_edit, self.reference_edit,
                        self.family_edit)
         for w in quiet:
             w.blockSignals(True)
@@ -514,12 +533,27 @@ class ObservationFilterBar(QFrame, SavedFiltersMixin):
         self._update_family_completer()       # order_combo's own handler, silenced above
         self.filters_changed.emit(self.get_filters())
 
+    REFERENCE_IGNORED = "(Reference ignored: column not added yet)"
+
+    def _set_saved_reference(self, text: str):
+        """A saved filter's Reference into the box. Where the column is not there yet the box
+        is disabled: nothing is put in it, the saved text is ignored and the tooltip says so."""
+        from shared.data_reference import TOOLTIP_MISSING
+        if self.reference_edit.available:
+            self.reference_edit.setText(text)
+        elif text:
+            self.reference_edit.clear()
+            self.reference_edit.setToolTip(f"{TOOLTIP_MISSING}\n{self.REFERENCE_IGNORED}")
+        else:
+            self.reference_edit.clear()
+
     def _set_saved_values(self, filters: dict):
         """The saved filter's values into the widgets (no signals: see _apply_saved_filter).
         A wizard-only saved filter (just a 'wizard' key) blanks the boxes (13 Oct 2026)."""
         if not (set(filters) - {'wizard'}):
             for w in (self.species_edit, self.location_edit, self.recorder_edit,
-                      self.date_from_edit, self.date_to_edit, self.family_edit):
+                      self.reference_edit, self.date_from_edit, self.date_to_edit,
+                      self.family_edit):
                 w.clear()
             for w in (self.order_combo, self.vc_combo, self.method_combo, self.status_combo):
                 w.resetToFirst()
@@ -544,6 +578,7 @@ class ObservationFilterBar(QFrame, SavedFiltersMixin):
         self.species_edit.setText(filters.get('species', ''))
         self.location_edit.setText(filters.get('location', ''))
         self.recorder_edit.setText(filters.get('recorder', ''))
+        self._set_saved_reference(filters.get('data_reference', '') or '')
         
         for combo, key in [(self.order_combo, 'order'),
                            (self.method_combo, 'method'), 
@@ -575,6 +610,7 @@ class ObservationFilterBar(QFrame, SavedFiltersMixin):
     def initialize_with_database(self, db):
         """Initialize completers and dropdowns from database."""
         self._db = db
+        self.reference_edit.bind(db, "observations")
         
         # Block signals while populating
         for widget in [self.order_combo, self.family_edit, self.vc_combo,

@@ -16,7 +16,7 @@ from typing import Callable, List, Tuple
 
 from PySide6.QtCore import QObject, QTimer
 
-from shared.maps import coast, layers, place_names, relief
+from shared.maps import coast, env_classes, layers, place_names, relief
 from shared.maps.vc_map import _SIMPLIFY_TOL
 from shared.maps.vc_topology import unique_chains
 
@@ -74,7 +74,10 @@ def warm_steps(m) -> List[Step]:
         jobs.append((("vc_topo", m._geojson, _SIMPLIFY_TOL, "r5"), "topo"))
     if m._land_source and not m._use_layer_land():
         jobs.append((m._land_source + ("r5",), "land"))
-    jobs = [j for j in jobs if not coast.has_split(j[0])]
+    # a split kept on disk by an earlier run is taken now (R16: map_disk_cache), so only what is
+    # new or changed goes through the steps below
+    jobs = [j for j in jobs if not coast.has_split(j[0])
+            and not coast.load_disk(j[0], m._split_disk(j[1]))]
 
     def rings_for(which):
         return st["topo"] if which == "topo" else m._land
@@ -92,7 +95,7 @@ def warm_steps(m) -> List[Step]:
     def classify_and_load():                                # thread: pure Python + files
         for key, which in jobs:
             coast.split_edges_cached(key, rings_for(which), lambda k=key: st[k],
-                                     raster=st[("raster", key)])
+                                     raster=st[("raster", key)], disk=m._split_disk(which))
         for key in sorted(_gb_keys(m)):
             layers.load(m._maps_dir, key, "gb")
         if "relief" in _gb_keys(m):
@@ -103,7 +106,9 @@ def warm_steps(m) -> List[Step]:
     steps: List[Step] = [("thread", topology), ("gui", rasters), ("thread", classify_and_load)]
     for key in sorted(_gb_keys(m)):                         # GUI: one path per tick
         if layers.kind_of(key) in ("polygon", "line"):
-            steps.append(("gui", lambda k=key: m._layer_shape(m.fit(), k, view=m.fit().extent)))
+            # a classed layer is drawn from one path per class, never the whole-layer path
+            extra = {"cls": ""} if env_classes.is_classed(key) else {}
+            steps.append(("gui", lambda k=key, x=extra: m._layer_shape(m.fit(), k, view=m.fit().extent, **x)))
     return steps
 
 

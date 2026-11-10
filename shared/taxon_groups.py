@@ -409,6 +409,137 @@ def taxonomy_for_tvks(tvks: Iterable[str], uksi_path=None) -> Dict[str, dict]:
     return out
 
 
+def _uksi_tables(conn) -> set:
+    return {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+
+
+def recommended_for_tvks(tvks: Iterable[str], uksi_path=None) -> Dict[str, dict]:
+    """{tvk: {tvk, scientific_name, common_name, name, targets}} -- the RECOMMENDED taxon, the
+    name_map name of the TVK, and how many recommended taxa that name points to (more than one
+    = a homonym) -- for every TVK
+    that UKSI holds only as a non-recommended name (a synonym): not in `taxa`, but in
+    `name_map` with a different recommended_tvk that is in `taxa`. TVKs UKSI holds as
+    taxa, or does not hold, are left out. (R16, 10 Nov 2026: Botanophila discreta committed
+    with no kingdom, superfamily or sort key because its synonym TVK is not in `taxa`.)
+
+    Only name_map is used -- UKSI's own name -> recommended name table. tvk_remap (old
+    TVKs of superseded concepts) is not: 'never rename on a guess' (05_Rules, Taxonomy).
+    Raises on failure; the caller decides what to do without it."""
+    if uksi_path is None:
+        import paths
+        uksi_path = paths.UKSI_DB
+    tvks = [t for t in dict.fromkeys(tvks) if t]
+    out: Dict[str, dict] = {}
+    if not tvks:
+        return out
+    from shared.db_open import connect_ro
+    conn = connect_ro(uksi_path)
+    try:
+        tables = _uksi_tables(conn)
+        if "name_map" not in tables:
+            return out
+        for i in range(0, len(tvks), 900):
+            part = tvks[i:i + 900]
+            ph = ",".join("?" * len(part))
+            for tvk, rec, name, nm_name in conn.execute(
+                    "SELECT nm.tvk, nm.recommended_tvk, t.scientific_name, nm.name FROM name_map nm "
+                    "JOIN taxa t ON t.tvk = nm.recommended_tvk "
+                    f"WHERE nm.tvk IN ({ph}) AND nm.recommended_tvk <> nm.tvk "
+                    f"AND nm.tvk NOT IN (SELECT tvk FROM taxa)", part):
+                out[tvk] = {"tvk": rec, "scientific_name": name, "common_name": None,
+                            "name": nm_name, "targets": 1}
+        # how many recommended taxa each of those names points to (a homonym points to several)
+        by_name: Dict[str, list] = {}
+        for v in out.values():
+            by_name.setdefault(_plain_name(v["name"]), [])
+        keys = sorted(k for k in by_name if k)
+        for i in range(0, len(keys), 900):
+            part = keys[i:i + 900]
+            ph = ",".join("?" * len(part))
+            for name, rec in conn.execute(
+                    "SELECT nm.name, nm.recommended_tvk FROM name_map nm "
+                    "WHERE nm.recommended_tvk IS NOT NULL AND nm.recommended_tvk <> '' "
+                    f"AND LOWER(nm.name) IN ({ph})", part):
+                by_name.setdefault(_plain_name(name), []).append(rec)
+        for v in out.values():
+            v["targets"] = len(set(by_name.get(_plain_name(v["name"]), []))) or 1
+        if out and "common_names" in tables:
+            recs = sorted({v["tvk"] for v in out.values()})
+            common = {}
+            for i in range(0, len(recs), 900):
+                part = recs[i:i + 900]
+                ph = ",".join("?" * len(part))
+                for tvk, cn in conn.execute(      # the same pick as species_lookup's common name
+                        f"SELECT cn.tvk, cn.common_name FROM common_names cn WHERE cn.tvk IN ({ph}) "
+                        "ORDER BY cn.preferred DESC, CASE WHEN cn.common_name GLOB '[A-Z]*' THEN 0 ELSE 1 END, "
+                        "LENGTH(cn.common_name), cn.rowid", part):
+                    common.setdefault(tvk, cn)
+            for v in out.values():
+                v["common_name"] = common.get(v["tvk"])
+    finally:
+        conn.close()
+    return out
+
+
+def _plain_name(name) -> str:
+    """A name for comparing: lower case, spaces tidied, subgenus brackets dropped."""
+    import re
+    return " ".join(re.sub(r"\([^)]*\)", " ", name or "").lower().split())
+
+
+def names_for_tvks(tvks: Iterable[str], uksi_path=None) -> Dict[str, set]:
+    """{tvk: the names UKSI gives it, plain-lower-cased} for every TVK UKSI holds -- as a
+    taxon (its scientific name and its synonyms) or as a non-recommended name (that name, and
+    the recommended taxon's name and synonyms). TVKs UKSI does not hold are left out: nothing
+    can be said of them. Used to catch a row whose name and TVK are different species."""
+    if uksi_path is None:
+        import paths
+        uksi_path = paths.UKSI_DB
+    tvks = [t for t in dict.fromkeys(tvks) if t]
+    out: Dict[str, set] = {}
+    if not tvks:
+        return out
+    from shared.db_open import connect_ro
+    conn = connect_ro(uksi_path)
+    try:
+        tables = _uksi_tables(conn)
+        has_syn = "synonyms" in tables
+        for i in range(0, len(tvks), 900):
+            part = tvks[i:i + 900]
+            ph = ",".join("?" * len(part))
+            for tvk, name in conn.execute(
+                    f"SELECT tvk, scientific_name FROM taxa WHERE tvk IN ({ph})", part):
+                out.setdefault(tvk, set()).add(_plain_name(name))
+            if "name_map" in tables:
+                for tvk, name, rec, rec_name in conn.execute(
+                        "SELECT tvk, name, recommended_tvk, recommended_name FROM name_map "
+                        f"WHERE tvk IN ({ph})", part):
+                    out.setdefault(tvk, set()).update(
+                        _plain_name(n) for n in (name, rec_name) if n)
+                    if rec and rec != tvk:
+                        out[tvk].update(next(iter(_names_of(conn, [rec], has_syn).values()), set()))
+            if has_syn:
+                for tvk, names in _names_of(conn, [t for t in part if t in out], True).items():
+                    out[tvk].update(names)
+    finally:
+        conn.close()
+    return out
+
+
+def _names_of(conn, tvks, has_syn) -> Dict[str, set]:
+    """{tvk: scientific name + synonyms (plain)} for taxa in `taxa`."""
+    res: Dict[str, set] = {}
+    if not tvks:
+        return res
+    ph = ",".join("?" * len(tvks))
+    for tvk, name in conn.execute(f"SELECT tvk, scientific_name FROM taxa WHERE tvk IN ({ph})", tvks):
+        res.setdefault(tvk, set()).add(_plain_name(name))
+    if has_syn:
+        for tvk, name in conn.execute(f"SELECT tvk, synonym FROM synonyms WHERE tvk IN ({ph})", tvks):
+            res.setdefault(tvk, set()).add(_plain_name(name))
+    return res
+
+
 def fill_blank_groups(rows, taxonomy: Optional[Dict[str, dict]] = None, uksi_path=None) -> int:
     """Import rows (any wizard's row objects with species_tvk / taxon_group, and kingdom
     where they have it): fill a blank taxon_group -- and a blank kingdom -- from UKSI by

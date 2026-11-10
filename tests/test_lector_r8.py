@@ -668,7 +668,7 @@ def test_schema_v3_adds_only(tmp_path):
         before = schema.counts(c)
     assert upgrade.status(db)["needs_update"]
     done = svc.update_database()
-    assert done["applied"] and Path(done["backup"]).name.startswith("lector_pre_v3_")
+    assert done["applied"] and Path(done["backup"]).name.startswith(f"lector_pre_v{schema.VERSION}_")
     assert done["searches_made"] == []
     for k, v in before.items():
         assert done["after"][k] == v, k

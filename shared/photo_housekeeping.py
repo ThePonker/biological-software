@@ -60,6 +60,7 @@ def archive_empty_folders(folders: List[str], life: Optional[Path] = None,
     """Move these empty folders (relative to Life) into _archive/empty_folders_<date>/<same
     path>. A folder that is no longer empty is left. Returns (moved, notes, log path)."""
     import paths
+    pf.refuse_if_away()                  # the photo library is live OneDrive: no moves on the away laptop
     life = Path(life or pf.life_root())
     day = datetime.date.today().strftime("%Y%m%d")
     dest_root = Path(archive_root or Path(paths.ROOT) / "_archive") / f"empty_folders_{day}"
@@ -135,6 +136,7 @@ def move_bench_photos(conn, stored_paths, to_folder: Path) -> Tuple[List[str], L
     left (moving it would break that link). Never over another file; logged. Returns
     (moved, notes)."""
     import paths
+    pf.refuse_if_away()                  # the photo library is live OneDrive: no moves on the away laptop
     moved, notes = [], []
     if conn is None or not pl.has_table(conn):
         return moved, ["the photo links could not be read, so nothing was moved"]

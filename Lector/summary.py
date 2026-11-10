@@ -14,13 +14,14 @@ def list_searches(c):
         last = saved.last_run(c, sid)
         found_last = saved.last_run(c, sid, "fetch")
         out.append({
-            **dict(s), "names_total": len(names),
+            **saved.public_kind(s), "names_total": len(names),
             "names_included": sum(n["included"] for n in names),
             "names_held_back": [n["name"] for n in names if not n["included"]],
             "journal_preset": f["journal_preset"], "years": years_text(f), "scope": scope_text(f),
             "filters_recorded": f["recorded"], "pages_held": len(rows),
             "pages_with_text": sum(r["fetched_at"] is not None for r in rows),
-            "pages_without_text": sum(r["fetched_at"] is None for r in rows),
+            # free-text publications (negative ids) have no page text to fetch
+            "pages_without_text": sum(r["fetched_at"] is None and r["page_id"] > 0 for r in rows),
             "reviewed": sum(r["review_status"] != "unreviewed" for r in rows),
             "records_extracted": sum(r["review_status"] == "record_extracted" for r in rows),
             "runs": c.execute("SELECT COUNT(*) FROM runs WHERE search_id=?", (sid,)).fetchone()[0],

@@ -18,6 +18,7 @@ from typing import Callable, Dict, Optional
 from PySide6.QtCore import QEvent, QObject
 from PySide6.QtWidgets import QAbstractButton, QApplication, QCheckBox, QRadioButton, QWidget
 
+from shared import app_filter
 from shared.tick_mark import checkbox_qss, radio_qss
 
 COLOURS = ("fill", "mark", "border", "background")
@@ -91,7 +92,7 @@ def install(app: Optional[QApplication] = None,
         _installed._colours = colours or _installed._colours
         return _installed
     _installed = _TickFilter(colours, app)
-    app.installEventFilter(_installed)
+    app_filter.register(app, "tick_style", _installed.eventFilter, (QEvent.Type.Show,))
     return _installed
 
 

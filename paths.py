@@ -9,14 +9,17 @@ import os
 
 
 def _resolve_root():
-    candidate = Path(__file__).resolve().parent
-    if (candidate / 'data').is_dir():
-        return candidate
+    # An explicit BIOSOFT_ROOT wins (10 Nov 2026): tests run scripts in a child process against a
+    # temporary root, and until now a code folder that has its own data\ (Wil's) was used instead,
+    # so those children read the live data. Nothing in the suite sets it for normal use.
     env_root = os.environ.get('BIOSOFT_ROOT')
     if env_root:
         p = Path(env_root)
         if (p / 'data').is_dir():
             return p
+    candidate = Path(__file__).resolve().parent
+    if (candidate / 'data').is_dir():
+        return candidate
     home = Path.home()
     for name in ['Biological Software', 'Biological_Software']:
         for base in [home / 'OneDrive', home / 'Documents', home]:

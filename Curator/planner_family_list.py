@@ -213,7 +213,6 @@ class FamilyListPanel(QWidget):
                 box_num += 1
             box_for_family.append(box_num)
 
-        total_boxes = box_num
         divider_idx = 0
 
         for i, family in enumerate(self._families):

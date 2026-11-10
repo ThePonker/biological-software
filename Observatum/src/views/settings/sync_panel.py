@@ -23,7 +23,6 @@ class SyncSettingsPanel(QScrollArea):
         self._load_settings()
     
     def _setup_ui(self):
-        t = theme()
         
         self.setWidgetResizable(True)
         self.setFrameShape(QFrame.Shape.NoFrame)

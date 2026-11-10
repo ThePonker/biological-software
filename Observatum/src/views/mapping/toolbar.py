@@ -5,6 +5,7 @@ Provides map view controls including:
 - View toggle (National/County)
 - Grid size selection
 - Filter panel toggle
+- Identify toggle (a click on the map reports the point; identify_popup.py)
 - Export button, with the extent of the atlas page: Full extent (all GB in National view,
   the whole county in County view; the default) or Current view (L14/L32, 10 Oct 2026)
 (Style and Period sit above the map, display_bar.py. The data sources are tick boxes in the
@@ -30,6 +31,8 @@ class MapToolbar(QFrame):
     grid_changed = Signal(str)
     filters_toggled = Signal(bool)
     export_requested = Signal()
+    identify_toggled = Signal(bool)    # the Identify tool on / off (identify_popup.py)
+    view3d_requested = Signal()        # open the 3D view of what is on screen (view3d.py)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -92,6 +95,31 @@ class MapToolbar(QFrame):
         grid_group.addWidget(self.grid_combo)
 
         layout.addLayout(grid_group)
+
+        # Identify: off by default; on, a click on the map reports the point (pop-up)
+        self.identify_btn = QPushButton("Identify")
+        self.identify_btn.setCheckable(True)
+        self.identify_btn.setToolTip(
+            "On: click the map to see the grid references, vice county, records and layers at "
+            "that point (Esc closes the panel). Off: a click selects a square.")
+        self.identify_btn.toggled.connect(self._on_identify_toggled)
+        self._style_identify_button()
+        layout.addWidget(self.identify_btn)
+
+        # 3D view of the area on screen
+        self.view3d_btn = QPushButton("3D view")
+        self.view3d_btn.setToolTip("Show the area on screen as a 3D surface with the map draped over it")
+        self.view3d_btn.setStyleSheet(f"""
+            QPushButton {{
+                border: 1px solid {t.get('border')};
+                border-radius: {t.get('radius_sm')};
+                padding: 6px 12px;
+                font-size: 12px;
+            }}
+            QPushButton:hover {{ background-color: {t.get('hover')}; }}
+        """)
+        self.view3d_btn.clicked.connect(self.view3d_requested.emit)
+        layout.addWidget(self.view3d_btn)
 
         layout.addStretch()
 
@@ -178,6 +206,37 @@ class MapToolbar(QFrame):
         )
         self._style_filter_button()
         self.filters_toggled.emit(checked)
+
+    def _on_identify_toggled(self, checked: bool):
+        self._style_identify_button()
+        self.identify_toggled.emit(checked)
+
+    def _style_identify_button(self):
+        """Identify button: tab colours when on, plain when off (as the Filters button)."""
+        t = theme()
+        if self.identify_btn.isChecked():
+            self.identify_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {self._accent_light};
+                    color: {self._accent_dark};
+                    border: 1px solid {self._accent};
+                    border-radius: {t.get('radius_sm')};
+                    padding: 6px 12px;
+                    font-size: 12px;
+                }}
+            """)
+        else:
+            self.identify_btn.setStyleSheet(f"""
+                QPushButton {{
+                    border: 1px solid {t.get('border')};
+                    border-radius: {t.get('radius_sm')};
+                    padding: 6px 12px;
+                    font-size: 12px;
+                }}
+                QPushButton:hover {{
+                    background-color: {t.get('hover')};
+                }}
+            """)
 
     def _style_filter_button(self):
         """Style the filter toggle button based on state."""

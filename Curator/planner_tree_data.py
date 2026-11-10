@@ -476,7 +476,6 @@ def _load_uksi_genera_species(order_name):
     # Genera by family
     c.execute("SELECT scientific_name, family, sort_code FROM taxa WHERE \"order\" = ? AND rank = 'Genus' AND family IS NOT NULL AND sort_code IS NOT NULL ORDER BY sort_code", (order_name,))
     gen_by_fam = {}
-    genus_tvks = {}
     for name, family, sort_code in c.fetchall():
         gen_by_fam.setdefault(family, []).append((name, sort_code))
 

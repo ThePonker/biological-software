@@ -1,7 +1,7 @@
 """Natural England Species Status reviews: file them, extract spreadsheet accounts.
 
 1. FILES every downloaded review into data\\reviews\\<folder>\\source\\ (copied,
-   SHA-256 verified, then removed from Downloads -- as organise_reviews.py).
+   SHA-256 verified, then moved to a _filed folder beside it in Downloads -- as organise_reviews.py).
 2. For reviews whose data table has an "Ecological account" column, WRITES
    extracted\\review.csv + accounts.csv (+ statuses.csv for reference):
      * citation from the report's own "should be cited as" text
@@ -110,6 +110,19 @@ def sha(p):
         for b in iter(lambda: f.read(1 << 20), b""):
             h.update(b)
     return h.hexdigest()
+
+
+def file_away(p):
+    """Never delete: move the original into a _filed folder beside it (name kept; a
+    timestamp is added if that name is already there). Returns the new path."""
+    d = os.path.join(os.path.dirname(p), "_filed")
+    os.makedirs(d, exist_ok=True)
+    dest = os.path.join(d, os.path.basename(p))
+    if os.path.exists(dest):
+        stem, ext = os.path.splitext(os.path.basename(p))
+        dest = os.path.join(d, f"{stem}_{__import__('datetime').datetime.now():%Y%m%d_%H%M%S}{ext}")
+    os.replace(p, dest)
+    return dest
 
 
 def find(pattern):
@@ -280,12 +293,12 @@ for src, dst in moves:
     if sha(src) != sha(dst):
         sys.exit(f"  x {dst} does not verify against {src} -- stopped")
     try:
-        os.remove(src)
+        file_away(src)
     except OSError as e:     # the copy is verified; a locked original is not a reason to stop
         locked.append(os.path.basename(src))
 print(f"\n  {len(moves)} files filed and verified")
 for f in locked:
-    print(f"  ! could not remove the original (in use): {f} -- its copy is verified; delete it by hand")
+    print(f"  ! could not move the original (in use): {f} -- its copy is verified; move it aside by hand")
 
 for necr, folder, group, pdf, table, rows, cit in writes:
     d = os.path.join(R, folder, "extracted")

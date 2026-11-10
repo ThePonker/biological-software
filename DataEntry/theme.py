@@ -4,22 +4,7 @@ Tokens resolve from Observatum's Naturalist theme when embedded (src.themes.them
 back to local values. Style helpers are built directly from these tokens (we do NOT call the
 app's preset methods, since some rely on keys the Naturalist theme doesn't define).
 """
-_OBS = None
-try:
-    from src.themes import theme as _obs_theme
-    _OBS = _obs_theme()
-except Exception:
-    _OBS = None
-
-def _g(key, fallback):
-    if _OBS is not None:
-        try:
-            v = _OBS.get(key)
-            if v and v != "#ff00ff":
-                return v
-        except Exception:
-            pass
-    return fallback
+from shared.theme_lookup import value as _g
 
 INK         = _g("text_primary",   "#1f2937")
 HEADING     = _g("text_heading",   "#4b5563")

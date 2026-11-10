@@ -50,7 +50,7 @@ class WordChips(QWidget):
             item = self.flow.takeAt(0)
             w = item.widget()
             if w is not None and w is not self.edit:
-                w.setParent(None)
+                w.hide()                     # see common.clear_layout
                 w.deleteLater()
         for w in self._words:
             self.flow.addWidget(self._chip(w))

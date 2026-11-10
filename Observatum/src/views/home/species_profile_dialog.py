@@ -284,12 +284,21 @@ class SpeciesProfileDialog(QDialog):
             QMessageBox.StandardButton.No)
         if reply != QMessageBox.StandardButton.Yes:
             return
+        from ..components.delete_guard import backup_before_delete
+        if not backup_before_delete(self, "Delete Your Account"):
+            return
         try:
             db = get_database()
+            # find the row(s) first and delete by id, never by a name that could match more
             if self._tvk:
-                db.execute_main_write("DELETE FROM species_profiles WHERE species_tvk = ?", (self._tvk,))
+                found = db.execute_main(
+                    "SELECT id FROM species_profiles WHERE species_tvk = ?", (self._tvk,))
             else:
-                db.execute_main_write("DELETE FROM species_profiles WHERE species_name = ?", (self._species_name,))
+                found = db.execute_main(
+                    "SELECT id FROM species_profiles WHERE species_name = ?", (self._species_name,))
+            for row in found or []:
+                db.execute_main_write("DELETE FROM species_profiles WHERE id = ?",
+                                      (row["id"] if hasattr(row, "keys") else row[0],))
             self.profile_deleted.emit()
             self.accept()
         except Exception as e:

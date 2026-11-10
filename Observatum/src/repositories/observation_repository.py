@@ -63,6 +63,7 @@ class ObservationSearchFilters:
     embargo_status: Optional[str] = None
     project_name: Optional[str] = None
     client: Optional[str] = None
+    data_reference: Optional[str] = None   # contains, ignoring case (needs the column)
     limit: int = 100
     offset: int = 0
 
@@ -108,47 +109,6 @@ class ObservationRepository(BaseRepository):
         """
         row = super().find_by_id(observation_id)
         return self._row_to_observation(row) if row else None
-    
-    def find_by_irecord_id(self, irecord_id: int) -> Optional[Observation]:
-        """
-        Find an observation by iRecord ID.
-        
-        Args:
-            irecord_id: The iRecord ID
-            
-        Returns:
-            Observation or None if not found
-        """
-        results = self._execute(
-            "SELECT * FROM observations WHERE irecord_id = ?",
-            (irecord_id,)
-        )
-        return self._row_to_observation(results[0]) if results else None
-    
-    def find_duplicate(
-        self, 
-        species_name: str, 
-        date: str, 
-        grid_ref: str
-    ) -> Optional[int]:
-        """
-        Check if a duplicate observation exists.
-        
-        Args:
-            species_name: Species name to match
-            date: Date to match (ISO format)
-            grid_ref: Grid reference to match
-            
-        Returns:
-            ID of existing record, or None if no duplicate
-        """
-        query = """
-            SELECT id FROM observations 
-            WHERE species_name = ? AND date = ? AND grid_ref = ?
-            LIMIT 1
-        """
-        results = self._execute(query, (species_name, date, grid_ref))
-        return results[0][0] if results else None
     
     # ==========================================================================
     # READ - Multiple Records
@@ -215,6 +175,12 @@ class ObservationRepository(BaseRepository):
             conditions.append("recorder LIKE ?")
             params.append(f"%{filters.recorder}%")
         
+        if filters.data_reference and self._has_data_reference():
+            from shared.data_reference import like_clause
+            clause, ref_params = like_clause(filters.data_reference)
+            conditions.append(clause)
+            params.extend(ref_params)
+
         # Prefix search (LIKE value%)
         if filters.grid_ref:
             conditions.append("grid_ref LIKE ?")
@@ -261,6 +227,16 @@ class ObservationRepository(BaseRepository):
         results = self._execute(query, tuple(params))
         return [self._row_to_observation(row) for row in results]
     
+    def _has_data_reference(self) -> bool:
+        """True once observations has the data_reference column (scripts/add_data_reference.py)."""
+        if not getattr(self, "_data_reference_present", False):
+            try:
+                self._data_reference_present = "data_reference" in {
+                    r[1] for r in self._execute("PRAGMA table_info(observations)")}
+            except Exception:
+                return False
+        return self._data_reference_present
+
     def find_by_species(self, species_tvk: str, limit: int = 100) -> List[Observation]:
         """
         Find all observations for a species.
@@ -281,146 +257,9 @@ class ObservationRepository(BaseRepository):
         results = self._execute(query, (species_tvk, limit))
         return [self._row_to_observation(row) for row in results]
     
-    def find_by_grid_ref_prefix(self, grid_prefix: str, limit: int = 1000) -> List[Observation]:
-        """
-        Find observations within a grid square.
-        
-        Args:
-            grid_prefix: Grid reference prefix (e.g., "TQ1" or "TQ12")
-            limit: Maximum records
-            
-        Returns:
-            List of Observations
-        """
-        query = f"""
-            SELECT * FROM observations
-            WHERE grid_ref LIKE ?{self._hidden()}
-            ORDER BY date DESC
-            LIMIT ?
-        """
-        results = self._execute(query, (f"{grid_prefix}%", limit))
-        return [self._row_to_observation(row) for row in results]
-    
-    def find_unsynced(self, limit: int = 100) -> List[Observation]:
-        """
-        Find observations that haven't been synced to iRecord.
-        
-        Args:
-            limit: Maximum records
-            
-        Returns:
-            List of Observations without irecord_id
-        """
-        query = f"""
-            SELECT * FROM observations
-            WHERE irecord_id IS NULL{self._hidden()}
-            ORDER BY date DESC
-            LIMIT ?
-        """
-        results = self._execute(query, (limit,))
-        return [self._row_to_observation(row) for row in results]
-    
-    def find_by_vice_county(self, vc_number: int, limit: int = 1000) -> List[Observation]:
-        """
-        Find observations in a vice county.
-        
-        Args:
-            vc_number: Vice county number
-            limit: Maximum records
-            
-        Returns:
-            List of Observations
-        """
-        query = f"""
-            SELECT * FROM observations
-            WHERE vc_number = ?{self._hidden()}
-            ORDER BY date DESC
-            LIMIT ?
-        """
-        results = self._execute(query, (vc_number, limit))
-        return [self._row_to_observation(row) for row in results]
-    
     # ==========================================================================
     # READ - Recent/New Species
     # ==========================================================================
-    
-    def find_recent_species(self, limit: int = 10) -> List[Dict[str, Any]]:
-        """
-        Get most recently observed species (latest observation per species).
-        
-        Args:
-            limit: Number of species to return
-            
-        Returns:
-            List of dicts with species info
-        """
-        query = """
-            SELECT
-                o.species_name,
-                o.common_name,
-                o.species_tvk,
-                o.date,
-                o.site_name,
-                o.grid_ref
-            FROM observations o
-            INNER JOIN (
-                SELECT species_tvk, MAX(date) as max_date
-                FROM observations
-                WHERE species_tvk IS NOT NULL
-                GROUP BY species_tvk
-            ) latest ON o.species_tvk = latest.species_tvk
-                    AND o.date = latest.max_date
-            ORDER BY o.date DESC
-            LIMIT ?
-        """
-        
-        results = self._execute(query, (limit,))
-        return [
-            {
-                'species_name': row['species_name'],
-                'common_name': row['common_name'],
-                'species_tvk': row['species_tvk'],
-                'date': row['date'],
-                'site_name': row['site_name'],
-                'grid_ref': row['grid_ref']
-            }
-            for row in results
-        ]
-    
-    def find_new_species(self, limit: int = 10) -> List[Dict[str, Any]]:
-        """
-        Get most recent first records (species recorded for first time).
-        
-        Args:
-            limit: Number of species to return
-            
-        Returns:
-            List of dicts with species info and first_date
-        """
-        query = """
-            SELECT
-                species_name,
-                common_name,
-                species_tvk,
-                MIN(date) as first_date,
-                MIN(id) as first_id
-            FROM observations
-            WHERE species_tvk IS NOT NULL
-            GROUP BY species_tvk
-            ORDER BY first_date DESC, first_id DESC
-            LIMIT ?
-        """
-        
-        results = self._execute(query, (limit,))
-        return [
-            {
-                'species_name': row['species_name'],
-                'common_name': row['common_name'],
-                'species_tvk': row['species_tvk'],
-                'first_date': row['first_date']
-            }
-            for row in results
-        ]
     
     # ==========================================================================
     # UPDATE
@@ -489,10 +328,6 @@ class ObservationRepository(BaseRepository):
         return self._scalar(f"SELECT COUNT(*) FROM observations WHERE {where}"
                             f"{self._get_species_exclusion_clause()}", params, default=0)
 
-    def count_by_record_type(self, record_type: str) -> int:
-        """Count observations by record type."""
-        return self.count("record_type = ?", (record_type,))
-    
     def count_by_species(self, species_tvk: str) -> int:
         """Count observations for a species."""
         return self.count("species_tvk = ?", (species_tvk,))
@@ -524,39 +359,6 @@ class ObservationRepository(BaseRepository):
         params = (str(year), record_type) if record_type else (str(year),)
         return self._scalar(query, params, default=0)
 
-    def count_for_year(self, year: int) -> int:
-        """Count observations for a specific year."""
-        query = """
-            SELECT COUNT(*) FROM observations
-            WHERE strftime('%Y', date) = ?
-        """
-        return self._scalar(query, (str(year),), default=0)
-    
-    def count_for_month(self, year: int, month: int) -> int:
-        """Count observations for a specific month."""
-        month_str = f"{year}-{month:02d}"
-        query = """
-            SELECT COUNT(*) FROM observations
-            WHERE strftime('%Y-%m', date) = ?
-        """
-        return self._scalar(query, (month_str,), default=0)
-    
-    def count_by_vice_county(self) -> Dict[int, int]:
-        """
-        Count observations per vice county.
-        
-        Returns:
-            Dict mapping vc_number to count
-        """
-        query = """
-            SELECT vc_number, COUNT(*) as count
-            FROM observations
-            WHERE vc_number IS NOT NULL
-            GROUP BY vc_number
-        """
-        results = self._execute(query)
-        return {row['vc_number']: row['count'] for row in results}
-    
     # ==========================================================================
     # STATISTICS
     # ==========================================================================
@@ -783,36 +585,6 @@ class ObservationRepository(BaseRepository):
             year_stats[year]['newSpecies'] = new_per_year.get(year, 0)
         
         return year_stats
-    
-    def get_distinct_tvks(self) -> List[str]:
-        """
-        Get all distinct TVKs (for search boosting).
-        
-        Returns:
-            List of TVK strings
-        """
-        query = """
-            SELECT DISTINCT species_tvk
-            FROM observations
-            WHERE species_tvk IS NOT NULL
-        """
-        results = self._execute(query)
-        return [row['species_tvk'] for row in results]
-    
-    def get_covered_vice_counties(self) -> List[int]:
-        """
-        Get list of vice counties with at least one observation.
-        
-        Returns:
-            List of vc_numbers
-        """
-        query = """
-            SELECT DISTINCT vc_number
-            FROM observations
-            WHERE vc_number IS NOT NULL
-        """
-        results = self._execute(query)
-        return [row['vc_number'] for row in results]
     
     # ==========================================================================
     # AGGREGATION METHODS (for stats dashboards)

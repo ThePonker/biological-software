@@ -100,7 +100,6 @@ class CollectionFilterBar(QFrame, SavedFiltersMixin):
     
     def _setup_filter_controls(self, layout):
         """Set up filter controls row with unified column widths."""
-        t = theme()
         input_style = get_input_style()
         placeholder_style = get_placeholder_style()
         

@@ -32,7 +32,7 @@ __version__ = "2.0.0"
 
 from .calculator import GamificationCalculator
 from .window import GamificationWindow
-from .setup import ensure_gamification_db, reset_gamification_db
+from .setup import ensure_gamification_db
 from .launcher import GamificationLauncher, GamificationButton, GamificationSummaryCard
 from .renderer import AchievementRenderer
 
@@ -77,7 +77,6 @@ __all__ = [
     'GamificationCalculator',
     'GamificationWindow',
     'ensure_gamification_db',
-    'reset_gamification_db',
     'GamificationLauncher',
     'GamificationButton',
     'GamificationSummaryCard',

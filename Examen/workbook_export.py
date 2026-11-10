@@ -69,19 +69,46 @@ from datetime import date
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import paths  # noqa: E402
 
-try:
-    from openpyxl import Workbook
-    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
-    from openpyxl.utils import get_column_letter
-except ImportError:  # pragma: no cover
-    raise ImportError("openpyxl is required for workbook export")
+# openpyxl (about 0.15 s to import) is loaded only when a workbook is made (Round 16, D2): the
+# names below are filled in by _load_openpyxl(), which every function that needs them calls first,
+# so opening Examen no longer imports it.
+Workbook = Alignment = Border = Font = PatternFill = Side = get_column_letter = None
+CellRichText = TextBlock = InlineFont = None
+_RICH = False
+HEAD_FILL = HEAD_FONT = TITLE_FONT = NOTE_FONT = BOLD = GOOD_FILL = NEAR_FILL = THIN = BOX = None
+_XL_LOADED = False
 
-try:
-    from openpyxl.cell.rich_text import CellRichText, TextBlock
-    from openpyxl.cell.text import InlineFont
-    _RICH = True
-except ImportError:  # openpyxl < 3.1: greyed parts fall back to an (n/a) suffix
-    _RICH = False
+
+def _load_openpyxl() -> None:
+    """Import openpyxl and make the module's styles (once)."""
+    global _XL_LOADED, Workbook, Alignment, Border, Font, PatternFill, Side, get_column_letter
+    global CellRichText, TextBlock, InlineFont, _RICH
+    global HEAD_FILL, HEAD_FONT, TITLE_FONT, NOTE_FONT, BOLD, GOOD_FILL, NEAR_FILL, THIN, BOX
+    if _XL_LOADED:
+        return
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+        from openpyxl.utils import get_column_letter
+    except ImportError:  # pragma: no cover
+        raise ImportError("openpyxl is required for workbook export")
+    try:
+        from openpyxl.cell.rich_text import CellRichText, TextBlock
+        from openpyxl.cell.text import InlineFont
+        _RICH = True
+    except ImportError:  # openpyxl < 3.1: greyed parts fall back to an (n/a) suffix
+        _RICH = False
+    HEAD_FILL = PatternFill("solid", fgColor="4A7C59")      # Moss green
+    HEAD_FONT = Font(bold=True, color="FFFFFF", size=10)
+    TITLE_FONT = Font(bold=True, size=13, color="2F4858")
+    NOTE_FONT = Font(italic=True, size=9, color="6B6B6B")
+    BOLD = Font(bold=True, size=10)
+    GOOD_FILL = PatternFill("solid", fgColor="D6E9D6")      # meets threshold
+    NEAR_FILL = PatternFill("solid", fgColor="F6E6C8")      # >= PTT_NEAR % of threshold
+    THIN = Side(style="thin", color="D0D0D0")
+    BOX = Border(left=THIN, right=THIN, top=THIN, bottom=THIN)
+    _XL_LOADED = True
+
 
 # Which designations count where is decided in ONE place -- CodexRepository,
 # the same functions _classify uses. The workbook calls them rather than keeping
@@ -109,19 +136,10 @@ except ImportError:  # pragma: no cover
 # Presentation
 # ============================================================
 
-HEAD_FILL = PatternFill("solid", fgColor="4A7C59")      # Moss green
-HEAD_FONT = Font(bold=True, color="FFFFFF", size=10)
-TITLE_FONT = Font(bold=True, size=13, color="2F4858")
-NOTE_FONT = Font(italic=True, size=9, color="6B6B6B")
-BOLD = Font(bold=True, size=10)
 
-GOOD_FILL = PatternFill("solid", fgColor="D6E9D6")      # meets threshold
-NEAR_FILL = PatternFill("solid", fgColor="F6E6C8")      # >= PTT_NEAR % of threshold
 # "Near" a Favourable Condition threshold: the amber band, here and on the
 # Assemblages tab (EXA15).
 PTT_NEAR = 80
-THIN = Side(style="thin", color="D0D0D0")
-BOX = Border(left=THIN, right=THIN, top=THIN, bottom=THIN)
 
 # Pantheon does not trust an SQI computed from fewer than this many scoring
 # species. Telfer calls an assemblage above it "well represented".
@@ -342,6 +360,7 @@ def _parts_from_string(s, jurisdiction):
 
 def status_cell(parts, jurisdiction):
     """Cell value: plain text, with other jurisdictions' designations in grey."""
+    _load_openpyxl()
     if not parts:
         return ""
     if all(a for _, a in parts):
@@ -589,6 +608,7 @@ def _codex_provenance():
 # ============================================================
 
 def _header(ws, row, headings, widths=None):
+    _load_openpyxl()
     for i, h in enumerate(headings, start=1):
         cell = ws.cell(row=row, column=i, value=h)
         cell.fill, cell.font = HEAD_FILL, HEAD_FONT
@@ -603,6 +623,7 @@ def _header(ws, row, headings, widths=None):
 
 
 def _title(ws, text, sub=None):
+    _load_openpyxl()
     ws["A1"] = text
     ws["A1"].font = TITLE_FONT
     if sub:
@@ -657,6 +678,7 @@ def _stenotopic(result):
 
 
 def _sheet_summary(wb, result, detail, project, stamp):
+    _load_openpyxl()
     ws = wb.create_sheet("Summary")
     r = _title(ws, stamp["title"],
                "Invertebrate assemblage assessment — figures and their basis")
@@ -749,6 +771,7 @@ def _sheet_summary(wb, result, detail, project, stamp):
 
 
 def _sheet_key_species(wb, result, project, stamp):
+    _load_openpyxl()
     ws = wb.create_sheet("Key species")
     r = _title(ws, "Key Species",
                "Rare Key Species first, then Scarce Key Species; "
@@ -811,6 +834,7 @@ def _sheet_key_species(wb, result, project, stamp):
 
 
 def _sheet_appendix(wb, detail, result, stamp):
+    _load_openpyxl()
     ws = wb.create_sheet("Species appendix")
     r = _title(ws, "Species appendix",
                "All species recorded, in taxonomic order. Key species carry a "
@@ -880,6 +904,7 @@ def appendix_name(sp):
 
 
 def _sheet_habitats(wb, result, refs):
+    _load_openpyxl()
     ws = wb.create_sheet("Habitats")
     r = _title(ws, "Habitats", "Biotope and habitat associations. " + NATIONAL_POOL_NOTE)
 
@@ -919,6 +944,7 @@ def _sheet_habitats(wb, result, refs):
 
 
 def _sheet_assemblages(wb, result, refs, thresholds):
+    _load_openpyxl()
     ws = wb.create_sheet("Assemblages")
     r = _title(ws, "Specific Assemblage Types (SATs)",
                "SATs are assemblages of stenotopic species — those restricted "
@@ -970,6 +996,7 @@ def _sheet_assemblages(wb, result, refs, thresholds):
 
 def _sheet_saproxylic(wb, detail):
     """Saproxylic SQI and IEC (backlog E7). Only written when listed species occur."""
+    _load_openpyxl()
     try:
         from Examen.saproxylic import assess, band_text
     except ImportError:  # pragma: no cover
@@ -1001,6 +1028,7 @@ def _sheet_saproxylic(wb, detail):
 
 def _sheet_table(wb, sheet, title, sub, table, widths, bold_rows=()):
     """A sheet laid out from (heads, rows, notes) -- the figures computed elsewhere."""
+    _load_openpyxl()
     heads, rows, notes = table
     ws = wb.create_sheet(sheet)
     _header(ws, _title(ws, title, sub), heads, widths)
@@ -1018,6 +1046,7 @@ def _sheet_table(wb, sheet, title, sub, table, widths, bold_rows=()):
 
 def _sheet_taxonomic(wb, result, detail):
     """Taxonomic summary (backlog E8b), from Examen.taxonomic_summary."""
+    _load_openpyxl()
     try:
         from Examen import taxonomic_summary as tx
     except ImportError:  # pragma: no cover
@@ -1035,6 +1064,7 @@ def _sheet_taxonomic(wb, result, detail):
 def _sheet_compartments(wb, result, detail, project, jurisdiction):
     """Figures per compartment (backlog E6), from Examen.compartments. Only written
     when the survey's records name two or more compartments."""
+    _load_openpyxl()
     try:
         from Examen import compartments as cp
     except ImportError:  # pragma: no cover
@@ -1056,6 +1086,7 @@ def _sheet_compartments(wb, result, detail, project, jurisdiction):
 
 
 def _sheet_guilds(wb, result):
+    _load_openpyxl()
     ws = wb.create_sheet("Guilds")
     r = _title(ws, "Feeding guilds", "Composition of the recorded assemblage.")
     r = _header(ws, r, ["Life stage", "Guild", "Species"], [14, 28, 10])
@@ -1129,6 +1160,7 @@ STATUS_DEFINITIONS = [
 
 
 def _sheet_status(wb):
+    _load_openpyxl()
     ws = wb.create_sheet("Status definitions")
     r = _title(ws, "Nature conservation status categories")
     ws.column_dimensions["A"].width = 34
@@ -1193,6 +1225,7 @@ def export_workbook(result, detail, project, path,
                     jurisdiction="England", sqs_basis="Pantheon published",
                     pooled_years=False):
     """Write the assessment workbook. Returns the path written."""
+    _load_openpyxl()
     site = getattr(detail, "site", None)
     year = getattr(site, "survey_year", "") or ""
     name = getattr(project, "project_name", "") or getattr(site, "site_name", "")

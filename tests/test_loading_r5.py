@@ -22,6 +22,7 @@ import threading
 import time
 
 import pytest
+from _sandbox_child import child_code
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -167,6 +168,7 @@ def make_window(monkeypatch):
     w = mw.MainWindow()
     yield w, f
     w.stop_background()
+    w.hide()                  # not close(): closing the real window backs up the databases
     w.deleteLater()
 
 
@@ -563,7 +565,7 @@ def test_real_startup_loads_every_tab_without_loading_boxes(tmp_path):
     env = dict(os.environ, PYTHONPATH=os.pathsep.join([root, os.path.join(root, "Observatum")]),
                QT_QPA_PLATFORM="offscreen", PYTHONIOENCODING="utf-8",
                BIOSOFT_TEST_DATA_COPY=str(copies))
-    out = subprocess.run([sys.executable, "-c", _REAL_STARTUP], capture_output=True, text=True,
+    out = subprocess.run([sys.executable, "-c", child_code(_REAL_STARTUP)], capture_output=True, text=True,
                          encoding="utf-8", errors="replace", env=env, cwd=root, timeout=300)
     lines = [ln for ln in out.stdout.splitlines() if ln.startswith("RESULT ")]
     if not lines and sys.platform == "win32" and "Cannot find font directory" in out.stderr:

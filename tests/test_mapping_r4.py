@@ -306,7 +306,7 @@ def test_with_gb_outline_coast_is_sea_edges_and_districts_switch(qapp, tmp_path,
     assert shared in _segs(m._chains("districts"))
     drawn = []
     real = m._lines
-    monkeypatch.setattr(m, "_lines", lambda name, fit: (drawn.append(name), real(name, fit))[1])
+    monkeypatch.setattr(m, "_lines", lambda name, fit, **kw: (drawn.append(name), real(name, fit, **kw))[1])
     m.grab()
     assert "coast" in drawn and "districts" not in drawn               # default off
     drawn.clear()
@@ -325,7 +325,7 @@ def test_without_gb_outline_land_is_the_vcs_and_no_districts(qapp, tmp_path, mon
     assert not m.has_districts() and m._land_source[0] == "vc"
     drawn = []
     real = m._lines
-    monkeypatch.setattr(m, "_lines", lambda name, fit: (drawn.append(name), real(name, fit))[1])
+    monkeypatch.setattr(m, "_lines", lambda name, fit, **kw: (drawn.append(name), real(name, fit, **kw))[1])
     m.set_districts(True)                                            # nothing to draw
     m.grab()
     assert "districts" not in drawn and {"coast", "vc_inland"} <= set(drawn)

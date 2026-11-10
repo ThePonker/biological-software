@@ -3,11 +3,13 @@ from html import escape
 
 from PySide6.QtCore import Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import (QButtonGroup, QGridLayout, QHBoxLayout, QLabel, QPlainTextEdit,
-                               QTextBrowser)
+from PySide6.QtWidgets import (QApplication, QButtonGroup, QGridLayout, QHBoxLayout, QLabel,
+                               QPlainTextEdit, QTextBrowser)
 
-from Lector.service import REVIEW_STATUSES, REVIEW_TAGS
+from Lector.service import REVIEW_STATUSES
+from Lector.translate import translate_url
 from Lector.ui import style as S
+from Lector.ui.common import clear_layout
 
 COPYRIGHT_GENERAL = ("Pages printed after 1930 may still be in copyright: check the rights "
                      "statement on BHL before reproducing them.")
@@ -17,6 +19,11 @@ def runs_html(runs):
     """[(text, bold)] -> HTML with the searched names in bold."""
     return "".join(f"<b>{escape(t)}</b>" if bold else escape(t) for t, bold in runs) \
         .replace("\n", "<br>")
+
+
+def _sent_len(text):
+    from Lector.translate import cut_at_sentence
+    return len(cut_at_sentence(text)[0])
 
 
 class PageView(S.Card):
@@ -34,7 +41,10 @@ class PageView(S.Card):
         self.meta.setTextFormat(Qt.TextFormat.RichText)
         self.copyright = S.note_box("", "warning")
         self.index_note = S.note_box("", "info")
-        for w in (self.position, self.citation, self.meta, self.copyright, self.index_note):
+        self.translate_note = S.note_box("", "info")
+        self.translate_note.hide()
+        for w in (self.position, self.citation, self.meta, self.copyright, self.index_note,
+                  self.translate_note):
             self.body.addWidget(w)
         self.text = QTextBrowser()
         self.text.setOpenExternalLinks(False)
@@ -51,6 +61,13 @@ class PageView(S.Card):
                                  self.open_bhl)
         self.full_btn = S.button("Show full page text", "outline",
                                  "The whole OCR text of the page", self.toggle_full)
+        self.translate_btn = S.button("Translate", "outline",
+                                      "Open the page text in Google Translate (your browser): "
+                                      "any language to English. Nothing is stored.",
+                                      self.translate)
+        self.copy_btn = S.button("Copy page text", "outline",
+                                 "Copy the whole page text, to paste into a translator", self.copy_text)
+        self.copy_btn.hide()
         row.addWidget(self.open_btn)
         row.addWidget(self.full_btn)
         row.addStretch(1)
@@ -59,6 +76,11 @@ class PageView(S.Card):
         row.addWidget(self.prev_btn)
         row.addWidget(self.next_btn)
         self.body.addLayout(row)
+        row2 = QHBoxLayout()                      # a second row: the page is not wide
+        row2.addWidget(self.translate_btn)
+        row2.addWidget(self.copy_btn)
+        row2.addStretch(1)
+        self.body.addLayout(row2)
         self.show_item(None)
 
     def show_item(self, item, search_id=None, position=""):
@@ -67,6 +89,13 @@ class PageView(S.Card):
         has = item is not None
         for w in (self.open_btn, self.full_btn, self.prev_btn, self.next_btn):
             w.setEnabled(has)
+        self.translate_btn.setEnabled(has and item["has_text"])
+        self.translate_btn.setToolTip(
+            "Open the page text in Google Translate (your browser): any language to English. "
+            "Nothing is stored." if not has or item["has_text"]
+            else "This page has no downloaded text to translate")
+        self.translate_note.hide()
+        self.copy_btn.hide()
         if not has:
             self.position.setText("")
             self.citation.setText("No page chosen")
@@ -103,6 +132,11 @@ class PageView(S.Card):
 
     def _show_excerpts(self):
         item = self.item
+        if (item.get("page_id") or 0) < 0:
+            self.text.setHtml("<p><i>This is a whole book or article found by a free-text "
+                              "search: BHL gives no page here, so there is no page text. "
+                              "Use “Open on BHL” to read it.</i></p>")
+            return
         if not item["has_text"]:
             self.text.setHtml("<p><i>The page text has not been downloaded yet: use "
                               "“Fetch missing text” (the search's More menu on Saved "
@@ -124,6 +158,32 @@ class PageView(S.Card):
             self._show_excerpts()
             self.full_btn.setText("Show full page text")
 
+    def page_text(self):
+        d = self.svc.page_detail(self.search_id, self.item["page_id"])
+        return d.get("ocr_text") or ""
+
+    def translate(self):
+        """Open the page text in Google Translate (auto -> English) in the browser. Over
+        ~4,500 characters only the first part (to a sentence end) is sent; the note says so
+        and Copy page text offers the rest. Nothing is stored."""
+        if self.item is None or not self.item["has_text"]:
+            return None
+        text = self.page_text()
+        url, cut = translate_url(text)
+        QDesktopServices.openUrl(QUrl(url))
+        self.copy_btn.setVisible(cut)
+        self.translate_note.setVisible(cut)
+        if cut:
+            self.translate_note.setText(
+                f"Only the first part of the page (about {_sent_len(text):,} of {len(text):,} "
+                "characters, to the end of a sentence) was sent to Google Translate. To "
+                "translate the rest, press “Copy page text” and paste it there.")
+        return url
+
+    def copy_text(self):
+        if self.item is not None:
+            QApplication.clipboard().setText(self.page_text())
+
     def open_bhl(self):
         if self.item and self.item.get("bhl_url"):
             QDesktopServices.openUrl(QUrl(self.item["bhl_url"]))
@@ -133,6 +193,8 @@ class ReviewPanel(S.Card):
     """Status (keys 1-4), what the page is (tag), notes (saved as you type)."""
     status_set = Signal(str)
     tag_set = Signal(str)
+    manage_tags = Signal()
+    record_requested = Signal()
     notes_edited = Signal(int, str)        # page id, notes
 
     STATUS_ORDER = ("relevant", "not_relevant", "record_extracted", "unreviewed")
@@ -153,16 +215,21 @@ class ReviewPanel(S.Card):
             self.status_buttons[st] = b
             grid.addWidget(b, i, 0)
         self.body.addLayout(grid)
+        self.record_btn = S.button("Record from this page…", "primary",
+                                   "Type what the page says (species, date, place, recorder…) "
+                                   "as a record, and mark the page Record extracted",
+                                   self.record_requested.emit)
+        self.body.addWidget(self.record_btn)
         self.body.addWidget(S.label("What is this page?", "caps"))
-        tags = QGridLayout()
-        tags.setSpacing(6)
-        for i, tag in enumerate(REVIEW_TAGS):
-            b = S.button(S.TAG_LABELS[tag], "outline", "Click again to clear",
-                         lambda _=False, t=tag: self._tag_clicked(t))
-            b.setCheckable(True)
-            self.tag_buttons[tag] = b
-            tags.addWidget(b, i // 2, i % 2)
-        self.body.addLayout(tags)
+        self.tags_grid = QGridLayout()
+        self.tags_grid.setSpacing(6)
+        self.body.addLayout(self.tags_grid)
+        self.manage_btn = S.button("Manage tags…", "link", "Add, rename or hide your own tags",
+                                   self.manage_tags.emit)
+        self.body.addWidget(self.manage_btn, 0, Qt.AlignmentFlag.AlignLeft)
+        self._tags, self._tag, self._page_id = [], None, None
+        self.set_tags([{"key": k, "label": S.TAG_LABELS[k], "hidden": False}
+                       for k in S.TAG_LABELS])
         notes_label = S.label("Notes", "body")
         notes_label.setStyleSheet(notes_label.styleSheet() + " font-weight: 600;")
         self.body.addWidget(notes_label)
@@ -187,12 +254,12 @@ class ReviewPanel(S.Card):
         self.body.addWidget(S.label("Keys: J next, K previous, 1–4 status and next page.",
                                     "small", wrap=True))
         self.body.addWidget(S.label(COPYRIGHT_GENERAL, "small", wrap=True))
-        self.body.addWidget(S.label("Taking records into Observatum comes later: mark a page "
-                                    "“Record extracted” once you have entered it by "
-                                    "hand.", "small", wrap=True))
+        self.body.addWidget(S.label("Records are listed under Extracted records, where they "
+                                    "can be exported for Observatum.", "small", wrap=True))
         self.body.addStretch(1)
         self._loading = False
         self._page_id = None
+        self._build_tag_buttons()
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
         self._timer.setInterval(700)
@@ -207,6 +274,7 @@ class ReviewPanel(S.Card):
         for b in list(self.status_buttons.values()) + list(self.tag_buttons.values()):
             b.setEnabled(enabled)
         self.notes.setEnabled(enabled)
+        self.record_btn.setEnabled(enabled)
         self.set_status((item or {}).get("review_status"))
         self.set_tag((item or {}).get("review_tag"))
         self.notes.setPlainText((item or {}).get("notes") or "")
@@ -219,9 +287,27 @@ class ReviewPanel(S.Card):
             b.setChecked(st == status)
         self.status_group.setExclusive(True)
 
+    def set_tags(self, tags):
+        """tags: list_tags() rows. Hidden tags get no button (unless the page carries one)."""
+        self._tags = tags
+        self._build_tag_buttons()
+
+    def _build_tag_buttons(self):
+        clear_layout(self.tags_grid)
+        self.tag_buttons = {}
+        shown = [t for t in self._tags if not t["hidden"] or t["key"] == self._tag]
+        for i, t in enumerate(shown):
+            b = S.button(t["label"], "outline", "Click again to clear",
+                         lambda _=False, k=t["key"]: self._tag_clicked(k))
+            b.setCheckable(True)
+            b.setChecked(t["key"] == self._tag)
+            b.setEnabled(self._page_id is not None)
+            self.tag_buttons[t["key"]] = b
+            self.tags_grid.addWidget(b, i // 2, i % 2)
+
     def set_tag(self, tag):
-        for t, b in self.tag_buttons.items():
-            b.setChecked(t == tag)
+        self._tag = tag
+        self._build_tag_buttons()
 
     def _tag_clicked(self, tag):
         on = self.tag_buttons[tag].isChecked()

@@ -74,24 +74,24 @@ def test_the_map_repaints_with_the_chosen_colour_and_batch_follows(qapp, tmp_pat
     assert _pixel(m, 25500, 25500) == before
 
 
-def test_colours_menu_item_dialog_and_reset(qapp, tmp_path, settings_sandbox, monkeypatch):
+def test_colours_in_the_layers_window_and_reset(qapp, tmp_path, settings_sandbox, monkeypatch):
     from PySide6.QtGui import QColor
     from PySide6.QtWidgets import QColorDialog
     from src.views.mapping.display_bar import MapDisplayBar
-    from src.views.mapping.layer_colours import LayerColoursDialog
     _write(tmp_path, "woodland", "county", [_sq(10000, 10000, 40000, 40000)])
     m = _map(tmp_path)
     bar = MapDisplayBar()
     bar.attach_map(m)
-    texts = [a.text() for a in bar.layers_menu.actions() if a.text()]
-    assert texts.index("Colours…") == texts.index("Reset to defaults") - 1
-    dlg = LayerColoursDialog()
-    assert list(dlg.swatches) == ["woodland", "towns", "water", "roads", "names", "rail",
-                                  "national_parks", "foreshore", "greenspace"]     # not relief (grey)
+    dlg = bar.layers_window()            # the Layers window took over from the Colours dialog
+    base = ["woodland", "towns", "water", "roads", "names", "rail",
+            "national_parks", "foreshore", "greenspace"]                       # not relief (grey)
+    assert list(dlg.swatches)[:len(base)] == base
+    assert "sssi" in dlg.swatches and "haduk_rain" not in dlg.swatches        # grids have no colour
+    assert "soilscapes" not in dlg.swatches                                   # hidden by its setting
     seen = []
-    dlg.colours_changed.connect(lambda: seen.append(1))
+    bar.layer_colours_changed.connect(lambda: seen.append(1))
     monkeypatch.setattr(QColorDialog, "getColor", lambda *a, **k: QColor("#00aa00"))
-    dlg.choose("towns")
+    dlg.choose_colour("towns")
     assert layers.saved_colour("towns").name() == "#00aa00" and seen == [1]
     assert "#00aa00" in dlg.swatches["towns"].styleSheet()
     dlg.reset()
@@ -177,24 +177,24 @@ def test_the_kept_background_is_reused_while_the_view_is_unchanged(qapp, tmp_pat
     m.update()
     m.grab()
     assert len(calls) == 1                                  # ... repaint from the kept picture
-    m.set_squares({"SP5020": {"count": 1, "fill": "#a63d40"}}, 10000)     # squares are in it (R10)
+    m.set_squares({"SP5020": {"count": 1, "fill": "#a63d40"}}, 10000)     # squares are drawn over the kept layers (25 Oct)
     m.grab()
-    assert len(calls) == 2
+    assert len(calls) == 1
     m.set_selected("SP5020")                                # the clicked outline is drawn live
     m.grab()
-    assert len(calls) == 2
+    assert len(calls) == 1
     assert _pixel(m, 25500, 25500) != _pixel(m, 55500, 55500)
     m.set_layers({"woodland", "water"})                     # a switch changes it
     m.grab()
-    assert len(calls) == 3
+    assert len(calls) == 2
     m.highlight_vcs([23])                                   # so does the tint ...
     m.grab()
-    assert len(calls) == 4
+    assert len(calls) == 3
     layers.set_colour("woodland", "#ff0000")                # ... and a colour
     m.grab()
-    assert len(calls) == 5
+    assert len(calls) == 4
     m.grab()
-    assert len(calls) == 5
+    assert len(calls) == 4
     m.resize(320, 310)                                      # ... and the size
     m.grab()
-    assert len(calls) == 6
+    assert len(calls) == 5

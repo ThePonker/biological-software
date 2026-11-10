@@ -5,19 +5,15 @@ Contains the actual import execution, duplicate handling,
 preview dialogs, and summary generation.
 """
 
-from typing import List
 from datetime import datetime
 
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QTableWidget, QTableWidgetItem, QHeaderView, QMessageBox,
+    QMessageBox,
     QApplication
 )
-from PySide6.QtCore import Qt
 
 from .validation_worker import SchemeImportRow, RowStatus
 
-from shared.display_format import dmy
 from src.themes import theme
 
 # What re-importing a record already held may change (9 Oct 2026). Verification, names
@@ -29,63 +25,6 @@ SCHEME_UPDATE_FIELDS = (
     'subfamily', 'superfamily', 'taxonomic_sort_key', 'determiner', 'comment', 'images',
     'licence', 'last_edited_date', 'irecord_id', 'record_key',
 )
-
-
-class DuplicatePreviewDialog(QDialog):
-    """Dialog showing records that are duplicates."""
-
-    def __init__(self, parent, rows: List[SchemeImportRow]):
-        super().__init__(parent)
-        self.rows = rows
-        self._setup_ui()
-
-    def _setup_ui(self):
-        t = theme()
-
-        self.setWindowTitle("Duplicate Records")
-        self.setMinimumSize(800, 500)
-        self.setModal(True)
-
-        layout = QVBoxLayout(self)
-        layout.setSpacing(16)
-
-        # Info label
-        info = QLabel(f"{len(self.rows)} record(s) match existing records in the database:")
-        info.setStyleSheet(f"color: {t.get('text_secondary')};")
-        layout.addWidget(info)
-
-        # Table
-        table = QTableWidget()
-        table.setColumnCount(6)
-        table.setHorizontalHeaderLabels([
-            'Row', 'Species', 'Date', 'Grid Ref', 'Source', 'Existing ID'
-        ])
-        table.setRowCount(len(self.rows))
-        table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
-
-        for i, row in enumerate(self.rows):
-            table.setItem(i, 0, QTableWidgetItem(str(row.row_number)))
-            table.setItem(i, 1, QTableWidgetItem(row.species_name))
-            table.setItem(i, 2, QTableWidgetItem(dmy(row.date)))
-            table.setItem(i, 3, QTableWidgetItem(row.grid_ref))
-            table.setItem(i, 4, QTableWidgetItem(row.source_type))
-            table.setItem(i, 5, QTableWidgetItem(str(row.existing_record_id or "")))
-
-        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        layout.addWidget(table, 1)
-
-        # Close button
-        btn_layout = QHBoxLayout()
-        btn_layout.addStretch()
-
-        close_btn = QPushButton("Close")
-        close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        close_btn.setMinimumWidth(100)
-        close_btn.clicked.connect(self.accept)
-        btn_layout.addWidget(close_btn)
-
-        layout.addLayout(btn_layout)
 
 
 class WizardImportMixin:
@@ -362,6 +301,10 @@ class WizardImportMixin:
         row was dropped for all 500 (F33). Failures are collected and shown, not printed.
         """
         from shared.import_core import insert_rows
+        from shared import data_reference
+        field = getattr(self, "reference_edit", None)
+        data_reference.stamp_records(self.db, "recording_scheme", records,
+                                     field.reference() if field is not None else None)
         ok, fails = insert_rows(
             self.db, "recording_scheme", records,
             lambda r: f"{r.get('species_name') or '?'} {r.get('date') or ''}".strip())

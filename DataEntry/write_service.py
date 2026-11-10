@@ -20,4 +20,5 @@ _ALLOWED_FIELDS = {
     "comment",   # the grid's Comment column -- was dropped at commit until 8 Oct 2026
     "latitude", "longitude", "geodetic_datum",   # from the grid ref at commit (9 Oct 2026)
     "kingdom", "taxon_group",                    # from UKSI at commit (9 Oct 2026, OBS-11)
+    "identification_remarks",   # the name as entered, when committed under its UKSI recommended name (R16)
 }

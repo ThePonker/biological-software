@@ -12,6 +12,7 @@ import uuid
 from pathlib import Path
 
 import pytest
+from _sandbox_child import child_code
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -349,7 +350,7 @@ def test_atrium_second_copy_signals_first(qapp):
             "from PySide6.QtCore import QCoreApplication; app = QCoreApplication([]); "
             "from Atrium.single_instance import SingleInstance; "
             "print('RESULT', SingleInstance(%r).signal_running_copy())" % (root, name))
-    proc = subprocess.Popen([sys.executable, "-c", code], stdout=subprocess.PIPE,
+    proc = subprocess.Popen([sys.executable, "-c", child_code(code)], stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT, text=True)
     try:
         t = QElapsedTimer()

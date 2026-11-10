@@ -134,6 +134,18 @@ class UksiLookup:
             (family, f"% {epithet}", exclude_tvk or "")).fetchall()
         return [dict(r) for r in rows]
 
+    def suggestion_names(self):
+        """[{name, tvk, rank, family}] for every current taxon (the fuzzy name list)."""
+        if not (self.conn and self.taxa_ok):
+            return []
+        cols = {r[1] for r in self.conn.execute("PRAGMA table_info(taxa)")}
+        rank = "rank" if "rank" in cols else "NULL"
+        fam = "family" if "family" in cols else "NULL"
+        return [{"name": r[0], "tvk": r[1], "rank": r[2], "family": r[3]}
+                for r in self.conn.execute(
+                    f"SELECT scientific_name, tvk, {rank}, {fam} FROM taxa"
+                    " WHERE scientific_name IS NOT NULL")]
+
     def family_species(self, family):
         """(tvk, scientific_name) of the species of a family, in UKSI order."""
         if not (self.conn and self.family_ok):

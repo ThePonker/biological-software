@@ -28,7 +28,12 @@ def main():
         print("Make sure observatum.db is in the data/ folder.")
         sys.exit(1)
 
+    from shared import crash_log             # data\logs\crash_curator_<month>.log
+    crash_log.install("curator")
+    from shared import light_scheme          # always light, even on a dark-mode PC
+    light_scheme.prepare()
     app = QApplication(sys.argv)
+    light_scheme.install(app)
     app.setFont(QFont("Segoe UI", 9))
     from shared.opaque_popups import install as solid_popups
     solid_popups(app)                    # F50: solid drop-down lists (the palette's colours)

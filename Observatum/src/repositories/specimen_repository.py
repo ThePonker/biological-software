@@ -22,9 +22,8 @@ Usage:
 """
 
 import sqlite3
-from pathlib import Path
 from datetime import datetime, date
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional
 import paths
 
 # Try to import from config
@@ -33,14 +32,6 @@ try:
     USE_CONFIG = True
 except ImportError:
     USE_CONFIG = False
-
-
-def _find_data_dir() -> Path:
-    """Find the data directory when config is not available."""
-    this_file = Path(__file__).resolve()
-    # src/repositories/specimen_repository.py -> repositories -> src -> project
-    project_root = this_file.parent.parent.parent
-    return project_root / "data"
 
 
 class SpecimenRepository:
@@ -411,32 +402,6 @@ class SpecimenRepository:
         rows = self._execute(query, tuple(params))
         return [dict(row) for row in rows]
     
-    def search_by_text(self, query: str, limit: int = 50) -> List[Dict[str, Any]]:
-        """
-        Full-text search across multiple fields.
-        
-        Searches: species_name, common_name, site_name, collector, notes
-        
-        Args:
-            query: Search text
-            limit: Max results
-            
-        Returns:
-            List of matching specimens
-        """
-        search_term = f"%{query}%"
-        rows = self._execute("""
-            SELECT * FROM specimens
-            WHERE species_name LIKE ?
-               OR common_name LIKE ?
-               OR site_name LIKE ?
-               OR collector LIKE ?
-               OR notes LIKE ?
-            ORDER BY date_collected DESC
-            LIMIT ?
-        """, (search_term, search_term, search_term, search_term, search_term, limit))
-        return [dict(row) for row in rows]
-    
     # =========================================================================
     # COUNT METHODS
     # =========================================================================
@@ -556,64 +521,9 @@ class SpecimenRepository:
         
         return stats
     
-    def get_collection_summary(self) -> Dict[str, Any]:
-        """
-        Get comprehensive collection summary.
-        
-        Returns:
-            Dict with detailed collection statistics
-        """
-        summary = self.get_quick_stats()
-        
-        # Add storage breakdown
-        summary['storage_locations'] = self.count_by_storage_location()
-        
-        # Add preparation type breakdown
-        rows = self._execute("""
-            SELECT preparation_type, COUNT(*) as count
-            FROM specimens
-            WHERE preparation_type IS NOT NULL
-            GROUP BY preparation_type
-            ORDER BY count DESC
-        """)
-        summary['preparation_types'] = {
-            row['preparation_type']: row['count'] for row in rows
-        }
-        
-        # Add date range
-        rows = self._execute("""
-            SELECT MIN(date_collected) as earliest, MAX(date_collected) as latest
-            FROM specimens
-            WHERE date_collected IS NOT NULL
-        """)
-        if rows and rows[0]['earliest']:
-            summary['date_range'] = {
-                'earliest': rows[0]['earliest'],
-                'latest': rows[0]['latest']
-            }
-        
-        # Vice county coverage
-        rows = self._execute("""
-            SELECT COUNT(DISTINCT vc_number) as count
-            FROM specimens
-            WHERE vc_number IS NOT NULL
-        """)
-        summary['vice_counties_covered'] = rows[0]['count'] if rows else 0
-        
-        return summary
-    
     # =========================================================================
     # SPECIAL QUERIES
     # =========================================================================
-    
-    def get_recent_additions(self, limit: int = 10) -> List[Dict[str, Any]]:
-        """Get most recently added specimens."""
-        rows = self._execute("""
-            SELECT * FROM specimens
-            ORDER BY created_at DESC
-            LIMIT ?
-        """, (limit,))
-        return [dict(row) for row in rows]
     
     def get_new_species_first_specimens(self, limit: Optional[int] = 50) -> List[Dict[str, Any]]:
         """
@@ -650,104 +560,7 @@ class SpecimenRepository:
             out.append(d)
         return out
     
-    def get_specimens_needing_review(self, limit: int = 100) -> List[Dict[str, Any]]:
-        """Get specimens with import notes (need review)."""
-        rows = self._execute("""
-            SELECT * FROM specimens
-            WHERE import_notes IS NOT NULL AND import_notes != ''
-            ORDER BY created_at DESC
-            LIMIT ?
-        """, (limit,))
-        return [dict(row) for row in rows]
-    
-    def get_distinct_values(self, column: str) -> List[str]:
-        """
-        Get distinct values for a column (for filter dropdowns).
-        
-        Args:
-            column: Column name (validated against whitelist)
-            
-        Returns:
-            List of distinct values
-        """
-        valid_columns = {
-            'order_name', 'family', 'subfamily', 'collector', 'determiner',
-            'sex', 'preparation_type', 'storage_location', 'drawer_number',
-            'condition', 'vice_county'
-        }
-        
-        if column not in valid_columns:
-            return []
-        
-        rows = self._execute(f"""
-            SELECT DISTINCT {column}
-            FROM specimens
-            WHERE {column} IS NOT NULL AND {column} != ''
-            ORDER BY {column}
-        """)
-        return [row[column] for row in rows]
-    
     # =========================================================================
     # BATCH OPERATIONS
     # =========================================================================
     
-    def create_many(self, specimens: List[Dict[str, Any]]) -> int:
-        """
-        Create multiple specimens efficiently.
-        
-        Args:
-            specimens: List of specimen data dicts
-            
-        Returns:
-            Number of specimens created
-        """
-        if not specimens:
-            return 0
-        
-        now = datetime.now().isoformat()
-        
-        # Define all fields for batch insert
-        # The batch path had the same gap. Missing one of the three would
-        # leave a route that still loses the columns, which is how this
-        # survived unnoticed.
-        fields = [
-            'specimen_code', 'species_name', 'species_tvk', 'common_name',
-            'order_name', 'family', 'subfamily', 'superfamily',
-            'taxonomic_sort_key', 'taxon_group',
-            'date_collected', 'grid_ref',
-            'vice_county', 'vc_number', 'site_name', 'site_name_local', 'collector', 'determiner',
-            'sex', 'preparation_type', 'storage_location', 'drawer_number',
-            'condition', 'label_data', 'notes', 'import_notes', 'observation_id',
-            'created_at', 'updated_at'
-        ]
-        
-        placeholders = ','.join(['?'] * len(fields))
-        query = f"INSERT INTO specimens ({','.join(fields)}) VALUES ({placeholders})"
-        
-        params_list = []
-        for spec in specimens:
-            values = []
-            for field in fields:
-                if field in ('created_at', 'updated_at'):
-                    values.append(now)
-                else:
-                    values.append(spec.get(field))
-            params_list.append(tuple(values))
-        
-        return self._execute_many(query, params_list)
-    
-    def update_many(self, updates: List[Tuple[int, Dict[str, Any]]]) -> int:
-        """
-        Update multiple specimens.
-        
-        Args:
-            updates: List of (specimen_id, data_dict) tuples
-            
-        Returns:
-            Number of specimens updated
-        """
-        count = 0
-        for specimen_id, data in updates:
-            if self.update(specimen_id, data):
-                count += 1
-        return count

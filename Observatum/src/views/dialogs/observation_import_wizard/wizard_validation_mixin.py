@@ -98,7 +98,6 @@ class WizardValidationMixin:
     
     def _setup_validation_table(self, import_mode: ImportMode):
         """Set up validation table columns based on import mode."""
-        t = theme()
         
         if import_mode == ImportMode.IRECORD_SYNC:
             columns = ['Status', 'Row', 'iRecord ID', 'Species', 'Date', 'Grid Ref', 'VC', 'Verification', 'Message']
@@ -153,7 +152,6 @@ class WizardValidationMixin:
     
     def _on_counts_updated(self, valid: int, warnings: int, errors: int):
         """Update live counters."""
-        t = theme()
         
         self.valid_label.setText(f"Valid: {valid}")
         self.warning_label.setText(f"Warnings: {warnings}")

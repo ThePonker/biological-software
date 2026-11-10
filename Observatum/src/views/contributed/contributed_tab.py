@@ -248,7 +248,7 @@ class ContributedTab(QWidget):
             self.model.appendRow([self._cell(key, r.get(key)) for key, _ in COLUMNS])
         self.table.setSortingEnabled(True)
         species = len({r["species_name"] for r in rows})
-        self.count_label.setText(f"{len(rows):,} records  •  {species:,} species")
+        self.count_label.setText(f"{len(rows):,} record{'' if len(rows) == 1 else 's'}  •  {species:,} species")
         if rows and not getattr(self, "_sized", False):
             self._sized = True
             self.table.resizeColumnsToContents()

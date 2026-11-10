@@ -241,7 +241,6 @@ class EntryTableView(QTableView):
 
     # -- Ctrl+D: fill each selected column from its top selected cell ---------
     def _fill_down(self):
-        m = self.model()
         idxs = self.selectedIndexes()          # rows hidden by "To check only" are left out
         if len(idxs) <= 1:
             cur = idxs[0] if idxs else self.currentIndex()

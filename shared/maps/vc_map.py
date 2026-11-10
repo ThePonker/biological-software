@@ -13,11 +13,15 @@ import json
 import os
 from typing import Dict, List, Optional, Tuple
 
+import numpy as np
+
 from PySide6.QtCore import Qt, QPointF
-from PySide6.QtGui import QPainter, QPen, QBrush, QColor, QPolygonF
+from PySide6.QtGui import QPainter, QPen, QBrush, QColor
 from PySide6.QtWidgets import QWidget
 
+from shared.maps import map_disk_cache
 from shared.maps._theme import theme
+from shared.maps.ring_paths import rings_path
 from shared.maps.project_many import project_many
 
 # module cache: path -> (vc_rings, bounds)
@@ -139,6 +143,11 @@ def load_vc_polygons(path: str, tol: float = _SIMPLIFY_TOL):
         _CACHE[key] = result
         return result
 
+    disk = _from_disk(path, tol)            # R16: the last run's result, when the file is unchanged
+    if disk is not None:
+        _CACHE[key] = disk
+        return disk
+
     with open(path, encoding="utf-8") as f:
         gj = json.load(f)
 
@@ -204,7 +213,36 @@ def load_vc_polygons(path: str, tol: float = _SIMPLIFY_TOL):
     else:
         bounds = (minE, minN, maxE, maxN)
     _CACHE[key] = (vc_rings, bounds)
+    _to_disk(path, tol, vc_rings, bounds, names)
     return _CACHE[key]
+
+
+def _disk_name(tol: float) -> str:
+    """One cache file per thinning tolerance (the map reads 300 m and, without a coastline file, 100 m)."""
+    return "vcpoly_%g" % tol
+
+
+def _from_disk(path: str, tol: float):
+    """(vc_rings, bounds) from data/maps/cache/ (map_disk_cache), filling _NAMES; None when
+    there is no matching file."""
+    a = map_disk_cache.load(path, _disk_name(tol), repr(float(tol)))
+    if a is None:
+        return None
+    try:
+        rings = map_disk_cache.unpack_groups(a)
+        b = tuple(float(v) for v in a["bounds"])
+        _NAMES[path] = dict(zip(a["name_vc"].tolist(), (str(t) for t in a["name_txt"].tolist())))
+        return rings, b
+    except Exception:
+        return None
+
+
+def _to_disk(path: str, tol: float, vc_rings, bounds, names) -> None:
+    arrays = map_disk_cache.pack_groups(vc_rings)
+    arrays["bounds"] = np.array(bounds, dtype=np.float64)
+    arrays["name_vc"] = np.array(list(names), dtype=np.int64)
+    arrays["name_txt"] = np.array([names[v] for v in names], dtype=str)
+    map_disk_cache.save(path, _disk_name(tol), arrays, repr(float(tol)))
 
 
 def vc_names(path: str) -> Dict[int, str]:
@@ -267,6 +305,11 @@ class MiniMap(QWidget):
         y = oy + (span_n - (n - minN)) * s        # invert y (north up)
         return QPointF(x, y)
 
+    def _to_px_many(self, e, n):
+        """_to_px for numpy arrays of eastings and northings (the same sums): (x, y) arrays."""
+        s, ox, oy, minE, minN, span_n = self._scale()
+        return ox + (e - minE) * s, oy + (span_n - (n - minN)) * s
+
     def paintEvent(self, event):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
@@ -281,15 +324,13 @@ class MiniMap(QWidget):
         active_brush = QBrush(QColor(74, 124, 89, 90))   # moss tint for derived VC
         size = (self.width(), self.height())
         if getattr(self, "_poly_cache", (None,))[0] != size:   # every islet now: project once
-            self._poly_cache = (size, {vc: [QPolygonF([self._to_px(e, n) for (e, n) in ring])
-                                            for ring in rings]
+            self._poly_cache = (size, {vc: rings_path(rings, self._to_px_many)   # one path a VC
                                        for vc, rings in self._vc_rings.items()})
-        for vc, polys in self._poly_cache[1].items():
+        for vc, path in self._poly_cache[1].items():
             active = (vc == self._active_vc)
             p.setPen(base_pen)
             p.setBrush(active_brush if active else Qt.BrushStyle.NoBrush)
-            for poly in polys:
-                p.drawPolygon(poly)
+            p.drawPath(path)
 
         if self._dot_en is not None:
             p.setPen(QPen(QColor(theme.PAPER), 1.2))

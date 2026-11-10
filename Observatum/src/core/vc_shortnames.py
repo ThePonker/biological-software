@@ -388,19 +388,6 @@ def get_short_name(vc_code: str) -> str:
     return VC_SHORT_NAMES.get(str(vc_code), str(vc_code))
 
 
-def get_full_name(vc_code: str) -> str:
-    """Get full name for a vice county code."""
-    return VC_FULL_NAMES.get(str(vc_code), str(vc_code))
-
-
-def get_display_name(vc_code: str, include_number: bool = True) -> str:
-    """Get display name for dropdown: '17 - Surrey' or just 'Surrey'."""
-    short = get_short_name(vc_code)
-    if include_number:
-        return f"{vc_code} - {short}"
-    return short
-
-
 # Region groupings for filtering
 VC_REGIONS = {
     "england": [str(i) for i in range(1, 72) if i not in range(41, 53)] + ["35"],
@@ -409,15 +396,6 @@ VC_REGIONS = {
     "ireland": [f"H{i}" for i in range(1, 41)],
     "channel_islands": ["113"],
 }
-
-
-def get_region(vc_code: str) -> str:
-    """Get region for a vice county code."""
-    vc = str(vc_code)
-    for region, codes in VC_REGIONS.items():
-        if vc in codes:
-            return region
-    return "unknown"
 
 
 # Other spellings found in recording-scheme vice_county text that VC_FULL_NAMES does not match

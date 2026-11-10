@@ -104,6 +104,10 @@ def _env() -> dict:
     """Return environment with PYTHONPATH set for the suite."""
     env = os.environ.copy()
     env["PYTHONPATH"] = os.pathsep.join([str(ROOT), str(ROOT / "Observatum")])
+    # compiled .pyc files outside OneDrive (26 Oct 2026), as run.bat and the launchers do
+    if os.environ.get("LOCALAPPDATA"):
+        env.setdefault("PYTHONPYCACHEPREFIX",
+                       os.path.join(os.environ["LOCALAPPDATA"], "BiologicalSoftware", "pycache"))
     return env
 
 

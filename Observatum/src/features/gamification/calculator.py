@@ -40,13 +40,6 @@ except ImportError:
 _GB_VCS: Dict[int, str] = {vc: get_region_for_vc(vc) for vc in range(1, 113)}
 
 
-def _find_data_dir() -> Path:
-    """Find the data directory when config is not available."""
-    this_file = Path(__file__).resolve()
-    project_root = this_file.parent.parent.parent.parent
-    return project_root / "data"
-
-
 def get_db_path(name: str) -> Path:
     """Get path to a database file."""
     if USE_CONFIG:
@@ -290,28 +283,6 @@ class GamificationCalculator:
         badges.sort(key=lambda b: b["vc_number"])
         return badges
     
-    def check_regional_trophies(self) -> List[Dict[str, Any]]:
-        """Check for regional completion trophies."""
-        coverage = self.get_vice_county_coverage()
-        
-        trophies = []
-        for region, data in coverage["regions"].items():
-            if data["covered"] == data["total"] and data["total"] > 0:
-                trophies.append({
-                    "region": region,
-                    "type": "regional_completion",
-                    "trophy_tier": "gold",
-                })
-        
-        if len(trophies) == 3:
-            trophies.append({
-                "region": "uk",
-                "type": "national_completion",
-                "trophy_tier": "platinum",
-            })
-        
-        return trophies
-    
     # =========================================================================
     # FAMILY CALCULATIONS
     # =========================================================================
@@ -389,64 +360,9 @@ class GamificationCalculator:
             families_recorded=family_data["total_families"],
         )
     
-    def mark_notifications_read(self) -> int:
-        """Mark all notifications as read. Returns count marked."""
-        conn = self._get_gamification_conn()
-        cursor = conn.cursor()
-        
-        try:
-            cursor.execute("""
-                UPDATE notifications SET is_read = 1 WHERE is_read = 0
-            """)
-            count = cursor.rowcount
-            conn.commit()
-        except sqlite3.Error:
-            count = 0
-        finally:
-            conn.close()
-        
-        return count
-    
-    def get_unread_notifications(self) -> List[Dict[str, Any]]:
-        """Get list of unread notifications."""
-        conn = self._get_gamification_conn()
-        cursor = conn.cursor()
-        
-        try:
-            cursor.execute("""
-                SELECT id, achievement_type, achievement_name, message, created_at
-                FROM notifications
-                WHERE is_read = 0
-                ORDER BY created_at DESC
-            """)
-            
-            notifications = []
-            for row in cursor.fetchall():
-                notifications.append({
-                    "id": row[0],
-                    "type": row[1],
-                    "name": row[2],
-                    "message": row[3],
-                    "created_at": row[4],
-                })
-        except sqlite3.Error:
-            notifications = []
-        finally:
-            conn.close()
-        
-        return notifications
-    
     # =========================================================================
     # RECORDS - Delegated to RecordsCalculator
     # =========================================================================
-    
-    def get_daily_species_counts(self, group: str = "general") -> Dict[str, int]:
-        """Get species counts by date for a taxonomic group."""
-        return self._records_calc.get_daily_counts(group)
-    
-    def get_annual_species_counts(self, group: str = "general") -> Dict[str, int]:
-        """Get species counts by year for a taxonomic group."""
-        return self._records_calc.get_annual_counts(group)
     
     def get_best_day(self, group: str = "general") -> Tuple[Optional[str], int]:
         """Get best single-day species count."""
@@ -460,10 +376,6 @@ class GamificationCalculator:
         """Calculate all one-time record achievements."""
         return self._records_calc.calculate_achievements()
     
-    def get_one_time_achievements_by_group(self, group: str) -> List[Dict[str, Any]]:
-        """Get achievements filtered by taxonomic group."""
-        return self._records_calc.get_achievements_by_group(group)
-    
     def get_one_time_achievements_summary(self) -> Dict[str, Any]:
         """Get summary of earned vs total achievements."""
         return self._records_calc.get_summary()
@@ -471,10 +383,6 @@ class GamificationCalculator:
     # =========================================================================
     # RARE SPECIES - Delegated to RareCalculator
     # =========================================================================
-    
-    def get_rare_species_observed(self) -> List[Dict[str, Any]]:
-        """Get all rare species the user has observed."""
-        return self._rare_calc.get_observed()
     
     def get_rare_species_summary(self) -> Dict[str, Any]:
         """Get summary of rare species observations by tier."""
@@ -508,10 +416,8 @@ class GamificationCalculator:
         vcs_total = len(vc_badges)
         
         ribbons_earned = family_data["total_families"]
-        ribbons_total = ribbons_earned  # Dynamic
         
         medals_earned = len(family_data["medals"])
-        medals_total = medals_earned  # Dynamic
         
         rare_earned = sum(1 for m in rare_milestones if m["earned"])
         rare_total = len(rare_milestones)

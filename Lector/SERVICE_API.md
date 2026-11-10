@@ -184,3 +184,39 @@ requests split (`name_requests`, `text_requests`, `requests_text`); `scope`/`yea
 `get_search()` as on `list_searches()`; `dashboard()['attention_items']`; withdrawn
 reasons name duplicate scans. lector.db version 3 (adds two run columns and the
 `activity` table; the window offers the update with a backup, as before).
+
+## Round 15 (25 Oct 2026)
+
+lector.db version 4 (adds the `user_tags` table and `saved_searches.text_search`; the window
+offers the update with a backup `lector_pre_v4_<time>.db`, as before).
+
+| Method | Returns |
+|---|---|
+| `delete_search_preview(search_id)` / `delete_search(search_id)` | `{name, runs, names, pages, pages_shared, marks}` (+ `backup`). Backs lector.db up (`conn.backup`) to `backup_dir/lector_pre_delete_<time>.db`, then in one transaction deletes the search, its runs, names, filters, page links and the review marks that belong only to it. Page rows and texts stay. |
+| `remove_not_relevant_preview(search_id)` / `remove_not_relevant(search_id)` | `{pages, pages_shared, pages_deleted}` (+ `backup`, `lector_pre_remove_<time>.db`). Takes the search's `not_relevant` pages out of it (links; a page no other search holds also loses its row, text and marks). No other status is touched. |
+| `suggest_taxa(text, limit=8)`, `warm_suggestions()` | `[{name, tvk, rank, family, score}]`, fuzzy (typos, partial words) over the UKSI names, best first. |
+| `create_search(None, name=..., kind='text', names=[terms])` | Free-text search: terms (an author, a place) sent to BHL's `PublicationSearch` (searchtype F). No UKSI checks. BHL returns books/articles, not pages: each is stored as a page row with a negative `page_id` (item/part/title ids and the BHL link kept), no text. `kind` is `'text'` in `get_search()`/`list_searches()`; `preview_draft(..., text=True)`, `name_counts(..., text=True)`. |
+| `list_tags(include_hidden=True)`, `add_tag(label)`, `rename_tag(key, label)`, `hide_tag(key, hidden=True)`, `delete_tag(key)` | `[{key, label, standard, hidden, in_use}]`. Your tags have keys `u1`, `u2`...; `set_review(tag=key)` accepts them; `review_queue` items carry `review_tag_label`, `journal`, `found_at`. A tag in use cannot be deleted. |
+
+## Extracted records and the BHL key (Round 15b)
+
+Methods of `LectorService` (code in `records.py` and `records_service.py`). A record is a row of
+`extracted_records` (schema 4): `record_id, page_id, search_id, species, species_tvk,
+date_printed, day, month, year, place, vice_county, grid_ref, recorder, determiner, count, sex,
+stage, comment, citation, source_title, source_volume, source_page, source_year, bhl_url,
+created, updated`.
+
+| Method | Returns |
+|---|---|
+| `record_prefill(search_id, page_id)` | the fields a new record starts with: species, citation, source title / volume / page / year, BHL address |
+| `add_record(search_id, page_id, fields)` | new `record_id`; the species is checked in UKSI (current name + TVK stored); the grid reference is validated (shared.osgb); the page is marked `record_extracted`. `LectorError` for a field that fails |
+| `get_record(id)`, `update_record(id, fields)` | the record / nothing |
+| `list_records(search_id=None, species=None, year=None)` | records, newest first, each with `search_name` |
+| `record_filter_choices()` | `{searches: [{search_id, name}], species, years}` |
+| `remove_record(id)` | `{record_id, backup}`: `conn.backup()` to `backup_dir/lector_pre_remove_record_<time>.db`, then that one row is deleted |
+| `export_records_csv(path, search_id=None, species=None, year=None)` | `{path, rows}`; columns species, date, site, grid ref, recorder, determiner, count, sex, stage, notes, date as printed, vice county, source citation, BHL page URL, data_reference (`BHL: <short citation>`) |
+| `test_api_key(key)` | NETWORK, one request (`GetLanguages`): `{ok, message}`; the constructor's `key_client_factory(key)` makes the client (tests pass a fake) |
+| `save_api_key(key)` | writes `config.KEY_FILE` (one line); returns its path |
+
+Without `uksi.db`, `resolve_taxon()` returns the typed name as found (`uksi_missing: True`, no
+TVK) and `candidate_names()` gives just that name plus your own list.

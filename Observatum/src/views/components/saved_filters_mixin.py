@@ -88,7 +88,11 @@ class SavedFiltersMixin:
         if settings.value(flag, False, type=bool):
             return
         try:
-            entries = SavedFiltersService().get_all_filters(tab=tab)
+            svc = SavedFiltersService()
+            if getattr(svc, "load_error", None):     # damaged file: try again next time
+                print(f"[SavedFilters] Could not read wizard filters: {svc.load_error}")
+                return
+            entries = svc.get_all_filters(tab=tab)
         except Exception as e:
             print(f"[SavedFilters] Could not read wizard filters: {e}")
             return

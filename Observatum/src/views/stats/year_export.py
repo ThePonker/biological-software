@@ -110,7 +110,7 @@ def wire_year_exports(table, record_type: Optional[str], label: str, parent) -> 
             return
         try:
             n = write_year_records_csv(path, rows)
-            QMessageBox.information(parent, "Export", f"Exported {n:,} records for {year} to:\n{path}")
+            QMessageBox.information(parent, "Export", f"Exported {n:,} record{'' if n == 1 else 's'} for {year} to:\n{path}")
         except OSError as e:
             QMessageBox.critical(parent, "Export failed", str(e))
 

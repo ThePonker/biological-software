@@ -8,8 +8,7 @@ Saving/loading lives in the filter bar's top row (13 Oct 2026).
 
 from typing import Dict, Any, List
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QComboBox, QScrollArea, QFrame, QSizePolicy
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QScrollArea, QFrame, QSizePolicy
 )
 from PySide6.QtCore import Signal, Qt
 
@@ -270,7 +269,6 @@ class FilterWizard(QWidget):
     def _apply_filters(self):
         """Apply the current filters."""
         filters = self.get_all_filters()
-        print(f"[FilterWizard] Applying filters: {filters}")
         self.filter_applied.emit(filters)
         self.filters_applied.emit(filters)  # Emit both for compatibility
     
@@ -382,37 +380,6 @@ class FilterWizard(QWidget):
             # Recording Scheme: the Status card also chooses the dataset / provider
             status.desc_label.setText("Verification status or dataset / provider")
 
-    def set_tab_data(self, species=None, orders=None, families=None,
-                     recorders=None, determiners=None, sites=None,
-                     grid_refs=None, years=None, methods=None):
-        """Set tab-specific data for scoped filtering.
-        
-        When set, the wizard uses this data instead of querying UKSI directly.
-        Call this from each tab's initialize() after loading data.
-        """
-        if species is not None:
-            self._species_list = sorted(set(species))
-        if orders is not None:
-            self._taxon_groups = sorted(set(orders))
-        if families is not None:
-            self._family_list = sorted(set(families))
-        if recorders is not None:
-            self._recorder_list = sorted(set(recorders))
-        if determiners is not None:
-            self._determiner_list = sorted(set(determiners))
-        if sites is not None:
-            self._site_list = sorted(set(sites))
-        if grid_refs is not None:
-            self._grid_ref_list = sorted(set(grid_refs))
-        if years is not None:
-            self._year_list = sorted(set(years), reverse=True)
-        if methods is not None:
-            self._method_list = sorted(set(methods))
-        
-        # Mark as loaded so _ensure_taxon_data_loaded doesn't overwrite
-        if species or orders or families:
-            self._taxon_data_loaded = True
-    
     def _ensure_taxon_data_loaded(self):
         """Lazy load taxon data from UKSI when first needed."""
         if self._taxon_data_loaded or not self._uksi_model:
@@ -441,74 +408,18 @@ class FilterWizard(QWidget):
                     "WHERE species_name IS NOT NULL AND species_name != '' ORDER BY species_name"
                 )
                 self._species_list = [row[0] for row in rows]
-                print(f"[FilterWizard] Loaded {len(self._species_list)} species")
             except Exception as e:
                 print(f"[FilterWizard] Could not load species: {e}")
             
             self._taxon_data_loaded = True
-            print(f"[FilterWizard] Loaded {len(orders)} orders, {len(all_families)} families")
         except Exception as e:
             print(f"[FilterWizard] Error loading taxon data: {e}")
     
     # === Data setters for dialogs ===
     
-    def set_species_list(self, species: List[str]):
-        """Set species list for What dialog autocomplete."""
-        self._species_list = species
-    
-    def set_taxon_groups(self, groups: List[str]):
-        """Set taxon group list for What dialog."""
-        self._taxon_groups = groups
-    
-    def set_group_list(self, groups: List[str]):
-        """Taxon groups for the What dialog's Group box (display labels from
-        shared.taxon_groups.display_labels())."""
-        self._group_list = list(groups or [])
-
-    def set_family_list(self, families: List[str]):
-        """Set family list for What dialog."""
-        self._family_list = families
-    
-    def set_taxon_family_map(self, mapping: Dict[str, List[str]]):
-        """Set taxon group to family mapping."""
-        self._taxon_family_map = mapping
-    
-    def set_recorder_list(self, recorders: List[str]):
-        """Set recorder list for Who dialog autocomplete."""
-        self._recorder_list = recorders
-    
-    def set_determiner_list(self, determiners: List[str]):
-        """Set determiner list for Who dialog autocomplete."""
-        self._determiner_list = determiners
-    
-    def set_method_list(self, methods: List[str]):
-        """Set sample method list for How dialog."""
-        self._method_list = methods
-    
-    def set_year_list(self, years: List[int]):
-        """Set year list for When dialog."""
-        self._year_list = years
-    
     def apply_theme(self):
         """Apply the current theme."""
         self.card_grid.apply_theme()
-    
-    def _style_input(self, widget: QLineEdit):
-        """Apply input styling."""
-        t = theme()
-        widget.setStyleSheet(f"""
-            QLineEdit {{
-                background-color: {t.get('surface')};
-                border: 1px solid {t.get('border')};
-                border-radius: 4px;
-                padding: 5px 8px;
-                font-size: 12px;
-                color: {t.get('text_primary')};
-            }}
-            QLineEdit:focus {{
-                border-color: {self._accent_color};
-            }}
-        """)
     
     def _style_combo(self, widget: QComboBox):
         """Apply combo box styling."""

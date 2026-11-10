@@ -8,6 +8,8 @@ from typing import List, Tuple
 
 from shared.maps.grid_squares import is_tetrad_ref
 
+from ...services.map_selection import REFERENCE_NO_SPECIMENS
+
 
 def hold_tetrads(records: List[dict], include: bool) -> Tuple[List[dict], int]:
     """(records to square, tetrad refs held back). Decision 10: a 2 km tetrad grid ref
@@ -55,4 +57,6 @@ def map_note(result, filters) -> str:
         parts.append(f"{n:,} embargoed not shown")
     if result.merged:
         parts.append(f"{result.merged:,} duplicate records shown once")
+    if filters is not None and (getattr(filters, "data_reference", "") or "").strip():
+        parts.append(REFERENCE_NO_SPECIMENS.rstrip("."))
     return ", ".join(parts)

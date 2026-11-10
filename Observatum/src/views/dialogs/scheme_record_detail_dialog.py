@@ -244,7 +244,6 @@ class SchemeRecordDetailDialog(QDialog):
 
     def _add_taxonomy_rows(self, layout):
         """Add taxonomy rows."""
-        t = theme()
 
         # Get values from UKSI lookup or record
         if self._taxonomy:
@@ -448,6 +447,11 @@ class SchemeRecordDetailDialog(QDialog):
         determiner = self.record.get('determiner', '')
         if determiner and determiner != recorder:
             self._add_label_value_row(layout, "Determiner", determiner)
+
+        # Reference (data from a person or a source rather than iRecord/NBN)
+        reference = self.record.get('data_reference', '')
+        if reference:
+            self._add_label_value_row(layout, "Reference", reference)
 
     def _add_source_section(self, layout):
         """Add source with styled badge."""

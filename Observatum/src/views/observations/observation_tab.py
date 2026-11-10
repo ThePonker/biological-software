@@ -500,7 +500,22 @@ class ObservationTab(
         if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_commercial_data()
             db = get_database()
+            from PySide6.QtWidgets import QMessageBox
+            from shared.away_mode import away_active
+            if away_active():
+                from shared.db_open import AwayReadOnly
+                QMessageBox.warning(self, "Not marked as commercial",
+                                    str(AwayReadOnly("Away mode: this is a read-only copy -- "
+                                                     "nothing can be saved here. "
+                                                     "Make the change on the desktop.")))
+                return
             try:
+                from shared.backup_service import backup_main_only
+                if not backup_main_only("pre-mark-commercial"):
+                    QMessageBox.critical(self, "Not marked as commercial",
+                                         "The backup before marking failed, so nothing "
+                                         "has been changed.")
+                    return
                 placeholders = ",".join(["?"] * len(checked_ids))
                 set_parts = ", ".join([f"{k} = ?" for k in data.keys()])
                 values = list(data.values()) + checked_ids
@@ -513,6 +528,8 @@ class ObservationTab(
                 self.records_changed.emit()
             except Exception as e:
                 print(f"[ObservationTab] Error marking commercial: {e}")
+                QMessageBox.warning(self, "Not marked as commercial",
+                                    f"The records could not be marked as commercial:\n\n{e}")
 
     def _on_import_requested(self):
         """Handle import button click."""

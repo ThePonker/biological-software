@@ -123,7 +123,8 @@ class SearchesScreen(Screen):
         self.table.setRowCount(len(searches))
         for r, s in enumerate(searches):
             sub = s["target_tvk"] or {"family": "Whole family from UKSI",
-                                      "list": "Species list"}.get(s["kind"], "")
+                                      "list": "Species list",
+                                      "text": "Free-text terms"}.get(s["kind"], "")
             n = s["names_included"]
             name_html = (f"<a href='open' style='color:{S.ACCENT}; font-weight:700;"
                          f" text-decoration:none'>{escape(s['name'])}</a><br>"
@@ -235,6 +236,8 @@ class SearchesScreen(Screen):
                            lambda: self.fetch_text(sid))
         menu.addAction("Duplicate as a new draft", lambda: self._duplicate(sid))
         menu.addAction("Export a dossier", lambda: self.win.go("export", search_id=sid))
+        menu.addSeparator()
+        menu.addAction("Delete search…", lambda: self.delete_search(sid))
         more.setMenu(menu)
         h.addWidget(more)
         for b in w.findChildren(QPushButton):          # compact, so the row fits 1280 px
@@ -274,6 +277,33 @@ class SearchesScreen(Screen):
         new = self.win.call(self.svc.duplicate_search, sid)
         if new:
             self.win.go("builder", search_id=new)
+
+    def delete_search_text(self, info):
+        """The confirmation: what goes, what stays, and the backup."""
+        runs, names, pages = info["runs"], info["names"], info["pages"]
+        return (f"Delete the search “{info['name']}”?\n\n"
+                "What goes: the search itself, its "
+                f"{runs:,} run{'s' if runs != 1 else ''}, its {names:,} name{'s' if names != 1 else ''}, "
+                f"its filters, and the review marks and notes that belong only to it "
+                f"({info['marks']:,} page{'s' if info['marks'] != 1 else ''}).\n\n"
+                "What stays: every downloaded page text, and the pages other searches also "
+                f"use ({info['pages_shared']:,} of this search's {pages:,}).\n\n"
+                "lector.db is backed up first, to data\\_backups\\lector_pre_delete_<time>.db. "
+                "This cannot be undone except from that backup.")
+
+    def delete_search(self, sid):
+        """Delete search…: confirm, back up, delete in one transaction."""
+        info = self.win.call(self.svc.delete_search_preview, sid)
+        if info is None:
+            return None
+        if not self.win.choose(self.delete_search_text(info), "Delete search", "Keep it",
+                               "Delete search", danger=True):
+            return None
+        done = self.win.call(self.svc.delete_search, sid)
+        if done is not None:
+            self.win.say(f"Deleted “{done['name']}”. Backup copy: {done['backup']}")
+            self.refresh()
+        return done
 
     def _apply_filter(self, text):
         words = text.lower().split()
