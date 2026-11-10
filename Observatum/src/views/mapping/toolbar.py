@@ -21,6 +21,7 @@ from ...themes import theme
 from ...core.config import TabColors
 from shared.maps.grid_squares import GRID_LABELS
 
+VIEW3D_PAUSED = "The 3D view is being rebuilt and will return in a later version."
 EXPORT_EXTENTS = [("full", "Full extent"), ("current", "Current view")]
 
 
@@ -108,7 +109,9 @@ class MapToolbar(QFrame):
 
         # 3D view of the area on screen
         self.view3d_btn = QPushButton("3D view")
-        self.view3d_btn.setToolTip("Show the area on screen as a 3D surface with the map draped over it")
+        # R17: switched off while the 3D view is rebuilt; the code (view3d*.py) is kept
+        self.view3d_btn.setEnabled(False)
+        self.view3d_btn.setToolTip(VIEW3D_PAUSED)
         self.view3d_btn.setStyleSheet(f"""
             QPushButton {{
                 border: 1px solid {t.get('border')};
@@ -117,6 +120,7 @@ class MapToolbar(QFrame):
                 font-size: 12px;
             }}
             QPushButton:hover {{ background-color: {t.get('hover')}; }}
+            QPushButton:disabled {{ color: {t.get('disabled_text')}; background-color: transparent; }}
         """)
         self.view3d_btn.clicked.connect(self.view3d_requested.emit)
         layout.addWidget(self.view3d_btn)

@@ -128,7 +128,11 @@ LAYER_SPECS = (
              (), ("SOIL_TEX",), xform="sentence", exclude=("50k",),
              extra=(("CARB_CNTNT", "Carbonate", "sentence"), ("SOIL_GROUP", "Soil group", "sentence"),
                     ("SOIL_DEPTH", "Depth", "sentence"), ("PMM_GRAIN", "Grain size", "sentence"),
-                    ("ESB_DESC", "Parent material", "sentence"))),), dissolve=True),
+                    ("ESB_DESC", "Parent material", "sentence"))),), dissolve=True,
+              # R17: a 1 km model drawn as 1 km cells: the default GB tolerance (250 m) leaves its
+              # staircase edges as they are, so the GB file came out as big as the county one. 1000 m
+              # smooths the steps (a unit step is 707 m off the diagonal); a single cell is kept.
+              gb=(1000, 500000)),
     LayerSpec("soilscapes", (
         Part("England and Wales", (("soilscapes",), ("natmap",)),                  # (unverified)
              ("SOILSCAPE_DESC", "SOILSC_DES", "DESCRIPTION", "DESC_", "NAME"),

@@ -69,7 +69,7 @@ class RareTab:
             btn.setFixedHeight(26)
             btn.setStyleSheet(f"""
                 QPushButton {{
-                    font-size: 10px;
+                    font-size: 11px;
                     padding: 4px 10px;
                     border: 1px solid {RARITY_TIERS.get(tier_key, {}).get('primary', TEXT['muted'])};
                     border-radius: 4px;
@@ -240,7 +240,7 @@ class RareTab:
         # Name
         name = QLabel(milestone["name"])
         name.setStyleSheet(f"""
-            font-size: 9px;
+            font-size: 11px;
             font-weight: bold;
             color: {TEXT['primary'] if milestone['earned'] else TEXT['muted']};
         """)
@@ -249,7 +249,7 @@ class RareTab:
         
         # Progress
         progress = QLabel(f"{milestone['current_count']}/{milestone['threshold']}")
-        progress.setStyleSheet(f"font-size: 8px; color: {TEXT['muted']};")
+        progress.setStyleSheet(f"font-size: 11px; color: {TEXT['muted']};")
         progress.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(progress)
         
@@ -277,13 +277,13 @@ class RareTab:
         if len(display_name) > 14:
             display_name = display_name[:12] + "..."
         name = QLabel(display_name)
-        name.setStyleSheet(f"font-size: 8px; font-weight: bold; color: {TEXT['primary']};")
+        name.setStyleSheet(f"font-size: 11px; font-weight: bold; color: {TEXT['primary']};")
         name.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(name)
         
         # Status
         status = QLabel(pin_data.get("status_text", "")[:15])
-        status.setStyleSheet(f"font-size: 7px; color: {TEXT['muted']};")
+        status.setStyleSheet(f"font-size: 11px; color: {TEXT['muted']};")
         status.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(status)
         

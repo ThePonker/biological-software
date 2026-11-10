@@ -115,6 +115,20 @@ class SpeciesInfoPanel(Card):
         family_layout.addStretch()
         content_layout.addLayout(family_layout)
 
+        # Conservation status(es) and SQS, read-only from Codex (R17 B4)
+        self.status_label = QLabel("Status")
+        self.status_value = QLabel("None")
+        self.sqs_label = QLabel("SQS")
+        self.sqs_value = QLabel("\u2013")
+        for lab, val in ((self.status_label, self.status_value), (self.sqs_label, self.sqs_value)):
+            row = QHBoxLayout()
+            lab.setFixedWidth(50)
+            val.setWordWrap(True)
+            row.addWidget(lab)
+            row.addWidget(val, 1)
+            content_layout.addLayout(row)
+        self._style_status_rows()
+
         # Records count - plain text row
         records_layout = QHBoxLayout()
         self.records_label = QLabel("Your Records")
@@ -182,6 +196,19 @@ class SpeciesInfoPanel(Card):
         self.placeholder.setStyleSheet(f"color: {t.get('text_muted')}; font-style: italic; padding: 40px;")
         self.add_widget(self.placeholder)
         self.add_stretch()
+
+    def _style_status_rows(self):
+        t = theme()
+        for lab in (self.status_label, self.sqs_label):
+            lab.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {t.font_size('base')}; border: none; background: transparent;")
+        for val in (self.status_value, self.sqs_value):
+            val.setStyleSheet(f"font-weight: 600; color: {t.get('text_primary')}; font-size: {t.font_size('base')}; border: none; background: transparent;")
+
+    def _show_status(self, tvk):
+        from .species_status import lookup
+        status, sqs = lookup(tvk)
+        self.status_value.setText(status)
+        self.sqs_value.setText(sqs)
 
     def _setup_profile_section(self, content_layout):
         """Set up species profile section."""
@@ -269,6 +296,8 @@ class SpeciesInfoPanel(Card):
         family_val = species_data.get('family') or '-'
         self.order_value.setText(order_val)
         self.family_value.setText(family_val)
+
+        self._show_status(species_data.get('tvk') or species_data.get('species_tvk'))
 
         # Records count
         record_count = species_data.get('record_count', 0)
@@ -384,6 +413,8 @@ class SpeciesInfoPanel(Card):
         self.order_value.setStyleSheet(f"font-weight: 600; color: {t.get('text_primary')}; font-size: {t.font_size('base')}; border: none; background: transparent;")
         self.family_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {t.font_size('base')}; border: none; background: transparent;")
         self.family_value.setStyleSheet(f"font-weight: 600; color: {t.get('text_primary')}; font-size: {t.font_size('base')}; border: none; background: transparent;")
+
+        self._style_status_rows()
 
         # Update records
         self.records_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {t.font_size('base')}; border: none; background: transparent;")

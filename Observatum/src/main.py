@@ -13,7 +13,7 @@ import paths
 import src.startup_timing  # noqa: F401  (starts the startup clock)
 
 from PySide6.QtWidgets import QApplication
-from PySide6.QtCore import Qt, QTimer, QSettings
+from PySide6.QtCore import QTimer, QSettings
 
 
 def apply_filter_settings(window):
@@ -53,10 +53,9 @@ def main():
     from src.startup_timing import timer
     timing = timer()
 
-    # Enable high DPI scaling
-    QApplication.setHighDpiScaleFactorRoundingPolicy(
-        Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
-    )
+    # Interface size (Settings) and the high DPI rounding policy: before the QApplication
+    from shared import ui_scale
+    ui_scale.apply_before_qapp()
 
     from shared import crash_log             # data\logs\crash_observatum_<month>.log
     crash_log.install("observatum")
@@ -64,6 +63,9 @@ def main():
     light_scheme.prepare()
     app = QApplication(sys.argv)
     light_scheme.install(app)
+    from shared import gc_schedule, qt_messages
+    gc_schedule.install(app)         # the cyclic collector runs from a timer, not inside Qt handlers
+    qt_messages.install()
     from shared.settings_store import APP, ORG, merge_flauna_store_once
     app.setApplicationName(APP)
     app.setOrganizationName(ORG)

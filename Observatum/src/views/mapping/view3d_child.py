@@ -53,6 +53,8 @@ def main(argv) -> int:
     from shared import crash_log                 # data\logs\crash_view3d_<month>.log
     crash_log.install("view3d")
     from shared import light_scheme              # always light, even on a dark-mode PC
+    from shared import ui_scale              # Interface size (Settings) before the QApplication
+    ui_scale.apply_before_qapp()
     light_scheme.prepare()
     from PySide6.QtWidgets import QApplication
     app = QApplication(sys.argv)

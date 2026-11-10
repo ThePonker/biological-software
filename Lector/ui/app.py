@@ -353,9 +353,14 @@ def main(argv=None):
     from shared import crash_log             # data\logs\crash_lector_<month>.log
     crash_log.install("lector")
     from shared import light_scheme          # always light, even on a dark-mode PC
+    from shared import ui_scale              # Interface size (Settings) before the QApplication
+    ui_scale.apply_before_qapp()
     light_scheme.prepare()
     app = QApplication.instance() or QApplication(sys.argv[:1])
     light_scheme.install(app)
+    from shared import gc_schedule, qt_messages
+    gc_schedule.install(app)         # the cyclic collector runs from a timer, not inside Qt handlers
+    qt_messages.install()
     from shared.opaque_popups import install as solid_popups
     solid_popups(app, lambda: (S.c('surface'), S.c('text_primary')))   # F50: solid lists
     from shared.dialog_geometry import install as remember_dialog_sizes

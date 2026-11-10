@@ -26,7 +26,11 @@ Usage:
 from typing import Optional, List, Dict, Any
 from dataclasses import dataclass
 
+from shared.common_name_pick import order_by_sql
 from .database import DatabaseManager
+
+
+_CN_ORDER = order_by_sql()      # which common name is shown (shared/common_name_pick.py)
 
 
 @dataclass
@@ -445,7 +449,7 @@ class UKSIModel:
         Returns:
             Species object or None if not found
         """
-        query = """
+        query = f"""
             SELECT
                 t.tvk,
                 t.scientific_name,
@@ -460,7 +464,7 @@ class UKSIModel:
             FROM taxa t
             LEFT JOIN common_names cn ON t.tvk = cn.tvk
             WHERE t.tvk = ?
-            ORDER BY cn.preferred DESC, CASE WHEN cn.common_name GLOB '[A-Z]*' THEN 0 ELSE 1 END, LENGTH(cn.common_name)  -- C2: the preferred name
+            ORDER BY {_CN_ORDER}  -- C2: the preferred name
             LIMIT 1
         """
         results = self.db.execute_uksi(query, (tvk,))
@@ -517,7 +521,7 @@ class UKSIModel:
         Returns:
             Species object or None if not found
         """
-        query = """
+        query = f"""
             SELECT
                 t.tvk,
                 t.scientific_name,
@@ -532,7 +536,7 @@ class UKSIModel:
             FROM taxa t
             LEFT JOIN common_names cn ON t.tvk = cn.tvk
             WHERE t.scientific_name = ?
-            ORDER BY cn.preferred DESC, CASE WHEN cn.common_name GLOB '[A-Z]*' THEN 0 ELSE 1 END, LENGTH(cn.common_name)  -- C2: the preferred name
+            ORDER BY {_CN_ORDER}  -- C2: the preferred name
             LIMIT 1
         """
         results = self.db.execute_uksi(query, (scientific_name,))
@@ -652,7 +656,7 @@ class UKSIModel:
             FROM taxa t
             LEFT JOIN common_names cn ON t.tvk = cn.tvk
             WHERE LOWER(t.scientific_name) IN ({placeholders})
-            ORDER BY t.scientific_name, cn.preferred DESC, CASE WHEN cn.common_name GLOB '[A-Z]*' THEN 0 ELSE 1 END, LENGTH(cn.common_name)  -- C2
+            ORDER BY t.scientific_name, {_CN_ORDER}  -- C2
         """
         
         try:

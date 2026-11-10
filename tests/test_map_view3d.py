@@ -219,12 +219,17 @@ def test_footer_lines():
     assert b[-1] == terrain.EA_CREDIT
 
 
-def test_toolbar_button_emits(qapp):
+def test_toolbar_button_is_greyed_out_while_the_3d_view_is_rebuilt(qapp):
     from Observatum.src.views.mapping.toolbar import MapToolbar
     tb, got = MapToolbar(), []
     tb.view3d_requested.connect(lambda: got.append(1))
-    tb.view3d_btn.click()
-    assert got == [1] and tb.view3d_btn.text() == "3D view"
+    assert not tb.view3d_btn.isEnabled() and tb.view3d_btn.text() == "3D view"
+    assert tb.view3d_btn.toolTip() == ("The 3D view is being rebuilt and will return in a "
+                                       "later version.")
+    tb.view3d_btn.click()                       # a disabled button does nothing
+    assert got == []
+    tb.view3d_requested.emit()                  # the signal and the code behind it are kept
+    assert got == [1]
     tb.deleteLater()
     qapp.processEvents()
 

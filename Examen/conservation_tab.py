@@ -257,7 +257,7 @@ class ConservationTab(QWidget):
                           "They are shown for completeness and do not count "
                           f"towards key species under {self._juris}.")
             note.setWordWrap(True)
-            note.setStyleSheet("color: " + NA_TEXT + "; font-size: 10px; "
+            note.setStyleSheet("color: " + NA_TEXT + "; font-size: 11px; "
                                "font-style: italic; border: none;")
             gl.addWidget(note)
 

@@ -7,13 +7,13 @@ Handles record detail dialog display and navigation for ObservationTab.
 from typing import Dict
 
 # What follows from a record's species, written with a re-determination (24 Oct 2026)
-REDET_TAXONOMY_FIELDS = ("taxon_rank", "kingdom", "taxon_group", "superfamily", "subfamily",
-                         "taxonomic_sort_key")
+REDET_TAXONOMY_FIELDS = ("taxon_rank", "kingdom", "taxon_group", "order_name", "family",
+                         "superfamily", "subfamily", "taxonomic_sort_key", "common_name")
 
 
 def redet_taxonomy_fields(tvk, uksi_path=None) -> Dict:
-    """{taxon_rank, kingdom, taxon_group, superfamily, subfamily, taxonomic_sort_key} for a
-    TVK, from the same two functions the importers and Data Entry's commit use
+    """{taxon_rank, kingdom, taxon_group, order_name, family, superfamily, subfamily,
+    taxonomic_sort_key, common_name} for a TVK, from the same two functions the importers and Data Entry's commit use
     (shared.taxon_groups.taxonomy_for_tvks and shared.import_core.taxonomy_for_tvks).
     {} when the TVK is not in UKSI. Raises when UKSI cannot be read."""
     if not tvk:
@@ -28,10 +28,29 @@ def redet_taxonomy_fields(tvk, uksi_path=None) -> Dict:
         "taxon_rank": g.get("taxon_rank"),
         "kingdom": g.get("kingdom"),
         "taxon_group": g.get("taxon_group"),
+        "order_name": g.get("order_name"),
+        "family": g.get("family"),
         "superfamily": g.get("superfamily"),
         "subfamily": s.get("subfamily") or None,
         "taxonomic_sort_key": g.get("taxonomic_sort_key"),
+        "common_name": _uksi_common_name(tvk, uksi_path),
     }
+
+
+def _uksi_common_name(tvk, uksi_path=None):
+    """The taxon's common name by the suite's one rule (shared/common_name_pick.py), or None."""
+    import paths
+    from shared.common_name_pick import order_by_sql
+    from shared.db_open import connect_ro
+    conn = connect_ro(uksi_path or paths.UKSI_DB)
+    try:
+        row = conn.execute("SELECT cn.common_name FROM common_names cn WHERE cn.tvk = ? "
+                           f"ORDER BY {order_by_sql()} LIMIT 1", (tvk,)).fetchone()
+    except Exception:
+        return None                   # no common_names table: no common name
+    finally:
+        conn.close()
+    return (row[0] if row else None) or None
 
 
 def with_redet_taxonomy(updates: Dict, old_tvk, uksi_path=None) -> Dict:
@@ -266,11 +285,14 @@ class ObservationDetailMixin:
         vc_number from VCLookupService.assess() and latitude / longitude (centre of
         the square, WGS84) from shared.osgb -- the same as Data Entry's commit. A
         reference with no VC (or an unreadable one) clears the old values rather than
-        leaving them on the record.
+        leaving them on the record; so does a grid reference emptied altogether.
         """
         def norm(r):
             return (r or "").upper().replace(" ", "")
-        if not new_ref or norm(new_ref) == norm(old_ref):
+        if not new_ref:
+            # a grid reference emptied: the vice-county it gave goes too (empty -> NULL, R17 B7)
+            return ({'vice_county': None, 'vc_number': None} if norm(old_ref) else {}), ""
+        if norm(new_ref) == norm(old_ref):
             return {}, ""
         from shared.osgb import gridref_to_wgs84
         out = {}

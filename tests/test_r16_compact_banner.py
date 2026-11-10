@@ -27,9 +27,20 @@ def test_compact_default_off_and_shows_more_rows(qapp, settings_isolated,  # noq
     assert not ip.is_compact()
     assert all(c.isVisible() for c in ip._banner_cards if c not in ip._collapsible)
     full_rows, full_banner = _rows_shown(g), g._banner_scroll.height()
-    ip._fold_btn.click()
+    btn = w._fold_top_btn                              # R17: right-hand end of the job's top line
+    assert btn.text() == "\u25B4 Fold banner"
+    assert not hasattr(ip, "_fold_btn")                # the old small link in the species card is gone
+    top = btn.parentWidget()
+    assert btn.geometry().right() > top.width() - 60   # at the right-hand end
+    w._fold_top_btn.click()
     _pump(qapp, 8)
     assert ip.is_compact()
+    assert btn.text() == "\u25BE Unfold banner"
+    w._fold_top_btn.click()                            # the same button unfolds
+    _pump(qapp, 8)
+    assert not ip.is_compact() and btn.text() == "\u25B4 Fold banner"
+    w._fold_top_btn.click()
+    _pump(qapp, 8)
     assert not any(c.isVisible() for c in ip._banner_cards)
     assert ip._compact_strip.isVisible()
     assert g._banner_scroll.height() < full_banner - 100
@@ -37,6 +48,7 @@ def test_compact_default_off_and_shows_more_rows(qapp, settings_isolated,  # noq
     ip._compact_strip.unfold_btn.click()
     _pump(qapp, 8)
     assert not ip.is_compact() and not ip._compact_strip.isVisible()
+    assert btn.text() == "\u25B4 Fold banner"
     assert ip._controls_widget.isVisible()
     assert _rows_shown(g) == full_rows
     w.close()
@@ -56,6 +68,7 @@ def test_compact_is_remembered_and_strip_names_the_species(qapp, settings_isolat
     w.close()
     w2, g2 = _setup(qapp, tmp_path / "again", monkeypatch)
     assert g2._info.is_compact()                      # a new panel starts the way it was left
+    assert w2._fold_top_btn.text() == "\u25BE Unfold banner"
     _pump(qapp, 6)
     assert not any(c.isVisible() for c in g2._info._banner_cards)
     g2._info.set_compact(False)

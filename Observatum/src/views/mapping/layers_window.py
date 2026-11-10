@@ -28,6 +28,22 @@ BASE_TITLE = "Base map"
 SECTION_ORDER = (env.DESIG, env.HAB, env.GEO, env.ACC, env.CLIM)
 
 
+def group_title(tg) -> str:
+    """The window's group a toggle belongs to ("Base map", or its Environment section)."""
+    return tg.section if tg.group else BASE_TITLE
+
+
+def group_members() -> Dict[str, List[str]]:
+    """Group title -> the keys of its toggles, in the window's order. One source for the
+    window's group switches and the bar's remembered ticks."""
+    rank = {t: i for i, t in enumerate(SECTION_ORDER)}
+    out: Dict[str, List[str]] = {}
+    for tg in sorted(layers.visible_toggles(),
+                     key=lambda tg: -1 if not tg.group else rank.get(tg.section, len(rank))):
+        out.setdefault(group_title(tg), []).append(tg.key)
+    return out
+
+
 class LayersWindow(QDialog):
     """Tick boxes, colours, opacities and keys for the map's layers. `bar`: the MapDisplayBar."""
 
@@ -54,6 +70,8 @@ class LayersWindow(QDialog):
         self.key_boxes: Dict[str, QWidget] = {}
         self.rows: Dict[str, QWidget] = {}
         self.group_titles: List[str] = []
+        self.group_checks: Dict[str, QCheckBox] = {}      # one on/off switch per group header
+        self.key_group: Dict[str, str] = {}
         outer = QVBoxLayout(self)
         holder = QWidget()
         body = QVBoxLayout(holder)
@@ -65,13 +83,15 @@ class LayersWindow(QDialog):
         toggles = sorted(layers.visible_toggles(),
                          key=lambda tg: -1 if not tg.group else rank.get(tg.section, len(rank)))
         for tg in toggles:
-            title = tg.section if tg.group else BASE_TITLE
+            title = group_title(tg)
             if title not in groups:
-                box = QGroupBox(title)
+                box = QGroupBox()
                 groups[title] = QVBoxLayout(box)
                 groups[title].setSpacing(3)
+                groups[title].addWidget(self._group_switch(title))
                 body.addWidget(box)
                 self.group_titles.append(title)
+            self.key_group[tg.key] = title
             groups[title].addWidget(self._row(tg))
         body.addStretch()
         scroll = QScrollArea()
@@ -105,6 +125,18 @@ class LayersWindow(QDialog):
         self.sync()
 
     # ---------------------------------------------------------------- building
+    def _group_switch(self, title: str) -> QCheckBox:
+        """The group's header: one switch that turns all its layers off, and back on."""
+        t = theme()
+        cb = QCheckBox(title)
+        cb.setStyleSheet(f"QCheckBox {{ color: {t.get('text_heading')}; font-weight: 600; }}")
+        cb.setToolTip(f"Switch every layer in \u201c{title}\u201d off or on. Switching it on again "
+                      f"brings back the layers that were ticked.")
+        cb.setAccessibleName(f"{title} on or off")
+        cb.toggled.connect(lambda on, ti=title: self.bar.set_group_on(ti, on))
+        self.group_checks[title] = cb
+        return cb
+
     def _row(self, tg) -> QWidget:
         """One layer: tick box (its label), colour swatch, opacity slider, then its key."""
         t = theme()
@@ -180,6 +212,16 @@ class LayersWindow(QDialog):
         self.rows[key].setToolTip("" if ok else act.toolTip() or layers.NOT_INSTALLED)
         if key in self.key_boxes:
             self.refresh_key(key)
+        self.sync_group(self.key_group.get(key, ""))
+
+    def sync_group(self, title: str):
+        """The group switch shows whether any of its layers is ticked."""
+        cb = self.group_checks.get(title)
+        if cb is None:
+            return
+        cb.blockSignals(True)
+        cb.setChecked(self.bar.group_ticked(title))
+        cb.blockSignals(False)
 
     def refresh_colours(self):
         t = theme()

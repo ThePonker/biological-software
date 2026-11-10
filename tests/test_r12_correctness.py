@@ -47,8 +47,10 @@ def _obs_db(path, rows):
     o = sqlite3.connect(path)
     o.execute("CREATE TABLE observations (id INTEGER PRIMARY KEY, species_name TEXT, species_tvk TEXT, "
               "taxon_rank TEXT, kingdom TEXT, taxon_group TEXT, superfamily TEXT, subfamily TEXT, "
-              "taxonomic_sort_key INTEGER)")
-    o.executemany("INSERT INTO observations VALUES (?,?,?,?,?,?,?,?,?)", rows)
+              "taxonomic_sort_key INTEGER, order_name TEXT, family TEXT, common_name TEXT)")
+    # R17: a re-determination also refreshes order, family and common name (last three columns)
+    o.executemany("INSERT INTO observations (id, species_name, species_tvk, taxon_rank, kingdom, "
+                  "taxon_group, superfamily, subfamily, taxonomic_sort_key) VALUES (?,?,?,?,?,?,?,?,?)", rows)
     o.commit()
     o.close()
 

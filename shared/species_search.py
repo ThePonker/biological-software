@@ -42,6 +42,7 @@ import threading
 import unicodedata
 from typing import Dict, Iterable, List, Optional
 
+from shared.common_name_pick import sort_key
 from shared.fuzzy_words import FuzzyVocab, allowed_edits
 from shared.species_lookup import BROAD_QUALIFIERS, BROAD_RANKS, parse_qualifier
 
@@ -220,11 +221,11 @@ class SpeciesIndex:
             if i is None or not name:
                 continue
             add(i, 1, name)
-            key = (-(pref or 0), 0 if name[:1].isupper() else 1, len(name), name)
+            key = sort_key(name, pref)
             if i not in best_common or key < best_common[i]:
                 best_common[i] = key
         for i, key in best_common.items():
-            self.common[i] = key[3]
+            self.common[i] = key[-1]
         for name, tvk in conn.execute("SELECT synonym, tvk FROM synonyms"):
             i = self.pos.get(tvk)
             words = tuple(fold_words(name)) if i is not None and name else ()

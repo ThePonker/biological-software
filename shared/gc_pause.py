@@ -5,7 +5,7 @@ a path) that was made on the GUI thread and has become garbage: Qt objects must 
 their own thread, and the interpreter crashed in a test when it happened. views/background_loader.py
 does the same while the app loads. Calls nest (the Mapping tab's Generate thread and the map's
 look-ahead may overlap): the collector goes off at the first acquire() and back on, if it was on,
-at the last release(). Reference counting is not affected, only the collection of reference
+at the last release() (unless shared/gc_schedule manages the collector). Reference counting is not affected, only the collection of reference
 cycles, which is delayed by the length of a job (well under a second).
 """
 from __future__ import annotations
@@ -16,6 +16,24 @@ import threading
 _LOCK = threading.Lock()
 _holds = 0
 _was_on = False
+_managed = False        # shared/gc_schedule owns the on/off state: automatic collection stays off
+
+
+def set_managed(on: bool) -> None:
+    """gc_schedule.install() calls this: from then on release() never switches automatic
+    collection back on (the scheduler collects from a timer instead)."""
+    global _managed
+    _managed = bool(on)
+
+
+def is_managed() -> bool:
+    """True once gc_schedule.install() has taken over: nobody else may enable automatic collection."""
+    return _managed
+
+
+def is_held() -> bool:
+    """True while any worker thread has the collector held off (the scheduler waits then)."""
+    return _holds > 0
 
 
 def acquire() -> None:
@@ -33,5 +51,5 @@ def release() -> None:
         if _holds == 0:
             return
         _holds -= 1
-        if _holds == 0 and _was_on:
+        if _holds == 0 and _was_on and not _managed:
             gc.enable()

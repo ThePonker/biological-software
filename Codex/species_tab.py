@@ -545,7 +545,7 @@ class SpeciesTab(QWidget):
         if len(entries) > 1:
             count = QLabel(f"{len(entries)} entries")
             count.setStyleSheet(
-                f"color: {theme.TEXT_SECONDARY}; font-size: 10px; font-style: italic;"
+                f"color: {theme.TEXT_SECONDARY}; font-size: 11px; font-style: italic;"
             )
             left.addWidget(count)
         layout.addLayout(left)
@@ -607,7 +607,7 @@ class SpeciesTab(QWidget):
             ver = QLabel(f"({iucn} guidelines)")
             ver.setAlignment(Qt.AlignmentFlag.AlignRight)
             ver.setStyleSheet(
-                f"color: {theme.TEXT_SECONDARY}; font-size: 10px; font-style: italic;"
+                f"color: {theme.TEXT_SECONDARY}; font-size: 11px; font-style: italic;"
             )
             wl.addWidget(ver, 0, Qt.AlignmentFlag.AlignRight)
 
@@ -616,7 +616,7 @@ class SpeciesTab(QWidget):
             src.setAlignment(Qt.AlignmentFlag.AlignRight)
             src.setWordWrap(True)
             src.setMaximumWidth(350)
-            src.setStyleSheet(f"color: {theme.TEXT_SECONDARY}; font-size: 10px;")
+            src.setStyleSheet(f"color: {theme.TEXT_SECONDARY}; font-size: 11px;")
             wl.addWidget(src, 0, Qt.AlignmentFlag.AlignRight)
 
         return wrap

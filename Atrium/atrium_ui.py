@@ -141,7 +141,7 @@ class AppButton(QFrame):
         name.setStyleSheet(f"color: {TEXT_PRIMARY}; border: none;")
         text_col.addWidget(name)
         sub = QLabel(app_def.subtitle)
-        sub.setStyleSheet(f"color: {TEXT_MUTED}; font-size: 10px; border: none;")
+        sub.setStyleSheet(f"color: {TEXT_MUTED}; font-size: 11px; border: none;")
         text_col.addWidget(sub)
         layout.addLayout(text_col, 1)
 
@@ -307,7 +307,7 @@ class AtriumPanel(QWidget):
         section.setAlignment(Qt.AlignmentFlag.AlignCenter)
         section.setStyleSheet(f"""
             color: {TEXT_SECONDARY};
-            font-size: 10px;
+            font-size: 11px;
             font-weight: 700;
             letter-spacing: 2px;
             border: none;
@@ -341,7 +341,7 @@ class AtriumPanel(QWidget):
         util_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         util_label.setStyleSheet(f"""
             color: {TEXT_SECONDARY};
-            font-size: 10px;
+            font-size: 11px;
             font-weight: 700;
             letter-spacing: 2px;
             border: none;
@@ -382,12 +382,12 @@ class AtriumPanel(QWidget):
         fl.setContentsMargins(14, 6, 14, 8)
 
         self.running_label = QLabel("")
-        self.running_label.setStyleSheet(f"color: {TEXT_MUTED}; font-size: 10px;")
+        self.running_label.setStyleSheet(f"color: {TEXT_MUTED}; font-size: 11px;")
         fl.addWidget(self.running_label)
         fl.addStretch()
 
         version = QLabel("v2.0")
-        version.setStyleSheet(f"color: {BORDER}; font-size: 9px;")
+        version.setStyleSheet(f"color: {BORDER}; font-size: 11px;")
         fl.addWidget(version)
 
         layout.addWidget(footer)

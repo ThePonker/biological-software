@@ -89,7 +89,7 @@ def test_wording():
     assert map_stats.first_last_line(st) == "First record 12 May 1898 · Last record 3 Jul 2025"
     assert map_stats.first_last_line(st, True).endswith("(in view)")
     assert map_stats.counts_line(st, "10 km") == (
-        "Records 8 · Species 3 · Squares 3 (10 km) · Vice counties 4 · Recorders (names as given) 3")
+        "Records 8 · Species 3 · Squares 3 (10 km) · Vice counties 4 · Recorders 3")
     assert map_stats.month_note(st) == "n = 5; 3 records not dated to a single day"
     big = map_stats.MapStats(records=1234)
     assert map_stats.counts_line(big).startswith("Records 1,234 ·")
@@ -243,7 +243,7 @@ def test_dialog_remembers_ticks_and_exports(qapp, sandbox, tmp_path, monkeypatch
 
     h = make_host(qapp)
     d = ExportPreviewDialog(h, h)
-    assert d.options() == NONE                   # nothing on the page until Wil chooses it
+    assert d.options() == {**NONE, "layer_legend": True}   # only the layer legend is on by default
     d.checks["decades"].setChecked(True)
     d.checks["counts"].setChecked(True)
     d.refresh_now()
@@ -251,7 +251,7 @@ def test_dialog_remembers_ticks_and_exports(qapp, sandbox, tmp_path, monkeypatch
     assert QSettings().value("mapping/export/decades", type=bool) is True
     d2 = ExportPreviewDialog(h, h)
     assert d2.options() == {"counts": True, "first_last": False, "phenology": False,
-                            "decades": True}
+                            "decades": True, "layer_legend": True}
     out = tmp_path / "page"
     monkeypatch.setattr(atlas_export.QFileDialog, "getSaveFileName",
                         staticmethod(lambda *a, **k: (str(out), "")))
@@ -287,7 +287,7 @@ def test_recorders_split_and_distinct():
             rec("SP4022", "2000-01-03", person="Lyons, G."),
             rec("SP4023", "2000-01-04", person="")]
     square_up(recs)
-    assert map_stats.compute(recs, None).recorders == 4   # Lyons, G. stays separate
+    assert map_stats.compute(recs, None).recorders == 3   # Lyons, G. is Graeme Lyons
 
 
 def test_ranges_and_before_after_stay_out_of_first_last_and_decades():

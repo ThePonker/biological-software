@@ -300,8 +300,9 @@ class BackgroundLoader(QObject):
                 gc.freeze()
             else:
                 gc.unfreeze()
-            if getattr(self, "_gc_was_on", True):
-                gc.enable()
+            from shared import gc_pause
+            if getattr(self, "_gc_was_on", True) and not gc_pause.is_managed():
+                gc.enable()        # (shared/gc_schedule collects from a timer when installed)
         if self._switch is not None:
             import sys
             sys.setswitchinterval(self._switch)

@@ -89,6 +89,7 @@ class ObservationTableModel(CheckedByIdMixin, QAbstractTableModel):
 
         # Source & Identity
         ('source', 'Source', 70, False),
+        ('data_reference', 'Reference', 140, False),   # where non-iRecord data came from (shared/data_reference.py)
         ('irecord_id', 'iRecord ID', 80, False),
         ('record_key', 'Record Key', 100, False),
         ('external_key', 'External Key', 120, False),
@@ -134,7 +135,7 @@ class ObservationTableModel(CheckedByIdMixin, QAbstractTableModel):
         'images', 'sensitive', 'sensitive_site', 'sensitive_output_map_ref',
         'input_on_date', 'last_edited_date',
         'irecord_id', 'record_key', 'external_key', 'observatum_key',
-        'internal_notes', 'import_notes', 'project_name', 'client', 'embargo_status',
+        'internal_notes', 'import_notes', 'data_reference', 'project_name', 'client', 'embargo_status',
         'embargo_until', 'sync_status', 'never_upload_to_irecord',
         'irecord_key', 'last_synced',
     ]
@@ -187,6 +188,23 @@ class ObservationTableModel(CheckedByIdMixin, QAbstractTableModel):
                     settings.setValue("observations/column_order", self._column_order)
                 settings.setValue("observations/visible_columns", list(self._visible_columns))
             settings.setValue("observations/photos_column_added", True)
+
+        # the Reference column (10 Nov 2026) is shown once on a saved layout, after Source (or
+        # Import Notes); the rest of the layout is kept, and after that the column is Wil's to
+        # hide or move
+        if not settings.value("observations/reference_column_added", False, type=bool):
+            if saved:
+                self._visible_columns.add('data_reference')
+                settings.setValue("observations/visible_columns", list(self._visible_columns))
+            settings.setValue("observations/reference_column_added", True)
+        if saved_order and 'data_reference' not in self._column_order:
+            for after in ('source', 'import_notes'):
+                if after in self._column_order:
+                    self._column_order.insert(self._column_order.index(after) + 1, 'data_reference')
+                    break
+            else:
+                self._column_order.append('data_reference')
+            settings.setValue("observations/column_order", self._column_order)
 
     def _load_common_name_setting(self):
         """Load common name visibility from settings."""

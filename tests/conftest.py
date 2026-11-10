@@ -275,3 +275,12 @@ def _worker_exit_without_finalisation():
 if os.environ.get("PYTEST_XDIST_WORKER"):
     import atexit
     atexit.register(_worker_exit_without_finalisation)
+
+
+@pytest.fixture(autouse=True)
+def _gc_schedule_left_off():
+    """An app's main() run inside a test installs shared/gc_schedule (automatic GC off, a
+    timer collecting). Undo it after each test so the tests after it see Python's own GC (R17)."""
+    yield
+    from shared import gc_schedule
+    gc_schedule.uninstall()

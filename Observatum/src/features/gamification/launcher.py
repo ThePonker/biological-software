@@ -388,7 +388,7 @@ class GamificationSummaryCard(QFrame):
         # Label
         label_lbl = QLabel(label)
         label_lbl.setStyleSheet("""
-            font-size: 10px;
+            font-size: 11px;
             color: #6b7280;
             background: transparent;
             border: none;

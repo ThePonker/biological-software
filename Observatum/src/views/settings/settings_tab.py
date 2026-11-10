@@ -7,7 +7,6 @@ from .sidebar import SettingsSidebar
 from .general_panel import GeneralSettingsPanel
 from .database_panel import DatabaseSettingsPanel
 from .export_panel import ExportSettingsPanel
-from .sync_panel import SyncSettingsPanel
 from .counting_panel import SpeciesCountingPanel
 
 
@@ -117,10 +116,6 @@ class SettingsTab(QWidget):
         self.panel_stack.addWidget(self.export_panel)
         yield
 
-        self.sync_panel = SyncSettingsPanel()
-        self.panel_stack.addWidget(self.sync_panel)
-        yield
-
         self.counting_panel = SpeciesCountingPanel()      # Species counting (backlog A)
         self.panel_stack.addWidget(self.counting_panel)
     
@@ -133,8 +128,7 @@ class SettingsTab(QWidget):
             'general': 0,
             'database': 1,
             'export': 2,
-            'sync': 3,
-            'counting': 4,
+            'counting': 3,
         }.get(panel, 0)
         self.panel_stack.setCurrentIndex(idx)
     
@@ -148,7 +142,6 @@ class SettingsTab(QWidget):
             self.database_panel.load_settings()
             self.database_panel.refresh()
             self.export_panel.load_settings()
-            self.sync_panel.load_settings()
             self.counting_panel.load_settings()
         except Exception as e:
             print(f"Error initializing settings: {e}")
@@ -225,6 +218,6 @@ class SettingsTab(QWidget):
 
         # Apply to all panels
         for panel in [self.general_panel, self.database_panel,
-                       self.export_panel, self.sync_panel]:
+                       self.export_panel]:
             if hasattr(panel, 'apply_theme'):
                 panel.apply_theme()

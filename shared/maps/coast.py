@@ -15,12 +15,14 @@ from __future__ import annotations
 
 import math
 import threading
+from itertools import chain
 from typing import Dict, List, Optional, Tuple
 
+import numpy as np
 from PySide6.QtCore import QPointF
 from PySide6.QtGui import QColor, QImage, QPainter, QPen, QPolygonF
 
-from shared.maps import map_disk_cache
+from shared.maps import layer_bin, map_disk_cache
 
 Point = Tuple[float, float]
 CELL = 250.0                 # metres per pixel of the land raster
@@ -39,8 +41,19 @@ def land_raster(rings: List[List[Point]], cell: float = CELL):
     p.setBrush(QColor(255, 255, 255))
     p.scale(1 / cell, -1 / cell)
     p.translate(0, -GB_N)
-    for r in rings:
-        p.drawPolygon(QPolygonF([QPointF(e, n) for e, n in r]))
+    # R17: the points go to numpy once (not a QPointF each) and each ring is one path built from
+    # that array (layer_bin); drawn as drawPolygon did (odd-even fill, same pen), so every pixel is
+    # the same (the unread line padding aside). A ring of under two points, which has no path, is drawn the old way.
+    rings = list(rings)
+    lens = np.fromiter((len(r) for r in rings), dtype=np.int64, count=len(rings))
+    src = np.fromiter(chain.from_iterable(chain.from_iterable(rings)), dtype=np.float64,
+                      count=2 * int(lens.sum())).reshape(-1, 2)
+    ends = np.cumsum(lens)
+    for r, a, b in zip(rings, ends - lens, ends):
+        if b - a < 2:
+            p.drawPolygon(QPolygonF([QPointF(e, n) for e, n in r]))
+        else:
+            p.drawPath(layer_bin.polyline_path(src, np.array([a]), np.array([b]), True, False))
     p.end()
     return bytes(img.constBits()), img.bytesPerLine(), w, h
 

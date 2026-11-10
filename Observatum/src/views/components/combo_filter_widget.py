@@ -84,7 +84,7 @@ class ComboFilterWidget(QWidget):
                 border: 1px solid {t.get('border')};
                 border-radius: {t.get('radius_sm')};
                 background-color: {t.get('surface')};
-                font-size: 10px;
+                font-size: 11px;
                 color: {t.get('text_secondary')};
                 padding: 0px;
             }}

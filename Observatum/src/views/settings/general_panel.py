@@ -232,6 +232,15 @@ class GeneralSettingsPanel(QScrollArea):
         date_note.setStyleSheet(f"color: {t.get('text_muted')}; font-size: {t.font_size('sm')};")
         display_layout.addWidget(date_note, 1, 1)
 
+        from shared import ui_scale             # the suite-wide Interface size (R17)
+        display_layout.addWidget(QLabel(ui_scale.COMBO_LABEL), 2, 0, 1, 2)
+        self.interface_size = QComboBox()
+        for percent, label, _factor in ui_scale.OPTIONS:
+            self.interface_size.addItem(label, percent)
+        self.interface_size.setMinimumHeight(28)
+        self.interface_size.currentIndexChanged.connect(self.save_settings)
+        display_layout.addWidget(self.interface_size, 3, 0, 1, 2)
+
         layout.addWidget(display_group)
 
     def _setup_auto_section(self, layout):
@@ -443,6 +452,11 @@ class GeneralSettingsPanel(QScrollArea):
             if idx >= 0:
                 self.date_format.setCurrentIndex(idx)
 
+            # Interface size (suite-wide; read by every program at start-up)
+            from shared import ui_scale
+            idx = self.interface_size.findData(ui_scale.load_percent())
+            self.interface_size.setCurrentIndex(max(idx, 0))
+
             # Auto VC calculation
             self.auto_vc.setChecked(settings.value(Settings.AUTO_CALCULATE_VC, Defaults.AUTO_CALCULATE_VC, type=bool))
             
@@ -506,6 +520,9 @@ class GeneralSettingsPanel(QScrollArea):
         # Recording Scheme families
         settings.setValue(Settings.SCHEME_FAMILIES,
                           self.scheme_families_input.text().strip())
+
+        from shared import ui_scale
+        ui_scale.save_percent(int(self.interface_size.currentData() or ui_scale.DEFAULT))
 
         settings.sync()  # Force immediate write
         self.settings_changed.emit()

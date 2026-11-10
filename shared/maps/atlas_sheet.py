@@ -15,7 +15,7 @@ from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import (QBrush, QColor, QFont, QFontMetricsF, QImage, QPainter, QPen,
                            QPolygonF)
 
-from shared.maps import extras_panel
+from shared.maps import extras_panel, layer_legend
 from shared.maps import grid_squares as gs
 from shared.maps._theme import theme
 from shared.maps.layers import credit_lines
@@ -58,7 +58,7 @@ class AtlasSheetMixin:
         top, bottom = margin + 20 * mm, h - margin - reserve_mm * mm
         return QRectF(margin, top, w - 2 * margin, bottom - top)
 
-    def _reserve_mm(self, w: int, dpi: int, legend, footer: str, dev=None) -> float:
+    def _reserve_mm(self, w: int, dpi: int, legend, footer: str, dev=None, layer_groups=()) -> float:
         """Millimetres under the map for the legend rows and the credit text, measured with the
         page's own fonts and width, so the credits never overlap the legend or the map."""
         if dev is None:
@@ -67,27 +67,40 @@ class AtlasSheetMixin:
             dev.setDotsPerMeterY(gs.dots_per_metre(dpi))
         mm = dpi / 25.4
         margin = 12 * mm
+        rows = self._legend_rows(legend, w, mm, dev)
+        credit_h = QFontMetricsF(_font(7), dev).boundingRect(
+            QRectF(0, 0, w - 2 * margin, 10 ** 6), int(Qt.AlignmentFlag.AlignLeft | Qt.TextFlag.TextWordWrap),
+            self.credit_line(footer)).height()
+        return (max(MIN_RESERVE_MM, credit_h / mm + 10 + (rows - 1) * 6)
+                + layer_legend.rows_mm(layer_groups, dev, mm, w - 2 * margin))
+
+    @staticmethod
+    def _legend_rows(legend, w: int, mm: float, dev) -> int:
+        """How many rows the squares' legend wraps onto (the same rule _draw_legend follows)."""
         fm8 = QFontMetricsF(_font(8), dev)
+        margin = 12 * mm
         x0, right, x, rows = margin, w - margin, margin, 1
         for _c, label in legend:
             need = 5.5 * mm + fm8.horizontalAdvance(label)
             if x > x0 and x + need > right:
                 x, rows = x0, rows + 1
             x += need + 8 * mm
-        credit_h = QFontMetricsF(_font(7), dev).boundingRect(
-            QRectF(0, 0, w - 2 * margin, 10 ** 6), int(Qt.AlignmentFlag.AlignLeft | Qt.TextFlag.TextWordWrap),
-            self.credit_line(footer)).height()
-        return max(MIN_RESERVE_MM, credit_h / mm + 10 + (rows - 1) * 6)
+        return rows
+
+    def layer_legend_groups(self, box):
+        """The background-layer legend for the ticked layers drawn in `box` (layer_legend.py)."""
+        return layer_legend.build(self._maps_dir, self._layers_on, self._layer_files, box)
 
     def sheet_view(self, extent=None, paper: str = "A4", dpi: int = 300, legend=(), footer: str = "",
-                   extras=None):
+                   extras=None, layer_groups=()):
         """(the extent asked for, the OSGB box the page's map really shows). The page's box
         has its own shape, so it shows a little more than the extent one way (R9-6); pass the
         page's legend and footer to get the box when many credits make the map box shorter, and
         its extras (the panel under the map) when it has any."""
         ext = self.resolve_extent(extent)
         w, h, _l = self._sheet_size(ext, paper, dpi)
-        reserve = self._reserve_mm(w, dpi, legend, footer) + self._extras_mm(extras, w, dpi)
+        reserve = (self._reserve_mm(w, dpi, legend, footer, layer_groups=layer_groups)
+                   + self._extras_mm(extras, w, dpi))
         box = self._sheet_box(w, h, dpi, reserve)
         fit = gs.MapFit(ext, box.width(), box.height(), pad=0)
         e0, n1 = fit.to_en(0.0, 0.0)
@@ -116,12 +129,14 @@ class AtlasSheetMixin:
 
     def render_sheet(self, title: str, subtitle: str = "",
                      legend: Sequence[Tuple[str, str]] = (), footer: str = "",
-                     paper: str = "A4", dpi: int = 300, extent=None, extras=None) -> QImage:
+                     paper: str = "A4", dpi: int = 300, extent=None, extras=None,
+                     layer_groups=()) -> QImage:
         """An atlas page: title, map, legend and credits, at `dpi`. `extent`: an OSGB box,
         "full" / None (the whole view's extent, L14/L32: the default) or "current" (what is
         on screen after zooming and panning). The clicked square's outline is never drawn.
         `extras`: an extras_panel.Extras (stat lines, phenology chart) drawn between the map
-        and the legend; None or empty leaves the page exactly as it was."""
+        and the legend; None or empty leaves the page exactly as it was. `layer_groups`: the
+        background-layer legend (layer_legend.build), drawn under the squares' legend."""
         ext = self.resolve_extent(extent)
         w, h, landscape = self._sheet_size(ext, paper, dpi)
         img = QImage(w, h, QImage.Format.Format_RGB32)
@@ -143,7 +158,7 @@ class AtlasSheetMixin:
         p.drawText(QRectF(margin, margin + 10 * mm, w - 2 * margin, 7 * mm),
                    int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter), subtitle)
         extras_mm = self._extras_mm(extras, w, dpi, img)
-        reserve = self._reserve_mm(w, dpi, legend, footer, img) + extras_mm
+        reserve = self._reserve_mm(w, dpi, legend, footer, img, layer_groups) + extras_mm
         box = self._sheet_box(w, h, dpi, reserve)
         bottom = box.bottom()
         p.fillRect(box, QColor(_SEA_C))
@@ -157,7 +172,11 @@ class AtlasSheetMixin:
         p.drawRect(box)
         if extras:
             extras_panel.draw(p, extras, margin, bottom + 3 * mm, w, mm, k)
-        self._draw_legend(p, legend, margin, bottom + 4 * mm + extras_mm * mm, mm, k, w - margin)
+        legend_y = bottom + 4 * mm + extras_mm * mm
+        self._draw_legend(p, legend, margin, legend_y, mm, k, w - margin)
+        if layer_groups:
+            rows = self._legend_rows(legend, w, mm, img)
+            layer_legend.draw(p, layer_groups, margin, legend_y + rows * 6 * mm, mm, k, w - 2 * margin)
         p.setFont(_font(7))
         p.setPen(QColor(theme.MUTED))
         credit = self.credit_line(footer)

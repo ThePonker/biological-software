@@ -76,7 +76,7 @@ class RecordsTab:
                     border: 1px solid {BACKGROUND['border']};
                     border-radius: 4px;
                     padding: 3px 10px;
-                    font-size: 10px;
+                    font-size: 11px;
                 }}
                 QPushButton:checked {{
                     background-color: {TEXT['accent']};
@@ -252,9 +252,9 @@ class RecordsTab:
         name.setAlignment(Qt.AlignmentFlag.AlignCenter)
         name.setFixedHeight(36)
         if achievement["earned"]:
-            name.setStyleSheet(f"font-size: 10px; font-weight: bold; color: {achievement['colour']};")
+            name.setStyleSheet(f"font-size: 11px; font-weight: bold; color: {achievement['colour']};")
         else:
-            name.setStyleSheet(f"font-size: 10px; color: {TEXT['muted']};")
+            name.setStyleSheet(f"font-size: 11px; color: {TEXT['muted']};")
         layout.addWidget(name)
         
         # Threshold vs Personal Best
@@ -270,7 +270,7 @@ class RecordsTab:
         
         stats = QLabel(stats_text)
         stats.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        stats.setStyleSheet(f"font-size: 10px; color: {stats_colour};")
+        stats.setStyleSheet(f"font-size: 11px; color: {stats_colour};")
         layout.addWidget(stats)
         
         return card

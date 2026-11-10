@@ -47,7 +47,9 @@ class ExportService:
             
             # Determine columns
             if columns is None:
-                columns = list(data[0].keys())
+                # "all columns" is a client export: private notes (the Reference) stay out
+                from shared.data_reference import CLIENT_EXPORT_EXCLUDED
+                columns = [c for c in data[0].keys() if c not in CLIENT_EXPORT_EXCLUDED]
             
             # Determine headers
             if headers is None:

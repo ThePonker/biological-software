@@ -159,7 +159,7 @@ class ProjectForm(QWidget):
             f'gridline-color: {STONE_BORDER}; font-family: "{BODY_FAMILY}"; '
             f"font-size: 12px; }}"
             f"QHeaderView::section {{ background: {WARM_GRAY_LIGHT}; "
-            f'font-family: "{BODY_FAMILY}"; font-size: 10px; font-weight: 600; '
+            f'font-family: "{BODY_FAMILY}"; font-size: 11px; font-weight: 600; '
             f"border: none; border-bottom: 1px solid {STONE_BORDER}; padding: 2px; }}")
         for col in range(12):
             item = QTableWidgetItem("0")

@@ -43,3 +43,5 @@ shared/checklists/*.csv
 
 # pytest --basetemp folder
 .pytest_tmp/
+
+Claude outputs/

@@ -126,7 +126,7 @@ class VCsTab:
             crown_container_layout.addWidget(crown, alignment=Qt.AlignmentFlag.AlignCenter)
             
             name_label = QLabel(region_name)
-            name_label.setStyleSheet(f"font-size: 9px; color: {TEXT['secondary']};")
+            name_label.setStyleSheet(f"font-size: 11px; color: {TEXT['secondary']};")
             name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             crown_container_layout.addWidget(name_label)
             

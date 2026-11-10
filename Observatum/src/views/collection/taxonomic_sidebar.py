@@ -62,7 +62,7 @@ class TaxonomicSidebar(QWidget):
             QLineEdit {{
                 border: 1px solid {t.get('border')};
                 border-radius: 4px; padding: 4px 8px;
-                font-size: 10px; background: {t.get('surface')};
+                font-size: 11px; background: {t.get('surface')};
             }}
             QLineEdit:focus {{ border-color: {TabColors.COLLECTION}; }}
         """)
@@ -77,7 +77,7 @@ class TaxonomicSidebar(QWidget):
                 background: transparent;
                 border: 1px solid {TabColors.COLLECTION};
                 border-radius: 4px; padding: 2px 10px;
-                font-size: 10px; color: {TabColors.COLLECTION};
+                font-size: 11px; color: {TabColors.COLLECTION};
             }}
             QPushButton:hover {{
                 background: {TabColors.COLLECTION_LIGHT};

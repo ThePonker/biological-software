@@ -14,6 +14,10 @@ from typing import List, Optional
 COLUMN = "data_reference"
 TABLES = ("observations", "recording_scheme", "contributed_observations")
 INDEX_FMT = "idx_{table}_data_reference"
+# Private notes that stay out of every client-facing export (Wil, 10 Nov 2026). The one list:
+# ExportService.export_to_csv drops these when it is asked for "all columns". Backups and other
+# exports that are not for clients simply do not use it.
+CLIENT_EXPORT_EXCLUDED = (COLUMN,)
 MAX_SUGGESTIONS = 15
 TOOLTIP_MISSING = "Run scripts\\add_data_reference.py to add the Reference column"
 TOOLTIP_FIELD = ("For data that came from a person or a source rather than iRecord/NBN, "

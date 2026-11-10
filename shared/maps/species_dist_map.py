@@ -196,10 +196,19 @@ def _load_gb_outline(maps_dir):
     if not _os.path.exists(path):
         return {}, (0.0, 0.0, 700000.0, 1300000.0)
     try:
-        with open(path, encoding="utf-8") as fh:
-            data = json.load(fh)
-        rings = [[(float(e), float(n)) for e, n in r] for r in data.get("rings", [])]
-        b = data.get("bounds") or [0, 0, 700000, 1300000]
+        import numpy as np
+        from shared.maps import map_disk_cache as _mdc
+        hit = _mdc.load(path, "rings")           # R17: the arrays saved last run (size + mtime stamp)
+        if hit is not None and "off" in hit and "bounds" in hit:
+            rings = _mdc.unpack_lines(hit["off"], hit["xy"])
+            b = hit["bounds"].tolist()
+        else:                                    # no (or a stale) cache file: read the JSON, keep arrays
+            with open(path, encoding="utf-8") as fh:
+                data = json.load(fh)
+            rings = [[(float(e), float(n)) for e, n in r] for r in data.get("rings", [])]
+            b = data.get("bounds") or [0, 0, 700000, 1300000]
+            b = [float(v) for v in b[:4]]
+            _mdc.save(path, "rings", {**_mdc.pack_lines(rings), "bounds": np.array(b, dtype=np.float64)})
         result = ({0: rings}, (float(b[0]), float(b[1]), float(b[2]), float(b[3])))
     except Exception:
         result = ({}, (0.0, 0.0, 700000.0, 1300000.0))

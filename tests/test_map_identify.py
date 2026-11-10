@@ -133,6 +133,18 @@ def test_popup_closes_on_escape(qapp, tmp_path):
     assert not pop.isVisible()
 
 
+def test_popup_has_a_close_button(qapp, tmp_path):
+    m = _map_with_square(tmp_path)
+    pop, _i = _popup(m, 445035, 235025)
+    pop.show()
+    assert pop.close_btn.text() == "\u2715"
+    # top right: the button sits in the first row, right of the panel's centre
+    assert pop.close_btn.geometry().center().x() > pop.width() / 2
+    assert pop.close_btn.geometry().top() < pop.ref_labels[0].geometry().top()
+    pop.close_btn.click()
+    assert not pop.isVisible()
+
+
 def test_controller_toggle_and_new_click_moves_popup(qapp, tmp_path):
     from src.views.mapping.identify_popup import IdentifyController
     from src.views.mapping.toolbar import MapToolbar

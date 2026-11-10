@@ -284,15 +284,6 @@ class CommercialReportsDashboard(QScrollArea):
         self._layout.addWidget(self._detail)
         self._selected_project = None    # (project, client, embargo_until)
 
-        # Future reports placeholder
-        future_label = QLabel("Reports: Site Species List, Project Summary, "
-                              "Site Comparison, Survey Effort — coming soon")
-        future_label.setStyleSheet(
-            f"color: {t.get('text_muted')}; font-size: 12px; font-style: italic;"
-        )
-        future_label.setAlignment(Qt.AlignCenter)
-        self._layout.addWidget(future_label)
-
         self._layout.addStretch()
 
     def refresh(self, observation_model=None):

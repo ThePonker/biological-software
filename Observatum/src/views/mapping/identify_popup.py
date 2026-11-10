@@ -3,7 +3,7 @@
 The Identify button (toolbar.py) puts GridMap in Identify mode; a click then comes here as
 identify_requested(e, n, global_pos). build_info() gathers what is at the point (grid references,
 vice county, the records of the square, and what the ticked layers hold: GridMap.identify_at) and
-IdentifyPopup shows it in a small frameless panel at the click. It closes on Esc, when Identify is
+IdentifyPopup shows it in a small frameless panel at the click. It closes on Esc, on its close button (top right), when Identify is
 turned off, and a new click moves it. Colours and sizes come from theme(). Display only.
 """
 from __future__ import annotations
@@ -81,11 +81,25 @@ class IdentifyPopup(QFrame):
             f"padding: 1px 8px; color: {t.get('text_heading')}; background: {t.get('surface')}; "
             f"font-size: {t.get('font_size_sm')}pt; }}"
             f"QPushButton:hover {{ background-color: {t.get('hover')}; }}"
+            f"QPushButton#closeBtn {{ background-color: transparent; color: {t.get('text_secondary')}; "
+            f"border: 1px solid {t.get('border')}; padding: 0; min-width: 20px; max-width: 20px; "
+            f"min-height: 20px; max-height: 20px; }}"
+            f"QPushButton#closeBtn:hover {{ background-color: {t.get('hover')}; }}"
             f"QPushButton#link {{ border: none; padding: 0; color: {t.get('primary')}; "
             f"text-decoration: underline; }}")
         lay = QVBoxLayout(self)
         lay.setContentsMargins(10, 8, 10, 8)
         lay.setSpacing(3)
+        self.close_btn = QPushButton("\u2715")
+        self.close_btn.setObjectName("closeBtn")
+        self.close_btn.setToolTip("Close (Esc)")
+        self.close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.close_btn.setAutoDefault(False)
+        self.close_btn.clicked.connect(self.close)
+        top = QHBoxLayout()
+        top.addStretch()
+        top.addWidget(self.close_btn)
+        lay.addLayout(top)
         self.ref_labels: List[QLabel] = []
         for i, (name, ref) in enumerate(info.refs):
             row = QHBoxLayout()

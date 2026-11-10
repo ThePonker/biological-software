@@ -480,7 +480,7 @@ class OverviewTab:
         layout.setSpacing(4)
         
         title_lbl = QLabel(title)
-        title_lbl.setStyleSheet(f"font-size: 10px; color: {TEXT['muted']};")
+        title_lbl.setStyleSheet(f"font-size: 11px; color: {TEXT['muted']};")
         layout.addWidget(title_lbl)
         
         value_lbl = QLabel(value)
@@ -488,7 +488,7 @@ class OverviewTab:
         layout.addWidget(value_lbl)
         
         subtitle_lbl = QLabel(subtitle)
-        subtitle_lbl.setStyleSheet(f"font-size: 10px; color: {TEXT['secondary']};")
+        subtitle_lbl.setStyleSheet(f"font-size: 11px; color: {TEXT['secondary']};")
         layout.addWidget(subtitle_lbl)
         
         card.value_label = value_lbl
@@ -498,7 +498,7 @@ class OverviewTab:
     def _create_group_record_box(self, key: str, name: str, colour: str, tooltip: str = "") -> QFrame:
         """Create a themed box for a record group with accent styling."""
         box = QFrame()
-        box.setFixedSize(105, 58)
+        box.setFixedSize(110, 58)
         
         if tooltip:
             box.setToolTip(tooltip)
@@ -520,7 +520,7 @@ class OverviewTab:
         content_layout.setSpacing(1)
         
         name_lbl = QLabel(name)
-        name_lbl.setStyleSheet(f"font-size: 10px; font-weight: bold; color: {colour};")
+        name_lbl.setStyleSheet(f"font-size: 11px; font-weight: bold; color: {colour};")
         name_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         content_layout.addWidget(name_lbl)
         

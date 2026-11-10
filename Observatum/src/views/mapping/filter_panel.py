@@ -36,7 +36,7 @@ from ...services.map_selection import (REFERENCE_NO_SPECIMENS, MapFilters, disti
 from ...themes import theme
 from ..components.filter_styles import get_clear_button_style
 from ..components.reference_field import ReferenceField
-from .date_check import date_problems, reversed_text
+from .date_check import date_problems, decade_choices, reversed_text
 from .selection_box import MapSelectionBox
 from .source_picker import MapSourcePicker
 from .square_list import MapSquareList
@@ -183,6 +183,18 @@ class MapFilterPanel(QFrame):
             presets.addWidget(btn)
             self.preset_buttons.append(btn)
         group.addLayout(presets)
+        group.addWidget(self._label("Decade"))
+        self.decade_combo = QComboBox()
+        self._narrow(self.decade_combo)
+        self.decade_combo.addItem("Any decade", None)
+        for label, d_from, d_to in decade_choices():
+            self.decade_combo.addItem(label, (d_from, d_to))
+        self.decade_combo.setToolTip("Only records in one decade band (the bands of the export "
+                                     "page's Records by decade line). Fills From and To.")
+        self.decade_combo.activated.connect(self._on_decade)
+        group.addWidget(self.decade_combo)
+        for box in (self.date_from, self.date_to):
+            box.textChanged.connect(self._dates_edited)
         layout.addLayout(group)
 
     @staticmethod
@@ -316,6 +328,24 @@ class MapFilterPanel(QFrame):
         self.date_to.setText(d_to)
         self.generate_requested.emit()
 
+    def _on_decade(self, _index: int = 0):
+        """A decade band: From and To are filled from it and the map is generated."""
+        d_from, d_to = self.decade_combo.currentData() or ("", "")
+        self._decade_setting = True
+        try:
+            self.date_from.setText(d_from)
+            self.date_to.setText(d_to)
+        finally:
+            self._decade_setting = False
+        self.generate_requested.emit()
+
+    def _dates_edited(self, *_a):
+        """Dates typed or chosen another way: the Decade choice no longer describes them."""
+        if not getattr(self, "_decade_setting", False) and self.decade_combo.currentIndex():
+            self.decade_combo.blockSignals(True)
+            self.decade_combo.setCurrentIndex(0)
+            self.decade_combo.blockSignals(False)
+
     def selection(self) -> List[dict]:
         return self.selection_box.selection()
 
@@ -330,8 +360,8 @@ class MapFilterPanel(QFrame):
         back to the start in one go; then one `cleared` (no signal per box). The tetrad
         choice is a setting, not a filter: it stays."""
         widgets = (self.selection_box, self.source_picker, self.date_from, self.date_to,
-                   self.vc_combo, self.recorder_edit, self.site_edit, self.reference_edit,
-                   self.project_combo, self.embargo_check)
+                   self.vc_combo, self.decade_combo, self.recorder_edit, self.site_edit,
+                   self.reference_edit, self.project_combo, self.embargo_check)
         for w in widgets:
             w.blockSignals(True)
         try:
@@ -341,6 +371,7 @@ class MapFilterPanel(QFrame):
                         self.reference_edit):
                 box.clear()
             self.vc_combo.setCurrentIndex(0)
+            self.decade_combo.setCurrentIndex(0)
             self.project_combo.setCurrentIndex(0)
             self.embargo_check.setChecked(False)
         finally:

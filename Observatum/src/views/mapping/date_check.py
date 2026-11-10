@@ -8,6 +8,14 @@ so From 2019 / To 2019 is the whole of 2019 and From 2021 / To 2019 is reversed.
 from typing import Dict, List, Optional, Tuple
 
 from shared.import_core import date_bounds
+from shared.maps.map_stats import DECADES
+
+
+def decade_choices() -> List[Tuple[str, str, str]]:
+    """[(label, From text, To text)] for the Date Range's Decade choice: the very bands the
+    export page's "Records by decade" line uses (map_stats.DECADES), open-ended at either end
+    ("pre-1950" has no From, "2020\u2013" no To)."""
+    return [(label, str(lo) if lo else "", str(hi) if hi else "") for label, lo, hi in DECADES]
 
 
 def reversed_text(from_text: str, to_text: str) -> str:

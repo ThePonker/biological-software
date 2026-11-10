@@ -68,7 +68,7 @@ class LabelPreviewWidget(QWidget):
                 pb_label = QLabel(f"— Page {page_num} —")
                 pb_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 pb_label.setStyleSheet(
-                    "color: " + DANGER + "; font-size: 9px; font-weight: bold; "
+                    "color: " + DANGER + "; font-size: 11px; font-weight: bold; "
                     "background: white; border: none;"
                 )
                 pb_layout.addWidget(pb_label)

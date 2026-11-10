@@ -22,7 +22,7 @@ from shared.maps import layer_opacity, layers as map_layers
 
 from ...services.map_square_service import BAND_PRESET_LABELS
 from ...themes import theme
-from .layers_window import LayersWindow
+from .layers_window import LayersWindow, group_members
 from .square_style import STYLES
 
 VC_LABELS_SETTING = "mapping/vc_labels"      # R9-5: VC numbers / names on the map (default on)
@@ -30,6 +30,7 @@ VC_BOUNDS_SETTING = "mapping/vc_boundaries"  # R4: VC boundary lines on the map 
 DISTRICTS_SETTING = "mapping/districts"      # R4: modern district lines (default off)
 OPACITY_SETTING = "mapping/square_opacity"   # R8: recorded squares' opacity, % (default 100)
 LAYERS_SETTING = "mapping/layers/"           # + the layer switch's key: Layers menu (17 Oct 2026)
+GROUP_SETTING = "mapping/layer_group_ticks/"  # + the group's title: ticks remembered while it is off
 
 
 def _saved(key: str, default: bool = True) -> bool:
@@ -247,6 +248,59 @@ class MapDisplayBar(QFrame):
         _save(LAYERS_SETTING + key, on)
         self.layers_changed.emit(self.layers())
 
+    def group_ticked(self, title: str) -> bool:
+        """True when any layer of the Layers window's group is ticked (the group switch's state)."""
+        return any(self.layer_actions[k].isChecked() for k in group_members().get(title, ())
+                   if k in self.layer_actions)
+
+    def _group_memory(self, title: str, value=None):
+        """The layers that were ticked when the group was switched off (saved with the other
+        ticks). Read with value=None, else write the list."""
+        try:
+            st = QSettings()
+            if value is None:
+                raw = st.value(GROUP_SETTING + title, "")
+                return [k for k in str(raw or "").split(",") if k]
+            st.setValue(GROUP_SETTING + title, ",".join(value))
+        except Exception as e:
+            print(f"[MapDisplayBar] group {title} not remembered: {e}")
+        return []
+
+    def set_group_on(self, title: str, on: bool):
+        """One switch for a whole group of layers. Off: untick them all, remembering which were
+        ticked. On: tick the remembered ones; if none were remembered, the group's default layers
+        (layers.defaults()), or all of its installed layers when it has no default. The map is
+        redrawn once (one layers_changed), not once per layer."""
+        keys = [k for k in group_members().get(title, ()) if k in self.layer_actions]
+        if not keys:
+            return
+        acts = self.layer_actions
+        if not on:
+            ticked = [k for k in keys if acts[k].isChecked()]
+            if not ticked:
+                return
+            self._group_memory(title, ticked)
+            new = set()
+        else:
+            if any(acts[k].isChecked() for k in keys):
+                return
+            usable = [k for k in keys if acts[k].isEnabled()]
+            new = [k for k in self._group_memory(title) if k in usable]
+            if not new:
+                new = [k for k in usable if k in map_layers.defaults()] or usable
+            new = set(new)
+            self._group_memory(title, [])
+        for k in keys:
+            want = k in new
+            if acts[k].isChecked() != want:
+                acts[k].blockSignals(True)
+                acts[k].setChecked(want)
+                acts[k].blockSignals(False)
+                _save(LAYERS_SETTING + k, want)
+        if self._layers_window is not None:
+            self._layers_window.sync()
+        self.layers_changed.emit(self.layers())
+
     def edit_layer_colours(self):
         """Colours are chosen in the Layers window now: open it."""
         self.show_layers_window()
@@ -262,6 +316,8 @@ class MapDisplayBar(QFrame):
             act.setChecked(tg.default)
             act.blockSignals(False)
             _save(LAYERS_SETTING + tg.key, tg.default)
+        for title in group_members():
+            self._group_memory(title, [])
         if self._layers_window is not None:
             self._layers_window.sync()
         self.layer_colours_changed.emit()

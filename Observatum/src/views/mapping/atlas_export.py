@@ -25,8 +25,11 @@ from .header import selection_title
 EXPORT_OPTIONS = (("counts", "Counts (records, species, squares, vice counties, recorders)"),
                   ("first_last", "First and last record"),
                   ("phenology", "Phenology chart (records by month)"),
-                  ("decades", "Records by decade"))
-EXPORT_DEFAULTS = {"counts": False, "first_last": False, "phenology": False, "decades": False}
+                  ("decades", "Records by decade"),
+                  ("layer_legend", "Layer legend"))
+EXPORT_DEFAULTS = {"counts": False, "first_last": False, "phenology": False, "decades": False,
+                   "layer_legend": True}
+EXTRAS_OPTIONS = tuple(k for k, _t in EXPORT_OPTIONS if k != "layer_legend")   # the extras panel's ticks
 EXPORT_DPI = 300
 
 
@@ -81,19 +84,22 @@ class AtlasExportMixin:
         in County view) or 'current' (what is on screen). The clicked square's outline is
         never printed (L13/L31). options: which extras go on the page (EXPORT_OPTIONS keys);
         none ticked leaves the page as it always was."""
-        footer, extras = "", None
+        footer, extras, groups = "", None, ()
         # The figures come from the 300 dpi page's box whatever `dpi` is drawn at, so a preview
         # and the export say the same (text wraps a little differently at other resolutions).
         for _pass in range(3):      # footer and extras count what the box shows; the box depends on them
             _ext, shown = self.map_widget.sheet_view(extent, dpi=EXPORT_DPI, legend=self._legend,
-                                                     footer=footer, extras=extras)
+                                                     footer=footer, extras=extras,
+                                                     layer_groups=groups)
             footer, new = self.atlas_footer(extent, shown), self.export_extras(options, extent, shown)
-            if new == extras and _pass:
+            new_groups = (self.map_widget.layer_legend_groups(shown)
+                          if (options or {}).get("layer_legend") else ())
+            if new == extras and new_groups == groups and _pass:
                 break
-            extras = new
+            extras, groups = new, new_groups
         return self.map_widget.render_sheet(
             self._title(), subtitle=self.map_header.subtitle.text(), legend=self._legend,
-            footer=footer, extent=extent, dpi=dpi, extras=extras)
+            footer=footer, extent=extent, dpi=dpi, extras=extras, layer_groups=groups)
 
     def _page_squares(self, extent: str, shown):
         """(the squares the page counts, whether it is a zoomed 'current' page): all the map's
@@ -110,7 +116,7 @@ class AtlasExportMixin:
     def export_extras(self, options: dict, extent: str = "full", shown=None):
         """The page's extras panel for the ticked options, or None when nothing is ticked."""
         opts = options or {}
-        if not any(opts.get(k) for k, _t in EXPORT_OPTIONS):
+        if not any(opts.get(k) for k in EXTRAS_OPTIONS):
             return None
         squares, in_view = self._page_squares(extent, shown)
         st = map_stats.compute(self._records, squares)

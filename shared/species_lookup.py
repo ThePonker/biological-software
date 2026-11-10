@@ -39,6 +39,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Callable, Dict, Iterable, List, Optional, Union
 
+from shared.common_name_pick import order_by_sql
+
 # ---------------------------------------------------------------- results
 
 
@@ -202,8 +204,7 @@ def _taxon_select(uksi) -> str:
         "t.class AS class_name, t.\"order\" AS order_name, t.family, t.genus, "
         f"t.sort_code, {qcol} AS qualifier, "
         "(SELECT cn.common_name FROM common_names cn WHERE cn.tvk = t.tvk "
-        " ORDER BY cn.preferred DESC, CASE WHEN cn.common_name GLOB '[A-Z]*' THEN 0 ELSE 1 END, "
-        " LENGTH(cn.common_name) LIMIT 1) AS common_name "
+        f" ORDER BY {order_by_sql()} LIMIT 1) AS common_name "
         "FROM {src} " + qjoin + " ")
 
 

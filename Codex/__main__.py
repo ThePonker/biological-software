@@ -13,9 +13,14 @@ def main():
     from shared import crash_log             # data\logs\crash_codex_<month>.log
     crash_log.install("codex")
     from shared import light_scheme          # always light, even on a dark-mode PC
+    from shared import ui_scale              # Interface size (Settings) before the QApplication
+    ui_scale.apply_before_qapp()
     light_scheme.prepare()
     app = QApplication(sys.argv)
     light_scheme.install(app)
+    from shared import gc_schedule, qt_messages
+    gc_schedule.install(app)         # the cyclic collector runs from a timer, not inside Qt handlers
+    qt_messages.install()
     app.setApplicationName("Codex Manager")
     from shared.opaque_popups import install as solid_popups
     from . import theme

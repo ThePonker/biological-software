@@ -266,6 +266,7 @@ class DataEntryWidget(QWidget):
         top.addWidget(lab, 1)   # takes the free width, so it wraps only when it must
         tw = QWidget(); tw.setLayout(top)
         self._job_layout.addWidget(tw)
+        self._fold_top_btn = None
 
         from DataEntry.entry_grid import EntryGridPage
         commit_cb = self._do_commit if self._commit_available() else None
@@ -276,6 +277,10 @@ class DataEntryWidget(QWidget):
         grid.committed.connect(self.backup_observations_now)   # observations CSV after commit (DE5)
         grid.before_change = self.backup_before_clear    # before Discard / Export-and-clear (DE8, R12 M4)
         self._job_layout.addWidget(grid, 1)
+        # Fold / Unfold banner: the right-hand end of the top line (banner_compact.py, R17)
+        from DataEntry.banner_compact import make_fold_button
+        self._fold_top_btn = make_fold_button(grid._info)
+        top.addWidget(self._fold_top_btn, 0, Qt.AlignmentFlag.AlignTop)
 
         self._stack.setCurrentIndex(1)
         self._status.setText(f"Open: {job['name']} ({job.get('mode')}). Staged \u2014 nothing committed."

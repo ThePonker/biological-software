@@ -60,14 +60,14 @@ class FamilyDetailPanel(QWidget):
         # Stats
         self.stats_label = QLabel("")
         self.stats_label.setStyleSheet(
-            f"font-size: 10px; color: {t.get('text_secondary')};")
+            f"font-size: 11px; color: {t.get('text_secondary')};")
         self.stats_label.setWordWrap(True)
         layout.addWidget(self.stats_label)
 
         # Extra info
         self.extra_label = QLabel("")
         self.extra_label.setStyleSheet(
-            f"font-size: 10px; color: {t.get('text_secondary')};")
+            f"font-size: 11px; color: {t.get('text_secondary')};")
         self.extra_label.setWordWrap(True)
         layout.addWidget(self.extra_label)
 
@@ -77,7 +77,7 @@ class FamilyDetailPanel(QWidget):
             QPushButton {{
                 background-color: {TabColors.COLLECTION};
                 color: white; border: none; border-radius: 4px;
-                padding: 5px 12px; font-size: 10px;
+                padding: 5px 12px; font-size: 11px;
             }}
             QPushButton:hover {{ background-color: #7a7068; }}
         """)
@@ -95,7 +95,7 @@ class FamilyDetailPanel(QWidget):
         # Notes
         notes_header = QLabel("Notes:")
         notes_header.setStyleSheet(
-            f"font-size: 10px; color: {t.get('text_secondary')};")
+            f"font-size: 11px; color: {t.get('text_secondary')};")
         layout.addWidget(notes_header)
 
         self.notes_edit = QPlainTextEdit()
@@ -104,7 +104,7 @@ class FamilyDetailPanel(QWidget):
             QPlainTextEdit {{
                 border: 1px solid {t.get('border')};
                 border-radius: 4px; padding: 4px;
-                font-size: 10px; background: {t.get('surface')};
+                font-size: 11px; background: {t.get('surface')};
             }}
         """)
         self.notes_edit.setMaximumHeight(100)
@@ -118,7 +118,7 @@ class FamilyDetailPanel(QWidget):
             QPushButton {{
                 background-color: {ButtonColors.PRIMARY};
                 color: white; border: none; border-radius: 4px;
-                padding: 4px 12px; font-size: 10px;
+                padding: 4px 12px; font-size: 11px;
             }}
             QPushButton:hover {{ background-color: #3d6649; }}
             QPushButton:disabled {{ background-color: #ccc; color: #888; }}

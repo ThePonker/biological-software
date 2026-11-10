@@ -19,7 +19,6 @@ class SettingsSidebar(QFrame):
     SECTIONS = [
         ('general', '⚙️ General'),
         ('database', '🗄️ Databases'),
-        ('sync', '🔄 iRecord Sync'),
         ('export', '📤 Export Settings'),
         ('counting', '🔢 Species counting'),
     ]

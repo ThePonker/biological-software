@@ -283,7 +283,7 @@ class MapSelectionBox(QWidget):
             count = f"{n:,} record{'s' if n != 1 else ''} mapped"
         else:
             count = f"{c.get('records', 0):,} in all sources"
-        return f"{name} <span style='font-size:10px'>({rank}) · {count}</span>"
+        return f"{name} <span style='font-size:11px'>({rank}) · {count}</span>"
 
     def _render_chips(self):
         t = theme()

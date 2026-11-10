@@ -79,9 +79,9 @@ class SpeciesListDelegate(QStyledItemDelegate):
         italic.setItalic(True)
         small = QFont(base)
         if base.pointSizeF() > 0:
-            small.setPointSizeF(max(6.0, base.pointSizeF() * 0.85))
+            small.setPointSizeF(max(8.0, base.pointSizeF() * 0.85))
         elif base.pixelSize() > 0:
-            small.setPixelSize(max(8, round(base.pixelSize() * 0.85)))
+            small.setPixelSize(max(11, round(base.pixelSize() * 0.85)))
         return base, italic, small
 
     def _runs(self, hit: dict, option):

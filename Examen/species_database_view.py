@@ -352,7 +352,7 @@ class SpeciesDatabaseView(QWidget):
                 vl.setWordWrap(True)
                 self.status_grid.addWidget(vl, i, 1)
                 sl = QLabel(source)
-                sl.setStyleSheet("color: " + TEXT_MUTED + "; font-size: 10px; border: none;")
+                sl.setStyleSheet("color: " + TEXT_MUTED + "; font-size: 11px; border: none;")
                 sl.setWordWrap(True)
                 self.status_grid.addWidget(sl, i, 2)
         else: self.status_group.hide()
@@ -360,7 +360,7 @@ class SpeciesDatabaseView(QWidget):
             # Not the species' own: held by its sensu-lato / aggregate counterpart.
             frm = getattr(status, "status_from_tvk", "")
             nl = QLabel(f"({status.status_note}{': ' + frm if frm else ''})")
-            nl.setStyleSheet("color: " + TEXT_MUTED + "; font-size: 10px; border: none;")
+            nl.setStyleSheet("color: " + TEXT_MUTED + "; font-size: 11px; border: none;")
             self.status_grid.addWidget(nl, len(rows), 0, 1, 3)
         if status.sqs:
             # A score Pantheon does not publish, derived from current status by its

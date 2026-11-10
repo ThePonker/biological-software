@@ -284,7 +284,7 @@ class ObservatumSplashScreen(QSplashScreen):
             "Recording the natural world, one observation at a time"
         )
 
-        ver_font = QFont("Segoe UI", 7)
+        ver_font = QFont("Segoe UI", 8)
         ver_font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 0.5)
         p.setFont(ver_font)
         p.setPen(QColor(self.TEXT_DIM))
@@ -330,7 +330,7 @@ class ObservatumSplashScreen(QSplashScreen):
         self._status.setStyleSheet(f"""
             color: {self.WARM_GRAY};
             font-family: 'Segoe UI';
-            font-size: 9px;
+            font-size: 11px;
             letter-spacing: 0.5px;
         """)
 

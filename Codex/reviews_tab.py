@@ -96,7 +96,7 @@ class ReviewsTab(QWidget):
         cl.setContentsMargins(12, 8, 12, 8)
         lbl = QLabel(label_text)
         lbl.setStyleSheet(
-            f"color: {theme.TEXT_SECONDARY}; font-size: 10px; "
+            f"color: {theme.TEXT_SECONDARY}; font-size: 11px; "
             f"font-weight: 600; letter-spacing: 1px;"
         )
         cl.addWidget(lbl)

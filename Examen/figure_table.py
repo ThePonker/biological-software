@@ -69,6 +69,6 @@ def figure_block(title, table, bold_rows=(), flag_col=None, head_tips=None):
     for n in notes:
         lbl = QLabel(n)
         lbl.setWordWrap(True)
-        lbl.setStyleSheet("color: " + TEXT_MUTED + "; font-size: 10px; font-style: italic; border: none;")
+        lbl.setStyleSheet("color: " + TEXT_MUTED + "; font-size: 11px; font-style: italic; border: none;")
         lay.addWidget(lbl)
     return frame

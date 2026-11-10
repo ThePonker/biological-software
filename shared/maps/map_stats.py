@@ -12,9 +12,11 @@ Definitions
                  without one (named only above species) are not counted -- as the footer
   squares        distinct squares holding a record, at the map's grid size
   vice_counties  distinct r["vc"] (blank / None not counted)
-  recorders      distinct recorder names: each r["person"] is split on ";", " & " and " and "
-                 (recording_scheme holds "A;B;C" lists), trimmed, empty ones dropped, compared
-                 ignoring case. Names as given: "Lyons, G." and "Graeme Lyons" stay two.
+  recorders      distinct people: each r["person"] is split on ";", " & " and " and "
+                 (recording_scheme holds "A;B;C" lists), trimmed, empty ones dropped, and a name
+                 is keyed (surname, first initial) so "Lyons, G." and "Graeme Lyons" are one
+                 (shared/recorder_names.py). A name that cannot be read that way (one word, an
+                 organisation) counts by its text and is also counted in recorders_unread.
   first / last   earliest / latest record date, from records dated to a single day (D), a
                  month (O, or "1956-06") or a year (Y, or "1956") only. A range (DD/OO/YY, stored
                  from its first day) or a before/after date (-Y, Y-) is left out -- it would
@@ -35,6 +37,8 @@ import datetime as _dt
 import re
 from dataclasses import dataclass, field
 from typing import Iterable, Optional, Tuple
+
+from shared.recorder_names import count_people, split_names
 
 DECADES = (("pre-1950", None, 1949), ("1950–79", 1950, 1979), ("1980–99", 1980, 1999),
            ("2000–09", 2000, 2009), ("2010–19", 2010, 2019), ("2020–", 2020, None))
@@ -78,12 +82,7 @@ def is_single_period(date_type) -> bool:
     return (date_type or "").strip().upper() in ("", "D", "O", "Y")
 
 
-_SPLIT = re.compile(r"\s*;\s*|\s+&\s+|\s+and\s+", re.IGNORECASE)
-
-
-def recorder_names(text) -> list:
-    """The names in one recorder field, split on ";", " & " and " and ", trimmed, no blanks."""
-    return [n for n in (" ".join(p.split()) for p in _SPLIT.split(str(text or ""))) if n]
+recorder_names = split_names      # one source: shared/recorder_names.py
 
 
 @dataclass
@@ -93,6 +92,7 @@ class MapStats:
     squares: int = 0
     vice_counties: int = 0
     recorders: int = 0
+    recorders_unread: int = 0                         # of those, names that could not be parsed
     first: Optional[Tuple[int, Optional[int], Optional[int]]] = None
     last: Optional[Tuple[int, Optional[int], Optional[int]]] = None
     decades: list = field(default_factory=list)       # [(label, n)] in DECADES order
@@ -119,7 +119,7 @@ def compute(records: Iterable[dict], squares: Optional[Iterable[str]]) -> MapSta
             sp.add(r["species"])
         if r.get("vc"):
             vcs.add(r["vc"])
-        rec.update(n.lower() for n in recorder_names(r.get("person")))
+        rec.update(recorder_names(r.get("person")))
         w = parse_when(r.get("date"), r.get("date_type"))
         if w is not None and not is_single_period(r.get("date_type")):
             st.ranged += 1
@@ -144,7 +144,8 @@ def compute(records: Iterable[dict], squares: Optional[Iterable[str]]) -> MapSta
             st.months[w[1] - 1] += 1
         else:
             st.no_month += 1
-    st.species, st.squares, st.vice_counties, st.recorders = len(sp), len(sq), len(vcs), len(rec)
+    st.species, st.squares, st.vice_counties = len(sp), len(sq), len(vcs)
+    st.recorders, st.recorders_unread = count_people(rec)
     st.decades = [(d[0], n) for d, n in zip(DECADES, counts)]
     return st
 
@@ -160,8 +161,10 @@ def when_text(w) -> str:
 def counts_line(st: MapStats, grid: str = "10 km", in_view: bool = False) -> str:
     """'Records 1,234 · Species 12 · Squares 87 (10 km) · Vice counties 9 · Recorders 41'."""
     tail = " (in view)" if in_view else ""
+    unread = (f" (incl. {st.recorders_unread:,} name{'s' if st.recorders_unread != 1 else ''} "
+              f"not matched by initial)" if st.recorders_unread else "")
     return (f"Records {st.records:,} · Species {st.species:,} · Squares {st.squares:,} "
-            f"({grid}) · Vice counties {st.vice_counties:,} · Recorders (names as given) {st.recorders:,}{tail}")
+            f"({grid}) · Vice counties {st.vice_counties:,} · Recorders {st.recorders:,}{unread}{tail}")
 
 
 def first_last_line(st: MapStats, in_view: bool = False) -> str:

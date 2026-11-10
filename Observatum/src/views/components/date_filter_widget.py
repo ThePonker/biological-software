@@ -130,7 +130,7 @@ class DateFilterWidget(QWidget):
                 border-top-left-radius: {t.get('radius_sm')};
                 border-top-right-radius: {t.get('radius_sm')};
                 background-color: {t.get('surface_alt')};
-                font-size: 8px;
+                font-size: 11px;
                 color: {t.get('text_secondary')};
                 padding: 0px;
             }}
@@ -154,7 +154,7 @@ class DateFilterWidget(QWidget):
                 border-bottom-left-radius: {t.get('radius_sm')};
                 border-bottom-right-radius: {t.get('radius_sm')};
                 background-color: {t.get('surface_alt')};
-                font-size: 8px;
+                font-size: 11px;
                 color: {t.get('text_secondary')};
                 padding: 0px;
             }}

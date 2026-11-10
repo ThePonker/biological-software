@@ -94,7 +94,8 @@ def test_recommended_for_tvks_only_for_synonyms(uksi):
 
 def test_common_name_pick_is_deterministic(uksi):
     for _ in range(3):
-        assert tg.recommended_for_tvks([SYN2], uksi)[SYN2]["common_name"] == "Zeta Beetle"
+        # tied on preferred / capital start / length / capitals: alphabetical (R17 B5; was row order)
+        assert tg.recommended_for_tvks([SYN2], uksi)[SYN2]["common_name"] == "Alfa Beetle"
 
 
 def test_names_for_tvks(uksi):

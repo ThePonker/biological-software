@@ -35,7 +35,7 @@ class FamilyListItem(QWidget):
         badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
         badge.setStyleSheet(
             "background-color: " + TERRACOTTA_LIGHT + "; color: " + TERRACOTTA_DARK + "; "
-            "border-radius: 4px; font-size: 10px; font-weight: bold;"
+            "border-radius: 4px; font-size: 11px; font-weight: bold;"
         )
         layout.addWidget(badge)
 

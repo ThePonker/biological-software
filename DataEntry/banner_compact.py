@@ -1,7 +1,8 @@
 """Compact banner for Data Entry (B11 / Q54, 10 Nov 2026).
 
 On a short laptop screen (1280x720) the cards above the grid leave about 7 rows. The
-"Fold" link on the readout card folds every card into this one line -- an "Unfold" button and
+"Fold banner" button at the right-hand end of the job's top line (R17: it used to be a small
+link inside the species card) folds every card into this one line -- an "Unfold" button and
 the selected record's species -- and the choice is remembered in settings. Default: unfolded.
 """
 from __future__ import annotations
@@ -24,6 +25,29 @@ def link_button(text: str, tip: str) -> QPushButton:
     b.setStyleSheet(f"QPushButton {{ color: {theme.SLATE}; font-size: 11px; border: none;"
                     f" background: transparent; padding: 0 4px; }}"
                     f"QPushButton:hover {{ color: {theme.INK}; text-decoration: underline; }}")
+    return b
+
+
+FOLD_TEXT = "\u25B4 Fold banner"
+UNFOLD_TEXT = "\u25BE Unfold banner"
+
+
+def fold_button_text(compact: bool) -> str:
+    """The top-line button says what a click does: fold when unfolded, unfold when folded."""
+    return UNFOLD_TEXT if compact else FOLD_TEXT
+
+
+def make_fold_button(info_panel) -> QPushButton:
+    """The button for the right-hand end of the job's top line, tied to `info_panel`
+    (InfoPanel.set_compact / is_compact / compact_changed)."""
+    from DataEntry.theme import button_secondary_qss
+    b = QPushButton(fold_button_text(info_panel.is_compact()))
+    b.setStyleSheet(button_secondary_qss())
+    b.setCursor(Qt.CursorShape.PointingHandCursor)
+    b.setToolTip("Fold the banner to one line (more grid rows on a short screen), or unfold it "
+                 "again. Remembered.")
+    b.clicked.connect(lambda: info_panel.set_compact(not info_panel.is_compact()))
+    info_panel.compact_changed.connect(lambda on: b.setText(fold_button_text(on)))
     return b
 
 

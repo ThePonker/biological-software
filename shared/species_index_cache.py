@@ -17,9 +17,9 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-CODE_VERSION = 1
+CODE_VERSION = 2          # 2: common-name tie rule (shared/common_name_pick.py), R17 B5
 MAGIC = "biosoft-species-index"
-_CODE_FILES = ("species_search.py", "species_lookup.py")
+_CODE_FILES = ("species_search.py", "species_lookup.py", "common_name_pick.py")
 _code_hash = None
 
 

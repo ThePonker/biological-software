@@ -22,6 +22,7 @@ Usage:
 import sqlite3
 from typing import List, Dict, Any, Optional
 import paths
+from shared.common_name_pick import order_by_sql
 from shared.db_open import connect_ro  # D9: reference data, read-only
 
 # Try to import from config
@@ -160,9 +161,9 @@ class UKSIRepository:
         tiebreak only applies if a future extract leaves a TVK unflagged.
         """
         rows = self._execute(
-            '''SELECT common_name FROM common_names
+            f'''SELECT common_name FROM common_names
                WHERE tvk = ?
-               ORDER BY preferred DESC, LENGTH(common_name)
+               ORDER BY {order_by_sql("common_name", "preferred")}
                LIMIT 1''',
             (tvk,)
         )

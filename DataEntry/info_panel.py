@@ -11,7 +11,7 @@ import os
 import sqlite3
 from typing import Optional, Dict, Tuple
 
-from PySide6.QtCore import Qt, QSettings
+from PySide6.QtCore import Qt, QSettings, Signal
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
 
 from DataEntry import theme
@@ -303,6 +303,8 @@ class InfoService:
 class InfoPanel(QWidget):
     """Three compact lines: species/taxon, conservation, recording history."""
 
+    compact_changed = Signal(bool)     # the banner folded / unfolded (the job page's button follows)
+
     def __init__(self, service: InfoService, vc_service=None, geojson_path=None,
                  tiles_dir=None, dist_service=None, maps_dir=None, parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -357,21 +359,12 @@ class InfoPanel(QWidget):
             lab.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
             if lab is not self._l4:
                 text_col.addWidget(lab)
-        # the location-warning line (usually empty) also holds the Fold link: no extra height
-        from DataEntry.banner_compact import CompactStrip, link_button
-        warn_row = QHBoxLayout()
-        warn_row.setContentsMargins(0, 0, 0, 0)
-        warn_row.setSpacing(4)
-        warn_row.addWidget(self._l4, 1)
-        self._fold_btn = link_button("\u25B4 Fold", "Fold the banner to one line (more grid rows on a "
-                                     "short screen). Remembered.")
-        self._fold_btn.setFixedHeight(16)
-        warn_row.addWidget(self._fold_btn, 0, Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
-        text_col.addLayout(warn_row)
+        # the Fold button now sits at the right-hand end of the job's top line (banner_compact.make_fold_button)
+        from DataEntry.banner_compact import CompactStrip
+        text_col.addWidget(self._l4)
         self._compact = False
         self._compact_strip = CompactStrip()
         self._compact_strip.setVisible(False)
-        self._fold_btn.clicked.connect(lambda: self.set_compact(True))
         self._compact_strip.unfold_btn.clicked.connect(lambda: self.set_compact(False))
         outer.addWidget(self._compact_strip, 1, Qt.AlignmentFlag.AlignTop)
         # conservation chips + count pills (flow rows)
@@ -609,6 +602,7 @@ class InfoPanel(QWidget):
         self._sync_strip()
         self._fit_width()
         self.updateGeometry()
+        self.compact_changed.emit(self._compact)
 
     def _sync_strip(self):
         strip = getattr(self, "_compact_strip", None)

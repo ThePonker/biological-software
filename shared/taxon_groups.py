@@ -464,6 +464,7 @@ def recommended_for_tvks(tvks: Iterable[str], uksi_path=None) -> Dict[str, dict]
         for v in out.values():
             v["targets"] = len(set(by_name.get(_plain_name(v["name"]), []))) or 1
         if out and "common_names" in tables:
+            from shared.common_name_pick import order_by_sql
             recs = sorted({v["tvk"] for v in out.values()})
             common = {}
             for i in range(0, len(recs), 900):
@@ -471,8 +472,7 @@ def recommended_for_tvks(tvks: Iterable[str], uksi_path=None) -> Dict[str, dict]
                 ph = ",".join("?" * len(part))
                 for tvk, cn in conn.execute(      # the same pick as species_lookup's common name
                         f"SELECT cn.tvk, cn.common_name FROM common_names cn WHERE cn.tvk IN ({ph}) "
-                        "ORDER BY cn.preferred DESC, CASE WHEN cn.common_name GLOB '[A-Z]*' THEN 0 ELSE 1 END, "
-                        "LENGTH(cn.common_name), cn.rowid", part):
+                        f"ORDER BY {order_by_sql()}, cn.rowid", part):
                     common.setdefault(tvk, cn)
             for v in out.values():
                 v["common_name"] = common.get(v["tvk"])

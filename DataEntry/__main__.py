@@ -71,9 +71,14 @@ def main(argv=None) -> int:
     from shared import crash_log             # data\logs\crash_dataentry_<month>.log
     crash_log.install("dataentry")
     from shared import light_scheme          # always light, even on a dark-mode PC
+    from shared import ui_scale              # Interface size (Settings) before the QApplication
+    ui_scale.apply_before_qapp()
     light_scheme.prepare()
     app = QApplication.instance() or QApplication(sys.argv)
     light_scheme.install(app)
+    from shared import gc_schedule, qt_messages
+    gc_schedule.install(app)         # the cyclic collector runs from a timer, not inside Qt handlers
+    qt_messages.install()
     from shared.settings_store import APP, ORG, merge_flauna_store_once
     app.setOrganizationName(ORG)          # the same store as Observatum
     app.setApplicationName(APP)

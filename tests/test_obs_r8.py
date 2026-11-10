@@ -278,9 +278,9 @@ def test_settings_tab_built_in_parts_matches_built_at_once(qapp):
     parts = SettingsTab(build=False)
     assert not hasattr(parts, "panel_stack")
     n = sum(1 for _ in parts.build_parts())
-    assert n >= 5
-    assert parts.panel_stack.count() == whole.panel_stack.count() == 5
-    for name in ("general_panel", "database_panel", "export_panel", "sync_panel",
+    assert n >= 4
+    assert parts.panel_stack.count() == whole.panel_stack.count() == 4
+    for name in ("general_panel", "database_panel", "export_panel",
                  "counting_panel"):
         assert type(getattr(parts, name)) is type(getattr(whole, name))
     got = []
