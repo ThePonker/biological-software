@@ -25,6 +25,7 @@ from ...themes import theme
 from ...core.config import TabColors, scheme_families
 from ..components.filter_wizard import FilterWizard
 from shared.natural_sort import sort_key
+from shared.table_text import apply_table_rows, table_text_css
 
 
 
@@ -166,7 +167,7 @@ class RecordingSchemeTab(QWidget):
         self.table_view.setAlternatingRowColors(True)
         self.table_view.horizontalHeader().setStretchLastSection(True)
         self.table_view.verticalHeader().setVisible(False)
-        self.table_view.verticalHeader().setDefaultSectionSize(24)  # Fixed row height
+        apply_table_rows(self.table_view)  # fixed row height
         self.table_view.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
         
         # Table model - proxy connected after first data load for performance
@@ -224,7 +225,7 @@ class RecordingSchemeTab(QWidget):
             QHeaderView::section:hover {{
                 background-color: {t.get('hover')};
             }}
-        """)
+        """ + table_text_css())
     
     def _connect_signals(self):
         self.toolbar.filters_toggled.connect(self._on_filters_toggled)

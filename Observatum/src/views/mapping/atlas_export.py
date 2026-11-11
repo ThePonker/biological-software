@@ -26,10 +26,11 @@ EXPORT_OPTIONS = (("counts", "Counts (records, species, squares, vice counties, 
                   ("first_last", "First and last record"),
                   ("phenology", "Phenology chart (records by month)"),
                   ("decades", "Records by decade"),
-                  ("layer_legend", "Layer legend"))
+                  ("layer_legend", "Layer legend"),
+                  ("grid", "Grid (square lines and names)"))
 EXPORT_DEFAULTS = {"counts": False, "first_last": False, "phenology": False, "decades": False,
-                   "layer_legend": True}
-EXTRAS_OPTIONS = tuple(k for k, _t in EXPORT_OPTIONS if k != "layer_legend")   # the extras panel's ticks
+                   "layer_legend": True, "grid": False}
+EXTRAS_OPTIONS = tuple(k for k, _t in EXPORT_OPTIONS if k not in ("layer_legend", "grid"))   # the extras panel's ticks
 EXPORT_DPI = 300
 
 
@@ -99,7 +100,8 @@ class AtlasExportMixin:
             extras, groups = new, new_groups
         return self.map_widget.render_sheet(
             self._title(), subtitle=self.map_header.subtitle.text(), legend=self._legend,
-            footer=footer, extent=extent, dpi=dpi, extras=extras, layer_groups=groups)
+            footer=footer, extent=extent, dpi=dpi, extras=extras, layer_groups=groups,
+            grid=bool((options or {}).get("grid")))
 
     def _page_squares(self, extent: str, shown):
         """(the squares the page counts, whether it is a zoomed 'current' page): all the map's

@@ -103,41 +103,9 @@ class RecordingSchemeStatsService:
         return f" AND {col} IN ({placeholders})" + copies
 
     def _extract_grid_squares(self, grid_ref: str) -> Dict[str, str]:
-        """Extract monad, tetrad, hectad from a grid reference."""
-        if not grid_ref or len(grid_ref) < 4:
-            return {}
-        
-        gr = grid_ref.upper().replace(" ", "")
-        
-        letters = ""
-        digits = ""
-        for i, c in enumerate(gr):
-            if c.isalpha():
-                letters += c
-            else:
-                digits = gr[i:]
-                break
-        
-        if len(letters) < 1 or len(digits) < 2:
-            return {}
-        
-        result = {}
-        
-        if len(digits) >= 2:
-            result['hectad'] = f"{letters}{digits[0]}{digits[len(digits)//2]}"
-        
-        if len(digits) >= 4:
-            e = int(digits[1])
-            n = int(digits[len(digits)//2 + 1])
-            tetrad_letter = chr(ord('A') + (n // 2) * 5 + (e // 2))
-            if tetrad_letter > 'O':
-                tetrad_letter = chr(ord(tetrad_letter) + 1)
-            result['tetrad'] = f"{result['hectad']}{tetrad_letter}"
-        
-        if len(digits) >= 4:
-            result['monad'] = f"{letters}{digits[0]}{digits[1]}{digits[len(digits)//2]}{digits[len(digits)//2 + 1]}"
-        
-        return result
+        """Same squares and DINTY tetrad letters as the Observation statistics (one source, R19)."""
+        from src.services.observation_stats_service import extract_grid_squares
+        return extract_grid_squares(grid_ref)
 
     def _refresh(self):
         """Refresh all stats from database."""

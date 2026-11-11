@@ -26,6 +26,7 @@ from ...models.specimen import SpecimenModel
 from ...models.uksi import UKSIModel
 from ...services.vc_lookup_service import VCLookupService
 from ...themes import theme
+from shared.table_text import apply_table_rows, table_text_css
 from ...core.config import TabColors, Settings, Defaults
 from ..components.filter_wizard import FilterWizard
 
@@ -120,7 +121,7 @@ class InsectCollectionTab(ICSidebarMixin, ICDataMixin, ICExportMixin, QWidget):
         self.table_view.setAlternatingRowColors(True)
         self.table_view.horizontalHeader().setStretchLastSection(True)
         self.table_view.verticalHeader().setVisible(False)
-        self.table_view.verticalHeader().setDefaultSectionSize(24)
+        apply_table_rows(self.table_view)
         self.table_view.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
 
         # Table model — proxy connected after first data load
@@ -476,4 +477,4 @@ class InsectCollectionTab(ICSidebarMixin, ICDataMixin, ICExportMixin, QWidget):
             QHeaderView::section:hover {{
                 background-color: {t.get('hover')};
             }}
-        """)
+        """ + table_text_css())

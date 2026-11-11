@@ -1,10 +1,11 @@
 """Home Tab - Orchestrator"""
-from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QMessageBox
-from PySide6.QtCore import Qt, Signal
-from .quick_entry import QuickEntryForm
+from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout
+from PySide6.QtCore import Signal
 from .quick_stats import QuickStatsPanel
 from .observation_stats_card import ALL, ObservationStatsCard
-from .recent_species import RecentSpeciesPanel
+from . import home_data
+from .home_lists import NewSpeciesCard, NotableCard
+from .home_map_card import HomeMapCard
 from .species_info import SpeciesInfoPanel
 from .species_profile_dialog import SpeciesProfileDialog
 from ...models.database import get_database
@@ -23,11 +24,16 @@ except ImportError:
     HAS_REPOSITORY = False
 
 
+LEFT_WIDTH, MAP_WIDTH, LIST_WIDTH = 316, 388, 266      # layout A (R19); widths 290/250 in the mock, a little wider for the real card titles
+
+
 class HomeTab(QWidget):
     # Signal to request navigation to Insect Collection tab with species filter
     navigate_to_collection = Signal(str)  # Emits species TVK or name
     navigate_to_observations = Signal(str)  # Emits species name for filtering observations
     navigate_to_species_lookup = Signal(str, str)  # (name, TVK): Stats > Species lookup (Q55)
+    navigate_to_mapping = Signal()  # "Open in Mapping" on the map card (R19)
+    navigate_to_notable = Signal(list)  # ids of this year's notable records (R19)
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -41,7 +47,7 @@ class HomeTab(QWidget):
         t = theme()
         self.setStyleSheet(f"background-color: {t.get('background')};")
 
-        # The four panels sit in a scroll area: on a narrow (or short) window Home
+        # The panels sit in a scroll area: on a narrow (or short) window Home
         # scrolls rather than hold the main window wide (R4, 11 Oct 2026)
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -50,7 +56,6 @@ class HomeTab(QWidget):
         layout = QHBoxLayout(panels)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(16)
-        layout.setAlignment(Qt.AlignmentFlag.AlignTop)  # Align all panels to top
 
         # Panel 1 - Quick Stats cards (L16 10 Oct; R5 11 Oct): Personal, Commercial,
         # All (the two together), Recording Scheme + Insect Collection. The Achievements
@@ -74,69 +79,57 @@ class HomeTab(QWidget):
 
         left_widget = QWidget()
         left_widget.setLayout(left_column)
-        layout.addWidget(left_widget, stretch=2)
+        left_widget.setFixedWidth(LEFT_WIDTH)
+        layout.addWidget(left_widget)
 
-        # Panel 2 - Quick Entry (wider)
-        self.quick_entry = QuickEntryForm()
-        layout.addWidget(self.quick_entry, stretch=5)
+        # Centre - where I've recorded (R19)
+        self.map_card = HomeMapCard()
+        self.map_card.setFixedWidth(MAP_WIDTH)
+        layout.addWidget(self.map_card)
 
-        # Panel 3 - Recent New Species
-        self.recent_panel = RecentSpeciesPanel()
-        layout.addWidget(self.recent_panel, stretch=2)
-
-        # Panel 4 - Species Info
+        # Right - the species card above the two lists
+        right = QVBoxLayout()
+        right.setSpacing(16)
+        right.setContentsMargins(0, 0, 0, 0)
         self.species_info = SpeciesInfoPanel()
-        layout.addWidget(self.species_info, stretch=3)
+        right.addWidget(self.species_info)
+        lists = QHBoxLayout()
+        lists.setSpacing(16)
+        self.recent_panel = NewSpeciesCard()
+        self.recent_panel.setFixedWidth(LIST_WIDTH)
+        lists.addWidget(self.recent_panel)
+        self.notable_card = NotableCard()
+        lists.addWidget(self.notable_card, 1)
+        right.addLayout(lists, 1)
+        layout.addLayout(right, 1)
 
     def _connect_signals(self):
-        self.quick_entry.record_saved.connect(self._on_record_saved)
-        
-        # Recent species selection -> only update Species Info panel (not Quick Entry)
+        # A species picked in the search box or in the new-species list -> the species card
+        # (and the map, in Selected species mode)
+        self.species_info.species_chosen.connect(self._on_search_species_selected)
         self.recent_panel.species_selected.connect(self._on_recent_species_selected)
-        
-        # View All link -> navigate to New Species List filter
         self.recent_panel.view_all_clicked.connect(self._on_view_all_species)
-
-        # Species search in quick entry -> update both Species Info and Quick Entry
-        try:
-            self.quick_entry.species_search.species_selected.connect(self._on_search_species_selected)
-        except AttributeError:
-            pass
-        
-        # Profile button in species info -> open profile dialog
         self.species_info.profile_clicked.connect(self._on_profile_clicked)
-        
-        # View specimens button -> navigate to Insect Collection
         self.species_info.view_specimens_clicked.connect(self._on_view_specimens)
-        
-        # View records button -> navigate to Observation Data
         self.species_info.view_records_clicked.connect(self._on_view_records)
-
-        # Open in Species lookup -> Stats > Species lookup (Q55, 13 Oct 2026)
         self.species_info.lookup_clicked.connect(self.navigate_to_species_lookup.emit)
-
-    def _on_record_saved(self, record_data):
-        self.refresh_data()
-        # Clear species info panel after save
-        self.species_info.set_species(None)
-        QMessageBox.information(self, "Record Saved", "Observation saved successfully!")
+        self.map_card.open_mapping_clicked.connect(self.navigate_to_mapping.emit)
+        self.notable_card.all_clicked.connect(self.navigate_to_notable.emit)
 
     def _on_recent_species_selected(self, species_data: dict):
-        """Handle species selection from recent panel - only updates Species Info."""
-        enriched = self._enrich_species_data(species_data)
-        self.species_info.set_species(enriched)
-        # Do NOT update quick entry form - user is just browsing
+        """A row of the new-species list: show it in the species card."""
+        self.show_species(species_data)
 
     def _on_search_species_selected(self, species_data: dict):
-        """Handle species selection from search - updates Species Info panel."""
-        enriched = self._enrich_species_data(species_data)
-        self.species_info.set_species(enriched)
-        # Quick Entry is already updated by the search widget itself
+        self.show_species(species_data)
 
     def show_species(self, species_data: dict):
-        """Species lookup's "Show on Home" (Q55): this species in Species Info, browsing only
-        (Quick Entry is left as it is)."""
-        self.species_info.set_species(self._enrich_species_data(species_data))
+        """A species into the species card (search, new-species list, or Species lookup's
+        "Show on Home", Q55); the map follows it in Selected species mode."""
+        enriched = self._enrich_species_data(species_data)
+        self.species_info.set_species(enriched)
+        self.species_info.search.set_species(enriched)
+        self.map_card.set_species(enriched.get('tvk') or '', enriched.get('scientific_name') or '')
 
     def _on_profile_clicked(self, species_data: dict):
         """Handle profile button click - open profile dialog."""
@@ -206,6 +199,16 @@ class HomeTab(QWidget):
             except Exception:
                 enriched['record_count'] = 0
 
+        if tvk:
+            try:
+                row = get_database().execute_main(
+                    "SELECT MIN(date), MAX(date) FROM observations "
+                    "WHERE species_tvk = ? AND COALESCE(date, '') <> ''", (tvk,))
+                if row and row[0][0]:
+                    enriched['first_date'], enriched['last_date'] = row[0][0], row[0][1]
+            except Exception as e:
+                print(f"First/last record error: {e}")
+
         # Check insect collection for specimen count
         if tvk:
             enriched['specimen_count'] = 0
@@ -247,6 +250,8 @@ class HomeTab(QWidget):
 
         # Pass database to stats panel for querying all data sources
         self.stats_panel.set_database(db)
+        self.map_card.set_database(db.main_db_path)
+        self.notable_card.set_database(db.main_db_path)
 
         search_service = get_search_service()
         search_service.set_database(db)
@@ -271,10 +276,11 @@ class HomeTab(QWidget):
             # Refresh Recording Scheme and Insect Collection stats
             self.stats_panel.refresh_all_stats()
             
-            # Recent species still uses model (repository method could be added later)
-            if self._observation_model:
-                recent = self._observation_model.get_recent_new_species(10)
-                self.recent_panel.update_species(recent)
+            if self._obs_repo:
+                self.recent_panel.update_species(home_data.last_new_species(self._obs_repo))
+            # The map and the notable records are read off the GUI thread
+            self.map_card.reload()
+            self.notable_card.reload()
         except Exception as e:
             print(f"Error refreshing: {e}")
 
@@ -286,37 +292,15 @@ class HomeTab(QWidget):
         self.refresh_data()
 
     def refresh_display_settings(self):
-        """Refresh display settings (e.g., common name visibility, date format)."""
-        # Refresh common name setting on recent species panel
-        if hasattr(self, 'recent_panel') and hasattr(self.recent_panel, 'refresh_common_name_setting'):
-            self.recent_panel.refresh_common_name_setting()
-        
-        # Refresh common name setting on species info panel
-        if hasattr(self, 'species_info') and hasattr(self.species_info, 'refresh_common_name_setting'):
-            self.species_info.refresh_common_name_setting()
-        
-        # Refresh date format on recent panel (rebuilds list with new date format)
-        if hasattr(self, 'recent_panel') and self._observation_model:
-            try:
-                recent = self._observation_model.get_recent_new_species(10)
-                self.recent_panel.update_species(recent)
-            except Exception as e:
-                print(f"Error refreshing recent species: {e}")
-
-    def set_defaults(self, recorder="", determiner=""):
-        self.quick_entry.set_defaults(recorder, determiner)
+        """Refresh display settings (e.g., common name visibility)."""
+        self.recent_panel.refresh_common_name_setting()
+        self.notable_card.show_data(self.notable_card._data)
+        self.species_info.refresh_common_name_setting()
 
     def apply_theme(self):
         """Apply current theme to this tab and children."""
         t = theme()
         self.setStyleSheet(f"background-color: {t.get('background')};")
-        
-        # Propagate to children
-        for card in (*self._observation_cards(), self.stats_panel):
+        for card in (*self._observation_cards(), self.stats_panel, self.map_card,
+                     self.recent_panel, self.notable_card, self.species_info):
             card.apply_theme()
-        if hasattr(self.recent_panel, 'apply_theme'):
-            self.recent_panel.apply_theme()
-        if hasattr(self.quick_entry, 'apply_theme'):
-            self.quick_entry.apply_theme()
-        if hasattr(self.species_info, 'apply_theme'):
-            self.species_info.apply_theme()

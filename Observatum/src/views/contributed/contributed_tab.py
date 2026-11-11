@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from shared.display_format import dmy
+from shared.table_text import apply_table_rows, scaled_width, table_text_css
 from ...core.config import TabColors
 from ...models.database import get_database
 from ...repositories.contributed_repository import (
@@ -131,7 +132,7 @@ class ContributedTab(QWidget):
         self.table.horizontalHeader().setSortIndicator(0, Qt.SortOrder.AscendingOrder)
         self.table.setSortingEnabled(True)
         self.table.verticalHeader().setVisible(False)
-        self.table.verticalHeader().setDefaultSectionSize(24)
+        apply_table_rows(self.table)
         self.table.horizontalHeader().setStretchLastSection(True)
         self.table.setStyleSheet(f"""
             QTableView {{
@@ -148,7 +149,7 @@ class ContributedTab(QWidget):
                 background-color: {t.get('surface_alt')}; padding: 8px; border: none;
                 border-bottom: 1px solid {t.get('border')}; font-weight: 600;
             }}
-        """)
+        """ + table_text_css())
         return self.table
 
     @staticmethod
@@ -253,8 +254,8 @@ class ContributedTab(QWidget):
             self._sized = True
             self.table.resizeColumnsToContents()
             for col in range(len(COLUMNS)):
-                if self.table.columnWidth(col) > 260:
-                    self.table.setColumnWidth(col, 260)
+                if self.table.columnWidth(col) > scaled_width(260):
+                    self.table.setColumnWidth(col, scaled_width(260))
 
     @staticmethod
     def _cell(key, value):

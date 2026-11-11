@@ -10,6 +10,9 @@ counted there reaches both cards.
 R5 (11 Oct): a third card, "All" (Personal + Commercial; species distinct across both,
 not a sum) -- get_quick_stats(record_type=None), the same counting as Stats > All Stats.
 The Achievements card left Home.
+
+R19 (11 Nov 2026): the Last Month Records row left the cards (the figure is still in
+get_quick_stats).
 """
 
 from typing import Any, Dict, Optional
@@ -28,7 +31,6 @@ ROWS = (
     ('total_records', "Total Records"),
     ('this_year_species', "This Year Species"),
     ('this_year_records', "This Year Records"),
-    ('last_month_records', "Last Month Records"),
 )
 
 

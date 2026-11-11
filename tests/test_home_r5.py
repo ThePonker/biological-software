@@ -123,8 +123,7 @@ def test_left_column_order_and_no_achievements(qapp):
     assert widgets[2] is h.all_stats
     assert h.all_stats._header_label.text() == "QUICK STATS: ALL"
     assert [r['label'].text() for r in h.all_stats.rows.values()] == [
-        "Total Species", "Total Records", "This Year Species", "This Year Records",
-        "Last Month Records"]
+        "Total Species", "Total Records", "This Year Species", "This Year Records"]   # R19: no Last Month
     # no Achievements card anywhere on Home
     from src.features.gamification import GamificationLauncher
     assert not h.findChildren(GamificationLauncher)
@@ -164,7 +163,8 @@ def test_all_equals_all_stats_small_fixture(small_db):
     h = HomeTab()
     h.initialize()
     for k, v in allq.items():
-        assert h.all_stats.value(k) == f"{v:,}", k
+        if k != 'last_month_records':          # R19: the row left Home (the figure is still counted)
+            assert h.all_stats.value(k) == f"{v:,}", k
     assert h.personal_stats.value('total_species') == "2"
     assert h.commercial_stats.value('total_species') == "2"
 
@@ -189,4 +189,5 @@ def test_all_equals_all_stats_on_data_copy(real_db):
     h = HomeTab()
     h.initialize()
     for k, v in allq.items():
-        assert h.all_stats.value(k) == f"{v:,}", k
+        if k != 'last_month_records':          # R19: the row left Home (the figure is still counted)
+            assert h.all_stats.value(k) == f"{v:,}", k

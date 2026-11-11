@@ -193,7 +193,7 @@ def test_home_cards_split_by_record_type(real_db):
     h.initialize()
     assert h.personal_stats.value("total_records") == f"{per['total_records']:,}"
     assert h.commercial_stats.value("total_species") == f"{com['total_species']:,}"
-    assert h.commercial_stats.value("last_month_records") == f"{com['last_month_records']:,}"
+    assert "last_month_records" not in h.commercial_stats.rows     # R19: the row left Home
 
 
 # ── Decision 12 / MUN-4: Munia multi-year projects ────────────────────────────────

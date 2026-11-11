@@ -92,6 +92,9 @@ _BASE_TOGGLES = (           # the menu
     Toggle("foreshore", "Foreshore", False, ("foreshore",)),
     Toggle("greenspace", "Parks and green space", False, ("greenspace",)),
     Toggle("relief", "Relief", False, ("relief",), colour=False),
+    # R19: the grid-square overlay (grid_overlay.py): drawn, not loaded from a file (no `files`)
+    Toggle("grid_lines", "Grid lines (100 km / 10 km / 1 km)", False, (), colour=False),
+    Toggle("grid_tetrads", "Tetrads", False, (), colour=False),
 )
 
 
@@ -223,6 +226,8 @@ def credit_lines(maps_dir, keys, os_always: bool = False, extra: Sequence[str] =
 
 
 def toggle_available(avail: Set[str], toggle: Toggle) -> bool:
+    if not toggle.files:            # the grid overlay: drawn, needs no file
+        return True
     return any(f in avail for f in toggle.files)
 
 

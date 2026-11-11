@@ -237,9 +237,6 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
     def _connect_cross_tab_signals(self):
         """Connect signals between tabs for data synchronization.
         (The Stats/Reports tab's own signals: _connect_stats_signals, when it is built.)"""
-        # When a record is saved on Home tab, refresh Observation tab
-        self.home_tab.quick_entry.record_saved.connect(self._on_record_saved)
-
         self._connect_other_signals()
 
     def _connect_stats_signals(self):
@@ -285,6 +282,8 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
             self.home_tab.navigate_to_collection.connect(self._navigate_to_collection_tab)
             self.home_tab.navigate_to_observations.connect(self._navigate_to_observation_tab)
             self.home_tab.navigate_to_species_lookup.connect(self._navigate_to_species_lookup)
+            self.home_tab.navigate_to_mapping.connect(self._navigate_to_mapping_tab)
+            self.home_tab.navigate_to_notable.connect(self._navigate_to_observation_tab_by_ids)
         except AttributeError:
             pass  # Signal not available yet
 
@@ -305,11 +304,6 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
         except AttributeError:
             pass  # Signal not available yet
 
-        # Track data changes for CSV backup on close
-        try:
-            self.home_tab.quick_entry.record_saved.connect(self._mark_data_changed)
-        except AttributeError:
-            pass
         try:
             self.observation_tab.data_imported.connect(self._mark_data_changed)
         except AttributeError:
@@ -379,6 +373,29 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
                 self.observation_tab.filter_by_species(species_filter)
         else:
             self.observation_tab.show_new_species_list()
+
+    def _navigate_to_mapping_tab(self):
+        """Home's "Open in Mapping": the Mapping tab (built on first opening)."""
+        self.tabs.setCurrentWidget(self._mapping_page)
+
+    def _navigate_to_observation_tab_by_ids(self, ids):
+        """Observation Data showing only these records (Home's "All N this year" notable
+        records): the tab's own list, filtered by id like the by-month / by-year views."""
+        self.tabs.setCurrentWidget(self.observation_tab)
+        tab = self.observation_tab
+        if hasattr(tab, 'filter_bar'):
+            tab.filter_bar.clear_filters()
+        if hasattr(tab, 'clear_wizard_filters'):
+            tab.clear_wizard_filters()
+        self._set_data_type_visual()
+        if not getattr(tab, '_all_observations', None) and hasattr(tab, '_load_data'):
+            tab._load_data()
+        wanted = set(ids or ())
+        records = [o for o in (getattr(tab, '_all_observations', None) or [])
+                   if getattr(o, 'id', None) in wanted]
+        tab._show_list(records)
+        self.statusBar().showMessage(
+            f"Showing {len(records):,} notable record{'' if len(records) == 1 else 's'} from this year", 8000)
 
     def _navigate_to_observation_tab_by_month(self, month: int):
         """Navigate to Observation Data tab filtered by a specific month (all years)."""
@@ -1017,11 +1034,6 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
     def _on_settings_changed(self):
         """Handle settings saved - refresh defaults, display settings, and theme."""
         self.settings_generation += 1       # figures being read in the background: stale
-        try:
-            self.home_tab.quick_entry.reload_defaults()
-        except Exception as e:
-            print(f"Warning: Could not reload defaults: {e}")
-
         # Refresh display settings on Home tab (common name visibility)
         try:
             self.home_tab.refresh_display_settings()

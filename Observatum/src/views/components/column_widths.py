@@ -16,6 +16,8 @@ from __future__ import annotations
 
 from PySide6.QtCore import QObject, QSettings, QTimer
 
+from shared.table_text import scaled_width
+
 
 class ColumnWidthKeeper(QObject):
     def __init__(self, view, columns_fn, prefix: str, parent=None):
@@ -63,7 +65,7 @@ class ColumnWidthKeeper(QObject):
                     break
                 if i == last:
                     continue
-                w = self._key_value(s, i, col[0], col[2])
+                w = self._key_value(s, i, col[0], scaled_width(col[2]))
                 if self.view.columnWidth(i) != w:
                     self.view.setColumnWidth(i, w)
         finally:

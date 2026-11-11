@@ -24,6 +24,7 @@ from .observation_detail_mixin import ObservationDetailMixin
 from ..dialogs import ObservationImportWizard
 from ..components.hscroll_strip import HScrollStrip
 from shared.natural_sort import sort_key
+from shared.table_text import apply_table_rows, table_text_css
 from ...models.database import get_database
 from ...models.observation import ObservationModel
 from ...models.uksi import UKSIModel
@@ -193,13 +194,13 @@ class ObservationTab(
             QHeaderView::section:hover {{
                 background-color: {t.get('hover')};
             }}
-        """)
+        """ + table_text_css())
         table_view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         table_view.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         table_view.setAlternatingRowColors(True)
         table_view.horizontalHeader().setStretchLastSection(True)
         table_view.verticalHeader().setVisible(False)
-        table_view.verticalHeader().setDefaultSectionSize(24)
+        apply_table_rows(table_view)
         table_view.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
         table_view.setSortingEnabled(True)
         

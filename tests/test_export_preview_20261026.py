@@ -243,7 +243,7 @@ def test_dialog_remembers_ticks_and_exports(qapp, sandbox, tmp_path, monkeypatch
 
     h = make_host(qapp)
     d = ExportPreviewDialog(h, h)
-    assert d.options() == {**NONE, "layer_legend": True}   # only the layer legend is on by default
+    assert d.options() == {**NONE, "layer_legend": True, "grid": False}   # only the layer legend is on by default
     d.checks["decades"].setChecked(True)
     d.checks["counts"].setChecked(True)
     d.refresh_now()
@@ -251,7 +251,7 @@ def test_dialog_remembers_ticks_and_exports(qapp, sandbox, tmp_path, monkeypatch
     assert QSettings().value("mapping/export/decades", type=bool) is True
     d2 = ExportPreviewDialog(h, h)
     assert d2.options() == {"counts": True, "first_last": False, "phenology": False,
-                            "decades": True, "layer_legend": True}
+                            "decades": True, "layer_legend": True, "grid": False}
     out = tmp_path / "page"
     monkeypatch.setattr(atlas_export.QFileDialog, "getSaveFileName",
                         staticmethod(lambda *a, **k: (str(out), "")))

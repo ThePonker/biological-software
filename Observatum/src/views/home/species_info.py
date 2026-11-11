@@ -1,208 +1,154 @@
 """
-Species Info Panel Component.
+Species card for Home (Round 19 layout; the old Species Info panel, re-laid out).
 
-Displays contextual information about the selected species.
+A search box (the suite's SpeciesSearch, as Quick Entry used) and, for the chosen species: name,
+family, status and SQS (Codex, via species_status), your records with a "view" link, first / last
+record, in the collection or not, "Species profile" and "Open in Species lookup".
 """
 
-from typing import Optional, Dict
+from typing import Dict, Optional
 
-from PySide6.QtWidgets import (
-    QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QWidget, QTextEdit
-)
-from PySide6.QtCore import Qt, Signal, QSettings
+from PySide6.QtCore import QSettings, Qt, Signal
+from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
+from shared.text_sizes import font_css
 from .card import Card
+from .home_widgets import link_button
+from ..components.species_search import SpeciesSearch
+from ...core.config import Defaults, Settings, TabColors
 from ...themes import theme
-from ...core.config import Settings, Defaults, TabColors, ButtonColors
+
+
+def _first_last(species: Dict) -> str:
+    first, last = (species.get('first_date') or '')[:10], (species.get('last_date') or '')[:10]
+    if not first:
+        return "–"
+    from .home_data import short_date
+    fmt = lambda d: f"{short_date(d)} {d[:4]}"      # noqa: E731
+    return fmt(first) if first == last or not last else f"{fmt(first)} / {fmt(last)}"
 
 
 class SpeciesInfoPanel(Card):
-    """Panel showing contextual information about the selected species."""
+    """Search plus the details of the chosen species."""
 
     view_specimens_clicked = Signal(str)  # Emits species TVK
     view_records_clicked = Signal(str)  # Emits species name for filtering observations
-    profile_clicked = Signal(dict)  # Emits species data for profile editing
+    profile_clicked = Signal(dict)  # Emits species data for the profile dialog
     lookup_clicked = Signal(str, str)  # (scientific name, TVK): Stats > Species lookup (Q55)
+    species_chosen = Signal(dict)  # picked in the search box
 
     def __init__(self, parent=None):
-        super().__init__("Species Info", parent)
+        super().__init__("Species", parent)
         self._current_species: Optional[Dict] = None
         self._current_profile: str = ""
         self._show_common_names = True
         self._load_common_name_setting()
-
-        self._add_clear_button()
         self._setup_ui()
 
     def _load_common_name_setting(self):
-        """Load the common name display setting."""
-        settings = QSettings()
-        self._show_common_names = settings.value(
-            Settings.COMMON_NAMES_HOME, 
-            Defaults.SHOW_COMMON_NAMES, 
-            type=bool
-        )
+        self._show_common_names = QSettings().value(
+            Settings.COMMON_NAMES_HOME, Defaults.SHOW_COMMON_NAMES, type=bool)
 
-    def _add_clear_button(self):
-        """Add clear button to header."""
-        t = theme()
-        self.clear_btn = QPushButton("Clear")
-        self.clear_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: transparent;
-                color: {t.get('text_secondary')};
-                border: none;
-                font-size: {t.font_size('sm')};
-                padding: 2px 8px;
-            }}
-            QPushButton:hover {{
-                color: {t.get('text_primary')};
-            }}
-        """)
-        self.clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+    # ------------------------------------------------------------------ build
+    def _setup_ui(self):
+        self.clear_btn = link_button("Clear", theme().get('text_secondary'))
         self.clear_btn.clicked.connect(self.clear)
-        self.clear_btn.setVisible(False)  # Hidden until species is selected
+        self.clear_btn.setVisible(False)
         self.add_header_widget(self.clear_btn)
 
-    def clear(self):
-        """Clear the species info panel."""
-        self.set_species(None)
+        self.search = SpeciesSearch()
+        self.search.species_selected.connect(self.species_chosen.emit)
+        self.search.search_cleared.connect(lambda: self.set_species(None))
+        self.add_widget(self.search)
 
-    def _setup_ui(self):
-        """Set up the panel UI."""
-        t = theme()
-
-        # Content container (will be shown/hidden)
         self.content = QWidget()
         self.content.setStyleSheet("background: transparent;")
-        content_layout = QVBoxLayout(self.content)
-        content_layout.setContentsMargins(0, 0, 0, 0)
-        content_layout.setSpacing(12)
+        lay = QVBoxLayout(self.content)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(8)
 
-        # Species name
+        top = QHBoxLayout()
         self.name_label = QLabel()
         self.name_label.setWordWrap(True)
-        self.name_label.setStyleSheet(f"font-size: {t.font_size('xl')}; font-weight: 600; font-style: italic; color: {t.get('text_primary')}; border: none; background: transparent;")
-        content_layout.addWidget(self.name_label)
-
+        top.addWidget(self.name_label, 1)
+        self.profile_btn = link_button("Species profile →")
+        self.profile_btn.clicked.connect(self._on_profile_clicked)
+        top.addWidget(self.profile_btn, 0, Qt.AlignmentFlag.AlignTop)
+        lay.addLayout(top)
         self.common_name_label = QLabel()
-        self.common_name_label.setStyleSheet(f"color: {t.get('text_primary')}; font-size: {t.font_size('base')}; border: none; background: transparent;")
-        content_layout.addWidget(self.common_name_label)
+        lay.addWidget(self.common_name_label)
 
-        # Taxonomy - horizontal rows (Label: Value)
-        order_layout = QHBoxLayout()
-        self.order_label = QLabel("Order")
-        self.order_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {t.font_size('base')}; border: none; background: transparent;")
-        self.order_label.setFixedWidth(50)
-        order_layout.addWidget(self.order_label)
-
-        self.order_value = QLabel("-")
-        self.order_value.setStyleSheet(f"font-weight: 600; color: {t.get('text_primary')}; font-size: {t.font_size('base')}; border: none; background: transparent;")
-        order_layout.addWidget(self.order_value)
-        order_layout.addStretch()
-        content_layout.addLayout(order_layout)
-
-        family_layout = QHBoxLayout()
-        self.family_label = QLabel("Family")
-        self.family_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {t.font_size('base')}; border: none; background: transparent;")
-        self.family_label.setFixedWidth(50)
-        family_layout.addWidget(self.family_label)
-
-        self.family_value = QLabel("-")
-        self.family_value.setStyleSheet(f"font-weight: 600; color: {t.get('text_primary')}; font-size: {t.font_size('base')}; border: none; background: transparent;")
-        family_layout.addWidget(self.family_value)
-        family_layout.addStretch()
-        content_layout.addLayout(family_layout)
-
-        # Conservation status(es) and SQS, read-only from Codex (R17 B4)
-        self.status_label = QLabel("Status")
-        self.status_value = QLabel("None")
-        self.sqs_label = QLabel("SQS")
-        self.sqs_value = QLabel("\u2013")
-        for lab, val in ((self.status_label, self.status_value), (self.sqs_label, self.sqs_value)):
-            row = QHBoxLayout()
-            lab.setFixedWidth(50)
-            val.setWordWrap(True)
-            row.addWidget(lab)
-            row.addWidget(val, 1)
-            content_layout.addLayout(row)
-        self._style_status_rows()
-
-        # Records count - plain text row
-        records_layout = QHBoxLayout()
-        self.records_label = QLabel("Your Records")
-        self.records_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {t.font_size('base')}; border: none; background: transparent;")
-        records_layout.addWidget(self.records_label)
-
-        self.view_records_btn = QPushButton("View records ->")
-        self.view_records_btn.setFlat(True)
-        self.view_records_btn.setStyleSheet(f"color: {TabColors.OBSERVATION}; font-size: {t.font_size('sm')}; text-align: left; padding: 0; border: none; background: transparent;")
-        self.view_records_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.view_records_btn.setVisible(False)
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(16)
+        grid.setVerticalSpacing(8)
+        self._captions = []
+        self.family_value = self._cell(grid, 0, 0, "Family")
+        self.status_value = self._cell(grid, 0, 1, "Status")
+        self.sqs_value = self._cell(grid, 0, 2, "SQS")
+        self.records_value = self._cell(grid, 1, 0, "Your records")
+        self.view_records_btn = link_button("view", TabColors.OBSERVATION)
         self.view_records_btn.clicked.connect(self._on_view_records)
-        records_layout.addWidget(self.view_records_btn)
-
-        records_layout.addStretch()
-
-        self.records_value = QLabel("0")
-        self.records_value.setStyleSheet(f"font-weight: 700; font-size: {t.font_size('lg')}; color: {TabColors.OBSERVATION}; border: none; background: transparent;")
-        records_layout.addWidget(self.records_value)
-
-        content_layout.addLayout(records_layout)
-
-        # Collection status - layout matching Your Records row
-        collection_layout = QHBoxLayout()
-        self.collection_status = QLabel("Not in Collection")
-        self.collection_status.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {t.font_size('base')}; border: none; background: transparent;")
-        collection_layout.addWidget(self.collection_status)
-
-        self.view_specimens_btn = QPushButton("View specimens →")
-        self.view_specimens_btn.setFlat(True)
-        self.view_specimens_btn.setStyleSheet(f"color: {TabColors.COLLECTION}; font-size: {t.font_size('sm')}; text-align: left; padding: 0; border: none; background: transparent;")
-        self.view_specimens_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.view_specimens_btn.setVisible(False)
+        self.view_records_btn.setVisible(False)
+        grid.itemAtPosition(1, 0).widget().layout().itemAt(1).layout().insertWidget(1, self.view_records_btn)
+        self.first_last_value = self._cell(grid, 1, 1, "First / last")
+        self.collection_status = self._cell(grid, 1, 2, "Collection")
+        self.view_specimens_btn = link_button("view", TabColors.COLLECTION)
         self.view_specimens_btn.clicked.connect(self._on_view_specimens)
-        collection_layout.addWidget(self.view_specimens_btn)
+        self.view_specimens_btn.setVisible(False)
+        grid.itemAtPosition(1, 2).widget().layout().itemAt(1).layout().insertWidget(1, self.view_specimens_btn)
+        for c in range(3):
+            grid.setColumnStretch(c, 1)
+        lay.addLayout(grid)
 
-        collection_layout.addStretch()
-
-        self.collection_count = QLabel("")
-        self.collection_count.setStyleSheet(f"font-weight: 700; font-size: {t.font_size('lg')}; color: {TabColors.COLLECTION}; border: none; background: transparent;")
-        self.collection_count.setVisible(False)
-        collection_layout.addWidget(self.collection_count)
-
-        content_layout.addLayout(collection_layout)
-
-        # Q55 (13 Oct 2026): the same species in Stats > Species lookup
-        self.lookup_btn = QPushButton("Open in Species lookup →")
-        self.lookup_btn.setFlat(True)
-        self.lookup_btn.setStyleSheet(f"color: {TabColors.STATS}; font-size: {t.font_size('sm')}; text-align: left; padding: 0; border: none; background: transparent;")
-        self.lookup_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.lookup_btn = link_button("Open in Species lookup →", TabColors.STATS)
         self.lookup_btn.setToolTip("Every count for this species: records, scheme, specimens, phenology")
         self.lookup_btn.clicked.connect(self._on_lookup)
-        content_layout.addWidget(self.lookup_btn)
-
-        # Species Profile section
-        self._setup_profile_section(content_layout)
-
+        lay.addWidget(self.lookup_btn, 0, Qt.AlignmentFlag.AlignLeft)
         self.content.setVisible(False)
         self.add_widget(self.content)
 
-        # Placeholder
-        self.placeholder = QLabel("Select a species to view details")
+        self.placeholder = QLabel("Search for a species to see its details")
         self.placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.placeholder.setWordWrap(True)          # wraps rather than widen Home (R4)
-        self.placeholder.setStyleSheet(f"color: {t.get('text_muted')}; font-style: italic; padding: 40px;")
+        self.placeholder.setWordWrap(True)
         self.add_widget(self.placeholder)
-        self.add_stretch()
+        self._style()
 
-    def _style_status_rows(self):
+    def _cell(self, grid, row, col, caption) -> QLabel:
+        """A caption over a value (a row for the value, so a link can sit beside it)."""
+        box = QWidget()
+        v = QVBoxLayout(box)
+        v.setContentsMargins(0, 0, 0, 0)
+        v.setSpacing(1)
+        cap = QLabel(caption)
+        self._captions.append(cap)
+        v.addWidget(cap)
+        h = QHBoxLayout()
+        h.setSpacing(6)
+        val = QLabel("–")
+        val.setWordWrap(True)
+        h.addWidget(val)
+        h.addStretch()
+        v.addLayout(h)
+        grid.addWidget(box, row, col)
+        return val
+
+    def _style(self):
         t = theme()
-        for lab in (self.status_label, self.sqs_label):
-            lab.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {t.font_size('base')}; border: none; background: transparent;")
-        for val in (self.status_value, self.sqs_value):
-            val.setStyleSheet(f"font-weight: 600; color: {t.get('text_primary')}; font-size: {t.font_size('base')}; border: none; background: transparent;")
+        base = "border: none; background: transparent;"
+        self.name_label.setStyleSheet(f"font-size: {font_css('title')}; font-weight: 600; font-style: italic;"
+                                      f" color: {t.get('text_primary')}; {base}")
+        self.common_name_label.setStyleSheet(f"color: {t.get('text_primary')}; font-size: {font_css('body')}; {base}")
+        for cap in self._captions:
+            cap.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('caption')}; {base}")
+        for val in (self.family_value, self.status_value, self.sqs_value, self.records_value,
+                    self.first_last_value, self.collection_status):
+            val.setStyleSheet(f"color: {t.get('text_primary')}; font-size: {font_css('body')}; {base}")
+        self.placeholder.setStyleSheet(f"color: {t.get('text_muted')}; font-style: italic; padding: 24px; {base}")
+
+    # ------------------------------------------------------------------ content
+    def clear(self):
+        self.search.clear()          # emits search_cleared -> set_species(None)
+        self.set_species(None)
 
     def _show_status(self, tvk):
         from .species_status import lookup
@@ -210,177 +156,66 @@ class SpeciesInfoPanel(Card):
         self.status_value.setText(status)
         self.sqs_value.setText(sqs)
 
-    def _setup_profile_section(self, content_layout):
-        """Set up species profile section."""
-        t = theme()
-
-        profile_section = QVBoxLayout()
-        profile_section.setSpacing(8)
-
-        profile_header = QHBoxLayout()
-        self.profile_label = QLabel("Species Profile")
-        self.profile_label.setStyleSheet(f"font-weight: 600; color: {t.get('text_heading')}; font-size: {t.font_size('base')}; border: none; background: transparent;")
-        profile_header.addWidget(self.profile_label)
-        profile_header.addStretch()
-
-        self.profile_btn = QPushButton("Create")
-        self.profile_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {ButtonColors.PRIMARY};
-                color: white;
-                border: none;
-                border-radius: {t.get('radius_sm')};
-                padding: 4px 12px;
-                font-size: {t.font_size('sm')};
-                font-weight: 600;
-            }}
-            QPushButton:hover {{ background-color: {t.get('success_hover')}; }}
-        """)
-        self.profile_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.profile_btn.clicked.connect(self._on_profile_clicked)
-        profile_header.addWidget(self.profile_btn)
-
-        profile_section.addLayout(profile_header)
-
-        # Profile preview - expands to fill space
-        self.profile_preview = QTextEdit()
-        self.profile_preview.setReadOnly(True)
-        self.profile_preview.setPlaceholderText("No profile notes yet")
-        self.profile_preview.setStyleSheet(f"""
-            QTextEdit {{
-                color: {t.get('text_primary')};
-                font-size: {t.font_size('sm')};
-                background-color: {t.get('input_bg')};
-                padding: 8px;
-                border: 1px solid {t.get('border_strong', t.get('border'))};
-                border-radius: {t.get('radius_md')};
-            }}
-        """)
-        self.profile_preview.setMinimumHeight(60)
-        # No maximum height - will expand to fill available space
-        profile_section.addWidget(self.profile_preview, 1)  # stretch=1
-
-        content_layout.addLayout(profile_section, 1)  # stretch=1 to fill remaining space
-
     def set_species(self, species_data: Optional[Dict]):
-        """Update the displayed species."""
-        t = theme()
+        """Update the displayed species (None: empty card)."""
         self._current_species = species_data
-
         if not species_data:
             self.content.setVisible(False)
             self.placeholder.setVisible(True)
             self.clear_btn.setVisible(False)
             return
-
         self.content.setVisible(True)
         self.placeholder.setVisible(False)
         self.clear_btn.setVisible(True)
 
-        # Update display
         self.name_label.setText(species_data.get('scientific_name', 'Unknown'))
-
-        # Common name - only show if setting enabled
         common = species_data.get('common_name', '')
-        if self._show_common_names:
-            if common:
-                self.common_name_label.setText(common)
-            else:
-                self.common_name_label.setText("No common name")
-            self.common_name_label.setVisible(True)
-        else:
-            self.common_name_label.setVisible(False)
-
-        # Taxonomy
-        order_val = species_data.get('order') or species_data.get('order_name') or '-'
-        family_val = species_data.get('family') or '-'
-        self.order_value.setText(order_val)
-        self.family_value.setText(family_val)
-
+        self.common_name_label.setVisible(bool(self._show_common_names and common))
+        self.common_name_label.setText(common)
+        self.family_value.setText(species_data.get('family') or '–')
         self._show_status(species_data.get('tvk') or species_data.get('species_tvk'))
 
-        # Records count
-        record_count = species_data.get('record_count', 0)
-        self.records_value.setText(f"{record_count:,}")
-        self.view_records_btn.setVisible(record_count > 0)
-
-        # Collection status - layout matching Your Records row
-        in_collection = species_data.get('in_collection', False)
-        specimen_count = species_data.get('specimen_count', 0)
-
-        if in_collection:
-            self.collection_status.setText("In Collection")
-            self.collection_status.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {t.font_size('base')}; border: none; background: transparent;")
+        n = species_data.get('record_count', 0)
+        self.records_value.setText(f"{n:,}")
+        self.view_records_btn.setVisible(n > 0)
+        self.first_last_value.setText(_first_last(species_data))
+        if species_data.get('in_collection', False):
+            self.collection_status.setText(f"{species_data.get('specimen_count', 0):,} held")
             self.view_specimens_btn.setVisible(True)
-            self.collection_count.setText(str(specimen_count))
-            self.collection_count.setVisible(True)
         else:
-            self.collection_status.setText("Not in Collection")
-            self.collection_status.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {t.font_size('base')}; border: none; background: transparent;")
+            self.collection_status.setText("Not held")
             self.view_specimens_btn.setVisible(False)
-            self.collection_count.setVisible(False)
-
-        # Load profile
         self._load_profile(species_data.get('tvk'))
 
     def _load_profile(self, tvk: str):
-        """Load the profile preview -- via the one shared reader.
-
-        _current_profile holds YOUR account only. The preview may show the
-        review's text, cited, but it must never become editable text of yours.
-        """
+        """_current_profile holds YOUR account only (the one shared reader)."""
         self._current_profile = ""
-        self.profile_preview.clear()
-        self.profile_btn.setText("Create")
-
         if not tvk:
             return
-
         try:
             from shared.species_accounts import get_species_accounts
-            acc = get_species_accounts(tvk)
-            self._current_profile = acc.own or ""
-            text = acc.preview_text()
-            if text:
-                preview = text[:300]
-                if len(text) > 300:
-                    preview += "..."
-                self.profile_preview.setText(preview)
-                self.profile_btn.setText("View")
+            self._current_profile = get_species_accounts(tvk).own or ""
         except Exception as e:
             print(f"Error loading profile: {e}")
 
     def set_profile(self, profile_text: str):
-        """Update the profile display after edit."""
+        """Your account was edited in the profile dialog."""
         self._current_profile = profile_text
-        if profile_text:
-            preview = profile_text[:300]
-            if len(profile_text) > 300:
-                preview += "..."
-            self.profile_preview.setText(preview)
-            self.profile_btn.setText("View")
-        else:
-            self.profile_preview.clear()
-            self.profile_btn.setText("Create")
 
     def refresh_common_name_setting(self):
-        """Refresh the common name display setting and update display."""
-        old_setting = self._show_common_names
+        old = self._show_common_names
         self._load_common_name_setting()
-        
-        # Only refresh if setting changed and we have a species displayed
-        if old_setting != self._show_common_names and self._current_species:
+        if old != self._show_common_names and self._current_species:
             self.set_species(self._current_species)
 
+    # ------------------------------------------------------------------ clicks
     def _on_view_records(self):
-        """Handle view records button click."""
         if self._current_species:
-            species_name = self._current_species.get('species_name') or self._current_species.get('scientific_name', '')
-            if species_name:
-                self.view_records_clicked.emit(species_name)
+            name = self._current_species.get('species_name') or self._current_species.get('scientific_name', '')
+            if name:
+                self.view_records_clicked.emit(name)
 
     def _on_lookup(self):
-        """Open this species in Stats > Species lookup (Q55)."""
         if self._current_species:
             name = (self._current_species.get('scientific_name')
                     or self._current_species.get('species_name') or '')
@@ -389,70 +224,20 @@ class SpeciesInfoPanel(Card):
                 self.lookup_clicked.emit(name, tvk)
 
     def _on_view_specimens(self):
-        """Handle view specimens button click."""
         if self._current_species:
             tvk = self._current_species.get('tvk') or self._current_species.get('species_tvk')
             if tvk:
                 self.view_specimens_clicked.emit(tvk)
 
     def _on_profile_clicked(self):
-        """Handle profile button click."""
         if self._current_species:
             self.profile_clicked.emit(self._current_species)
 
     def apply_theme(self):
-        """Apply the current theme."""
-        t = theme()
-
-        # Update name labels
-        self.name_label.setStyleSheet(f"font-size: {t.font_size('xl')}; font-weight: 600; font-style: italic; color: {t.get('text_primary')}; border: none; background: transparent;")
-        self.common_name_label.setStyleSheet(f"color: {t.get('text_primary')}; font-size: {t.font_size('base')}; border: none; background: transparent;")
-
-        # Update taxonomy labels
-        self.order_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {t.font_size('base')}; border: none; background: transparent;")
-        self.order_value.setStyleSheet(f"font-weight: 600; color: {t.get('text_primary')}; font-size: {t.font_size('base')}; border: none; background: transparent;")
-        self.family_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {t.font_size('base')}; border: none; background: transparent;")
-        self.family_value.setStyleSheet(f"font-weight: 600; color: {t.get('text_primary')}; font-size: {t.font_size('base')}; border: none; background: transparent;")
-
-        self._style_status_rows()
-
-        # Update records
-        self.records_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {t.font_size('base')}; border: none; background: transparent;")
-        self.records_value.setStyleSheet(f"font-weight: 700; font-size: {t.font_size('lg')}; color: {TabColors.OBSERVATION}; border: none; background: transparent;")
-
-        # Update collection status
-        self.collection_status.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {t.font_size('base')}; border: none; background: transparent;")
-        self.view_specimens_btn.setStyleSheet(f"color: {TabColors.COLLECTION}; font-size: {t.font_size('sm')}; text-align: left; padding: 0; border: none; background: transparent;")
-        self.collection_count.setStyleSheet(f"font-weight: 700; font-size: {t.font_size('lg')}; color: {TabColors.COLLECTION}; border: none; background: transparent;")
-
-        # Update placeholder
-        self.placeholder.setStyleSheet(f"color: {t.get('text_muted')}; font-style: italic; padding: 40px; border: none; background: transparent;")
-
-        # Update profile section
-        self.profile_label.setStyleSheet(f"font-weight: 600; color: {t.get('text_heading')}; font-size: {t.font_size('base')}; border: none; background: transparent;")
-        self.profile_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {ButtonColors.PRIMARY};
-                color: white;
-                border: none;
-                border-radius: {t.get('radius_sm')};
-                padding: 4px 12px;
-                font-size: {t.font_size('sm')};
-                font-weight: 600;
-            }}
-            QPushButton:hover {{ background-color: {t.get('success_hover')}; }}
-        """)
-        self.profile_preview.setStyleSheet(f"""
-            QTextEdit {{
-                color: {t.get('text_primary')};
-                font-size: {t.font_size('sm')};
-                background-color: {t.get('input_bg')};
-                padding: 8px;
-                border: 1px solid {t.get('border_strong', t.get('border'))};
-                border-radius: {t.get('radius_md')};
-            }}
-        """)
-
-        # Re-apply species data to update styles
+        super().apply_theme()
+        self._style()
         if self._current_species:
             self.set_species(self._current_species)
+
+
+__all__ = ["SpeciesInfoPanel"]

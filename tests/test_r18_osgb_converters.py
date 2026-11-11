@@ -57,6 +57,12 @@ def _off_grid(key):
     return not (0 <= e < 700000 and 0 <= n < 1300000)
 
 
+# R19 (Wil, 11 Nov 2026): the Recording Scheme statistics now use the Observation statistics' squares,
+# so their tetrad letters change from the old rows-first order to DINTY (SP5820: SP52E -> SP52V).
+# Their answers must now equal the Observation statistics' recorded answers exactly.
+NOW_MATCHES = {"RecordingSchemeStatsService._extract_grid_squares": "ObservationStatsService._extract_grid_squares"}
+
+
 @pytest.mark.parametrize("name", sorted(GOLD))
 def test_converter_answers_are_unchanged(name):
     kind, fn = CONVERTERS[name]
@@ -67,6 +73,10 @@ def test_converter_answers_are_unchanged(name):
     else:
         now = {repr(p): oc._run(fn, *p) for p in oc.latlon_corpus()}
     differ = {k: (GOLD[name][k], now[k]) for k in GOLD[name] if not _same(GOLD[name][k], now.get(k))}
+    if name in NOW_MATCHES:
+        ref = GOLD[NOW_MATCHES[name]]
+        assert {k: now[k] for k in ref} == ref
+        return
     if name in INVALID_ONLY:
         assert all(_off_grid(k) and v[1] == "None" for k, v in differ.items()), differ
         return

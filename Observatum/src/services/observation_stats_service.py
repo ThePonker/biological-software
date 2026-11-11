@@ -19,6 +19,45 @@ from shared.species_counting import counted_clause, species_key_expr
 CACHE_TTL_SECONDS = 300
 
 
+
+def extract_grid_squares(grid_ref: str) -> Dict[str, str]:
+    """Monad, tetrad (DINTY) and hectad of a grid reference. One source for the Observation and
+    Recording Scheme statistics (R19: the scheme copy still used the old rows-first tetrad letters)."""
+    if not grid_ref or len(grid_ref) < 4:
+        return {}
+    
+    gr = grid_ref.upper().replace(" ", "")
+    
+    letters = ""
+    digits = ""
+    for i, c in enumerate(gr):
+        if c.isalpha():
+            letters += c
+        else:
+            digits = gr[i:]
+            break
+    
+    if len(letters) < 1 or len(digits) < 2:
+        return {}
+    
+    result = {}
+    
+    if len(digits) >= 2:
+        result['hectad'] = f"{letters}{digits[0]}{digits[len(digits)//2]}"
+    
+    if len(digits) >= 4:
+        e = int(digits[1])
+        n = int(digits[len(digits)//2 + 1])
+        # DINTY: A-E run up the first 2 km column, then the next column (no O);
+        # the same scheme as shared/osgb.py. Rows-first was used before 9 Oct.
+        tetrad_letter = "ABCDEFGHIJKLMNPQRSTUVWXYZ"[(e // 2) * 5 + (n // 2)]
+        result['tetrad'] = f"{result['hectad']}{tetrad_letter}"
+    
+    if len(digits) >= 4:
+        result['monad'] = f"{letters}{digits[0]}{digits[1]}{digits[len(digits)//2]}{digits[len(digits)//2 + 1]}"
+    
+    return result
+
 class ObservationStatsService:
     """
     Singleton service providing cached statistics for observation data.
@@ -85,41 +124,7 @@ class ObservationStatsService:
         return species_key_expr("observations", prefix, self._db)
 
     def _extract_grid_squares(self, grid_ref: str) -> Dict[str, str]:
-        """Extract monad, tetrad, hectad from a grid reference."""
-        if not grid_ref or len(grid_ref) < 4:
-            return {}
-        
-        gr = grid_ref.upper().replace(" ", "")
-        
-        letters = ""
-        digits = ""
-        for i, c in enumerate(gr):
-            if c.isalpha():
-                letters += c
-            else:
-                digits = gr[i:]
-                break
-        
-        if len(letters) < 1 or len(digits) < 2:
-            return {}
-        
-        result = {}
-        
-        if len(digits) >= 2:
-            result['hectad'] = f"{letters}{digits[0]}{digits[len(digits)//2]}"
-        
-        if len(digits) >= 4:
-            e = int(digits[1])
-            n = int(digits[len(digits)//2 + 1])
-            # DINTY: A-E run up the first 2 km column, then the next column (no O);
-            # the same scheme as shared/osgb.py. Rows-first was used before 9 Oct.
-            tetrad_letter = "ABCDEFGHIJKLMNPQRSTUVWXYZ"[(e // 2) * 5 + (n // 2)]
-            result['tetrad'] = f"{result['hectad']}{tetrad_letter}"
-        
-        if len(digits) >= 4:
-            result['monad'] = f"{letters}{digits[0]}{digits[1]}{digits[len(digits)//2]}{digits[len(digits)//2 + 1]}"
-        
-        return result
+        return extract_grid_squares(grid_ref)
 
     def _refresh(self):
         """Refresh all stats from database."""

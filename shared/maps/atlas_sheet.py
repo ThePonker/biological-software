@@ -130,13 +130,15 @@ class AtlasSheetMixin:
     def render_sheet(self, title: str, subtitle: str = "",
                      legend: Sequence[Tuple[str, str]] = (), footer: str = "",
                      paper: str = "A4", dpi: int = 300, extent=None, extras=None,
-                     layer_groups=()) -> QImage:
+                     layer_groups=(), grid: bool = False) -> QImage:
         """An atlas page: title, map, legend and credits, at `dpi`. `extent`: an OSGB box,
         "full" / None (the whole view's extent, L14/L32: the default) or "current" (what is
         on screen after zooming and panning). The clicked square's outline is never drawn.
         `extras`: an extras_panel.Extras (stat lines, phenology chart) drawn between the map
         and the legend; None or empty leaves the page exactly as it was. `layer_groups`: the
-        background-layer legend (layer_legend.build), drawn under the squares' legend."""
+        background-layer legend (layer_legend.build), drawn under the squares' legend. `grid`: the
+        grid-square overlay on the page (R19; the Tetrads tick of the Layers window says whether
+        tetrads are in it); off, the page has the faint grid it always had."""
         ext = self.resolve_extent(extent)
         w, h, landscape = self._sheet_size(ext, paper, dpi)
         img = QImage(w, h, QImage.Format.Format_RGB32)
@@ -164,8 +166,12 @@ class AtlasSheetMixin:
         p.fillRect(box, QColor(_SEA_C))
         p.save()
         p.setClipRect(box)
-        self.draw(p, gs.MapFit(ext, box.width(), box.height(), pad=0, x0=box.x(), y0=box.y()), k,
-                  selected=False)
+        self._grid_force = (bool(grid), bool(grid) and "grid_tetrads" in self._layers_on)
+        try:
+            self.draw(p, gs.MapFit(ext, box.width(), box.height(), pad=0, x0=box.x(), y0=box.y()), k,
+                      selected=False)
+        finally:
+            self._grid_force = None
         p.restore()
         p.setPen(QPen(QColor(theme.LINE), 0.8 * k))
         p.setBrush(Qt.BrushStyle.NoBrush)

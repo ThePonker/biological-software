@@ -47,7 +47,7 @@ from typing import Dict, List
 from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QBrush, QColor, QPainter, QPainterPath, QPen, QPolygonF, QTransform
 
-from shared.maps import env_classes, layer_bin, layer_opacity, layers, place_names, relief, value_grid
+from shared.maps import env_classes, grid_overlay, layer_bin, layer_opacity, layers, place_names, relief, value_grid
 from shared.maps import env_registry as env
 from shared.maps.map_ahead import bytes_bin, bytes_feats, layer_parts
 from shared.maps.map_timing import timed
@@ -117,6 +117,7 @@ class BasemapLayersMixin:
         self._metre_polys = None                   # (land path, {vc: path}): the rings in metres, once
         self._metre_lines: Dict[str, QPainterPath] = {}     # name -> its chains in metres, once
         self._fast_fill = False                    # the screen's picture only (not the atlas page)
+        self._grid_force = None                    # render_sheet: the page's own grid choice
         self._layer_cache: Dict[tuple, QPainterPath] = {}   # (layer, lod, area, class) -> path in metres
         self._class_index: Dict[tuple, List[str]] = {}      # (layer, lod, area) -> its classes
         self._init_ahead()                         # R16: the look-ahead worker (map_ahead.py)
@@ -313,11 +314,24 @@ class BasemapLayersMixin:
             p.setBrush(Qt.BrushStyle.NoBrush)
             for line in self._lines("coast", fit):
                 p.drawPolyline(line)
-        self._draw_grid(p, fit, k)
+        lines_on, tetrads_on = self._grid_state()
+        if not lines_on:                # the grid overlay's lines replace these faint ones
+            self._draw_grid(p, fit, k)
         if self._vc_bounds_on and self._vc_rings:
             draw_boundaries(p, [self._lines("vc_inland", fit)], k)  # the coast is drawn already
         if self._districts_on and self.has_districts():
             self._draw_districts(p, fit, k)
+        if lines_on or tetrads_on:      # R19: above the layers, under the squares
+            with timed("paint", "grid overlay"):
+                grid_overlay.draw(p, fit, k, layer_transform(fit), lines_on, tetrads_on)
+
+    def _grid_state(self):
+        """(grid lines, tetrads) to draw: the Layers window's two ticks on the screen; the atlas
+        page's own choice (render_sheet sets _grid_force) so its "Grid" tick decides there."""
+        force = getattr(self, "_grid_force", None)
+        if force is not None:
+            return force
+        return "grid_lines" in self._layers_on, "grid_tetrads" in self._layers_on
 
     def _draw_land(self, p: QPainter, land, k: float):
         # gb_outline.json's districts share their border points exactly; the same-colour edge

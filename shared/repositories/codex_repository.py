@@ -1112,6 +1112,36 @@ def _classify(status, jurisdiction=DEFAULT_JURISDICTION):
     return KeySpeciesTier.NONE
 
 
+# ------------------------------------------------------------------
+# "Notable" species for Home > Notable records (Round 19, Wil's decision 11 Nov 2026).
+# NARROWER than the key-species rule above: Nationally Scarce or rarer (NS, Na, Nb, NR, any
+# RDB category) and GB Red List VU, EN, CR. Near Threatened (NT), DD, EX/RE, specialist panels
+# and Priority / legal listings are NOT notable here (they are still Key in reports).
+# Highest first: the badge shows the first of these a species holds.
+NOTABLE_STATUS_ORDER = ("CR", "EN", "VU", "RDB1", "RDB2", "NR",
+                        "RDB3", "RDBK", "NS", "Na", "Nb", "Notable")
+NOTABLE_RED_LIST = frozenset({"CR", "EN", "VU"})       # threat_iucn_2001 (the GB Red List)
+
+
+def notable_status(status):
+    """The highest notable status of a SpeciesStatus (an entry of NOTABLE_STATUS_ORDER), or
+    None when the species is not notable. Invertebrates only, and never a species whose GB
+    Red List status is NA: the same two gates as _classify (the Key rule)."""
+    if status is None or not status.is_invertebrate:
+        return None
+    red = (status.threat_iucn_2001.value or "").strip().upper() if status.threat_iucn_2001 else ""
+    if red == "NA":
+        return None
+    held = set()
+    if red in NOTABLE_RED_LIST:
+        held.add(red)
+    for entry in (status.rarity_modern, status.rarity_legacy, status.threat_iucn_legacy):
+        v = (entry.value or "").strip() if entry else ""
+        if v in NOTABLE_STATUS_ORDER and v not in NOTABLE_RED_LIST:
+            held.add(v)
+    return next((v for v in NOTABLE_STATUS_ORDER if v in held), None)
+
+
 _TIER_RANK = {KeySpeciesTier.RARE: 3, KeySpeciesTier.SCARCE: 2,
               KeySpeciesTier.PRIORITY: 1, KeySpeciesTier.NONE: 0}
 
