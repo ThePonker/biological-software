@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from ...core.config import TabColors
 from ...themes import theme
+from shared.text_sizes import font_css
 
 
 class MapSquareList(QWidget):
@@ -31,7 +32,7 @@ class MapSquareList(QWidget):
         sep.setStyleSheet(f"background-color: {t.get('separator')};")
         group.addWidget(sep)
         self.grid_title = QLabel("GRID SQUARES (0)")
-        self.grid_title.setStyleSheet(f"font-weight: 600; color: {t.get('text_heading')}; font-size: 11px; letter-spacing: 1px;")
+        self.grid_title.setStyleSheet(f"font-weight: 600; color: {t.get('text_heading')}; font-size: {font_css('caption')}; letter-spacing: 1px;")
         group.addWidget(self.grid_title)
         self.grid_list = QVBoxLayout()
         self.grid_list.setSpacing(4)
@@ -57,7 +58,7 @@ class MapSquareList(QWidget):
             row.addStretch()
             n, k = sq['count'], sq.get('species', 0)
             count_label = QLabel(f"{n:,} record{'s' if n != 1 else ''} · {k} sp.")
-            count_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 11px;")
+            count_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('caption')};")
             row.addWidget(count_label)
             container = QFrame()
             container.setLayout(row)
@@ -70,5 +71,5 @@ class MapSquareList(QWidget):
         if len(ordered) > self.GRID_LIST_MAX:
             more = QLabel(f"… and {len(ordered) - self.GRID_LIST_MAX:,} more "
                           f"(click them on the map)")
-            more.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 11px;")
+            more.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('caption')};")
             self.grid_list.addWidget(more)

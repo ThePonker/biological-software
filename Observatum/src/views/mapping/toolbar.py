@@ -20,6 +20,7 @@ from PySide6.QtCore import Signal
 from ...themes import theme
 from ...core.config import TabColors
 from shared.maps.grid_squares import GRID_LABELS
+from shared.text_sizes import font_css
 
 VIEW3D_PAUSED = "The 3D view is being rebuilt and will return in a later version."
 EXPORT_EXTENTS = [("full", "Full extent"), ("current", "Current view")]
@@ -60,7 +61,7 @@ class MapToolbar(QFrame):
 
         view_label = QLabel("View:")
         view_label.setStyleSheet(
-            f"color: {t.get('text_heading')}; font-size: 12px;"
+            f"color: {t.get('text_heading')}; font-size: {font_css('small')};"
         )
         view_group.addWidget(view_label)
 
@@ -84,7 +85,7 @@ class MapToolbar(QFrame):
 
         grid_label = QLabel("Grid:")
         grid_label.setStyleSheet(
-            f"color: {t.get('text_heading')}; font-size: 12px;"
+            f"color: {t.get('text_heading')}; font-size: {font_css('small')};"
         )
         grid_group.addWidget(grid_label)
 
@@ -117,7 +118,7 @@ class MapToolbar(QFrame):
                 border: 1px solid {t.get('border')};
                 border-radius: {t.get('radius_sm')};
                 padding: 6px 12px;
-                font-size: 12px;
+                font-size: {font_css('small')};
             }}
             QPushButton:hover {{ background-color: {t.get('hover')}; }}
             QPushButton:disabled {{ color: {t.get('disabled_text')}; background-color: transparent; }}
@@ -151,7 +152,7 @@ class MapToolbar(QFrame):
                 padding: 6px 12px;
                 border: 1px solid {t.get('border')};
                 border-radius: {t.get('radius_sm')};
-                font-size: 12px;
+                font-size: {font_css('small')};
             }}
             QPushButton:hover {{ background-color: {t.get('hover')}; }}
         """)
@@ -184,7 +185,7 @@ class MapToolbar(QFrame):
                         color: white;
                         border: none;
                         padding: 6px 12px;
-                        font-size: 12px;
+                        font-size: {font_css('small')};
                         font-weight: 600;
                     }}
                 """)
@@ -195,7 +196,7 @@ class MapToolbar(QFrame):
                         color: {t.get('text_heading')};
                         border: 1px solid {t.get('border')};
                         padding: 6px 12px;
-                        font-size: 12px;
+                        font-size: {font_css('small')};
                     }}
                     QPushButton:hover {{
                         background-color: {t.get('hover')};
@@ -226,7 +227,7 @@ class MapToolbar(QFrame):
                     border: 1px solid {self._accent};
                     border-radius: {t.get('radius_sm')};
                     padding: 6px 12px;
-                    font-size: 12px;
+                    font-size: {font_css('small')};
                 }}
             """)
         else:
@@ -235,7 +236,7 @@ class MapToolbar(QFrame):
                     border: 1px solid {t.get('border')};
                     border-radius: {t.get('radius_sm')};
                     padding: 6px 12px;
-                    font-size: 12px;
+                    font-size: {font_css('small')};
                 }}
                 QPushButton:hover {{
                     background-color: {t.get('hover')};
@@ -253,7 +254,7 @@ class MapToolbar(QFrame):
                     border: 1px solid {self._accent};
                     border-radius: {t.get('radius_sm')};
                     padding: 6px 12px;
-                    font-size: 12px;
+                    font-size: {font_css('small')};
                 }}
             """)
         else:
@@ -262,7 +263,7 @@ class MapToolbar(QFrame):
                     border: 1px solid {t.get('border')};
                     border-radius: {t.get('radius_sm')};
                     padding: 6px 12px;
-                    font-size: 12px;
+                    font-size: {font_css('small')};
                 }}
                 QPushButton:hover {{
                     background-color: {t.get('hover')};

@@ -20,6 +20,7 @@ except ImportError:  # pragma: no cover
 
 from Examen.style import (SURFACE, TEXT_PRIMARY, TEXT_SECONDARY, TEXT_MUTED, BORDER,
     MOSS_GREEN, ACCENT_LIGHT, ACCENT_DARK, RED_STATUS, AMBER)
+from shared.text_sizes import font_css, qfont
 
 
 class OverviewTab(QWidget):
@@ -63,7 +64,7 @@ class OverviewTab(QWidget):
         # The SQI scale, stated where the figure is shown (backlog E8)
         self.sqi_caption = QLabel(SQI_CAPTION)
         self.sqi_caption.setToolTip(SQI_TOOLTIP)
-        self.sqi_caption.setStyleSheet("color: " + TEXT_MUTED + "; font-size: 11px;")
+        self.sqi_caption.setStyleSheet("color: " + TEXT_MUTED + f"; font-size: {font_css('caption')};")
         layout.addWidget(self.sqi_caption)
 
         # Row 2: Summary sentence
@@ -96,7 +97,7 @@ class OverviewTab(QWidget):
 
         self.pantheon_label = QLabel("")
         self.pantheon_label.setStyleSheet(
-            "color: " + TEXT_MUTED + "; font-size: 11px;")
+            "color: " + TEXT_MUTED + f"; font-size: {font_css('caption')};")
         tier_layout.addWidget(self.pantheon_label)
 
         layout.addWidget(tier_frame)
@@ -105,7 +106,7 @@ class OverviewTab(QWidget):
         self.sap_label = QLabel("")
         self.sap_label.setWordWrap(True)
         self.sap_label.setStyleSheet(
-            "color: " + TEXT_PRIMARY + "; font-size: 12px; padding: 10px 16px; "
+            "color: " + TEXT_PRIMARY + f"; font-size: {font_css('small')}; padding: 10px 16px; "
             "background: " + ACCENT_LIGHT + "; border: 1px solid " + BORDER + "; border-radius: 8px;")
         self.sap_label.setVisible(False)
         layout.addWidget(self.sap_label)
@@ -114,7 +115,7 @@ class OverviewTab(QWidget):
         self.habitat_snapshot = QLabel("")
         self.habitat_snapshot.setWordWrap(True)
         self.habitat_snapshot.setStyleSheet(
-            "color: " + TEXT_SECONDARY + "; font-size: 12px; padding: 4px 0;")
+            "color: " + TEXT_SECONDARY + f"; font-size: {font_css('small')}; padding: 4px 0;")
         layout.addWidget(self.habitat_snapshot)
 
         # Row 5: compartments (backlog E6) -- only when the records name 2+ of them
@@ -262,7 +263,7 @@ class OverviewTab(QWidget):
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         t = QLabel(title)
-        t.setFont(QFont("Segoe UI", 11))
+        t.setFont(qfont('body_large', "Segoe UI"))
         t.setStyleSheet("color: " + TEXT_MUTED + "; border: none; background: none;")
         t.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(t)
@@ -276,7 +277,7 @@ class OverviewTab(QWidget):
 
         s = QLabel(subtitle)
         s.setObjectName("hero_sub")
-        s.setFont(QFont("Segoe UI", 10))
+        s.setFont(qfont('body', "Segoe UI"))
         s.setStyleSheet("color: " + TEXT_MUTED + "; border: none; background: none;")
         s.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(s)
@@ -299,10 +300,10 @@ class OverviewTab(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(6)
         dot = QLabel("\u25CF")
-        dot.setStyleSheet(f"color: {colour}; font-size: 14px; border: none; background: none;")
+        dot.setStyleSheet(f"color: {colour}; font-size: {font_css('body')}; border: none; background: none;")
         layout.addWidget(dot)
         name = QLabel(label)
-        name.setStyleSheet("color: " + TEXT_SECONDARY + "; font-size: 12px; border: none; background: none;")
+        name.setStyleSheet("color: " + TEXT_SECONDARY + f"; font-size: {font_css('small')}; border: none; background: none;")
         layout.addWidget(name)
         val = QLabel(value)
         val.setObjectName("tier_val")

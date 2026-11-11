@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
 )
 
 from . import theme
+from shared.text_sizes import font_css
 
 
 class ReviewsTab(QWidget):
@@ -37,7 +38,7 @@ class ReviewsTab(QWidget):
         table_label = QLabel("LOADED REVIEWS")
         table_label.setStyleSheet(
             f"font-weight: 600; color: {theme.TEXT_HEADING}; "
-            f"font-size: 11px; letter-spacing: 1px;"
+            f"font-size: {font_css('caption')}; letter-spacing: 1px;"
         )
         layout.addWidget(table_label)
 
@@ -58,7 +59,7 @@ class ReviewsTab(QWidget):
             QTableWidget {{
                 border: 1px solid {theme.BORDER};
                 gridline-color: {theme.SEPARATOR};
-                font-size: 12px;
+                font-size: {font_css('small')};
             }}
             QTableWidget::item {{
                 padding: 6px 8px;
@@ -69,7 +70,7 @@ class ReviewsTab(QWidget):
                 border-bottom: 1px solid {theme.BORDER};
                 padding: 8px;
                 font-weight: 600;
-                font-size: 11px;
+                font-size: {font_css('caption')};
                 color: {theme.TEXT_HEADING};
             }}
         """)
@@ -78,7 +79,7 @@ class ReviewsTab(QWidget):
         # JNCC base info
         self.jncc_label = QLabel()
         self.jncc_label.setStyleSheet(
-            f"color: {theme.TEXT_SECONDARY}; font-size: 11px;"
+            f"color: {theme.TEXT_SECONDARY}; font-size: {font_css('caption')};"
         )
         layout.addWidget(self.jncc_label)
 
@@ -96,14 +97,14 @@ class ReviewsTab(QWidget):
         cl.setContentsMargins(12, 8, 12, 8)
         lbl = QLabel(label_text)
         lbl.setStyleSheet(
-            f"color: {theme.TEXT_SECONDARY}; font-size: 11px; "
+            f"color: {theme.TEXT_SECONDARY}; font-size: {font_css('caption')}; "
             f"font-weight: 600; letter-spacing: 1px;"
         )
         cl.addWidget(lbl)
         val = QLabel(value_text)
         val.setObjectName("card_value")
         val.setStyleSheet(
-            f"color: {theme.ACCENT}; font-size: 20px; font-weight: 700;"
+            f"color: {theme.ACCENT}; font-size: {font_css('display_20')}; font-weight: 700;"
         )
         cl.addWidget(val)
         return card

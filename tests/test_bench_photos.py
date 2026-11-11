@@ -77,7 +77,7 @@ def test_row_photos_become_the_records_at_commit(tmp_path):
             pass
 
     class Model:
-        def create(self, o):
+        def create(self, o, extra=None):
             return 77
 
     class Db:

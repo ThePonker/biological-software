@@ -61,7 +61,7 @@ class Model:
     def __init__(self):
         self.n = 0
 
-    def create(self, o):
+    def create(self, o, extra=None):
         self.n += 1
         return 100 + self.n
 

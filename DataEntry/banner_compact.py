@@ -2,8 +2,8 @@
 
 On a short laptop screen (1280x720) the cards above the grid leave about 7 rows. The
 "Fold banner" button at the right-hand end of the job's top line (R17: it used to be a small
-link inside the species card) folds every card into this one line -- an "Unfold" button and
-the selected record's species -- and the choice is remembered in settings. Default: unfolded.
+link inside the species card) folds every card into this one line -- the selected record's
+species; the same button then reads "Unfold banner" -- and the choice is remembered in settings. Default: unfolded.
 """
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QSizePolicy, QWidget
 
 from DataEntry import theme
+from shared.text_sizes import font_css
 
 SETTING_KEY = "DataEntry/bannerCompact"
 STRIP_HEIGHT = 30
@@ -22,7 +23,7 @@ def link_button(text: str, tip: str) -> QPushButton:
     b.setFlat(True)
     b.setCursor(Qt.CursorShape.PointingHandCursor)
     b.setToolTip(tip)
-    b.setStyleSheet(f"QPushButton {{ color: {theme.SLATE}; font-size: 11px; border: none;"
+    b.setStyleSheet(f"QPushButton {{ color: {theme.SLATE}; font-size: {font_css('caption')}; border: none;"
                     f" background: transparent; padding: 0 4px; }}"
                     f"QPushButton:hover {{ color: {theme.INK}; text-decoration: underline; }}")
     return b
@@ -52,7 +53,8 @@ def make_fold_button(info_panel) -> QPushButton:
 
 
 class CompactStrip(QWidget):
-    """The one-line banner: Unfold button + the current record's species."""
+    """The one-line banner: the current record's species. (R18: no Unfold button of its own; the
+    job's top line has the one, make_fold_button.)"""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -63,11 +65,8 @@ class CompactStrip(QWidget):
         lay = QHBoxLayout(self)
         lay.setContentsMargins(8, 0, 8, 0)
         lay.setSpacing(10)
-        self.unfold_btn = link_button("▾ Unfold banner",
-                                      "Show the cards again (species, maps, entry controls, legend).")
-        lay.addWidget(self.unfold_btn)
         self.label = QLabel("")
-        self.label.setStyleSheet(f"color: {theme.INK}; font-size: 12px; font-weight: 600;"
+        self.label.setStyleSheet(f"color: {theme.INK}; font-size: {font_css('small')}; font-weight: 600;"
                                  " border: none; background: transparent;")
         self.label.setMinimumWidth(0)
         self.label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)

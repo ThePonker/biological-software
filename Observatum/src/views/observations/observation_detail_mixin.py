@@ -285,13 +285,15 @@ class ObservationDetailMixin:
         vc_number from VCLookupService.assess() and latitude / longitude (centre of
         the square, WGS84) from shared.osgb -- the same as Data Entry's commit. A
         reference with no VC (or an unreadable one) clears the old values rather than
-        leaving them on the record; so does a grid reference emptied altogether.
+        leaving them on the record; so does a grid reference emptied altogether (its latitude and longitude too).
         """
         def norm(r):
             return (r or "").upper().replace(" ", "")
         if not new_ref:
-            # a grid reference emptied: the vice-county it gave goes too (empty -> NULL, R17 B7)
-            return ({'vice_county': None, 'vc_number': None} if norm(old_ref) else {}), ""
+            # a grid reference emptied: the vice-county and the lat/long it gave go too
+            # (empty -> NULL, R17 B7; latitude and longitude R18 B7)
+            return ({'vice_county': None, 'vc_number': None,
+                     'latitude': None, 'longitude': None} if norm(old_ref) else {}), ""
         if norm(new_ref) == norm(old_ref):
             return {}, ""
         from shared.osgb import gridref_to_wgs84

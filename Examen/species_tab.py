@@ -22,6 +22,7 @@ except ImportError:  # pragma: no cover
 
 from Examen.style import (BG, TEXT_HEADING, TEXT_MUTED,
     BORDER, SEPARATOR, MOSS_GREEN, RED_STATUS, AMBER)
+from shared.text_sizes import font_css
 
 
 def biotope_options(species):
@@ -63,7 +64,7 @@ class SpeciesTab(QWidget):
 
         filt.addStretch()
         self.count_label = QLabel("")
-        self.count_label.setStyleSheet("color: " + TEXT_MUTED + "; font-size: 11px;")
+        self.count_label.setStyleSheet("color: " + TEXT_MUTED + f"; font-size: {font_css('caption')};")
         filt.addWidget(self.count_label)
         layout.addLayout(filt)
 
@@ -77,9 +78,9 @@ class SpeciesTab(QWidget):
         self.table.setAlternatingRowColors(True)
         self.table.setSortingEnabled(True)
         self.table.setStyleSheet(
-            "QTableWidget { border: 1px solid " + BORDER + "; gridline-color: " + SEPARATOR + "; font-size: 11px; }"
+            "QTableWidget { border: 1px solid " + BORDER + "; gridline-color: " + SEPARATOR + f"; font-size: {font_css('caption')}; }}"
             "QHeaderView::section { background: " + BG + "; border: none; border-bottom: 2px solid "
-            + BORDER + "; padding: 5px; font-weight: bold; font-size: 11px; color: " + TEXT_HEADING + "; }")
+            + BORDER + f"; padding: 5px; font-weight: bold; font-size: {font_css('caption')}; color: " + TEXT_HEADING + "; }")
         self.table.horizontalHeaderItem(3).setToolTip(
             "Species Quality Score: 1 common, 4 Nationally Scarce or Notable, 8 Nationally "
             "Rare or Vulnerable, 16 Endangered, 32 Critically Endangered.\n\n" + SQI_TOOLTIP)

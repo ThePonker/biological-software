@@ -1,6 +1,6 @@
 # Backlog
 
-## Updated 26 October 2026 (Round 15 overnight; see "Next (26 Oct)"); 24 Oct refresh below
+## Updated 10 November 2026 (Rounds 16–17 committed, Round 18 being built; see "Next (10 Nov)"); older sections below
 ## Check this before starting a session.
 
 This file is the working list: how we work, what is next, what is decided but not built,
@@ -28,7 +28,52 @@ comes first either way. *(Update 24 Oct: Q1 was settled by the order of work of 
 
 ---
 
-## Next (26 Oct): Round 15 built overnight, waiting for Wil's tests (`202e586`)
+## Next (10 Nov): Rounds 16–17 committed and pushed; Round 18 being built
+
+**On the PC and pushed (`e0c2306`):** Rounds 15–17. Round 16 (speed and stability: binary layers,
+disk caches, threaded Generate, pooled read connections, species index cache, one app event filter,
+3D in its own process, synonym and name/TVK checks at commit, compact banner). Round 17 (GC from a
+timer, Interface size setting, 11 px minimum text, Identify ✕, layer group switches, layer legend on the
+export, decade filter, recorders counted per person, Reference column kept out of client exports,
+Species Info status/SQS, common-name tie rule, edit dialog refreshes taxonomy, Sync panel and
+"coming soon" line removed, 3D paused). Wil's tests passed 10 Nov; full suite 2,241 passed; reference
+check ALL MATCH. PC: Python 3.14.10, PySide6 6.12.0; layer binaries converted; GB soil layer rebuilt.
+
+**Round 18 (agreed 10 Nov, 23:21), being built; pictures for Wil's approval before delivery:**
+- Text sizes: named sizes in the theme (caption 12, small 13, body 14, body_large 15, heading 16,
+  title 18 px, larger sizes unchanged); the ~700 written-in sizes moved onto them; 12 px minimum
+  (Word 9 pt); boxes that clip made to fit; no new scroll bars. Maps and exports untouched.
+- Observatum fixes: map zoom to ~1 km from any view; specimen import fuzzy-lookup hang; scheme import
+  cf./agg. errors shown; "scheme records cannot be removed" sentence in the scheme wizard;
+  `ObservationModel.create` writes every column (no second UPDATE; reviewed); one grid-reference
+  converter (INF9; reviewed, identical outputs proven); Data Entry folded strip loses its extra Unfold
+  button; emptying a grid ref also clears latitude/longitude.
+
+**Round 18 tests deferred until the importers are tested with fresh data (Wil, 11 Nov):**
+- Edit a record, empty its grid ref, then put it back: vice-county, latitude and longitude clear.
+- Home › Quick Entry: add one record; order, family, sort key and superfamily look right in Observations.
+- Scheme import wizard to the confirm page (don't import): the "cannot be removed" sentence shows.
+- Data Entry: commit a small job; trap, visit, sub-location and sort key arrive as before (one-step create).
+
+**Next round (asked 11 Nov):** table text larger (cells use the 12 px default, rows fixed at 24 px);
+grid-square overlay on the map (100 km / 10 km / tetrad / 1 km lines and labels, by zoom); Recording
+Scheme statistics tetrad letters (SP52E → SP52V); Home screen redesign (Wil considering; ideas
+discussed 11 Nov).
+
+**Open after Round 18:**
+- Data tidy (each a script, dry run first): `subfamily` NULL vs '' (F16); two specimens without a TVK
+  (F15); has `link_specimens_to_observations.py --apply` (~1,115 links) been run on the PC?; has
+  `rename_bracket_numbers_20261024.py` (F94, 33 "(2)" names) been run?
+- Species Match Report in the import wizards never seen opened (F41): a one-minute check.
+- Map content deferred: OS 1:250k colour raster review; Small Settlements; railway tunnels drawn as surface.
+- Wil's decisions: the `seed_codex.py` DELETE; Coedely Park into `reference_figures.json` after Richard's report.
+- Away mode: Lector store and Codex Manager still connect writable (F90).
+- Big jobs, in the suggested order: batch maps screen (design Q41–Q50); specimens → records (Q23–Q33);
+  first real iRecord round trip; phone photo intake (B4); Data Entry map switch-over; **3D view rebuilt
+  in Qt's built-in Chromium with three.js (parked by Wil 10 Nov; QtGraphs crashes natively, F107)**.
+- Lector parked after the Round 15 delete-search test (Wil, 10 Nov): the rest of its Round 15 tests wait.
+
+## Next (26 Oct): Round 15 built overnight (`202e586`) -- DONE: tested and committed 10 Nov
 
 Built since 24 Oct, delivered and byte-checked on the PC, none of it committed by Wil yet: Round 14
 part 1 (`cb17dbf`), light scheme (`9676d04`), maps round 1 (`9a9056d`), environment data fixes

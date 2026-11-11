@@ -37,6 +37,7 @@ from shared.natural_sort import less_than
 from ...themes import theme
 from ...core.config import TabColors
 from ...services.recording_scheme_stats_service import get_recording_scheme_stats
+from shared.text_sizes import font_css
 
 
 class SortableTableModel(QAbstractTableModel):
@@ -1153,7 +1154,7 @@ class VCDetailsDialog(QDialog):
                 background-color: {t.get('background')};
             }}
             QLabel#vc_details_header {{
-                font-size: 18px;
+                font-size: {font_css('title')};
                 font-weight: bold;
                 color: {t.get('text_primary')};
                 padding: 8px 0;
@@ -1506,7 +1507,7 @@ class SchemeDashboard(QScrollArea):
             
             # Header
             header = QLabel(f"<b>{species_name}</b><br><span style='color: {t.get("text_secondary")}'>Recorded in {len(results)} Vice Counties</span>")
-            header.setStyleSheet(f"font-size: 16px; color: {t.get('text_primary')};")
+            header.setStyleSheet(f"font-size: {font_css('heading')}; color: {t.get('text_primary')};")
             layout.addWidget(header)
             
             # Table
@@ -1692,7 +1693,7 @@ class SchemeDashboard(QScrollArea):
             
             # Header
             header = QLabel(f"<b>{species_name}</b><br><span style='color: {t.get("text_secondary")}'>VC{vc_number} - {vc_name} ({len(results)} records)</span>")
-            header.setStyleSheet(f"font-size: 16px; color: {t.get('text_primary')};")
+            header.setStyleSheet(f"font-size: {font_css('heading')}; color: {t.get('text_primary')};")
             layout.addWidget(header)
             
             # Table
@@ -1771,7 +1772,7 @@ class SchemeDashboard(QScrollArea):
             
             # Info label
             info_label = QLabel("Double-click a row to view full record details")
-            info_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 12px;")
+            info_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('small')};")
             layout.addWidget(info_label)
             
             # Export CSV button

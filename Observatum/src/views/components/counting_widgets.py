@@ -16,6 +16,7 @@ from shared.species_counting import (EXPORT_COUNTED, EXPORT_INCLUDE, EXPORT_LABE
                                      EXPORT_ONLY)
 
 from ...themes import theme
+from shared.text_sizes import font_css
 
 
 def only_excluded_toggle(parent: Optional[QWidget] = None) -> QCheckBox:
@@ -24,7 +25,7 @@ def only_excluded_toggle(parent: Optional[QWidget] = None) -> QCheckBox:
                    "(the dimmed rows), e.g. genus-only names and aggregates.\n"
                    "Change which kinds are left out in Settings > Species counting.")
     t = theme()
-    chk.setStyleSheet(f"QCheckBox {{ font-size: 11px; color: {t.get('text_secondary')}; }}")
+    chk.setStyleSheet(f"QCheckBox {{ font-size: {font_css('caption')}; color: {t.get('text_secondary')}; }}")
     return chk
 
 
@@ -36,7 +37,7 @@ def show_duplicates_toggle(parent: Optional[QWidget] = None) -> QCheckBox:
                    "twice).\nThey are shown dimmed with a \"Duplicate of\" column and are never "
                    "counted: the iRecord copy is the one that counts.")
     t = theme()
-    chk.setStyleSheet(f"QCheckBox {{ font-size: 11px; color: {t.get('text_secondary')}; }}")
+    chk.setStyleSheet(f"QCheckBox {{ font-size: {font_css('caption')}; color: {t.get('text_secondary')}; }}")
     return chk
 
 
@@ -53,7 +54,7 @@ def ask_export_mode(parent: Optional[QWidget] = None, what: str = "records") -> 
     note = QLabel("Excluded records are the ones your Species counting settings leave out "
                   "(genus-only names, aggregates and so on).")
     note.setWordWrap(True)
-    note.setStyleSheet(f"color: {theme().get('text_secondary')}; font-size: 11px;")
+    note.setStyleSheet(f"color: {theme().get('text_secondary')}; font-size: {font_css('caption')};")
     lay.addWidget(note)
     buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok
                                | QDialogButtonBox.StandardButton.Cancel)

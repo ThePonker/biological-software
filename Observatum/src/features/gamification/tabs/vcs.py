@@ -15,6 +15,7 @@ from PySide6.QtCore import Qt, QByteArray
 from PySide6.QtSvgWidgets import QSvgWidget
 
 from ..theme import TEXT
+from shared.text_sizes import font_css
 
 
 class VCsTab:
@@ -66,7 +67,7 @@ class VCsTab:
         map_layout.setContentsMargins(10, 10, 10, 10)
         
         map_label = QLabel("Vice County Coverage")
-        map_label.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {TEXT['accent']};")
+        map_label.setStyleSheet(f"font-size: {font_css('body')}; font-weight: bold; color: {TEXT['accent']};")
         map_layout.addWidget(map_label)
         
         # SVG Map widget
@@ -88,7 +89,7 @@ class VCsTab:
         crown_layout = QVBoxLayout(crown_frame)
         
         crown_label = QLabel("Regional Completion")
-        crown_label.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {TEXT['accent']};")
+        crown_label.setStyleSheet(f"font-size: {font_css('body')}; font-weight: bold; color: {TEXT['accent']};")
         crown_layout.addWidget(crown_label)
         
         # Crown grid
@@ -126,7 +127,7 @@ class VCsTab:
             crown_container_layout.addWidget(crown, alignment=Qt.AlignmentFlag.AlignCenter)
             
             name_label = QLabel(region_name)
-            name_label.setStyleSheet(f"font-size: 11px; color: {TEXT['secondary']};")
+            name_label.setStyleSheet(f"font-size: {font_css('caption')}; color: {TEXT['secondary']};")
             name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             crown_container_layout.addWidget(name_label)
             
@@ -141,7 +142,7 @@ class VCsTab:
         legend_layout = QVBoxLayout(legend_frame)
         
         legend_title = QLabel("Legend")
-        legend_title.setStyleSheet(f"font-size: 12px; font-weight: bold; color: {TEXT['accent']};")
+        legend_title.setStyleSheet(f"font-size: {font_css('small')}; font-weight: bold; color: {TEXT['accent']};")
         legend_layout.addWidget(legend_title)
         
         # Visited
@@ -151,7 +152,7 @@ class VCsTab:
         visited_box.setStyleSheet(f"background-color: {self.VC_EARNED}; border-radius: 2px;")
         visited_row.addWidget(visited_box)
         visited_label = QLabel("Visited")
-        visited_label.setStyleSheet(f"font-size: 11px; color: {TEXT['primary']};")
+        visited_label.setStyleSheet(f"font-size: {font_css('caption')}; color: {TEXT['primary']};")
         visited_row.addWidget(visited_label)
         visited_row.addStretch()
         legend_layout.addLayout(visited_row)
@@ -163,7 +164,7 @@ class VCsTab:
         unvisited_box.setStyleSheet(f"background-color: {self.VC_UNEARNED}; border-radius: 2px;")
         unvisited_row.addWidget(unvisited_box)
         unvisited_label = QLabel("Not yet visited")
-        unvisited_label.setStyleSheet(f"font-size: 11px; color: {TEXT['primary']};")
+        unvisited_label.setStyleSheet(f"font-size: {font_css('caption')}; color: {TEXT['primary']};")
         unvisited_row.addWidget(unvisited_label)
         unvisited_row.addStretch()
         legend_layout.addLayout(unvisited_row)
@@ -176,19 +177,19 @@ class VCsTab:
         self.stats_layout = QVBoxLayout(self.stats_frame)
         
         stats_title = QLabel("Regional Progress")
-        stats_title.setStyleSheet(f"font-size: 12px; font-weight: bold; color: {TEXT['accent']};")
+        stats_title.setStyleSheet(f"font-size: {font_css('small')}; font-weight: bold; color: {TEXT['accent']};")
         self.stats_layout.addWidget(stats_title)
         
         self.england_stat = QLabel("England: 0 / 0")
-        self.england_stat.setStyleSheet(f"font-size: 11px; color: {TEXT['secondary']};")
+        self.england_stat.setStyleSheet(f"font-size: {font_css('caption')}; color: {TEXT['secondary']};")
         self.stats_layout.addWidget(self.england_stat)
         
         self.wales_stat = QLabel("Wales: 0 / 0")
-        self.wales_stat.setStyleSheet(f"font-size: 11px; color: {TEXT['secondary']};")
+        self.wales_stat.setStyleSheet(f"font-size: {font_css('caption')}; color: {TEXT['secondary']};")
         self.stats_layout.addWidget(self.wales_stat)
         
         self.scotland_stat = QLabel("Scotland: 0 / 0")
-        self.scotland_stat.setStyleSheet(f"font-size: 11px; color: {TEXT['secondary']};")
+        self.scotland_stat.setStyleSheet(f"font-size: {font_css('caption')}; color: {TEXT['secondary']};")
         self.stats_layout.addWidget(self.scotland_stat)
         
         right_layout.addWidget(self.stats_frame)

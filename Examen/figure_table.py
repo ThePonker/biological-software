@@ -10,12 +10,13 @@ from PySide6.QtWidgets import (QFrame, QHeaderView, QLabel, QTableWidget, QTable
                                QVBoxLayout)
 
 from Examen.style import (BG, SURFACE, TEXT_HEADING, TEXT_MUTED, BORDER, SEPARATOR, RED_STATUS)
+from shared.text_sizes import font_css, qfont
 
 TABLE_STYLE = (
     "QTableWidget { border: 1px solid " + BORDER + "; gridline-color: " + SEPARATOR
-    + "; font-size: 11px; background: " + SURFACE + "; }"
+    + f"; font-size: {font_css('caption')}; background: " + SURFACE + "; }"
     "QHeaderView::section { background: " + BG + "; border: none; border-bottom: 2px solid "
-    + BORDER + "; padding: 4px; font-weight: bold; font-size: 11px; color: " + TEXT_HEADING + "; }")
+    + BORDER + f"; padding: 4px; font-weight: bold; font-size: {font_css('caption')}; color: " + TEXT_HEADING + "; }")
 
 
 def figure_block(title, table, bold_rows=(), flag_col=None, head_tips=None):
@@ -33,7 +34,7 @@ def figure_block(title, table, bold_rows=(), flag_col=None, head_tips=None):
     lay.setSpacing(6)
 
     t = QLabel(title)
-    t.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+    t.setFont(qfont('body', "Segoe UI", QFont.Weight.Bold))
     t.setStyleSheet("color: " + TEXT_HEADING + "; border: none;")
     lay.addWidget(t)
 
@@ -43,7 +44,7 @@ def figure_block(title, table, bold_rows=(), flag_col=None, head_tips=None):
     tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
     tbl.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
     tbl.setStyleSheet(TABLE_STYLE)
-    bold = QFont("Segoe UI", 9, QFont.Weight.Bold)
+    bold = qfont('caption', "Segoe UI", QFont.Weight.Bold)
     for i, row in enumerate(rows):
         flagged = flag_col is not None and flag_col < len(row) and row[flag_col]
         for j in range(len(heads)):
@@ -69,6 +70,6 @@ def figure_block(title, table, bold_rows=(), flag_col=None, head_tips=None):
     for n in notes:
         lbl = QLabel(n)
         lbl.setWordWrap(True)
-        lbl.setStyleSheet("color: " + TEXT_MUTED + "; font-size: 11px; font-style: italic; border: none;")
+        lbl.setStyleSheet("color: " + TEXT_MUTED + f"; font-size: {font_css('caption')}; font-style: italic; border: none;")
         lay.addWidget(lbl)
     return frame

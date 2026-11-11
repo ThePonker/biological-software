@@ -155,7 +155,7 @@ def test_zoom_limits_per_widget(qapp):
     m.resize(300, 300)
     for _ in range(40):
         m.wheelEvent(_Wheel(1))
-    assert m._zoom == 40.0 and m._zoom_max == 40.0
+    assert m._zoom == m._zoom_limit() > 40.0 and m._zoom_max == 40.0   # R18: 40 is the floor
     d = DistributionMiniMap(None, resizable=True)
     d.resize(300, 300)
     r = RasterMiniMap(None, resizable=True)
@@ -163,7 +163,7 @@ def test_zoom_limits_per_widget(qapp):
     for w in (d, r):
         for _ in range(40):
             w.wheelEvent(_Wheel(1))
-        assert w._zoom == 8.0 and w._zoom_max == 8.0
+        assert w._zoom == w._zoom_limit() and w._zoom_max == 8.0
 
 
 def test_forty_times_on_the_gb_view_draws_squares_labels_and_snapped_layers(qapp, tmp_path):

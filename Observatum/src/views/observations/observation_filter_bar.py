@@ -32,6 +32,7 @@ from ..components.filter_styles import (
     get_input_style, get_clear_button_style, create_filter_label,
 )
 from ...services.vc_lookup_service import VCLookupService
+from shared.text_sizes import font_css
 
 
 COL_REFERENCE = 130    # Reference (data_reference)
@@ -126,7 +127,7 @@ class ObservationFilterBar(QFrame, SavedFiltersMixin):
         
         # Data Type toggle (All/Personal/Commercial)
         data_type_label = QLabel("Data Type:")
-        data_type_label.setStyleSheet(f"font-size: 11px; font-weight: bold; color: {t.get('text_secondary')};")
+        data_type_label.setStyleSheet(f"font-size: {font_css('caption')}; font-weight: bold; color: {t.get('text_secondary')};")
         saved_row.addWidget(data_type_label)
         
         data_type_btns = QHBoxLayout()
@@ -150,7 +151,7 @@ class ObservationFilterBar(QFrame, SavedFiltersMixin):
                     border: 1px solid {t.get('separator')};
                     background: {t.get('surface')};
                     color: {t.get('text_secondary')};
-                    font-size: 11px;
+                    font-size: {font_css('caption')};
                     font-weight: 500;
                     {radius}
                 }}

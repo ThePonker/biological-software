@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 
 from DataEntry import check_export as ce
 from DataEntry import theme
+from shared.text_sizes import font_css
 
 COLUMNS_KEY = "DataEntry/checkExportColumns"
 FOLDER_KEY = "DataEntry/checkExportFolder"
@@ -55,7 +56,7 @@ class CheckExportDialog(QDialog):
         intro = QLabel("Writes a spreadsheet and a folder of copies of the rows' photos, to send "
                        "to someone to check. Nothing in Data Entry is changed.")
         intro.setWordWrap(True)
-        intro.setStyleSheet(f"color: {theme.INK}; font-size: 13px;")
+        intro.setStyleSheet(f"color: {theme.INK}; font-size: {font_css('body')};")
         v.addWidget(intro)
 
         self.rb_flagged = QRadioButton(f"Rows marked to check ({len(self._flagged)})")
@@ -67,7 +68,7 @@ class CheckExportDialog(QDialog):
         (self.rb_flagged if self._flagged else self.rb_selected).setChecked(True)
 
         cols_lbl = QLabel("Columns to include:")
-        cols_lbl.setStyleSheet(f"color: {theme.MUTED}; font-size: 12px;")
+        cols_lbl.setStyleSheet(f"color: {theme.MUTED}; font-size: {font_css('small')};")
         v.addWidget(cols_lbl)
         ticked = set(remembered_columns())
         self.boxes: Dict[str, QCheckBox] = {}
@@ -81,7 +82,7 @@ class CheckExportDialog(QDialog):
         row = QHBoxLayout()
         self._folder_lbl = QLabel()
         self._folder_lbl.setWordWrap(True)
-        self._folder_lbl.setStyleSheet(f"color: {theme.INK}; font-size: 12px;")
+        self._folder_lbl.setStyleSheet(f"color: {theme.INK}; font-size: {font_css('small')};")
         row.addWidget(self._folder_lbl, 1)
         change = QPushButton("Change…")
         change.setStyleSheet(theme.button_secondary_qss(compact=True))
@@ -92,7 +93,7 @@ class CheckExportDialog(QDialog):
 
         self._msg = QLabel("")
         self._msg.setWordWrap(True)
-        self._msg.setStyleSheet(f"color: {theme.INK}; font-size: 12px;")
+        self._msg.setStyleSheet(f"color: {theme.INK}; font-size: {font_css('small')};")
         v.addWidget(self._msg)
 
         btns = QHBoxLayout()

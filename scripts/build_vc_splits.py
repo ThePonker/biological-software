@@ -45,14 +45,13 @@ SQ = 1000.0
 FULL = SQ * SQ
 SLIVER = 1000.0          # m2 (0.1% of a square): pieces this small are digitising slop, ignored
 SIMPLIFY = 2.0           # m
-LETTERS = "ABCDEFGHJKLMNOPQRSTUVWXYZ"
 
 
 def gridref_1km(e, n):
-    e100, n100 = int(e // 100000), int(n // 100000)
-    l1 = (19 - n100) - (19 - n100) % 5 + (e100 + 10) // 5
-    l2 = (19 - n100) * 5 % 25 + e100 % 5
-    return f"{LETTERS[l1]}{LETTERS[l2]}{int(e % 100000) // 1000:02d}{int(n % 100000) // 1000:02d}"
+    """4-figure grid reference of the 1 km square holding (e, n): shared/osgb.py (R18 B6; this was a
+    private copy of its sums). Imported here because main() puts the suite's root on the path."""
+    from shared.osgb import en_to_gridref
+    return en_to_gridref(e, n, 4)
 
 
 def rings_of(geom, e0, n0):

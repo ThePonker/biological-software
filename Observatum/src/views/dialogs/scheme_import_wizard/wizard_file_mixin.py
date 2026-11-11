@@ -15,6 +15,7 @@ from .validation_worker import (
     SchemeImportRow, SchemeImportMode, IRECORD_COLUMNS, NBN_ATLAS_COLUMNS
 )
 from src.themes import theme
+from shared.text_sizes import font_css
 
 
 # Database field mappings - organized by group
@@ -350,7 +351,7 @@ class WizardFileMixin:
             group_label = QLabel(group_name)
             group_label.setStyleSheet(f"""
                 font-weight: 600;
-                font-size: 13px;
+                font-size: {font_css('body')};
                 color: {self._accent};
                 padding: 8px 0 4px 0;
                 border-bottom: 1px solid {t.get('border')};

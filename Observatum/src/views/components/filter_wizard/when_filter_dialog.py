@@ -15,6 +15,7 @@ from PySide6.QtCore import Qt, QDate
 
 from ....themes import theme
 from ....core.config import ButtonColors
+from shared.text_sizes import font_css
 
 
 class WhenFilterDialog(QDialog):
@@ -66,7 +67,7 @@ class WhenFilterDialog(QDialog):
         header = QLabel("📅 When to Include")
         header.setStyleSheet(f"""
             QLabel {{
-                font-size: 18px;
+                font-size: {font_css('title')};
                 font-weight: 600;
                 color: {self._accent_color};
                 background: transparent;
@@ -76,7 +77,7 @@ class WhenFilterDialog(QDialog):
         
         desc = QLabel("Filter by date range or specific year")
         desc.setWordWrap(True)
-        desc.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 12px; background: transparent;")
+        desc.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('small')}; background: transparent;")
         layout.addWidget(desc)
         
         # Separator
@@ -213,7 +214,7 @@ class WhenFilterDialog(QDialog):
                 border: 1px solid {t.get('border')};
                 border-radius: 4px;
                 padding: 10px 20px;
-                font-size: 13px;
+                font-size: {font_css('body')};
             }}
             QPushButton:hover {{
                 background-color: {t.get('hover')};
@@ -234,7 +235,7 @@ class WhenFilterDialog(QDialog):
                 border: 1px solid {t.get('border')};
                 border-radius: 4px;
                 padding: 10px 24px;
-                font-size: 13px;
+                font-size: {font_css('body')};
             }}
             QPushButton:hover {{
                 background-color: {t.get('hover')};
@@ -253,7 +254,7 @@ class WhenFilterDialog(QDialog):
                 border: none;
                 border-radius: 4px;
                 padding: 10px 24px;
-                font-size: 13px;
+                font-size: {font_css('body')};
                 font-weight: 500;
             }}
             QPushButton:hover {{
@@ -365,7 +366,7 @@ class WhenFilterDialog(QDialog):
         radio.setStyleSheet(f"""
             QRadioButton {{
                 color: {t.get('text_primary')};
-                font-size: 13px;
+                font-size: {font_css('body')};
                 font-weight: 500;
                 spacing: 10px;
                 background: transparent;
@@ -381,7 +382,7 @@ class WhenFilterDialog(QDialog):
                 border: 1px solid {t.get('border')};
                 border-radius: 4px;
                 padding: 6px 10px;
-                font-size: 13px;
+                font-size: {font_css('body')};
                 color: {t.get('text_primary')};
                 min-width: 110px;
             }}
@@ -405,7 +406,7 @@ class WhenFilterDialog(QDialog):
                 border: 1px solid {t.get('border')};
                 border-radius: 4px;
                 padding: 6px 10px;
-                font-size: 13px;
+                font-size: {font_css('body')};
                 color: {t.get('text_primary')};
             }}
             QComboBox:focus {{
@@ -432,7 +433,7 @@ class WhenFilterDialog(QDialog):
                 border: 1px solid {t.get('border')};
                 border-radius: 4px;
                 padding: 8px 14px;
-                font-size: 12px;
+                font-size: {font_css('small')};
             }}
             QPushButton:hover {{
                 background-color: {t.get('hover')};

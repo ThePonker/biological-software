@@ -719,7 +719,7 @@ class YearByYearTable(QFrame):
             stats = data[year]
 
             year_item = QTableWidgetItem(str(year))
-            year_item.setFont(QFont("sans-serif", 10, QFont.Weight.Bold))
+            year_item.setFont(qfont('body', "sans-serif", QFont.Weight.Bold))
             year_item.setFlags(year_item.flags() & ~Qt.ItemFlag.ItemIsSelectable)
             self.table.setItem(row, 0, year_item)
 
@@ -868,6 +868,7 @@ except ImportError:
 
 from PySide6.QtCore import QMargins
 from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QLinearGradient
+from shared.text_sizes import qfont
 
 class AccumulationCurveChart(QFrame):
     """Species accumulation curve chart widget with enhanced styling."""

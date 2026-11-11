@@ -16,6 +16,7 @@ from PySide6.QtCore import QSettings
 from ...themes import theme
 from ...services.filter_builder import as_list
 from ...services.saved_filters_service import SavedFiltersService
+from shared.text_sizes import font_css
 
 # Chip keys holding one value, not a list (the rest come back as lists)
 _SCALAR_CHIP_KEYS = ('date_from', 'date_to', 'year')
@@ -270,7 +271,7 @@ def create_saved_filter_buttons(parent, accent_color: str = None) -> tuple:
             border-radius: {t.get('radius_sm')};
             padding: 3px 10px;
             background: {t.get('surface')};
-            font-size: 11px;
+            font-size: {font_css('caption')};
         }}
         QPushButton:hover:enabled {{
             background-color: {t.get('success_bg')};
@@ -290,7 +291,7 @@ def create_saved_filter_buttons(parent, accent_color: str = None) -> tuple:
             border-radius: {t.get('radius_sm')};
             padding: 3px 10px;
             background: {t.get('surface')};
-            font-size: 11px;
+            font-size: {font_css('caption')};
         }}
         QPushButton:hover:enabled {{
             background-color: {t.get('error_bg')};

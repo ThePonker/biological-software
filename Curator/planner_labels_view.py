@@ -21,6 +21,7 @@ from .planner_settings import load_settings, SettingsDialog
 from .planner_fonts import load_qt_fonts, get_available_fonts
 from shared.fit_to_screen import scroll_body
 from .style import (BORDER, DANGER, HOVER, MOSS, MOSS_HOVER, PURPLE_DARK, SEPARATOR, STEEL, TERRACOTTA_DARK, WARM_GRAY)
+from shared.text_sizes import font_css, qfont
 
 
 class LabelsView(QWidget):
@@ -61,7 +62,7 @@ class LabelsView(QWidget):
         # Missing or unreadable config files, said on screen (CUR-3)
         self.problem_label = QLabel("")
         self.problem_label.setWordWrap(True)
-        self.problem_label.setStyleSheet("color: " + DANGER + "; font-size: 11px;")
+        self.problem_label.setStyleSheet("color: " + DANGER + f"; font-size: {font_css('caption')};")
         ll.addWidget(self.problem_label)
 
         ll.addWidget(QLabel("Order"))
@@ -131,7 +132,7 @@ class LabelsView(QWidget):
         ll.addWidget(self.cb_common)
 
         counts_label = QLabel("Counts")
-        counts_label.setStyleSheet("font-size: 11px; margin-top: 4px;")
+        counts_label.setStyleSheet(f"font-size: {font_css('caption')}; margin-top: 4px;")
         ll.addWidget(counts_label)
 
         self.cb_my_specimens = QCheckBox("My specimens")
@@ -210,17 +211,17 @@ class LabelsView(QWidget):
 
         tree_header = QHBoxLayout()
         tree_lbl = QLabel("Taxonomic Tree")
-        tree_lbl.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+        tree_lbl.setFont(qfont('body', "Segoe UI", QFont.Weight.Bold))
         tree_header.addWidget(tree_lbl)
         tree_header.addStretch()
         check_all_btn = QPushButton("All")
         check_all_btn.setFixedWidth(40)
-        check_all_btn.setStyleSheet("font-size: 11px; padding: 2px;")
+        check_all_btn.setStyleSheet(f"font-size: {font_css('caption')}; padding: 2px;")
         check_all_btn.clicked.connect(lambda: self._set_all_checked(True))
         tree_header.addWidget(check_all_btn)
         uncheck_all_btn = QPushButton("None")
         uncheck_all_btn.setFixedWidth(40)
-        uncheck_all_btn.setStyleSheet("font-size: 11px; padding: 2px;")
+        uncheck_all_btn.setStyleSheet(f"font-size: {font_css('caption')}; padding: 2px;")
         uncheck_all_btn.clicked.connect(lambda: self._set_all_checked(False))
         tree_header.addWidget(uncheck_all_btn)
         ml.addLayout(tree_header)
@@ -244,7 +245,7 @@ class LabelsView(QWidget):
         rl.setSpacing(10)
 
         header = QLabel("Label Preview")
-        header.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+        header.setFont(qfont('body_large', "Segoe UI", QFont.Weight.Bold))
         rl.addWidget(header)
 
         self.preview = LabelPreviewWidget()
@@ -361,26 +362,26 @@ class LabelsView(QWidget):
 
         # Style by rank
         if node.rank == "Order":
-            item.setFont(0, QFont("Segoe UI", 10, QFont.Weight.Bold))
+            item.setFont(0, qfont('body', "Segoe UI", QFont.Weight.Bold))
         elif node.rank == "Superfamily":
-            f = QFont("Segoe UI", 9)
+            f = qfont('caption', "Segoe UI")
             f.setItalic(True)
             item.setFont(0, f)
             item.setForeground(0, QColor(TERRACOTTA_DARK))
         elif node.rank == "Suborder":
-            f = QFont("Segoe UI", 10)
+            f = qfont('body', "Segoe UI")
             f.setItalic(True)
             item.setFont(0, f)
             item.setForeground(0, QColor(PURPLE_DARK))
         elif node.rank == "Family":
-            item.setFont(0, QFont("Segoe UI", 9, QFont.Weight.Bold))
+            item.setFont(0, qfont('caption', "Segoe UI", QFont.Weight.Bold))
         elif node.rank == "Subfamily":
-            f = QFont("Segoe UI", 9)
+            f = qfont('caption', "Segoe UI")
             f.setItalic(True)
             item.setFont(0, f)
             item.setForeground(0, QColor(STEEL))
         elif node.rank == "Genus":
-            f = QFont("Segoe UI", 9)
+            f = qfont('caption', "Segoe UI")
             f.setItalic(True)
             item.setFont(0, f)
 

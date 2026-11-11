@@ -12,6 +12,7 @@ from PySide6.QtCore import QByteArray
 from PySide6.QtSvgWidgets import QSvgWidget
 
 from ..theme import TEXT, TIERS, get_stage_colours
+from shared.text_sizes import font_css
 
 
 class TiersTab:
@@ -96,20 +97,20 @@ class TiersTab:
         
         if is_locked:
             name = QLabel("???")
-            name.setStyleSheet(f"font-size: 14px; font-weight: bold; color: #666666;")
+            name.setStyleSheet(f"font-size: {font_css('body')}; font-weight: bold; color: #666666;")
             info_layout.addWidget(name)
             
             range_lbl = QLabel("Locked")
-            range_lbl.setStyleSheet(f"font-size: 11px; color: #555555;")
+            range_lbl.setStyleSheet(f"font-size: {font_css('caption')}; color: #555555;")
             info_layout.addWidget(range_lbl)
         else:
             colours = get_stage_colours(tier_info["stage"])
             name = QLabel(tier_info["name"])
             
             if is_current:
-                name.setStyleSheet(f"font-size: 14px; font-weight: bold; color: {TEXT['accent']};")
+                name.setStyleSheet(f"font-size: {font_css('body')}; font-weight: bold; color: {TEXT['accent']};")
             else:
-                name.setStyleSheet(f"font-size: 14px; font-weight: bold; color: {colours['highlight']};")
+                name.setStyleSheet(f"font-size: {font_css('body')}; font-weight: bold; color: {colours['highlight']};")
             
             info_layout.addWidget(name)
             
@@ -119,7 +120,7 @@ class TiersTab:
                 range_text = f"{tier_info['min_species']:,}+ species"
             
             range_lbl = QLabel(range_text)
-            range_lbl.setStyleSheet(f"font-size: 11px; color: {TEXT['secondary']};")
+            range_lbl.setStyleSheet(f"font-size: {font_css('caption')}; color: {TEXT['secondary']};")
             info_layout.addWidget(range_lbl)
         
         layout.addLayout(info_layout, 1)

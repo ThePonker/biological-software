@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from ...themes import theme
+from shared.text_sizes import font_css
 
 
 class PhotoViewer(QDialog):
@@ -30,7 +31,7 @@ class PhotoViewer(QDialog):
         v = QVBoxLayout(self)
         v.setContentsMargins(12, 12, 12, 12)
         self.title = QLabel()
-        self.title.setStyleSheet(f"font-size: 13px; font-weight: 600; color: {t.get('text_primary')};")
+        self.title.setStyleSheet(f"font-size: {font_css('body')}; font-weight: 600; color: {t.get('text_primary')};")
         v.addWidget(self.title)
         self.area = QScrollArea()
         self.area.setAlignment(Qt.AlignmentFlag.AlignCenter)

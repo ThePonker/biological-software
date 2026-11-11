@@ -69,14 +69,17 @@ def _commit(conn, jid, uksi):
     made, updates = [], []
 
     class Model:
-        def create(self, o):
+        def create(self, o, extra=None):
             made.append(o)
+            e = extra or {}      # R18 B5: the survey / taxonomy columns arrive with create()
+            updates.append((e.get("sub_location"), e.get("trap_number"), e.get("visit_number"),
+                            e.get("import_notes"), e.get("superfamily"), e.get("taxonomic_sort_key"),
+                            100 + len(made)))
             return 100 + len(made)
 
     class Db:
         def execute_main_write(self, sql, params):
-            updates.append(params)
-            return 1
+            raise AssertionError("commit_job no longer writes a second UPDATE (R18 B5)")
 
     s = cs.commit_job(Db(), Model(), conn, repo.get_job(conn, jid),
                       observation_cls=lambda **kw: SimpleNamespace(**kw), uksi_path=uksi)

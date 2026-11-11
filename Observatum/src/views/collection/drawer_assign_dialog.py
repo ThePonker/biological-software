@@ -36,6 +36,7 @@ from shared.fit_to_screen import fit_to_screen
 from ...themes import theme
 from .drawer_assign_list import COL_NOW, COL_SPECIES, COL_TICK, ROLE_ID, ShowChoice, SpecimenList
 from .drawer_assign_save import DrawerSaveMixin
+from shared.text_sizes import font_css
 
 GOLD = theme().get("accent_collection")
 GOLD_TEXT = theme().get("accent_collection_dark")
@@ -104,7 +105,7 @@ class DrawerAssignDialog(DrawerSaveMixin, QDialog):
         b = QHBoxLayout(bar)
         b.setContentsMargins(16, 10, 16, 10)
         t = QLabel("Drawer in hand")
-        t.setStyleSheet(f"color: {GOLD_TEXT}; font-weight: 600; font-size: 13px; border: none;")
+        t.setStyleSheet(f"color: {GOLD_TEXT}; font-weight: 600; font-size: {font_css('body')}; border: none;")
         b.addWidget(t)
         b.addWidget(QLabel("Storage"))
         self.cmb_storage = _combo(self._distinct("storage_location"))
@@ -179,7 +180,7 @@ class DrawerAssignDialog(DrawerSaveMixin, QDialog):
         rv = QVBoxLayout(right)
         rv.setContentsMargins(10, 10, 12, 10)
         self.lbl_drawer = QLabel("")
-        self.lbl_drawer.setStyleSheet("font-size: 15px; font-weight: 600;")
+        self.lbl_drawer.setStyleSheet(f"font-size: {font_css('body_large')}; font-weight: 600;")
         rv.addWidget(self.lbl_drawer)
         self.lbl_summary = QLabel("Nothing ticked yet.")
         self.lbl_summary.setWordWrap(True)

@@ -289,7 +289,7 @@ def test_vc_zero_is_flagged_and_stays_in_staging(qapp, tmp_path):
     created = []
 
     class Model:
-        def create(self, obs):
+        def create(self, obs, extra=None):
             created.append(obs)
             return len(created)
 

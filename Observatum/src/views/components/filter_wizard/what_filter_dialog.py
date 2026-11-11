@@ -28,6 +28,7 @@ from ....themes import theme
 from .chip_display import FilterChip  # I9: one copy
 from .fuzzy import picking_from_popup
 from .what_search import WhatChoices, WhatCompleter
+from shared.text_sizes import font_css
 
 # the order chips are listed in when a dialog opens on stored values
 KEY_ORDER = ("species", "group", "taxon_group", "family")
@@ -96,7 +97,7 @@ class WhatFilterDialog(QDialog):
         layout.setContentsMargins(24, 24, 24, 24)
 
         header = QLabel("🦋 What to Include")
-        header.setStyleSheet(f"font-size: 18px; font-weight: 600; color: {self._accent_color}; "
+        header.setStyleSheet(f"font-size: {font_css('title')}; font-weight: 600; color: {self._accent_color}; "
                              "background: transparent;")
         layout.addWidget(header)
 
@@ -105,7 +106,7 @@ class WhatFilterDialog(QDialog):
                       "Choose from the list or press Enter to add it. "
                       "Records matching any of your choices are kept.")
         desc.setWordWrap(True)
-        desc.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 12px; "
+        desc.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('small')}; "
                            "background: transparent;")
         layout.addWidget(desc)
 
@@ -118,7 +119,7 @@ class WhatFilterDialog(QDialog):
                 border: 1px solid {t.get('border')};
                 border-radius: 4px;
                 padding: 10px 14px;
-                font-size: 13px;
+                font-size: {font_css('body')};
                 color: {t.get('text_primary')};
             }}
             QLineEdit:focus {{ border-color: {self._accent_color}; }}
@@ -142,7 +143,7 @@ class WhatFilterDialog(QDialog):
     def _chip_header(self, t) -> QHBoxLayout:
         row = QHBoxLayout()
         self._chip_title = QLabel("Nothing chosen yet")
-        self._chip_title.setStyleSheet(f"font-weight: 500; font-size: 12px; "
+        self._chip_title.setStyleSheet(f"font-weight: 500; font-size: {font_css('small')}; "
                                        f"color: {t.get('text_secondary')};")
         row.addWidget(self._chip_title)
         row.addStretch()
@@ -154,7 +155,7 @@ class WhatFilterDialog(QDialog):
         self._clear_all_btn.setVisible(False)
         self._clear_all_btn.setStyleSheet(f"""
             QPushButton {{ background: transparent; border: none;
-                           color: {self._accent_color}; font-size: 11px; }}
+                           color: {self._accent_color}; font-size: {font_css('caption')}; }}
             QPushButton:hover {{ text-decoration: underline; }}
         """)
         row.addWidget(self._clear_all_btn)
@@ -198,7 +199,7 @@ class WhatFilterDialog(QDialog):
         self._clear_btn = button("Clear", f"""
             QPushButton {{ background-color: transparent; color: {ButtonColors.DANGER};
                            border: 1px solid {ButtonColors.DANGER}; border-radius: 4px;
-                           padding: 10px 20px; font-size: 13px; }}
+                           padding: 10px 20px; font-size: {font_css('body')}; }}
             QPushButton:hover {{ background-color: {t.get('hover')}; }}
         """, self._clear_all_filters)
         row.addWidget(self._clear_btn)
@@ -206,14 +207,14 @@ class WhatFilterDialog(QDialog):
         self._cancel_btn = button("Cancel", f"""
             QPushButton {{ background-color: transparent; color: {ButtonColors.SECONDARY_TEXT};
                            border: 1px solid {ButtonColors.SECONDARY}; border-radius: 4px;
-                           padding: 10px 24px; font-size: 13px; }}
+                           padding: 10px 24px; font-size: {font_css('body')}; }}
             QPushButton:hover {{ background-color: {t.get('hover')}; }}
         """, self.reject)
         row.addWidget(self._cancel_btn)
         self._apply_btn = button("Apply Filters", f"""
             QPushButton {{ background-color: {ButtonColors.PRIMARY};
                            color: {ButtonColors.PRIMARY_TEXT}; border: none; border-radius: 4px;
-                           padding: 10px 24px; font-size: 13px; font-weight: 500; }}
+                           padding: 10px 24px; font-size: {font_css('body')}; font-weight: 500; }}
             QPushButton:hover {{ background-color: {ButtonColors.PRIMARY_HOVER}; }}
         """, self.accept)
         row.addWidget(self._apply_btn)

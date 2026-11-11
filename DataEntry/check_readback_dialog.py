@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 from DataEntry import check_readback as cr
 from DataEntry import theme
 from DataEntry.check_export_dialog import remembered_folder
+from shared.text_sizes import font_css
 
 CHECKER_KEY = "DataEntry/checkReadbackChecker"
 HEAD = ["Accept", "Ref", "Your ID", "Agree?", "Their ID", "Notes", "What happens"]
@@ -36,12 +37,12 @@ class CheckReadbackDialog(QDialog):
                        "of it). Each answer is shown beside its row; nothing changes until you "
                        "press Apply.")
         intro.setWordWrap(True)
-        intro.setStyleSheet(f"color: {theme.INK}; font-size: 13px;")
+        intro.setStyleSheet(f"color: {theme.INK}; font-size: {font_css('body')};")
         v.addWidget(intro)
 
         top = QHBoxLayout()
         self.file_lbl = QLabel("No reply chosen.")
-        self.file_lbl.setStyleSheet(f"color: {theme.INK}; font-size: 12px;")
+        self.file_lbl.setStyleSheet(f"color: {theme.INK}; font-size: {font_css('small')};")
         top.addWidget(self.file_lbl, 1)
         pick = QPushButton("Choose reply…")
         pick.setStyleSheet(theme.button_secondary_qss(compact=True))
@@ -75,7 +76,7 @@ class CheckReadbackDialog(QDialog):
 
         self.summary = QLabel("")
         self.summary.setWordWrap(True)
-        self.summary.setStyleSheet(f"color: {theme.INK}; font-size: 12px;")
+        self.summary.setStyleSheet(f"color: {theme.INK}; font-size: {font_css('small')};")
         v.addWidget(self.summary)
 
         btns = QHBoxLayout()

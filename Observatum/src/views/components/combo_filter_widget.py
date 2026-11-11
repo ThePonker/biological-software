@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QWidget, QHBoxLayout, QLineEdit, QPushButton, QMen
 from PySide6.QtCore import Signal, Qt
 
 from ...themes import theme
+from shared.text_sizes import font_css
 
 
 class ComboFilterWidget(QWidget):
@@ -61,7 +62,7 @@ class ComboFilterWidget(QWidget):
                 border: 1px solid {t.get('border')};
                 border-radius: {t.get('radius_sm')};
                 background-color: {t.get('surface')};
-                font-size: 13px;
+                font-size: {font_css('body')};
                 color: {t.get('text_primary')};
             }}
             QLineEdit:hover {{
@@ -84,7 +85,7 @@ class ComboFilterWidget(QWidget):
                 border: 1px solid {t.get('border')};
                 border-radius: {t.get('radius_sm')};
                 background-color: {t.get('surface')};
-                font-size: 11px;
+                font-size: {font_css('caption')};
                 color: {t.get('text_secondary')};
                 padding: 0px;
             }}

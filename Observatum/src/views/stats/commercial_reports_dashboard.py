@@ -28,6 +28,7 @@ from ...themes import theme
 from ...core.config import TabColors, ButtonColors
 from ...models.database import get_database
 from .stat_widgets import StatCard
+from shared.text_sizes import font_css
 
 
 def species_count_sql(path: str, prefix: str = "") -> str:
@@ -132,7 +133,7 @@ class CommercialReportsDashboard(QScrollArea):
         self._alert_label = QLabel()
         self._alert_label.setWordWrap(True)
         self._alert_label.setStyleSheet(
-            "color: #e65100; font-size: 13px; font-weight: bold; border: none;"
+            f"color: #e65100; font-size: {font_css('body')}; font-weight: bold; border: none;"
         )
         alert_layout.addWidget(self._alert_label, 1)
 
@@ -141,7 +142,7 @@ class CommercialReportsDashboard(QScrollArea):
         # Header
         header = QLabel("Commercial Data Management")
         header.setStyleSheet(
-            f"color: {t.get('text_heading')}; font-size: 18px; font-weight: bold;"
+            f"color: {t.get('text_heading')}; font-size: {font_css('title')}; font-weight: bold;"
         )
         self._layout.addWidget(header)
 
@@ -175,7 +176,7 @@ class CommercialReportsDashboard(QScrollArea):
                 background: transparent;
                 border: none;
                 color: {t.get('text_heading')};
-                font-size: 14px;
+                font-size: {font_css('body')};
                 font-weight: bold;
                 text-align: left;
                 padding: 4px 0;
@@ -245,7 +246,7 @@ class CommercialReportsDashboard(QScrollArea):
         head = QHBoxLayout()
         self._detail_title = QLabel("")
         self._detail_title.setStyleSheet(
-            f"color: {t.get('text_heading')}; font-size: 14px; font-weight: bold; border: none;")
+            f"color: {t.get('text_heading')}; font-size: {font_css('body')}; font-weight: bold; border: none;")
         head.addWidget(self._detail_title, 1)
         self._btn_rename = QPushButton("Edit project / client\u2026")
         self._btn_view = QPushButton("View / edit in Observation Data")
@@ -256,7 +257,7 @@ class CommercialReportsDashboard(QScrollArea):
                 f"QPushButton {{ background-color: {ButtonColors.PRIMARY if primary else 'transparent'};"
                 f" color: {'white' if primary else TabColors.COMMERCIAL};"
                 f" border: 1px solid {ButtonColors.PRIMARY if primary else TabColors.COMMERCIAL};"
-                f" border-radius: 4px; padding: 5px 12px; font-size: 12px; }}")
+                f" border-radius: 4px; padding: 5px 12px; font-size: {font_css('small')}; }}")
             head.addWidget(b)
         self._btn_view.setToolTip("Open Observation Data showing only this project's records. "
                                   "Edit or delete records there.")
@@ -270,7 +271,7 @@ class CommercialReportsDashboard(QScrollArea):
         dl.addLayout(head)
         self._detail_summary = QLabel("")
         self._detail_summary.setWordWrap(True)
-        self._detail_summary.setStyleSheet(f"color: {t.get('text_muted')}; font-size: 12px; border: none;")
+        self._detail_summary.setStyleSheet(f"color: {t.get('text_muted')}; font-size: {font_css('small')}; border: none;")
         dl.addWidget(self._detail_summary)
         self._detail_table = QTableWidget(0, 7)
         self._detail_table.setHorizontalHeaderLabels(
@@ -423,7 +424,7 @@ class CommercialReportsDashboard(QScrollArea):
                             border: none;
                             border-radius: 4px;
                             padding: 4px 12px;
-                            font-size: 11px;
+                            font-size: {font_css('caption')};
                         }}
                         QPushButton:hover {{
                             background-color: #3d6b4a;
@@ -438,7 +439,7 @@ class CommercialReportsDashboard(QScrollArea):
                     released_label = QLabel("✓ Released")
                     released_label.setAlignment(Qt.AlignCenter)
                     released_label.setStyleSheet(
-                        "color: #2e7d32; font-size: 11px; border: none;"
+                        f"color: #2e7d32; font-size: {font_css('caption')}; border: none;"
                     )
                     self._table.setCellWidget(row_idx, 6, released_label)
             self._table.blockSignals(False)

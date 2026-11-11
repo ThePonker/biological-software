@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (QCheckBox, QColorDialog, QDialog, QGridLayout, QG
 from shared.maps import env_classes, env_registry as env, layer_opacity, layers
 
 from ...themes import theme
+from shared.text_sizes import font_css
 
 GEOMETRY_SETTING = "mapping/layers_window/geometry"
 BASE_TITLE = "Base map"
@@ -60,7 +61,7 @@ class LayersWindow(QDialog):
             f"border: 1px solid {t.get('border')}; border-radius: {t.get('radius_sm')}; "
             f"margin-top: 10px; padding-top: 6px; }}"
             f"QGroupBox::title {{ subcontrol-origin: margin; left: 8px; padding: 0 4px; }}"
-            f"QCheckBox, QLabel {{ color: {t.get('text_primary')}; font-size: 12px; }}"
+            f"QCheckBox, QLabel {{ color: {t.get('text_primary')}; font-size: {font_css('small')}; }}"
             f"QLabel#muted {{ color: {t.get('text_secondary')}; font-size: {t.get('font_size_xs')}pt; }}"
             f"QCheckBox:disabled, QLabel:disabled {{ color: {t.get('disabled_text')}; }}")
         self.checks: Dict[str, QCheckBox] = {}
@@ -112,9 +113,11 @@ class LayersWindow(QDialog):
         self.close_button.clicked.connect(self.close)
         foot.addWidget(self.close_button)
         outer.addLayout(foot)
+        self._holder = holder
         for key, act in bar.layer_actions.items():
             act.toggled.connect(lambda _on, k=key: self.sync_row(k))
         self.setMinimumWidth(min(holder.minimumSizeHint().width() + 34, 640))   # no clipped rows
+        self._shown_once = False
         self.resize(max(self.minimumWidth(), 440), 560)
         try:
             geom = QSettings().value(GEOMETRY_SETTING)
@@ -315,6 +318,15 @@ class LayersWindow(QDialog):
     def showEvent(self, ev):
         super().showEvent(ev)
         self.sync()                         # the map's level of detail may have changed
+        if not self._shown_once:
+            # R18: measured again once shown: before that the rows are not yet in the style
+            # sheet's text size, and the first measure came out a few pixels short (clipped swatches)
+            self._shown_once = True
+            need = min(self._holder.minimumSizeHint().width() + 40, 640)
+            if need > self.minimumWidth():
+                self.setMinimumWidth(need)
+                if self.width() < need:
+                    self.resize(need, self.height())
 
     def _remember(self):
         try:

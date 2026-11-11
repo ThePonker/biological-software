@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Signal, QDate, Qt
 
 from ...themes import theme
+from shared.text_sizes import font_css
 
 # Earliest year a date box accepts. Was 1900; scheme records go back to 1500 (OBS-14)
 MIN_YEAR = 1000
@@ -73,7 +74,7 @@ class DateFilterWidget(QWidget):
                 border-radius: {t.get('radius_sm')};
                 background-color: {t.get('surface')};
                 color: {t.get('text_primary')};
-                font-size: 13px;
+                font-size: {font_css('body')};
             }}
             QLineEdit:hover {{
                 border: 1px solid {t.get('border_hover')};
@@ -97,7 +98,7 @@ class DateFilterWidget(QWidget):
                 border: 1px solid {t.get('border')};
                 border-radius: {t.get('radius_sm')};
                 background-color: {t.get('surface')};
-                font-size: 12px;
+                font-size: {font_css('small')};
                 padding: 0px;
             }}
             QPushButton:hover {{
@@ -130,7 +131,7 @@ class DateFilterWidget(QWidget):
                 border-top-left-radius: {t.get('radius_sm')};
                 border-top-right-radius: {t.get('radius_sm')};
                 background-color: {t.get('surface_alt')};
-                font-size: 11px;
+                font-size: {font_css('caption')};
                 color: {t.get('text_secondary')};
                 padding: 0px;
             }}
@@ -154,7 +155,7 @@ class DateFilterWidget(QWidget):
                 border-bottom-left-radius: {t.get('radius_sm')};
                 border-bottom-right-radius: {t.get('radius_sm')};
                 background-color: {t.get('surface_alt')};
-                font-size: 11px;
+                font-size: {font_css('caption')};
                 color: {t.get('text_secondary')};
                 padding: 0px;
             }}
@@ -303,7 +304,7 @@ class DateFilterWidget(QWidget):
                 border-radius: {t.get('radius_sm')};
                 background-color: {t.get('surface')};
                 color: {t.get('text_primary')};
-                font-size: 13px;
+                font-size: {font_css('body')};
             }}
             QLineEdit:focus {{
                 border-color: {self._accent_color};

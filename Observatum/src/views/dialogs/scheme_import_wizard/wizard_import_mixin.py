@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 from .validation_worker import SchemeImportRow, RowStatus
 
 from src.themes import theme
+from shared.text_sizes import font_css
 
 # What re-importing a record already held may change (9 Oct 2026). Verification, names
 # and determination move on at source; everything else -- counts, sensitivity, notes,
@@ -369,6 +370,17 @@ class WizardImportMixin:
                      ("warnings_left_out", "Rows with warnings, not imported"),
                      ("failed", "Could not be written"))
 
+    def _lookup_failure_lines(self):
+        """R18 B3: species lookups that themselves failed (not "not found"): how many names, and
+        which. Their rows are errors with the error text; nothing about them is silent."""
+        from shared.species_lookup import FAILED
+        names = sorted({(r.species_name or "").strip() for r in self.validated_rows
+                        if (r.error_message or "").startswith(FAILED)})
+        if not names:
+            return []
+        shown = ", ".join(names[:10]) + (f" ... and {len(names) - 10} more" if len(names) > 10 else "")
+        return [f"Species lookups that failed: {len(names)} ({shown})"]
+
     def _update_summary(self):
         """Update the summary page: every row of the file in exactly one line (IMP-16).
 
@@ -378,13 +390,15 @@ class WizardImportMixin:
         t = theme()
         counts = dict(getattr(self, "_summary_counts", {}) or {})
         counts.update(new=self.imported_count, updated=self.updated_count, failed=self.error_count)
-        self.summary_stats.setText("\n".join(summary_lines(counts, self.SUMMARY_ORDER)))
+        lines = summary_lines(counts, self.SUMMARY_ORDER)
+        lines += self._lookup_failure_lines()
+        self.summary_stats.setText("\n".join(lines))
 
         if self.error_count > 0:
             self.summary_icon.setText("⚠")
-            self.summary_icon.setStyleSheet(f"font-size: 64px; color: {t.get('warning')};")
+            self.summary_icon.setStyleSheet(f"font-size: {font_css('display_64')}; color: {t.get('warning')};")
             self.summary_title.setText("Import Complete with Errors")
         else:
             self.summary_icon.setText("✓")
-            self.summary_icon.setStyleSheet(f"font-size: 64px; color: {t.get('success')};")
+            self.summary_icon.setStyleSheet(f"font-size: {font_css('display_64')}; color: {t.get('success')};")
             self.summary_title.setText("Import Complete!")

@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 
 from ..components.natural_sort_proxy import NaturalItem
 from ...themes import theme
+from shared.text_sizes import font_css
 
 MONTH_NAMES = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July',
                'August', 'September', 'October', 'November', 'December']
@@ -88,7 +89,7 @@ class MonthRecordsDialog(QDialog):
         header = QLabel(f"<b><i>{species_name}</i></b><br><span style='color: "
                         f"{t.get('text_secondary')}'>{month_name}, all years "
                         f"({n:,} record{'s' if n != 1 else ''})</span>")
-        header.setStyleSheet(f"font-size: 16px; color: {t.get('text_primary')};")
+        header.setStyleSheet(f"font-size: {font_css('heading')}; color: {t.get('text_primary')};")
         layout.addWidget(header)
 
         self.table = QTableWidget(n, len(COLUMNS))
@@ -130,7 +131,7 @@ class MonthRecordsDialog(QDialog):
 
         bottom = QHBoxLayout()
         hint = QLabel("Double-click a row to view the full record")
-        hint.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 12px;")
+        hint.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('small')};")
         bottom.addWidget(hint)
         bottom.addStretch()
         close_btn = QPushButton("Close")

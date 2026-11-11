@@ -19,6 +19,7 @@ from .validation_worker import COUNT_ZERO, SYNC_HOLD, ObservationImportRow, RowS
 
 from shared.display_format import dmy
 from src.themes import theme
+from shared.text_sizes import font_css
 
 # The fields an iRecord re-sync may change on a record it already holds (F32, 9 Oct 2026).
 # Everything else -- internal notes, import notes, record type, project, client, embargo,
@@ -824,13 +825,13 @@ class WizardImportMixin:
 
         if self.error_count > 0:
             self.summary_icon.setText("\u26A0")
-            self.summary_icon.setStyleSheet(f"font-size: 64px; color: {t.get('warning')};")
+            self.summary_icon.setStyleSheet(f"font-size: {font_css('display_64')}; color: {t.get('warning')};")
             self.summary_title.setText("Import Complete with Errors")
         elif left_out > 0:
             self.summary_icon.setText("\u2713")
-            self.summary_icon.setStyleSheet(f"font-size: 64px; color: {t.get('success')};")
+            self.summary_icon.setStyleSheet(f"font-size: {font_css('display_64')}; color: {t.get('success')};")
             self.summary_title.setText(f"Import Complete ({left_out} rows not imported)")
         else:
             self.summary_icon.setText("\u2713")
-            self.summary_icon.setStyleSheet(f"font-size: 64px; color: {t.get('success')};")
+            self.summary_icon.setStyleSheet(f"font-size: {font_css('display_64')}; color: {t.get('success')};")
             self.summary_title.setText("Import Complete!")

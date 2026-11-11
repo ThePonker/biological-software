@@ -20,6 +20,7 @@ from Atrium.process_manager import (
     APPS, launch_app, is_running, running_count, FAILED, ALREADY_RUNNING, LAUNCHED,
     EARLY_EXIT_SECONDS, early_exit_code, theme_value,
 )
+from shared.text_sizes import font_css, qfont
 
 _POLL_MS = 250
 
@@ -141,7 +142,7 @@ class AppButton(QFrame):
         name.setStyleSheet(f"color: {TEXT_PRIMARY}; border: none;")
         text_col.addWidget(name)
         sub = QLabel(app_def.subtitle)
-        sub.setStyleSheet(f"color: {TEXT_MUTED}; font-size: 11px; border: none;")
+        sub.setStyleSheet(f"color: {TEXT_MUTED}; font-size: {font_css('caption')}; border: none;")
         text_col.addWidget(sub)
         layout.addLayout(text_col, 1)
 
@@ -179,7 +180,7 @@ class UtilityButton(QPushButton):
                 border: 1px solid {colour}60;
                 border-radius: 6px;
                 padding: 4px 12px;
-                font-size: 11px;
+                font-size: {font_css('caption')};
                 font-weight: 500;
             }}
             QPushButton:hover {{
@@ -235,18 +236,18 @@ class AtriumPanel(QWidget):
         self.pin_btn = QPushButton("\u25CB")
         self.pin_btn.setFixedSize(24, 24)
         self.pin_btn.setToolTip("Pin on top")
-        self.pin_btn.setStyleSheet("""
-            QPushButton {
+        self.pin_btn.setStyleSheet(f"""
+            QPushButton {{
                 color: #a8c4ae;
                 background: none;
                 border: none;
-                font-size: 14px;
-            }
-            QPushButton:hover {
+                font-size: {font_css('body')};
+            }}
+            QPushButton:hover {{
                 color: white;
                 background: rgba(255,255,255,0.15);
                 border-radius: 12px;
-            }
+            }}
         """)
         self.pin_btn.clicked.connect(self._toggle_pin)
         top_row.addWidget(self.pin_btn)
@@ -259,7 +260,7 @@ class AtriumPanel(QWidget):
                 color: #a8c4ae;
                 background: none;
                 border: none;
-                font-size: 16px;
+                font-size: {font_css('heading')};
                 font-weight: bold;
             }}
             QPushButton:hover {{
@@ -275,7 +276,7 @@ class AtriumPanel(QWidget):
         # Title
         # Arch graphic
         arch = QLabel("\u2554\u2550\u2550\u2550\u2557")
-        arch.setFont(QFont("Consolas", 11))
+        arch.setFont(qfont('body_large', "Consolas"))
         arch.setStyleSheet("color: #a8c4ae; background: none; letter-spacing: 3px;")
         arch.setAlignment(Qt.AlignmentFlag.AlignCenter)
         hl.addWidget(arch)
@@ -287,7 +288,7 @@ class AtriumPanel(QWidget):
         hl.addWidget(title)
 
         subtitle = QLabel("Flauna Ecology")
-        subtitle.setStyleSheet("color: #a8c4ae; font-size: 11px; background: none;")
+        subtitle.setStyleSheet(f"color: #a8c4ae; font-size: {font_css('caption')}; background: none;")
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         hl.addWidget(subtitle)
 
@@ -307,7 +308,7 @@ class AtriumPanel(QWidget):
         section.setAlignment(Qt.AlignmentFlag.AlignCenter)
         section.setStyleSheet(f"""
             color: {TEXT_SECONDARY};
-            font-size: 11px;
+            font-size: {font_css('caption')};
             font-weight: 700;
             letter-spacing: 2px;
             border: none;
@@ -341,7 +342,7 @@ class AtriumPanel(QWidget):
         util_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         util_label.setStyleSheet(f"""
             color: {TEXT_SECONDARY};
-            font-size: 11px;
+            font-size: {font_css('caption')};
             font-weight: 700;
             letter-spacing: 2px;
             border: none;
@@ -382,12 +383,12 @@ class AtriumPanel(QWidget):
         fl.setContentsMargins(14, 6, 14, 8)
 
         self.running_label = QLabel("")
-        self.running_label.setStyleSheet(f"color: {TEXT_MUTED}; font-size: 11px;")
+        self.running_label.setStyleSheet(f"color: {TEXT_MUTED}; font-size: {font_css('caption')};")
         fl.addWidget(self.running_label)
         fl.addStretch()
 
         version = QLabel("v2.0")
-        version.setStyleSheet(f"color: {BORDER}; font-size: 11px;")
+        version.setStyleSheet(f"color: {BORDER}; font-size: {font_css('caption')};")
         fl.addWidget(version)
 
         layout.addWidget(footer)
@@ -401,32 +402,32 @@ class AtriumPanel(QWidget):
                 Qt.WindowType.Window | Qt.WindowType.FramelessWindowHint
                 | Qt.WindowType.WindowStaysOnTopHint)
             self.pin_btn.setText("\u25CF")
-            self.pin_btn.setStyleSheet("""
-                QPushButton {
+            self.pin_btn.setStyleSheet(f"""
+                QPushButton {{
                     color: white;
                     background: rgba(255,255,255,0.25);
                     border: none;
-                    font-size: 14px;
+                    font-size: {font_css('body')};
                     border-radius: 12px;
-                }
+                }}
             """)
             self.pin_btn.setToolTip("Unpin")
         else:
             self.setWindowFlags(
                 Qt.WindowType.Window | Qt.WindowType.FramelessWindowHint)
             self.pin_btn.setText("\u25CB")
-            self.pin_btn.setStyleSheet("""
-                QPushButton {
+            self.pin_btn.setStyleSheet(f"""
+                QPushButton {{
                     color: #a8c4ae;
                     background: none;
                     border: none;
-                    font-size: 14px;
-                }
-                QPushButton:hover {
+                    font-size: {font_css('body')};
+                }}
+                QPushButton:hover {{
                     color: white;
                     background: rgba(255,255,255,0.15);
                     border-radius: 12px;
-                }
+                }}
             """)
             self.pin_btn.setToolTip("Pin on top")
         self.move(pos)

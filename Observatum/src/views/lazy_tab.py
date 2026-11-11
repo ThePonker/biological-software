@@ -23,6 +23,7 @@ from typing import Callable, Optional
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
+from shared.text_sizes import font_css
 
 PENDING_TEXT = "Finishing loading…"
 
@@ -55,7 +56,7 @@ class LazyTabPage(QWidget):
         try:
             from ..themes import theme
             self._placeholder.setStyleSheet(
-                f"color: {theme().get('text_secondary')}; font-size: 13px;")
+                f"color: {theme().get('text_secondary')}; font-size: {font_css('body')};")
         except Exception:
             pass
 

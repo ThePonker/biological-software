@@ -10,6 +10,7 @@ from PySide6.QtCore import Qt
 
 from ...themes import theme
 from ...core.config import TabColors
+from shared.text_sizes import font_css
 
 
 class LoadingDialog(QDialog):
@@ -40,7 +41,7 @@ class LoadingDialog(QDialog):
         self.message_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
         self.message_label.setStyleSheet(f"""
             font-family: 'Segoe UI', sans-serif;
-            font-size: 12px;
+            font-size: {font_css('small')};
             color: {t.get('text_primary')};
             background: transparent;
         """)

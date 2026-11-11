@@ -12,6 +12,7 @@ from PySide6.QtCore import Signal, Qt
 from PySide6.QtGui import QIntValidator
 
 from ...themes import theme
+from shared.text_sizes import font_css
 
 
 class QuantitySpinner(QWidget):
@@ -68,7 +69,7 @@ class QuantitySpinner(QWidget):
                 background-color: {t.get('surface_alt')};
                 border: 1px solid {t.get('border')};
                 color: {t.get('text_primary')};
-                font-size: 16px;
+                font-size: {font_css('heading')};
                 font-weight: 500;
             }}
             QPushButton:hover {{

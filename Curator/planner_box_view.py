@@ -20,6 +20,7 @@ from .planner_data import (
 from .planner_preview import BoxPreviewPanel
 from .planner_family_list import FamilyListPanel
 from .style import (DANGER, MOSS, MOSS_HOVER, SAGE, TERRACOTTA)
+from shared.text_sizes import font_css, qfont
 
 
 class AllocationSummaryItem(QWidget):
@@ -34,7 +35,7 @@ class AllocationSummaryItem(QWidget):
         layout.setContentsMargins(8, 4, 8, 4)
         layout.setSpacing(8)
         label = QLabel(box_alloc.label)
-        label.setFont(QFont("Segoe UI", 9))
+        label.setFont(qfont('caption', "Segoe UI"))
         layout.addWidget(label, 1)
         pct_label = QLabel(f"{box_alloc.capacity_pct}%")
         colour = SAGE if box_alloc.capacity_pct < 80 else TERRACOTTA
@@ -77,7 +78,7 @@ class BoxLayoutView(QWidget):
         # Missing or unreadable config files, said on screen (CUR-3)
         self.problem_label = QLabel("")
         self.problem_label.setWordWrap(True)
-        self.problem_label.setStyleSheet("color: " + DANGER + "; font-size: 11px;")
+        self.problem_label.setStyleSheet("color: " + DANGER + f"; font-size: {font_css('caption')};")
         ll.addWidget(self.problem_label)
 
         ll.addWidget(QLabel("Order"))
@@ -132,7 +133,7 @@ class BoxLayoutView(QWidget):
         rl.addWidget(self.preview, 2)
 
         self.summary_label = QLabel("Allocation Summary")
-        self.summary_label.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+        self.summary_label.setFont(qfont('body', "Segoe UI", QFont.Weight.Bold))
         rl.addWidget(self.summary_label)
 
         self.summary_scroll = QScrollArea()

@@ -31,6 +31,7 @@ from .site_analysis_view import SiteAnalysisView
 # Naturalist palette
 from Examen.style import (BG, SURFACE, TEXT_PRIMARY, TEXT_SECONDARY, TEXT_MUTED,
     BORDER, SEPARATOR, ACCENT, ACCENT_LIGHT, ACCENT_DARK)
+from shared.text_sizes import font_css, qfont
 
 
 class ExamenWindow(QMainWindow):
@@ -73,7 +74,7 @@ class ExamenWindow(QMainWindow):
         header_layout.addWidget(title)
 
         subtitle = QLabel("\u2014  Species Assessment Tool")
-        subtitle.setFont(QFont("Georgia", 10))
+        subtitle.setFont(qfont('body', "Georgia"))
         subtitle.setStyleSheet(
             "color: " + TEXT_SECONDARY + "; border: none; background: none;")
         header_layout.addWidget(subtitle)
@@ -82,7 +83,7 @@ class ExamenWindow(QMainWindow):
         # Mode selector
         mode_label = QLabel("Analysis mode:")
         mode_label.setStyleSheet(
-            "color: " + TEXT_SECONDARY + "; font-size: 11px; "
+            "color: " + TEXT_SECONDARY + f"; font-size: {font_css('caption')}; "
             "border: none; background: none;")
         header_layout.addWidget(mode_label)
 
@@ -92,7 +93,7 @@ class ExamenWindow(QMainWindow):
         self.mode_combo.setStyleSheet(
             "QComboBox { background: " + SURFACE + "; color: " + TEXT_PRIMARY + "; "
             "padding: 4px 8px; border: 1px solid " + BORDER + "; "
-            "border-radius: 4px; min-width: 180px; font-size: 12px; }"
+            f"border-radius: 4px; min-width: 180px; font-size: {font_css('small')}; }}"
             "QComboBox::drop-down { border: none; }")
         self.mode_combo.currentIndexChanged.connect(self._on_mode_changed)
         header_layout.addWidget(self.mode_combo)
@@ -103,7 +104,7 @@ class ExamenWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.tabs.setStyleSheet(
             "QTabWidget::pane { border: none; background: " + BG + "; }"
-            "QTabBar::tab { padding: 10px 24px; font-size: 12px; "
+            f"QTabBar::tab {{ padding: 10px 24px; font-size: {font_css('small')}; "
             "border: none; border-bottom: 3px solid transparent; "
             "color: " + TEXT_MUTED + "; background: none; }"
             "QTabBar::tab:selected { color: " + ACCENT_DARK + "; "
@@ -123,7 +124,7 @@ class ExamenWindow(QMainWindow):
         # Status bar
         self.status = QStatusBar()
         self.status.setStyleSheet(
-            "font-size: 11px; color: " + TEXT_MUTED + "; "
+            f"font-size: {font_css('caption')}; color: " + TEXT_MUTED + "; "
             "background: " + SURFACE + "; "
             "border-top: 1px solid " + SEPARATOR + ";")
         self.setStatusBar(self.status)

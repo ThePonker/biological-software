@@ -15,6 +15,7 @@ from ....themes import theme
 from ....core.config import ButtonColors
 from .dataset_picker import DatasetPicker
 from shared.fit_to_screen import fit_to_screen, scroll_body
+from shared.text_sizes import font_css
 
 
 # Verification statuses from iRecord data
@@ -81,7 +82,7 @@ class StatusFilterDialog(QDialog):
         header = QLabel("✓ Status to Include")
         header.setStyleSheet(f"""
             QLabel {{
-                font-size: 18px;
+                font-size: {font_css('title')};
                 font-weight: 600;
                 color: {self._accent_color};
                 background: transparent;
@@ -91,7 +92,7 @@ class StatusFilterDialog(QDialog):
         
         desc = QLabel("Filter by verification status and record type")
         desc.setWordWrap(True)
-        desc.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 12px; background: transparent;")
+        desc.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('small')}; background: transparent;")
         layout.addWidget(desc)
         
         # Separator
@@ -142,7 +143,7 @@ class StatusFilterDialog(QDialog):
                 border: 1px solid {t.get('border')};
                 border-radius: 4px;
                 padding: 10px 20px;
-                font-size: 13px;
+                font-size: {font_css('body')};
             }}
             QPushButton:hover {{
                 background-color: {t.get('hover')};
@@ -163,7 +164,7 @@ class StatusFilterDialog(QDialog):
                 border: 1px solid {t.get('border')};
                 border-radius: 4px;
                 padding: 10px 24px;
-                font-size: 13px;
+                font-size: {font_css('body')};
             }}
             QPushButton:hover {{
                 background-color: {t.get('hover')};
@@ -182,7 +183,7 @@ class StatusFilterDialog(QDialog):
                 border: none;
                 border-radius: 4px;
                 padding: 10px 24px;
-                font-size: 13px;
+                font-size: {font_css('body')};
                 font-weight: 500;
             }}
             QPushButton:hover {{
@@ -205,7 +206,7 @@ class StatusFilterDialog(QDialog):
         
         # Label
         label = QLabel("Verification Status")
-        label.setStyleSheet(f"font-weight: 600; color: {t.get('text_primary')}; font-size: 13px; background: transparent;")
+        label.setStyleSheet(f"font-weight: 600; color: {t.get('text_primary')}; font-size: {font_css('body')}; background: transparent;")
         layout.addWidget(label)
         
         # Checkboxes in frame
@@ -245,7 +246,7 @@ class StatusFilterDialog(QDialog):
         
         # Label
         label = QLabel("Record Type")
-        label.setStyleSheet(f"font-weight: 600; color: {t.get('text_primary')}; font-size: 13px; background: transparent;")
+        label.setStyleSheet(f"font-weight: 600; color: {t.get('text_primary')}; font-size: {font_css('body')}; background: transparent;")
         layout.addWidget(label)
         
         # Checkboxes in frame
@@ -336,7 +337,7 @@ class StatusFilterDialog(QDialog):
         cb.setStyleSheet(f"""
             QCheckBox {{
                 color: {t.get('text_primary')};
-                font-size: 13px;
+                font-size: {font_css('body')};
                 spacing: 10px;
                 background: transparent;
             }}

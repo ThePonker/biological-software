@@ -17,6 +17,7 @@ from ...themes import theme
 from ...core.config import TabColors
 from ...utils.constants import INSECT_ORDER_POSITION
 from shared.db_open import connect_ro  # D9: reference data, read-only
+from shared.text_sizes import font_css
 
 
 class TaxonomicSidebar(QWidget):
@@ -62,7 +63,7 @@ class TaxonomicSidebar(QWidget):
             QLineEdit {{
                 border: 1px solid {t.get('border')};
                 border-radius: 4px; padding: 4px 8px;
-                font-size: 11px; background: {t.get('surface')};
+                font-size: {font_css('caption')}; background: {t.get('surface')};
             }}
             QLineEdit:focus {{ border-color: {TabColors.COLLECTION}; }}
         """)
@@ -77,7 +78,7 @@ class TaxonomicSidebar(QWidget):
                 background: transparent;
                 border: 1px solid {TabColors.COLLECTION};
                 border-radius: 4px; padding: 2px 10px;
-                font-size: 11px; color: {TabColors.COLLECTION};
+                font-size: {font_css('caption')}; color: {TabColors.COLLECTION};
             }}
             QPushButton:hover {{
                 background: {TabColors.COLLECTION_LIGHT};
@@ -98,7 +99,7 @@ class TaxonomicSidebar(QWidget):
             QTreeWidget {{
                 border: none;
                 background: {t.get('surface')};
-                font-size: 11px;
+                font-size: {font_css('caption')};
             }}
             QTreeWidget::item {{
                 padding: 2px 4px;

@@ -21,6 +21,7 @@ from src.themes import theme
 
 from ..import_common.mode_option_card import ModeOptionCard  # noqa: F401  (C4: one copy)
 from ..import_common.progress_pages import ImportProgressPagesMixin
+from shared.text_sizes import font_css
 
 
 class WizardPagesMixin(ImportProgressPagesMixin):
@@ -59,7 +60,7 @@ class WizardPagesMixin(ImportProgressPagesMixin):
         instructions = QLabel(
             "Select the source of your Recording Scheme data:"
         )
-        instructions.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 13px;")
+        instructions.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('body')};")
         instructions.setWordWrap(True)
         layout.addWidget(instructions)
 
@@ -193,7 +194,7 @@ class WizardPagesMixin(ImportProgressPagesMixin):
             border-radius: {t.get('radius_md')};
             padding: 8px 12px;
             color: {t.get('info_text')};
-            font-size: 12px;
+            font-size: {font_css('small')};
         """)
         self.format_detected_label.setVisible(False)
         layout.addWidget(self.format_detected_label)
@@ -300,15 +301,15 @@ class WizardPagesMixin(ImportProgressPagesMixin):
         counters_layout.setSpacing(24)
 
         self.valid_label = QLabel("Valid: 0")
-        self.valid_label.setStyleSheet(f"color: {t.get('success')}; font-weight: 600; font-size: 13px;")
+        self.valid_label.setStyleSheet(f"color: {t.get('success')}; font-weight: 600; font-size: {font_css('body')};")
         counters_layout.addWidget(self.valid_label)
 
         self.warning_label = QLabel("Warnings: 0")
-        self.warning_label.setStyleSheet(f"color: {t.get('warning')}; font-weight: 600; font-size: 13px;")
+        self.warning_label.setStyleSheet(f"color: {t.get('warning')}; font-weight: 600; font-size: {font_css('body')};")
         counters_layout.addWidget(self.warning_label)
 
         self.error_label = QLabel("Errors: 0")
-        self.error_label.setStyleSheet(f"color: {t.get('error')}; font-weight: 600; font-size: 13px;")
+        self.error_label.setStyleSheet(f"color: {t.get('error')}; font-weight: 600; font-size: {font_css('body')};")
         counters_layout.addWidget(self.error_label)
 
         counters_layout.addStretch()
@@ -338,7 +339,7 @@ class WizardPagesMixin(ImportProgressPagesMixin):
                 border: 1px solid #4a7c59;
                 border-radius: 4px;
                 padding: 4px 12px;
-                font-size: 11px;
+                font-size: {font_css('caption')};
             }}
             QPushButton:hover {{
                 background-color: #4a7c59;
@@ -374,7 +375,7 @@ class WizardPagesMixin(ImportProgressPagesMixin):
             border-radius: {t.get('radius_md')};
             padding: 8px 12px;
             color: {t.get('info_text')};
-            font-size: 12px;
+            font-size: {font_css('small')};
         """)
         layout.addWidget(self.edit_hint)
 
@@ -411,7 +412,7 @@ class WizardPagesMixin(ImportProgressPagesMixin):
         filter_style = f"""
             QRadioButton {{
                 color: {t.get('text_primary')};
-                font-size: 13px;
+                font-size: {font_css('body')};
                 font-weight: 500;
                 spacing: 8px;
             }}
@@ -511,6 +512,12 @@ class WizardPagesMixin(ImportProgressPagesMixin):
 
         options_layout.addWidget(dup_indent)
         layout.addWidget(options_group)
+        # R18 B4: scheme records have no delete in the app, by design
+        self.no_delete_note = QLabel("Scheme records cannot be removed in Observatum once imported; "
+                                     "check the file first.")
+        self.no_delete_note.setWordWrap(True)
+        self.no_delete_note.setStyleSheet(f"color: {t.get('text_secondary')};")
+        layout.addWidget(self.no_delete_note)
         for box in (self.import_errors_checkbox, self.import_warnings_checkbox,
                     self.update_duplicates_checkbox):        # the count follows the boxes
             box.toggled.connect(lambda _on: self._update_confirmation_counts())

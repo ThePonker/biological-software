@@ -15,6 +15,7 @@ from PySide6.QtCore import Qt, Signal
 from ...themes import theme
 from ...core.config import ButtonColors, TabColors
 from shared.db_open import connect_ro  # D9: reference data, read-only
+from shared.text_sizes import font_css
 
 
 class FamilyDetailPanel(QWidget):
@@ -48,26 +49,26 @@ class FamilyDetailPanel(QWidget):
         # Header
         self.name_label = QLabel("")
         self.name_label.setStyleSheet(
-            f"font-size: 13px; font-weight: bold; color: {t.get('text_primary')};")
+            f"font-size: {font_css('body')}; font-weight: bold; color: {t.get('text_primary')};")
         layout.addWidget(self.name_label)
 
         # Subtitle
         self.subtitle_label = QLabel("")
         self.subtitle_label.setStyleSheet(
-            f"font-size: 11px; font-style: italic; color: {t.get('text_secondary')};")
+            f"font-size: {font_css('caption')}; font-style: italic; color: {t.get('text_secondary')};")
         layout.addWidget(self.subtitle_label)
 
         # Stats
         self.stats_label = QLabel("")
         self.stats_label.setStyleSheet(
-            f"font-size: 11px; color: {t.get('text_secondary')};")
+            f"font-size: {font_css('caption')}; color: {t.get('text_secondary')};")
         self.stats_label.setWordWrap(True)
         layout.addWidget(self.stats_label)
 
         # Extra info
         self.extra_label = QLabel("")
         self.extra_label.setStyleSheet(
-            f"font-size: 11px; color: {t.get('text_secondary')};")
+            f"font-size: {font_css('caption')}; color: {t.get('text_secondary')};")
         self.extra_label.setWordWrap(True)
         layout.addWidget(self.extra_label)
 
@@ -77,7 +78,7 @@ class FamilyDetailPanel(QWidget):
             QPushButton {{
                 background-color: {TabColors.COLLECTION};
                 color: white; border: none; border-radius: 4px;
-                padding: 5px 12px; font-size: 11px;
+                padding: 5px 12px; font-size: {font_css('caption')};
             }}
             QPushButton:hover {{ background-color: #7a7068; }}
         """)
@@ -95,7 +96,7 @@ class FamilyDetailPanel(QWidget):
         # Notes
         notes_header = QLabel("Notes:")
         notes_header.setStyleSheet(
-            f"font-size: 11px; color: {t.get('text_secondary')};")
+            f"font-size: {font_css('caption')}; color: {t.get('text_secondary')};")
         layout.addWidget(notes_header)
 
         self.notes_edit = QPlainTextEdit()
@@ -104,7 +105,7 @@ class FamilyDetailPanel(QWidget):
             QPlainTextEdit {{
                 border: 1px solid {t.get('border')};
                 border-radius: 4px; padding: 4px;
-                font-size: 11px; background: {t.get('surface')};
+                font-size: {font_css('caption')}; background: {t.get('surface')};
             }}
         """)
         self.notes_edit.setMaximumHeight(100)
@@ -118,7 +119,7 @@ class FamilyDetailPanel(QWidget):
             QPushButton {{
                 background-color: {ButtonColors.PRIMARY};
                 color: white; border: none; border-radius: 4px;
-                padding: 4px 12px; font-size: 11px;
+                padding: 4px 12px; font-size: {font_css('caption')};
             }}
             QPushButton:hover {{ background-color: #3d6649; }}
             QPushButton:disabled {{ background-color: #ccc; color: #888; }}

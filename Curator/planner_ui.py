@@ -10,10 +10,10 @@ for future development.
 """
 
 from PySide6.QtWidgets import QMainWindow, QTabWidget
-from PySide6.QtGui import QFont
 
 from .planner_labels_view import LabelsView
 from .planner_box_view import BoxLayoutView
+from shared.text_sizes import qfont
 
 
 class PlannerWindow(QMainWindow):
@@ -25,7 +25,7 @@ class PlannerWindow(QMainWindow):
         self.setMinimumSize(950, 600)
 
         tabs = QTabWidget()
-        tabs.setFont(QFont("Segoe UI", 10))
+        tabs.setFont(qfont('body', "Segoe UI"))
 
         # Default tab: Taxonomic Labels
         self.labels_view = LabelsView()

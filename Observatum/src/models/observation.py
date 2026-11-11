@@ -193,153 +193,73 @@ class ObservationModel:
         from shared.observatum_keys import last_sequence, make_key
         return make_key(prefix, last_sequence(self.db, prefix) + 1)
     
-    def create(self, observation: Observation) -> int:
-        """Create a new observation record."""
-        now = datetime.now().isoformat()
+    # The columns create() writes from the Observation, in the order they have always been written.
+    _CREATE_COLUMNS = (
+        "irecord_id", "record_key", "external_key", "event_id",
+        "collection_code", "dataset_name", "institution_code", "source",
+        "species_name", "species_tvk", "common_name", "order_name", "family",
+        "kingdom", "taxon_group", "taxon_rank",
+        "identification_qualifier", "identification_remarks", "recorder_certainty",
+        "date", "date_type",
+        "grid_ref", "grid_precision", "vice_county", "vc_number",
+        "site_name", "site_name_local",
+        "latitude", "longitude", "geodetic_datum", "location_id", "location_remarks",
+        "georeference_verification_status",
+        "recorder", "determiner", "verifier", "verified_on",
+        "sex", "stage", "quantity", "individual_count",
+        "organism_quantity", "organism_quantity_type", "zero_abundance",
+        "method", "basis_of_record", "occurrence_status",
+        "comment", "internal_notes", "sample_comment", "biotope",
+        "verification_status", "verification_status_2", "automated_checks",
+        "record_type", "project_name", "client", "embargo_status", "embargo_until",
+        "licence", "rights_holder", "images", "sensitive",
+        "sensitive_site", "sensitive_output_map_ref",
+        "input_on_date", "last_edited_date",
+        "sync_status", "never_upload_to_irecord",
+    )
+    # create() sets these itself; a caller may not pass them in `extra`
+    _CREATE_OWN = ("id", "observatum_key", "created_at", "updated_at")
 
-        query = """
-            INSERT INTO observations (
-                irecord_id, record_key, external_key, event_id,
-                collection_code, dataset_name, institution_code, source,
-                species_name, species_tvk, common_name, order_name, family,
-                kingdom, taxon_group, taxon_rank,
-                identification_qualifier, identification_remarks, recorder_certainty,
-                date, date_type,
-                grid_ref, grid_precision, vice_county, vc_number,
-                site_name, site_name_local,
-                latitude, longitude, geodetic_datum, location_id, location_remarks,
-                georeference_verification_status,
-                recorder, determiner, verifier, verified_on,
-                sex, stage, quantity, individual_count,
-                organism_quantity, organism_quantity_type, zero_abundance,
-                method, basis_of_record, occurrence_status,
-                comment, internal_notes, sample_comment, biotope,
-                verification_status, verification_status_2, automated_checks,
-                record_type, project_name, client, embargo_status, embargo_until,
-                licence, rights_holder, images, sensitive,
-                sensitive_site, sensitive_output_map_ref,
-                input_on_date, last_edited_date,
-                sync_status, never_upload_to_irecord,
-                observatum_key,
-                created_at, updated_at
-            ) VALUES (
-                ?, ?, ?, ?, ?, ?, ?, ?,
-                ?, ?, ?, ?, ?,
-                ?, ?, ?,
-                ?, ?, ?,
-                ?, ?,
-                ?, ?, ?, ?,
-                ?, ?,
-                ?, ?, ?, ?, ?,
-                ?,
-                ?, ?, ?, ?,
-                ?, ?, ?, ?,
-                ?, ?, ?,
-                ?, ?, ?,
-                ?, ?, ?, ?,
-                ?, ?, ?,
-                ?, ?, ?, ?, ?,
-                ?, ?, ?, ?,
-                ?, ?,
-                ?, ?,
-                ?, ?,
-                ?,
-                ?, ?
-            )
+    def _observation_columns(self) -> List[str]:
+        """The real column names of the observations table (PRAGMA table_info)."""
+        out = []
+        for r in self.db.execute_main("PRAGMA table_info(observations)"):
+            try:
+                out.append(r["name"])
+            except (TypeError, IndexError, KeyError):
+                out.append(r[1])
+        return out
+
+    def create(self, observation: Observation, extra: Optional[Dict[str, Any]] = None) -> int:
+        """Create a new observation record.
+
+        extra: further observations columns to write in the same INSERT (R18 B5) -- import_notes,
+        the survey columns (sub_location, trap_number, visit_number), superfamily, subfamily,
+        taxonomic_sort_key and so on. Each key must be a real column of the table: an unknown key
+        (or id / observatum_key / created_at / updated_at, which create() sets) raises ValueError
+        and nothing is written. A key that is also one of the Observation's own columns replaces it.
         """
+        now = datetime.now().isoformat()
+        extra = dict(extra or {})
+        if extra:
+            real = set(self._observation_columns())
+            unknown = sorted(k for k in extra if k not in real)
+            if unknown:
+                raise ValueError(f"observations has no column(s) {', '.join(unknown)}")
+            own = sorted(k for k in extra if k in self._CREATE_OWN)
+            if own:
+                raise ValueError(f"create() sets {', '.join(own)} itself")
 
-        observatum_key = self._generate_observatum_key()
+        values = {c: getattr(observation, c) for c in self._CREATE_COLUMNS}
+        values.update(extra)
+        values["observatum_key"] = self._generate_observatum_key()
+        values["created_at"] = now
+        values["updated_at"] = now
 
-        params = (
-            # External identity (8)
-            observation.irecord_id,
-            observation.record_key,
-            observation.external_key,
-            observation.event_id,
-            observation.collection_code,
-            observation.dataset_name,
-            observation.institution_code,
-            observation.source,
-            # Species identification (13)
-            observation.species_name,
-            observation.species_tvk,
-            observation.common_name,
-            observation.order_name,
-            observation.family,
-            observation.kingdom,
-            observation.taxon_group,
-            observation.taxon_rank,
-            observation.identification_qualifier,
-            observation.identification_remarks,
-            observation.recorder_certainty,
-            # Date (2)
-            observation.date,
-            observation.date_type,
-            # Location - grid (6)
-            observation.grid_ref,
-            observation.grid_precision,
-            observation.vice_county,
-            observation.vc_number,
-            observation.site_name,
-            observation.site_name_local,
-            # Location - coordinates (6)
-            observation.latitude,
-            observation.longitude,
-            observation.geodetic_datum,
-            observation.location_id,
-            observation.location_remarks,
-            observation.georeference_verification_status,
-            # People (4)
-            observation.recorder,
-            observation.determiner,
-            observation.verifier,
-            observation.verified_on,
-            # Occurrence (12)
-            observation.sex,
-            observation.stage,
-            observation.quantity,
-            observation.individual_count,
-            observation.organism_quantity,
-            observation.organism_quantity_type,
-            observation.zero_abundance,
-            observation.method,
-            observation.basis_of_record,
-            observation.occurrence_status,
-            # Notes (4)
-            observation.comment,
-            observation.internal_notes,
-            observation.sample_comment,
-            observation.biotope,
-            # Verification (3)
-            observation.verification_status,
-            observation.verification_status_2,
-            observation.automated_checks,
-            # Record management (5)
-            observation.record_type,
-            observation.project_name,
-            observation.client,
-            observation.embargo_status,
-            observation.embargo_until,
-            # Metadata (8)
-            observation.licence,
-            observation.rights_holder,
-            observation.images,
-            observation.sensitive,
-            observation.sensitive_site,
-            observation.sensitive_output_map_ref,
-            observation.input_on_date,
-            observation.last_edited_date,
-            # Sync (2)
-            observation.sync_status,
-            observation.never_upload_to_irecord,
-            # Timestamps (2)
-            observatum_key,
-            now,  # created_at
-            now,  # updated_at
-        )
-
-        result = self.db.execute_main_write(query, params)
-        return result
+        columns = list(values)
+        query = (f"INSERT INTO observations ({', '.join(columns)}) "
+                 f"VALUES ({', '.join('?' * len(columns))})")
+        return self.db.execute_main_write(query, tuple(values[c] for c in columns))
 
     # =========================================================================
     # READ

@@ -2,6 +2,7 @@
 
 from shared.theme_lookup import _theme  # noqa: F401  (Munia/__main__.py imports it from here)
 from shared.theme_lookup import value as _g
+from shared.text_sizes import font_css
 
 
 # ── Palette (names resolved from Observatum's Naturalist theme, R13) ──
@@ -53,18 +54,18 @@ def window_stylesheet():
         }}
         QLabel#heading {{
             font-family: "{HEADING_FAMILY}";
-            font-size: 22px;
+            font-size: {font_css('display_22')};
             font-weight: bold;
             color: {TEXT_DARK};
         }}
         QLabel#subheading {{
             font-family: "{HEADING_FAMILY}";
-            font-size: 14px;
+            font-size: {font_css('body')};
             color: {TEXT_MID};
         }}
         QLabel#sectionTitle {{
             font-family: "{HEADING_FAMILY}";
-            font-size: 15px;
+            font-size: {font_css('body_large')};
             font-weight: bold;
             color: {TEXT_DARK};
         }}
@@ -75,7 +76,7 @@ def window_stylesheet():
             border-radius: 4px;
             padding: 7px 18px;
             font-family: "{BODY_FAMILY}";
-            font-size: 13px;
+            font-size: {font_css('body')};
             font-weight: 600;
         }}
         QPushButton#primary:hover {{
@@ -92,7 +93,7 @@ def window_stylesheet():
             border-radius: 4px;
             padding: 7px 18px;
             font-family: "{BODY_FAMILY}";
-            font-size: 13px;
+            font-size: {font_css('body')};
         }}
         QPushButton#secondary:hover {{
             background-color: {WARM_GRAY_LIGHT};
@@ -104,7 +105,7 @@ def window_stylesheet():
             border-radius: 4px;
             padding: 7px 18px;
             font-family: "{BODY_FAMILY}";
-            font-size: 13px;
+            font-size: {font_css('body')};
         }}
         QPushButton#delete:hover {{
             background-color: {FADED_CRIMSON_LIGHT};
@@ -115,7 +116,7 @@ def window_stylesheet():
             border-radius: 4px;
             gridline-color: {STONE_BORDER};
             font-family: "{BODY_FAMILY}";
-            font-size: 13px;
+            font-size: {font_css('body')};
             color: {TEXT_DARK};
             selection-background-color: {DUSTY_PURPLE_LIGHT};
         }}
@@ -126,7 +127,7 @@ def window_stylesheet():
             background-color: {WARM_GRAY_LIGHT};
             color: {TEXT_DARK};
             font-family: "{BODY_FAMILY}";
-            font-size: 12px;
+            font-size: {font_css('small')};
             font-weight: 600;
             padding: 6px 8px;
             border: none;
@@ -139,7 +140,7 @@ def window_stylesheet():
             border-radius: 3px;
             padding: 4px 8px;
             font-family: "{BODY_FAMILY}";
-            font-size: 13px;
+            font-size: {font_css('body')};
             color: {TEXT_DARK};
         }}
         QLineEdit:focus {{
@@ -151,7 +152,7 @@ def window_stylesheet():
             border-radius: 3px;
             padding: 4px 8px;
             font-family: "{BODY_FAMILY}";
-            font-size: 13px;
+            font-size: {font_css('body')};
             color: {TEXT_DARK};
         }}
         QComboBox:focus {{

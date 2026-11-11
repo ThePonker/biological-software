@@ -21,6 +21,7 @@ from .who_filter_dialog import WhoFilterDialog
 from .how_filter_dialog import HowFilterDialog
 from .status_filter_dialog import StatusFilterDialog
 from ....services.filter_builder import CARD_KEYS, KEY_TO_CARD, as_list, tab_columns, tab_values
+from shared.text_sizes import font_css
 
 
 def _empty_filters() -> Dict[str, Dict]:
@@ -132,7 +133,7 @@ class FilterWizard(QWidget):
         header_label = QLabel("Filter Wizard")
         header_label.setStyleSheet(f"""
             QLabel {{
-                font-size: 13px;
+                font-size: {font_css('body')};
                 font-weight: 600;
                 color: {self._accent_color};
                 background: transparent;
@@ -146,7 +147,7 @@ class FilterWizard(QWidget):
         self._filter_count_label.setStyleSheet(f"""
             QLabel {{
                 color: {t.get('text_muted')};
-                font-size: 12px;
+                font-size: {font_css('small')};
                 background: transparent;
             }}
         """)
@@ -430,7 +431,7 @@ class FilterWizard(QWidget):
                 border: 1px solid {t.get('border')};
                 border-radius: 4px;
                 padding: 4px 8px;
-                font-size: 12px;
+                font-size: {font_css('small')};
                 color: {t.get('text_primary')};
             }}
             QComboBox:focus {{

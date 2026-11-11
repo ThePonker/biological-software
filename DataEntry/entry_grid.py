@@ -34,6 +34,7 @@ from DataEntry.entry_table_view import EntryTableView, _count_keys  # noqa: F401
 from DataEntry.grid_dialogs import ExportOptionsDialog, EmbargoDialog  # noqa: F401
 from DataEntry.grid_exits_mixin import GridExitsMixin
 from DataEntry.grid_layout_mixin import GridLayoutMixin
+from shared.text_sizes import font_css
 
 
 class EntryGridPage(GridExitsMixin, GridLayoutMixin, QWidget):
@@ -112,7 +113,7 @@ class EntryGridPage(GridExitsMixin, GridLayoutMixin, QWidget):
         hh.sectionResized.connect(lambda *a: self._save_header_state())
         self._view.setStyleSheet(
             f"QTableView {{ background: {theme.CARD}; border: 1px solid {theme.LINE};"
-            f"  gridline-color: {theme.LINE}; font-size: 13px;"
+            f"  gridline-color: {theme.LINE}; font-size: {font_css('body')};"
             f"  selection-background-color: rgba(74,124,89,0.30); selection-color: {theme.INK}; }}"
             f"QTableView::item:selected {{ background: rgba(74,124,89,0.30); color: {theme.INK}; }}"
             f"QHeaderView::section {{ background: {theme.PAPER}; padding: 4px; border: none;"
@@ -155,7 +156,7 @@ class EntryGridPage(GridExitsMixin, GridLayoutMixin, QWidget):
         def _box(lbl):
             h = QHBoxLayout(); h.setSpacing(6)
             L = QLabel(lbl); L.setFixedWidth(74)
-            L.setStyleSheet(f"color: {theme.INK}; font-size: 12px;")
+            L.setStyleSheet(f"color: {theme.INK}; font-size: {font_css('small')};")
             e = QLineEdit(); e.setFixedWidth(180)
             e.setStyleSheet(theme.input_qss())
             h.addWidget(L); h.addWidget(e); h.addStretch(1)
@@ -188,13 +189,13 @@ class EntryGridPage(GridExitsMixin, GridLayoutMixin, QWidget):
             "you've already typed.\n"
             "While the grid is sorted nothing is copied (the row above isn't the one\n"
             "entered before); the tick is kept and works again in entry order.")
-        self._copy_ctx.setStyleSheet(f"color: {theme.INK}; font-size: 12px;")
+        self._copy_ctx.setStyleSheet(f"color: {theme.INK}; font-size: {font_css('small')};")
         self._copy_ctx.toggled.connect(self._model.set_copy_context)
         cv.addWidget(self._copy_ctx)
 
         # add-rows row
         addr = QHBoxLayout(); addr.setSpacing(6)
-        add_lbl = QLabel("Add rows:"); add_lbl.setStyleSheet(f"color: {theme.MUTED}; font-size: 12px;")
+        add_lbl = QLabel("Add rows:"); add_lbl.setStyleSheet(f"color: {theme.MUTED}; font-size: {font_css('small')};")
         addr.addWidget(add_lbl)
         for n in (10, 100, 1000):
             b = QPushButton(f"+{n}")
@@ -250,7 +251,7 @@ class EntryGridPage(GridExitsMixin, GridLayoutMixin, QWidget):
         self._readback_btn.clicked.connect(self._read_back_checking)
         cnt_row.addWidget(self._readback_btn)
         self._counter = QLabel("")
-        self._counter.setStyleSheet(f"color: {theme.INK}; font-size: 26px; font-weight: 700;")
+        self._counter.setStyleSheet(f"color: {theme.INK}; font-size: {font_css('display_26')}; font-weight: 700;")
         self._counter.setVisible(False)
         cnt_row.addWidget(self._counter)
         cnt_row.addStretch(1)
@@ -288,7 +289,7 @@ class EntryGridPage(GridExitsMixin, GridLayoutMixin, QWidget):
 
         # finish-job row: commit / export / discard (+ count)
         fin_row = QHBoxLayout(); fin_row.setSpacing(8)
-        fin = QLabel("Finish job:"); fin.setStyleSheet(f"color: {theme.MUTED}; font-size: 12px;")
+        fin = QLabel("Finish job:"); fin.setStyleSheet(f"color: {theme.MUTED}; font-size: {font_css('small')};")
         fin_row.addWidget(fin)
         self._commit_btn = QPushButton("Commit to Observatum")
         self._commit_btn.setStyleSheet(theme.button_primary_qss(compact=True))
@@ -329,10 +330,10 @@ class EntryGridPage(GridExitsMixin, GridLayoutMixin, QWidget):
         meta = QHBoxLayout()
         if not self._service:
             note = QLabel("species popup unavailable \u2014 typing names as text")
-            note.setStyleSheet(f"color: {theme.GOLD}; font-size: 11px;")
+            note.setStyleSheet(f"color: {theme.GOLD}; font-size: {font_css('caption')};")
             meta.addWidget(note)
         self._count = QLabel("")
-        self._count.setStyleSheet(f"color: {theme.MUTED}; font-size: 12px;")
+        self._count.setStyleSheet(f"color: {theme.MUTED}; font-size: {font_css('small')};")
         # Which order the grid is showing, always in view (L21, 10 Oct): "Entry order"
         # on a button that appeared only once sorted left it unclear which order was on
         self._order_lbl = QLabel()
@@ -518,12 +519,12 @@ class EntryGridPage(GridExitsMixin, GridLayoutMixin, QWidget):
                         "Copy context from row above \u2014 off while sorted (Back to entry order)")
         if column is None:
             self._order_lbl.setText("Showing: entry order")
-            self._order_lbl.setStyleSheet(f"color: {theme.MUTED}; font-size: 12px;")
+            self._order_lbl.setStyleSheet(f"color: {theme.MUTED}; font-size: {font_css('small')};")
             self._sort_btn.setVisible(False)
             return
         arrow = "\u25be" if descending else "\u25b4"
         self._order_lbl.setText(f"Showing: sorted by {COLUMNS[column][1]} {arrow}  (view only)")
-        self._order_lbl.setStyleSheet(f"color: {theme.INK}; font-size: 12px; font-weight: 600;")
+        self._order_lbl.setStyleSheet(f"color: {theme.INK}; font-size: {font_css('small')}; font-weight: 600;")
         self._sort_btn.setVisible(True)
 
     def _locations_summary(self):

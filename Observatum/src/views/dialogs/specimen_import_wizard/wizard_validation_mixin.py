@@ -359,7 +359,14 @@ class WizardValidationMixin:
             from shared.species_lookup import lookup_names
             from shared.species_lookup_entries import entry
             typed = row.species_name
-            e = entry(lookup_names([typed], self.uksi_model, close_spellings=True)[typed])
+            try:
+                e = entry(lookup_names([typed], self.uksi_model, close_spellings=True)[typed])
+            except Exception as exc:          # R18 B2: the row is an error with the text, not a hang
+                from shared import crash_log
+                from shared.species_lookup import LookupFailure
+                from shared.species_lookup_entries import failure_text
+                crash_log.note(f"[specimen import] species re-check failed for {typed!r}: {exc}", exc)
+                e = {"error": failure_text(LookupFailure(typed, "error", str(exc)))}
             if "error" in e:
                 errors.append(e["error"])
             else:

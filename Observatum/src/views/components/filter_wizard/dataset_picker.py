@@ -22,6 +22,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel, QLineEdit, QListWidget, QListWidgetItem, QVBoxLayout, QWidget
 
 from ....themes import theme
+from shared.text_sizes import font_css
 
 SEP = " | "
 _INDENT = "\u2003\u2003"          # two em spaces per level
@@ -68,14 +69,14 @@ class DatasetPicker(QWidget):
 
         label = QLabel("Dataset / provider")
         label.setStyleSheet(f"font-weight: 600; color: {t.get('text_primary')}; "
-                            "font-size: 13px; background: transparent;")
+                            f"font-size: {font_css('body')}; background: transparent;")
         layout.addWidget(label)
 
         hint = QLabel("Where the records came from: the NBN Atlas dataset or the iRecord survey. "
                       "Tick one or more (any of them). Ticking a dataset also ticks its "
                       "sub-surveys (listed under it); untick any you don't want.")
         hint.setWordWrap(True)
-        hint.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 11px; background: transparent;")
+        hint.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('caption')}; background: transparent;")
         layout.addWidget(hint)
 
         self.search = QLineEdit()

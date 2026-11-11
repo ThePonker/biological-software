@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QSpinBox, QCheckBox, QPushButton, QFrame, QFormLayout,
 )
 from .style import (MOSS, SEPARATOR, TEXT_SECONDARY, WARM_GRAY)
+from shared.text_sizes import font_css
 
 SETTINGS_PATH = Path(__file__).parent / "settings.json"
 
@@ -68,11 +69,11 @@ class SettingsDialog(QDialog):
         layout.setContentsMargins(20, 20, 20, 20)
 
         title = QLabel("Default Settings")
-        title.setStyleSheet("font-size: 14px; font-weight: bold;")
+        title.setStyleSheet(f"font-size: {font_css('body')}; font-weight: bold;")
         layout.addWidget(title)
 
         info = QLabel("These apply when Curator starts.")
-        info.setStyleSheet("color: " + TEXT_SECONDARY + "; font-size: 11px;")
+        info.setStyleSheet("color: " + TEXT_SECONDARY + f"; font-size: {font_css('caption')};")
         layout.addWidget(info)
 
         sep = QFrame()

@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal, QTimer
 
 from ....themes import theme
+from shared.text_sizes import font_css
 
 
 class SpeciesSearchDialog(QDialog):
@@ -65,7 +66,7 @@ class SpeciesSearchDialog(QDialog):
                 padding: 8px 12px;
                 border: 1px solid {t.get('border')};
                 border-radius: 6px;
-                font-size: 14px;
+                font-size: {font_css('body')};
             }}
             QLineEdit:focus {{
                 border: 2px solid {t.get('success')};

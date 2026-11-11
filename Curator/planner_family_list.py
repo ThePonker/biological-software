@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont, QColor, QPainter, QPen, QCursor
 from .style import (TERRACOTTA, TERRACOTTA_DARK, TERRACOTTA_LIGHT, TEXT_SECONDARY)
+from shared.text_sizes import font_css, qfont
 
 
 class FamilyListItem(QWidget):
@@ -35,7 +36,7 @@ class FamilyListItem(QWidget):
         badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
         badge.setStyleSheet(
             "background-color: " + TERRACOTTA_LIGHT + "; color: " + TERRACOTTA_DARK + "; "
-            "border-radius: 4px; font-size: 11px; font-weight: bold;"
+            f"border-radius: 4px; font-size: {font_css('caption')}; font-weight: bold;"
         )
         layout.addWidget(badge)
 
@@ -44,14 +45,14 @@ class FamilyListItem(QWidget):
         info_layout.setSpacing(0)
 
         name_label = QLabel(family_data.family)
-        name_label.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
+        name_label.setFont(qfont('caption', "Segoe UI", QFont.Weight.Bold))
         info_layout.addWidget(name_label)
 
         parts = [f"{family_data.specimen_count} specimens"]
         if family_data.superfamily:
             parts.append(family_data.superfamily)
         detail_label = QLabel(" \u2014 ".join(parts))
-        detail_label.setStyleSheet("color: " + TEXT_SECONDARY + "; font-size: 11px;")
+        detail_label.setStyleSheet("color: " + TEXT_SECONDARY + f"; font-size: {font_css('caption')};")
         info_layout.addWidget(detail_label)
 
         layout.addLayout(info_layout, 1)
@@ -114,7 +115,7 @@ class BoxDivider(QWidget):
 
         # Box labels
         painter.setPen(QColor(TERRACOTTA_DARK))
-        painter.setFont(QFont("Segoe UI", 8, QFont.Weight.Bold))
+        painter.setFont(qfont('caption', "Segoe UI", QFont.Weight.Bold))
         label = f"Box {self._box_above}  \u2502  Box {self._box_below}"
         painter.drawText(0, 0, w, h, Qt.AlignmentFlag.AlignCenter, label)
 

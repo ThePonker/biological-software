@@ -8,6 +8,7 @@ Provides consistent column widths, input heights, and styled helper functions.
 from PySide6.QtWidgets import QLabel
 
 from ...themes import theme
+from shared.text_sizes import font_css
 
 
 # =============================================================================
@@ -46,7 +47,7 @@ def get_input_style() -> str:
         border-radius: {t.get('radius_sm')};
         background-color: {t.get('surface')};
         color: {t.get('text_primary')};
-        font-size: 13px;
+        font-size: {font_css('body')};
     """
 
 
@@ -65,7 +66,7 @@ def get_combo_style() -> str:
             border-radius: {t.get('radius_sm')};
             background-color: {t.get('surface')};
             color: {t.get('text_primary')};
-            font-size: 13px;
+            font-size: {font_css('body')};
             min-height: 18px;
         }}
         QComboBox::drop-down {{
@@ -100,7 +101,7 @@ def get_placeholder_style() -> str:
             border-radius: {t.get('radius_sm')};
             background-color: {t.get('surface_alt')};
             color: {t.get('text_muted')};
-            font-size: 13px;
+            font-size: {font_css('body')};
         }}
     """
 
@@ -120,7 +121,7 @@ def get_clear_button_style() -> str:
             padding: 4px 12px;
             border: 1px solid {t.get('border')};
             border-radius: {t.get('radius_sm')};
-            font-size: 13px;
+            font-size: {font_css('body')};
         }}
         QPushButton:hover {{
             background-color: {t.get('error_bg')};
@@ -148,6 +149,6 @@ def create_filter_label(text: str, muted: bool = False) -> QLabel:
     t = theme()
     label = QLabel(text)
     color = t.get('text_muted') if muted else t.get('text_secondary')
-    label.setStyleSheet(f"font-size: 12px; color: {color}; font-weight: 500;")
+    label.setStyleSheet(f"font-size: {font_css('small')}; color: {color}; font-weight: 500;")
     label.setFixedHeight(16)
     return label

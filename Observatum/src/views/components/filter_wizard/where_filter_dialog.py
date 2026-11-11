@@ -23,6 +23,7 @@ from ....core.config import ButtonColors
 from .chip_display import FilterChip  # I9: one copy
 from .fuzzy import picking_from_popup, PlaceCompleter as FuzzyCompleter  # place names: abbreviations understood
 from .chip_values import typed_chip, chip_label
+from shared.text_sizes import font_css
 
 
 class GridRefProxyModel(QSortFilterProxyModel):
@@ -103,7 +104,7 @@ class WhereFilterDialog(QDialog):
         
         self.setWindowTitle("Filter by Where")
         self.setMinimumWidth(500)
-        self.setMinimumHeight(520)
+        self.setMinimumHeight(580)   # R18: 580 (was 520) at the larger text
         self.setModal(True)
         
         self._setup_ui()
@@ -123,7 +124,7 @@ class WhereFilterDialog(QDialog):
         header = QLabel("📍 Where to Include")
         header.setStyleSheet(f"""
             QLabel {{
-                font-size: 18px;
+                font-size: {font_css('title')};
                 font-weight: 600;
                 color: {self._accent_color};
                 background: transparent;
@@ -133,7 +134,7 @@ class WhereFilterDialog(QDialog):
         
         desc = QLabel("Search and press Enter to add. Grid refs match by prefix (e.g., 'TL' or 'TL25').")
         desc.setWordWrap(True)
-        desc.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 12px; background: transparent;")
+        desc.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('small')}; background: transparent;")
         layout.addWidget(desc)
         
         sep = QFrame()
@@ -165,7 +166,7 @@ class WhereFilterDialog(QDialog):
         # CHIPS
         chip_header = QHBoxLayout()
         self._chip_title = QLabel("No filters applied")
-        self._chip_title.setStyleSheet(f"font-weight: 500; font-size: 12px; color: {t.get('text_secondary')};")
+        self._chip_title.setStyleSheet(f"font-weight: 500; font-size: {font_css('small')}; color: {t.get('text_secondary')};")
         chip_header.addWidget(self._chip_title)
         chip_header.addStretch()
         
@@ -180,7 +181,7 @@ class WhereFilterDialog(QDialog):
                 background: transparent;
                 border: none;
                 color: {self._accent_color};
-                font-size: 11px;
+                font-size: {font_css('caption')};
             }}
             QPushButton:hover {{
                 text-decoration: underline;
@@ -231,7 +232,7 @@ class WhereFilterDialog(QDialog):
                 border: 1px solid #a63d40;
                 border-radius: 4px;
                 padding: 10px 20px;
-                font-size: 13px;
+                font-size: {font_css('body')};
             }}
             QPushButton:hover {{
                 background-color: rgba(166, 61, 64, 0.1);
@@ -253,7 +254,7 @@ class WhereFilterDialog(QDialog):
                 border: 1px solid {t.get('border')};
                 border-radius: 4px;
                 padding: 10px 24px;
-                font-size: 13px;
+                font-size: {font_css('body')};
             }}
             QPushButton:hover {{
                 background-color: {t.get('hover')};
@@ -273,7 +274,7 @@ class WhereFilterDialog(QDialog):
                 border: none;
                 border-radius: 4px;
                 padding: 10px 24px;
-                font-size: 13px;
+                font-size: {font_css('body')};
                 font-weight: 500;
             }}
             QPushButton:hover {{
@@ -297,7 +298,7 @@ class WhereFilterDialog(QDialog):
         # Label row with checkbox
         label_row = QHBoxLayout()
         lbl = QLabel("Site Name")
-        lbl.setStyleSheet(f"font-weight: 600; color: {t.get('text_primary')}; font-size: 13px; background: transparent;")
+        lbl.setStyleSheet(f"font-weight: 600; color: {t.get('text_primary')}; font-size: {font_css('body')}; background: transparent;")
         label_row.addWidget(lbl)
         
         label_row.addStretch()
@@ -307,7 +308,7 @@ class WhereFilterDialog(QDialog):
         self._partial_match_cb.setStyleSheet(f"""
             QCheckBox {{
                 color: {t.get('text_primary')};
-                font-size: 12px;
+                font-size: {font_css('small')};
                 spacing: 6px;
                 padding: 4px 8px;
                 background-color: {t.get('surface')};
@@ -328,7 +329,7 @@ class WhereFilterDialog(QDialog):
                 border: 1px solid {t.get('border')};
                 border-radius: 4px;
                 padding: 10px 14px;
-                font-size: 13px;
+                font-size: {font_css('body')};
                 color: {t.get('text_primary')};
             }}
             QLineEdit:focus {{
@@ -407,7 +408,7 @@ class WhereFilterDialog(QDialog):
         layout.setSpacing(8)
         
         lbl = QLabel(label)
-        lbl.setStyleSheet(f"font-weight: 600; color: {t.get('text_primary')}; font-size: 13px; background: transparent;")
+        lbl.setStyleSheet(f"font-weight: 600; color: {t.get('text_primary')}; font-size: {font_css('body')}; background: transparent;")
         layout.addWidget(lbl)
         
         input_widget = QLineEdit()
@@ -419,7 +420,7 @@ class WhereFilterDialog(QDialog):
                 border: 1px solid {t.get('border')};
                 border-radius: 4px;
                 padding: 10px 14px;
-                font-size: 13px;
+                font-size: {font_css('body')};
                 color: {t.get('text_primary')};
             }}
             QLineEdit:focus {{

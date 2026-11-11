@@ -15,10 +15,10 @@ Or via the batch file:
 import sys
 
 from PySide6.QtWidgets import QApplication
-from PySide6.QtGui import QFont
 
 from .planner_ui import PlannerWindow
 from .planner_data import DB_PATH
+from shared.text_sizes import qfont
 
 
 def main():
@@ -39,7 +39,7 @@ def main():
     from shared import gc_schedule, qt_messages
     gc_schedule.install(app)         # the cyclic collector runs from a timer, not inside Qt handlers
     qt_messages.install()
-    app.setFont(QFont("Segoe UI", 9))
+    app.setFont(qfont('caption', "Segoe UI"))
     from shared.opaque_popups import install as solid_popups
     solid_popups(app)                    # F50: solid drop-down lists (the palette's colours)
     from shared.dialog_geometry import install as remember_dialog_sizes

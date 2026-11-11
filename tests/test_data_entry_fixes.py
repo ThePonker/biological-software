@@ -100,14 +100,16 @@ class _Obs:
 class _Model:
     def __init__(self, fail_at=None, falsy_at=None):
         self.made, self.fail_at, self.falsy_at = [], fail_at, falsy_at
+        self.extras = []
 
-    def create(self, obs):
+    def create(self, obs, extra=None):
         n = len(self.made) + 1
         if n == self.fail_at:
             raise RuntimeError("disk I/O error")
         if n == self.falsy_at:
             return None
         self.made.append(obs.kw)
+        self.extras.append(extra)
         return 100 + n
 
 
@@ -142,9 +144,11 @@ def test_commit_writes_taxonomy_superfamily_and_sort_key(staging):
     s = commit_job(db, model, staging, job, observation_cls=_Obs, taxonomy=tax)
     assert s["committed"] == 1 and s["error"] is None
     assert model.made[0]["taxon_group"] == "insect - hymenopteran"
-    sql, params = db.writes[0]
-    assert "superfamily=?" in sql and "taxonomic_sort_key=?" in sql
-    assert params[4:6] == ("Apoidea", 26000001)
+    assert db.writes == []                       # R18 B5: no second UPDATE, one INSERT
+    extra = model.extras[0]
+    assert (extra["superfamily"], extra["taxonomic_sort_key"]) == ("Apoidea", 26000001)
+    assert set(extra) == {"sub_location", "trap_number", "visit_number", "import_notes",
+                          "superfamily", "taxonomic_sort_key"}
 
 
 def test_commit_part_failure_reports_what_was_written(staging):

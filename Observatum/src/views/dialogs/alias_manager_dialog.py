@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from src.themes import theme
 from src.services.species_alias_service import SpeciesAliasService
+from shared.text_sizes import font_css
 
 
 class AliasManagerDialog(QDialog):
@@ -34,11 +35,11 @@ class AliasManagerDialog(QDialog):
 
         # Header
         header = QLabel("Saved Species Aliases")
-        header.setStyleSheet(f"font-size: 16px; font-weight: bold; color: {t.get('text_primary')};")
+        header.setStyleSheet(f"font-size: {font_css('heading')}; font-weight: bold; color: {t.get('text_primary')};")
         layout.addWidget(header)
 
         desc = QLabel("These mappings are used during import to automatically resolve species names.")
-        desc.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 12px;")
+        desc.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('small')};")
         layout.addWidget(desc)
 
         # Table
@@ -82,7 +83,7 @@ class AliasManagerDialog(QDialog):
 
         # Count label
         self.count_label = QLabel("")
-        self.count_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 12px;")
+        self.count_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('small')};")
         layout.addWidget(self.count_label)
 
         # Buttons

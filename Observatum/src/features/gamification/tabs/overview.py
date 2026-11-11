@@ -16,6 +16,7 @@ from PySide6.QtSvgWidgets import QSvgWidget
 from shared.display_format import dmy
 
 from ..theme import BACKGROUND, TEXT, SEAL_COLOURS
+from shared.text_sizes import font_css
 
 
 class OverviewTab:
@@ -82,7 +83,7 @@ class OverviewTab:
         info_layout.addWidget(self.tier_name_label)
         
         self.tier_subtitle = QLabel("Tier 1 of 20")
-        self.tier_subtitle.setStyleSheet(f"font-size: 12px; color: {TEXT['secondary']};")
+        self.tier_subtitle.setStyleSheet(f"font-size: {font_css('small')}; color: {TEXT['secondary']};")
         info_layout.addWidget(self.tier_subtitle)
         
         self.tier_progress = QProgressBar()
@@ -90,7 +91,7 @@ class OverviewTab:
         info_layout.addWidget(self.tier_progress)
         
         self.tier_count_label = QLabel("0 / 500 species")
-        self.tier_count_label.setStyleSheet(f"font-size: 11px; color: {TEXT['secondary']};")
+        self.tier_count_label.setStyleSheet(f"font-size: {font_css('caption')}; color: {TEXT['secondary']};")
         info_layout.addWidget(self.tier_count_label)
         
         tier_layout.addLayout(info_layout, 1)
@@ -116,12 +117,12 @@ class OverviewTab:
         
         records_header = QHBoxLayout()
         records_title = QLabel("Personal Records")
-        records_title.setStyleSheet(f"font-size: 14px; font-weight: bold; color: {TEXT['accent']};")
+        records_title.setStyleSheet(f"font-size: {font_css('body')}; font-weight: bold; color: {TEXT['accent']};")
         records_header.addWidget(records_title)
         records_header.addStretch()
         
         self.records_earned_label = QLabel("0 / 95 earned")
-        self.records_earned_label.setStyleSheet(f"font-size: 11px; color: {TEXT['secondary']};")
+        self.records_earned_label.setStyleSheet(f"font-size: {font_css('caption')}; color: {TEXT['secondary']};")
         records_header.addWidget(self.records_earned_label)
         records_layout.addLayout(records_header)
         
@@ -149,7 +150,7 @@ class OverviewTab:
         groups_layout.setContentsMargins(12, 10, 12, 14)
         
         groups_title = QLabel("Records by Group")
-        groups_title.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {TEXT['accent']};")
+        groups_title.setStyleSheet(f"font-size: {font_css('body')}; font-weight: bold; color: {TEXT['accent']};")
         groups_layout.addWidget(groups_title)
         
         # 11 boxes in 2 rows (6 + 5 centered)
@@ -253,7 +254,7 @@ class OverviewTab:
         # Update tier info
         colours = get_stage_colours(tier_data["stage"])
         self.tier_name_label.setText(tier_data["tier_name"])
-        self.tier_name_label.setStyleSheet(f"font-size: 20px; font-weight: bold; color: {colours['highlight']};")
+        self.tier_name_label.setStyleSheet(f"font-size: {font_css('display_20')}; font-weight: bold; color: {colours['highlight']};")
         
         self.tier_subtitle.setText(f"Tier {tier_data['tier_number']} of 20")
         
@@ -365,7 +366,7 @@ class OverviewTab:
                             border-radius: 6px;
                         }}
                     """)
-                    box.count_label.setStyleSheet(f"font-size: 12px; color: {TEXT['muted']};")
+                    box.count_label.setStyleSheet(f"font-size: {font_css('small')}; color: {TEXT['muted']};")
                     
         except Exception as e:
             print(f"[Gamification] Error updating group boxes: {e}")
@@ -451,11 +452,11 @@ class OverviewTab:
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         value_lbl = QLabel(value)
-        value_lbl.setStyleSheet(f"font-size: 24px; color: {TEXT['accent']};")
+        value_lbl.setStyleSheet(f"font-size: {font_css('display_24')}; color: {TEXT['accent']};")
         value_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         title_lbl = QLabel(title)
-        title_lbl.setStyleSheet(f"font-size: 11px; color: {TEXT['secondary']};")
+        title_lbl.setStyleSheet(f"font-size: {font_css('caption')}; color: {TEXT['secondary']};")
         title_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         layout.addWidget(value_lbl)
@@ -480,15 +481,15 @@ class OverviewTab:
         layout.setSpacing(4)
         
         title_lbl = QLabel(title)
-        title_lbl.setStyleSheet(f"font-size: 11px; color: {TEXT['muted']};")
+        title_lbl.setStyleSheet(f"font-size: {font_css('caption')}; color: {TEXT['muted']};")
         layout.addWidget(title_lbl)
         
         value_lbl = QLabel(value)
-        value_lbl.setStyleSheet(f"font-size: 22px; font-weight: bold; color: {TEXT['accent']};")
+        value_lbl.setStyleSheet(f"font-size: {font_css('display_22')}; font-weight: bold; color: {TEXT['accent']};")
         layout.addWidget(value_lbl)
         
         subtitle_lbl = QLabel(subtitle)
-        subtitle_lbl.setStyleSheet(f"font-size: 11px; color: {TEXT['secondary']};")
+        subtitle_lbl.setStyleSheet(f"font-size: {font_css('caption')}; color: {TEXT['secondary']};")
         layout.addWidget(subtitle_lbl)
         
         card.value_label = value_lbl
@@ -520,12 +521,12 @@ class OverviewTab:
         content_layout.setSpacing(1)
         
         name_lbl = QLabel(name)
-        name_lbl.setStyleSheet(f"font-size: 11px; font-weight: bold; color: {colour};")
+        name_lbl.setStyleSheet(f"font-size: {font_css('caption')}; font-weight: bold; color: {colour};")
         name_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         content_layout.addWidget(name_lbl)
         
         count_lbl = QLabel("0 / 0")
-        count_lbl.setStyleSheet(f"font-size: 12px; color: {TEXT['primary']};")
+        count_lbl.setStyleSheet(f"font-size: {font_css('small')}; color: {TEXT['primary']};")
         count_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         content_layout.addWidget(count_lbl)
         

@@ -19,6 +19,7 @@ from shared.species_list_delegate import HIT_ROLE, SpeciesListDelegate
 
 from Examen.style import (BG, SURFACE, TEXT_PRIMARY, TEXT_SECONDARY, TEXT_MUTED,
     BORDER, SEPARATOR, ACCENT, ACCENT_LIGHT, ACCENT_DARK, RED_STATUS, AMBER)
+from shared.text_sizes import font_css, qfont
 
 TRACK_LABELS = {
     "threat_iucn_2001": "GB Red List (2001 IUCN)",
@@ -83,13 +84,13 @@ class SpeciesDatabaseView(QWidget):
         sl = QHBoxLayout(sf)
         sl.setContentsMargins(8, 4, 8, 4)
         lbl = QLabel("Search species:")
-        lbl.setStyleSheet("color: " + TEXT_SECONDARY + "; font-size: 12px; border: none;")
+        lbl.setStyleSheet("color: " + TEXT_SECONDARY + f"; font-size: {font_css('small')}; border: none;")
         sl.addWidget(lbl)
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Type a species name (minimum 3 characters)...")
         self.search_input.setStyleSheet(
             "QLineEdit { padding: 6px 8px; border: 1px solid " + BORDER + "; border-radius: 4px; "
-            "font-size: 12px; color: " + TEXT_PRIMARY + "; background: " + SURFACE + "; }"
+            f"font-size: {font_css('small')}; color: " + TEXT_PRIMARY + "; background: " + SURFACE + "; }"
             "QLineEdit:focus { border-color: " + ACCENT + "; }")
         self.search_input.textChanged.connect(self._on_search_changed)
         sl.addWidget(self.search_input, 1)
@@ -102,13 +103,13 @@ class SpeciesDatabaseView(QWidget):
         ll = QVBoxLayout(left)
         ll.setContentsMargins(0, 0, 0, 0)
         self.result_count = QLabel("")
-        self.result_count.setStyleSheet("color: " + TEXT_MUTED + "; font-size: 11px;")
+        self.result_count.setStyleSheet("color: " + TEXT_MUTED + f"; font-size: {font_css('caption')};")
         ll.addWidget(self.result_count)
         # A group's species list (F70): back to the search results from here
         self.back_button = QPushButton("\u2190 Back to search results")
         self.back_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.back_button.setStyleSheet(
-            "QPushButton { border: none; color: " + ACCENT + "; font-size: 12px; "
+            "QPushButton { border: none; color: " + ACCENT + f"; font-size: {font_css('small')}; "
             "text-align: left; padding: 2px 0; background: transparent; }"
             "QPushButton:hover { text-decoration: underline; }")
         self.back_button.clicked.connect(self._do_search)
@@ -117,7 +118,7 @@ class SpeciesDatabaseView(QWidget):
         self.results_list = QListWidget()
         self.results_list.setStyleSheet(
             "QListWidget { border: 1px solid " + BORDER + "; border-radius: 4px; "
-            "background: " + SURFACE + "; font-size: 12px; }"
+            "background: " + SURFACE + f"; font-size: {font_css('small')}; }}"
             "QListWidget::item { padding: 6px 10px; border-bottom: 1px solid " + SEPARATOR + "; }"
             "QListWidget::item:selected { background-color: " + ACCENT_LIGHT + "; color: " + ACCENT_DARK + "; }"
             "QListWidget::item:hover:!selected { background: #f9fafb; }")
@@ -145,17 +146,17 @@ class SpeciesDatabaseView(QWidget):
         self.species_name_label.setWordWrap(True)
         self.pl.addWidget(self.species_name_label)
         self.common_name_label = QLabel("")
-        self.common_name_label.setFont(QFont("Segoe UI", 11))
+        self.common_name_label.setFont(qfont('body_large', "Segoe UI"))
         self.common_name_label.setStyleSheet("color: " + TEXT_SECONDARY + ";")
         self.pl.addWidget(self.common_name_label)
         self.tvk_label = QLabel("")
-        self.tvk_label.setStyleSheet("font-family: monospace; color: " + TEXT_MUTED + "; font-size: 11px;")
+        self.tvk_label.setStyleSheet("font-family: monospace; color: " + TEXT_MUTED + f"; font-size: {font_css('caption')};")
         self.pl.addWidget(self.tvk_label)
 
         # A Codex or Pantheon read that failed says so (EXA19): an empty profile
         # must not pass for "no status, no ecology".
         self.read_error_label = QLabel("")
-        self.read_error_label.setStyleSheet("color: " + RED_STATUS + "; font-size: 11px;")
+        self.read_error_label.setStyleSheet("color: " + RED_STATUS + f"; font-size: {font_css('caption')};")
         self.read_error_label.setWordWrap(True)
         self.pl.addWidget(self.read_error_label)
         self.read_error_label.hide()
@@ -172,7 +173,7 @@ class SpeciesDatabaseView(QWidget):
         self.status_group.hide()
 
         self.sqs_label = QLabel("")
-        self.sqs_label.setStyleSheet("font-size: 12px;")
+        self.sqs_label.setStyleSheet(f"font-size: {font_css('small')};")
         self.pl.addWidget(self.sqs_label)
 
         self.ecology_group = self._make_group("Ecology (Pantheon)")
@@ -199,7 +200,7 @@ class SpeciesDatabaseView(QWidget):
         v.setContentsMargins(12, 10, 12, 10)
         v.setSpacing(6)
         h = QLabel(title)
-        h.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+        h.setFont(qfont('body', "Segoe UI", QFont.Weight.Bold))
         h.setStyleSheet("color: " + ACCENT_DARK + "; border: none; padding-bottom: 4px; border-bottom: 2px solid " + ACCENT_LIGHT + ";")
         v.addWidget(h)
         return g
@@ -340,19 +341,19 @@ class SpeciesDatabaseView(QWidget):
             self.status_group.show()
             for i, (track, val, detail, source) in enumerate(rows):
                 tl = QLabel(TRACK_LABELS.get(track, track))
-                tl.setStyleSheet("color: " + TEXT_SECONDARY + "; font-size: 11px; border: none;")
+                tl.setStyleSheet("color: " + TEXT_SECONDARY + f"; font-size: {font_css('caption')}; border: none;")
                 self.status_grid.addWidget(tl, i, 0)
                 # Detail carries the instrument or jurisdiction, which is the
                 # useful part for legal_protection and priority.
                 shown = f"{val} \u2014 {detail}" if detail and detail != val else val
                 vl = QLabel(shown)
-                vl.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+                vl.setFont(qfont('body_large', "Segoe UI", QFont.Weight.Bold))
                 c = RED_STATUS if val in SEVERE else (AMBER if val in MODERATE else ACCENT_DARK)
                 vl.setStyleSheet("color: " + c + "; border: none;")
                 vl.setWordWrap(True)
                 self.status_grid.addWidget(vl, i, 1)
                 sl = QLabel(source)
-                sl.setStyleSheet("color: " + TEXT_MUTED + "; font-size: 11px; border: none;")
+                sl.setStyleSheet("color: " + TEXT_MUTED + f"; font-size: {font_css('caption')}; border: none;")
                 sl.setWordWrap(True)
                 self.status_grid.addWidget(sl, i, 2)
         else: self.status_group.hide()
@@ -360,14 +361,14 @@ class SpeciesDatabaseView(QWidget):
             # Not the species' own: held by its sensu-lato / aggregate counterpart.
             frm = getattr(status, "status_from_tvk", "")
             nl = QLabel(f"({status.status_note}{': ' + frm if frm else ''})")
-            nl.setStyleSheet("color: " + TEXT_MUTED + "; font-size: 11px; border: none;")
+            nl.setStyleSheet("color: " + TEXT_MUTED + f"; font-size: {font_css('caption')}; border: none;")
             self.status_grid.addWidget(nl, len(rows), 0, 1, 3)
         if status.sqs:
             # A score Pantheon does not publish, derived from current status by its
             # rule, says so -- as in the workbook (EXA7).
             derived = " (derived)" if getattr(status, "sqs_derived", False) else ""
             self.sqs_label.setText(f"Species Quality Score (SQS): {status.sqs}{derived}")
-            self.sqs_label.setStyleSheet("font-size: 12px; color: " + ACCENT_DARK + "; font-weight: bold;")
+            self.sqs_label.setStyleSheet(f"font-size: {font_css('small')}; color: " + ACCENT_DARK + "; font-weight: bold;")
         else: self.sqs_label.setText("")
 
     def _display_pantheon_ecology(self, tvk):
@@ -394,7 +395,7 @@ class SpeciesDatabaseView(QWidget):
             self.assoc_group.show()
             for atype, taxon in profile.associations[:10]:
                 al = QLabel(f"{atype}: {taxon}")
-                al.setStyleSheet("font-size: 11px; border: none; color: " + TEXT_PRIMARY + ";")
+                al.setStyleSheet(f"font-size: {font_css('caption')}; border: none; color: " + TEXT_PRIMARY + ";")
                 al.setWordWrap(True)
                 self.assoc_layout.addWidget(al)
             if len(profile.associations) > 10:
@@ -403,7 +404,7 @@ class SpeciesDatabaseView(QWidget):
 
     def _eco_row(self, label, value):
         w = QWidget(); w.setStyleSheet("border: none;"); r = QHBoxLayout(w)
-        l = QLabel(f"{label}:"); l.setStyleSheet("color: "+TEXT_SECONDARY+"; font-size: 11px; border: none;"); l.setFixedWidth(110); r.addWidget(l)
-        v = QLabel(value); v.setStyleSheet("font-size: 11px; border: none; color: "+TEXT_PRIMARY+";"); v.setWordWrap(True); r.addWidget(v, 1)
+        l = QLabel(f"{label}:"); l.setStyleSheet("color: "+TEXT_SECONDARY+f"; font-size: {font_css('caption')}; border: none;"); l.setFixedWidth(110); r.addWidget(l)
+        v = QLabel(value); v.setStyleSheet(f"font-size: {font_css('caption')}; border: none; color: "+TEXT_PRIMARY+";"); v.setWordWrap(True); r.addWidget(v, 1)
         self.eco_layout.addWidget(w)
 

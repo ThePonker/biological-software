@@ -16,6 +16,7 @@ from ..components.species_search import SpeciesSearch
 
 from ...themes import theme
 from ...core.config import TabColors, ButtonColors
+from shared.text_sizes import font_css
 
 
 class EditObservationDialog(QDialog):
@@ -64,7 +65,7 @@ class EditObservationDialog(QDialog):
         # Species search
         species_group = QVBoxLayout()
         species_label = QLabel("Species *")
-        species_label.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {t.get('text_secondary')};")
+        species_label.setStyleSheet(f"font-size: {font_css('caption')}; font-weight: 600; color: {t.get('text_secondary')};")
         species_group.addWidget(species_label)
 
         self.species_search = SpeciesSearch()
@@ -72,7 +73,7 @@ class EditObservationDialog(QDialog):
         species_group.addWidget(self.species_search)
 
         self.species_info_label = QLabel()
-        self.species_info_label.setStyleSheet(f"font-size: 12px; color: {self._accent}; font-style: italic;")
+        self.species_info_label.setStyleSheet(f"font-size: {font_css('small')}; color: {self._accent}; font-style: italic;")
         self.species_info_label.hide()
         species_group.addWidget(self.species_info_label)
         layout.addLayout(species_group)
@@ -89,7 +90,7 @@ class EditObservationDialog(QDialog):
 
         # VC feedback
         self.vc_label = QLabel()
-        self.vc_label.setStyleSheet(f"font-size: 11px; color: {t.get('text_muted')}; padding-left: 4px;")
+        self.vc_label.setStyleSheet(f"font-size: {font_css('caption')}; color: {t.get('text_muted')}; padding-left: 4px;")
         layout.addWidget(self.vc_label)
 
         # Recorder
@@ -103,7 +104,7 @@ class EditObservationDialog(QDialog):
         from ..components.reference_field import ReferenceField
         ref_group = QVBoxLayout()
         ref_label = QLabel("Reference")
-        ref_label.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {t.get('text_secondary')};")
+        ref_label.setStyleSheet(f"font-size: {font_css('caption')}; font-weight: 600; color: {t.get('text_secondary')};")
         ref_group.addWidget(ref_label)
         self.reference_edit = ReferenceField(self._db, "observations")
         self.reference_edit.setMinimumHeight(36)
@@ -113,7 +114,7 @@ class EditObservationDialog(QDialog):
         # Comment
         notes_group = QVBoxLayout()
         notes_label = QLabel("Comment")
-        notes_label.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {t.get('text_secondary')};")
+        notes_label.setStyleSheet(f"font-size: {font_css('caption')}; font-weight: 600; color: {t.get('text_secondary')};")
         notes_group.addWidget(notes_label)
 
         self.comment_edit = QTextEdit()
@@ -124,7 +125,7 @@ class EditObservationDialog(QDialog):
                 border: 1px solid {t.get('border')};
                 border-radius: {t.get('radius_sm')};
                 padding: 8px;
-                font-size: 13px;
+                font-size: {font_css('body')};
             }}
             QTextEdit:focus {{
                 border-color: {self._accent};
@@ -152,7 +153,7 @@ class EditObservationDialog(QDialog):
                 border-radius: {t.get('radius_md')};
                 padding: 12px 24px;
                 font-weight: bold;
-                font-size: 13px;
+                font-size: {font_css('body')};
             }}
             QPushButton:hover {{ background-color: {ButtonColors.PRIMARY_HOVER}; }}
         """)
@@ -166,7 +167,7 @@ class EditObservationDialog(QDialog):
                 color: {ButtonColors.SECONDARY};
                 border-radius: {t.get('radius_md')};
                 padding: 12px 24px;
-                font-size: 13px;
+                font-size: {font_css('body')};
             }}
             QPushButton:hover {{ background-color: {t.get('hover')}; }}
         """)
@@ -182,7 +183,7 @@ class EditObservationDialog(QDialog):
         t = theme()
         group = QVBoxLayout()
         label = QLabel(label_text)
-        label.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {t.get('text_secondary')};")
+        label.setStyleSheet(f"font-size: {font_css('caption')}; font-weight: 600; color: {t.get('text_secondary')};")
         group.addWidget(label)
 
         edit = QLineEdit()
@@ -193,7 +194,7 @@ class EditObservationDialog(QDialog):
                 border: 1px solid {t.get('border')};
                 border-radius: {t.get('radius_sm')};
                 padding: 8px;
-                font-size: 13px;
+                font-size: {font_css('body')};
             }}
             QLineEdit:focus {{
                 border-color: {self._accent};

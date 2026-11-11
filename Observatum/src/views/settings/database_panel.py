@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 
 from ...themes import theme
+from shared.text_sizes import font_css
 
 
 class DatabaseSettingsPanel(QScrollArea):
@@ -70,7 +71,7 @@ class DatabaseSettingsPanel(QScrollArea):
         main_db_info = QVBoxLayout()
         main_db_info.addWidget(QLabel("<b>Main Database</b>"))
         self.main_db_path = QLabel()
-        self.main_db_path.setStyleSheet(f"font-family: monospace; font-size: 11px; color: {t.get('text_secondary')};")
+        self.main_db_path.setStyleSheet(f"font-family: monospace; font-size: {font_css('caption')}; color: {t.get('text_secondary')};")
         self.main_db_path.setWordWrap(True)
         main_db_info.addWidget(self.main_db_path)
         main_db_layout.addLayout(main_db_info, 1)
@@ -85,7 +86,7 @@ class DatabaseSettingsPanel(QScrollArea):
         uksi_db_info = QVBoxLayout()
         uksi_db_info.addWidget(QLabel("<b>UKSI Reference Database</b>"))
         self.uksi_db_path = QLabel()
-        self.uksi_db_path.setStyleSheet(f"font-family: monospace; font-size: 11px; color: {t.get('text_secondary')};")
+        self.uksi_db_path.setStyleSheet(f"font-family: monospace; font-size: {font_css('caption')}; color: {t.get('text_secondary')};")
         self.uksi_db_path.setWordWrap(True)
         uksi_db_info.addWidget(self.uksi_db_path)
         uksi_db_layout.addLayout(uksi_db_info, 1)
@@ -118,11 +119,11 @@ class DatabaseSettingsPanel(QScrollArea):
             stat_layout.setContentsMargins(12, 8, 12, 8)
             
             lbl = QLabel(label)
-            lbl.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 12px;")
+            lbl.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('small')};")
             stat_layout.addWidget(lbl)
             
             value_lbl = QLabel("--")
-            value_lbl.setStyleSheet(f"font-size: 24px; font-weight: bold; color: {t.get('text_primary')};")
+            value_lbl.setStyleSheet(f"font-size: {font_css('display_24')}; font-weight: bold; color: {t.get('text_primary')};")
             stat_layout.addWidget(value_lbl)
             self._stat_labels[key] = value_lbl
             
@@ -140,7 +141,7 @@ class DatabaseSettingsPanel(QScrollArea):
 
         # Database size
         self.db_size_label = QLabel("Current size: --")
-        self.db_size_label.setStyleSheet(f"color: {t.get('text_muted')}; font-size: 11px;")
+        self.db_size_label.setStyleSheet(f"color: {t.get('text_muted')}; font-size: {font_css('caption')};")
         maint_layout.addWidget(self.db_size_label)
 
         # Backup/Restore buttons

@@ -9,6 +9,7 @@ with family sections drawn proportionally.
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
 from PySide6.QtCore import Qt, QRectF
 from PySide6.QtGui import QPainter, QColor, QFont, QPen, QBrush
+from shared.text_sizes import font_css
 
 
 # Colour palette for family sections (cycle through these)
@@ -266,7 +267,7 @@ class BoxPreviewPanel(QWidget):
 
         self.nav_label = QLabel("Box 0 of 0")
         self.nav_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.nav_label.setStyleSheet("font-weight: bold; font-size: 12px;")
+        self.nav_label.setStyleSheet(f"font-weight: bold; font-size: {font_css('small')};")
         nav.addWidget(self.nav_label, 1)
 
         self.next_btn = QPushButton("Next Box \u25B6")

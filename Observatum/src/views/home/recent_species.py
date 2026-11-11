@@ -19,6 +19,7 @@ from .card import Card
 from ...utils.date_utils import format_date_display
 from ...themes import theme
 from ...core.config import Settings, Defaults
+from shared.text_sizes import font_css
 
 
 class HtmlItemDelegate(QStyledItemDelegate):
@@ -114,7 +115,7 @@ class RecentSpeciesPanel(Card):
         self.view_all_btn.setStyleSheet(f"""
             QPushButton {{
                 color: {t.get("success_text")};
-                font-size: 11px;
+                font-size: {font_css('caption')};
                 padding: 2px 8px;
                 border: none;
                 background: transparent;

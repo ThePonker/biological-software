@@ -9,6 +9,7 @@ from __future__ import annotations   # pd.DataFrame annotations: never evaluated
 from dataclasses import dataclass, field
 from enum import Enum
 import paths  # noqa: F401  (sets up the suite paths)
+from shared import crash_log
 from typing import Optional, Dict, List, Any
 
 from src.utils.lazy_module import lazy_module
@@ -672,6 +673,12 @@ class SchemeValidationWorker(QThread):
         species_lookup = entries(lookup_names(needs_lookup, self.uksi_model,
                                               cancelled=lambda: self._cancelled,
                                               close_spellings=True))
+        # R18 B3: a lookup that itself failed (kind "error": not the same as "not found") is
+        # logged; the row carries the error and the summary counts and lists the names
+        for failed_name, failed in species_lookup.items():
+            if failed.get("kind") == "error":
+                crash_log.note(f"[scheme import] species lookup failed for {failed_name!r}: "
+                               f"{failed.get('error', '')}")
 
         def apply_species(row):
             name = row["species_name"]

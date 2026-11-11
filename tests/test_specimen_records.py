@@ -81,7 +81,7 @@ def test_commit_links_the_specimens(db):
             pass
 
     class Model:
-        def create(self, o):
+        def create(self, o, extra=None):
             return 91
 
     class Db:

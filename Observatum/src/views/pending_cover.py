@@ -8,6 +8,7 @@ it is hidden the moment the records are in. Not a dialog: nothing pops up.
 
 from PySide6.QtCore import QEvent, Qt
 from PySide6.QtWidgets import QLabel, QWidget
+from shared.text_sizes import font_css
 
 
 class PendingCover(QLabel):
@@ -19,7 +20,7 @@ class PendingCover(QLabel):
             from ..themes import theme
             t = theme()
             self.setStyleSheet(f"QLabel#pendingCover {{ background-color: {t.get('background')};"
-                               f" color: {t.get('text_secondary')}; font-size: 13px; }}")
+                               f" color: {t.get('text_secondary')}; font-size: {font_css('body')}; }}")
         except Exception:
             pass
         self.setGeometry(over.rect())

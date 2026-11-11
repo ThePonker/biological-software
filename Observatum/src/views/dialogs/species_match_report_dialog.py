@@ -18,6 +18,7 @@ from shared.species_lookup_entries import apply_confirmed
 
 from ...themes import theme
 from ...core.config import ButtonColors
+from shared.text_sizes import font_css
 
 # Columns tried for the name as it was in the file when the wizard does not say which
 FALLBACK_NAME_COLUMNS = ['species_name', 'Species', 'species', 'Scientific Name',
@@ -148,7 +149,7 @@ class SpeciesMatchReportDialog(QDialog):
         # Title
         title = QLabel("Species Matching Report")
         title.setStyleSheet(
-            f"color: {t.get('text_heading')}; font-size: 16px; font-weight: bold;"
+            f"color: {t.get('text_heading')}; font-size: {font_css('heading')}; font-weight: bold;"
         )
         layout.addWidget(title)
 
@@ -181,7 +182,7 @@ class SpeciesMatchReportDialog(QDialog):
 
         summary_label = QLabel(summary_text)
         summary_label.setStyleSheet(
-            f"color: {t.get('text_primary')}; font-size: 13px; font-weight: 600; border: none;"
+            f"color: {t.get('text_primary')}; font-size: {font_css('body')}; font-weight: 600; border: none;"
         )
         summary_layout.addWidget(summary_label)
         summary_layout.addStretch()
@@ -203,7 +204,7 @@ class SpeciesMatchReportDialog(QDialog):
                 chip = QLabel(f" {mt}: {counts[mt]} ")
                 colour = type_colours.get(mt, t.get('text_secondary'))
                 chip.setStyleSheet(
-                    f"color: {colour}; font-size: 11px; font-weight: 600; border: none;"
+                    f"color: {colour}; font-size: {font_css('caption')}; font-weight: 600; border: none;"
                 )
                 summary_layout.addWidget(chip)
 
@@ -237,7 +238,7 @@ class SpeciesMatchReportDialog(QDialog):
                 border-radius: 6px;
                 background-color: {t.get('surface')};
                 gridline-color: {t.get('border')};
-                font-size: 12px;
+                font-size: {font_css('small')};
             }}
             QTableWidget::item {{
                 padding: 4px 6px;
@@ -248,7 +249,7 @@ class SpeciesMatchReportDialog(QDialog):
                 border: none;
                 border-bottom: 1px solid {t.get('border')};
                 font-weight: 600;
-                font-size: 11px;
+                font-size: {font_css('caption')};
             }}
         """)
 
@@ -270,7 +271,7 @@ class SpeciesMatchReportDialog(QDialog):
                 border: 1px solid {ButtonColors.PRIMARY};
                 border-radius: 4px;
                 padding: 6px 16px;
-                font-size: 12px;
+                font-size: {font_css('small')};
             }}
             QPushButton:hover {{
                 background-color: {ButtonColors.PRIMARY};
@@ -289,7 +290,7 @@ class SpeciesMatchReportDialog(QDialog):
                 border: none;
                 border-radius: 4px;
                 padding: 6px 20px;
-                font-size: 12px;
+                font-size: {font_css('small')};
             }}
             QPushButton:hover {{
                 background-color: #3d6b4a;

@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 
 from DataEntry import theme
 from DataEntry import staging_repo as repo
+from shared.text_sizes import font_css
 
 
 def _picker(names, placeholder):
@@ -76,12 +77,12 @@ class NewJobDialog(QDialog):
         form.addRow(self.lbl_client, self.txt_client)
         self.lbl_existing = QLabel("")
         self.lbl_existing.setWordWrap(True)
-        self.lbl_existing.setStyleSheet(f"color: {theme.MUTED}; font-size: 11px;")
+        self.lbl_existing.setStyleSheet(f"color: {theme.MUTED}; font-size: {font_css('caption')};")
         form.addRow("", self.lbl_existing)
         self._set_commercial_visible(False)
 
         self.err = QLabel("")
-        self.err.setStyleSheet(f"color: {theme.CLAY}; font-size: 12px;")
+        self.err.setStyleSheet(f"color: {theme.CLAY}; font-size: {font_css('small')};")
         form.addRow("", self.err)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
@@ -98,7 +99,7 @@ class NewJobDialog(QDialog):
             note = QLabel("Changes apply to rows committed from now on. Records already "
                           "committed keep their project and client.")
             note.setWordWrap(True)
-            note.setStyleSheet(f"color: {theme.MUTED}; font-size: 11px;")
+            note.setStyleSheet(f"color: {theme.MUTED}; font-size: {font_css('caption')};")
             form.insertRow(form.rowCount() - 2, "", note)
 
     def _on_mode(self, mode: str):
@@ -165,14 +166,14 @@ class JobsListPage(QWidget):
 
         top = QHBoxLayout()
         title = QLabel("Jobs")
-        title.setStyleSheet(f"color: {theme.INK}; font-size: 16px; font-weight: 600;")
+        title.setStyleSheet(f"color: {theme.INK}; font-size: {font_css('heading')}; font-weight: 600;")
         top.addWidget(title)
         top.addStretch(1)
         # It lists committed, discarded and iRecord-closed jobs, not only committed (DE13)
         self.chk_done = QCheckBox("Show finished jobs")
         self.chk_done.setToolTip("Also list committed, discarded and closed jobs, "
                                  "so one can be reopened to add records")
-        self.chk_done.setStyleSheet(f"color: {theme.MUTED}; font-size: 12px;")
+        self.chk_done.setStyleSheet(f"color: {theme.MUTED}; font-size: {font_css('small')};")
         self.chk_done.toggled.connect(lambda *_: self.refresh())
         top.addWidget(self.chk_done)
         top.addSpacing(10)
@@ -188,7 +189,7 @@ class JobsListPage(QWidget):
 
         hint = QLabel("Open a job to enter records. Your Personal job is always here; commercial "
                       "jobs you create as you go. Nothing commits to Observatum until you choose to.")
-        hint.setStyleSheet(f"color: {theme.MUTED}; font-size: 12px;")
+        hint.setStyleSheet(f"color: {theme.MUTED}; font-size: {font_css('small')};")
         hint.setWordWrap(True)
         v.addWidget(hint)
 
@@ -206,7 +207,7 @@ class JobsListPage(QWidget):
         self.table.itemSelectionChanged.connect(self._sync_buttons)
         self.table.setStyleSheet(
             f"QTableWidget {{ background: {theme.CARD}; border: 1px solid {theme.LINE};"
-            f"  border-radius: 6px; font-size: 13px;"
+            f"  border-radius: 6px; font-size: {font_css('body')};"
             f"  selection-background-color: rgba(74,124,89,0.30); selection-color: {theme.INK}; }}"
             f"QTableWidget::item:selected {{ background: rgba(74,124,89,0.30); color: {theme.INK}; }}"
             f"QHeaderView::section {{ background: {theme.PAPER}; padding: 5px; border: none;"
@@ -221,7 +222,7 @@ class JobsListPage(QWidget):
                                    "Its committed records stay in Observatum.")
         self.btn_reopen.setStyleSheet(
             f"background: transparent; color: {theme.SLATE}; border: 1px solid {theme.SLATE};"
-            f"padding: 5px 12px; border-radius: 5px; font-size: 12px;"
+            f"padding: 5px 12px; border-radius: 5px; font-size: {font_css('small')};"
         )
         self.btn_reopen.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_reopen.clicked.connect(self._reopen_selected)
@@ -243,7 +244,7 @@ class JobsListPage(QWidget):
         self.btn_edit.setToolTip("Change this job's name, project or client")
         self.btn_edit.setStyleSheet(
             f"background: transparent; color: {theme.SLATE}; border: 1px solid {theme.SLATE};"
-            f"padding: 5px 12px; border-radius: 5px; font-size: 12px;"
+            f"padding: 5px 12px; border-radius: 5px; font-size: {font_css('small')};"
         )
         self.btn_edit.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_edit.clicked.connect(self._edit_selected)
@@ -251,7 +252,7 @@ class JobsListPage(QWidget):
         self.btn_delete = QPushButton("Delete")
         self.btn_delete.setStyleSheet(
             f"background: transparent; color: {theme.CLAY}; border: 1px solid {theme.CLAY};"
-            f"padding: 5px 12px; border-radius: 5px; font-size: 12px;"
+            f"padding: 5px 12px; border-radius: 5px; font-size: {font_css('small')};"
         )
         self.btn_delete.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_delete.clicked.connect(self._delete_selected)

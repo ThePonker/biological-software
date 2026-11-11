@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame
 )
 from PySide6.QtCore import Qt, QTimer
+from shared.text_sizes import font_css
 
 
 
@@ -70,7 +71,7 @@ class GamificationLauncher(QFrame):
 
         # Icon
         icon_label = QLabel("🏆")
-        icon_label.setStyleSheet("font-size: 32px; background: transparent; border: none;")
+        icon_label.setStyleSheet(f"font-size: {font_css('display_32')}; background: transparent; border: none;")
         layout.addWidget(icon_label)
 
         # Text content
@@ -78,8 +79,8 @@ class GamificationLauncher(QFrame):
         text_layout.setSpacing(4)
 
         title = QLabel("Achievements")
-        title.setStyleSheet("""
-            font-size: 16px;
+        title.setStyleSheet(f"""
+            font-size: {font_css('heading')};
             font-weight: bold;
             color: #4a6b5c;
             background: transparent;
@@ -89,8 +90,8 @@ class GamificationLauncher(QFrame):
 
         if self._show_stats:
             self.tier_label = QLabel("Track your naturalist progress")
-            self.tier_label.setStyleSheet("""
-                font-size: 12px;
+            self.tier_label.setStyleSheet(f"""
+                font-size: {font_css('small')};
                 color: #6b7280;
                 background: transparent;
                 border: none;
@@ -184,19 +185,19 @@ class GamificationButton(QPushButton):
         super().__init__(text, parent)
         self._window = None
 
-        self.setStyleSheet("""
-            QPushButton {
+        self.setStyleSheet(f"""
+            QPushButton {{
                 background-color: #5f8575;
                 color: white;
                 border: none;
                 border-radius: 6px;
                 padding: 10px 20px;
                 font-weight: 500;
-                font-size: 14px;
-            }
-            QPushButton:hover {
+                font-size: {font_css('body')};
+            }}
+            QPushButton:hover {{
                 background-color: #4a6b5c;
-            }
+            }}
         """)
 
         self.clicked.connect(self._launch_window)
@@ -266,12 +267,12 @@ class GamificationSummaryCard(QFrame):
         header.setSpacing(12)
         
         icon_label = QLabel("🏆")
-        icon_label.setStyleSheet("font-size: 28px; background: transparent; border: none;")
+        icon_label.setStyleSheet(f"font-size: {font_css('display_28')}; background: transparent; border: none;")
         header.addWidget(icon_label)
         
         title = QLabel("Naturalist Achievements")
-        title.setStyleSheet("""
-            font-size: 16px;
+        title.setStyleSheet(f"""
+            font-size: {font_css('heading')};
             font-weight: bold;
             color: #4a6b5c;
             background: transparent;
@@ -281,19 +282,19 @@ class GamificationSummaryCard(QFrame):
         header.addStretch()
         
         self.launch_btn = QPushButton("View All")
-        self.launch_btn.setStyleSheet("""
-            QPushButton {
+        self.launch_btn.setStyleSheet(f"""
+            QPushButton {{
                 background-color: #5f8575;
                 color: white;
                 border: none;
                 border-radius: 6px;
                 padding: 6px 14px;
                 font-weight: 500;
-                font-size: 12px;
-            }
-            QPushButton:hover {
+                font-size: {font_css('small')};
+            }}
+            QPushButton:hover {{
                 background-color: #4a6b5c;
-            }
+            }}
         """)
         self.launch_btn.clicked.connect(self._launch_window)
         header.addWidget(self.launch_btn)
@@ -305,8 +306,8 @@ class GamificationSummaryCard(QFrame):
         tier_row.setSpacing(12)
         
         self.tier_label = QLabel("Loading...")
-        self.tier_label.setStyleSheet("""
-            font-size: 14px;
+        self.tier_label.setStyleSheet(f"""
+            font-size: {font_css('body')};
             font-weight: bold;
             color: #2d5a4a;
             background: transparent;
@@ -315,8 +316,8 @@ class GamificationSummaryCard(QFrame):
         tier_row.addWidget(self.tier_label)
         
         self.progress_label = QLabel("")
-        self.progress_label.setStyleSheet("""
-            font-size: 12px;
+        self.progress_label.setStyleSheet(f"""
+            font-size: {font_css('small')};
             color: #6b7280;
             background: transparent;
             border: none;
@@ -369,13 +370,13 @@ class GamificationSummaryCard(QFrame):
         top_row.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         icon_lbl = QLabel(icon)
-        icon_lbl.setStyleSheet("font-size: 14px; background: transparent; border: none;")
+        icon_lbl.setStyleSheet(f"font-size: {font_css('body')}; background: transparent; border: none;")
         top_row.addWidget(icon_lbl)
         
         value_lbl = QLabel(value)
         value_lbl.setObjectName("value")
-        value_lbl.setStyleSheet("""
-            font-size: 16px;
+        value_lbl.setStyleSheet(f"""
+            font-size: {font_css('heading')};
             font-weight: bold;
             color: #2d5a4a;
             background: transparent;
@@ -387,8 +388,8 @@ class GamificationSummaryCard(QFrame):
         
         # Label
         label_lbl = QLabel(label)
-        label_lbl.setStyleSheet("""
-            font-size: 11px;
+        label_lbl.setStyleSheet(f"""
+            font-size: {font_css('caption')};
             color: #6b7280;
             background: transparent;
             border: none;

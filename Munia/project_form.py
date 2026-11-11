@@ -14,6 +14,7 @@ from Munia.theme import (
 from Munia import munia_data as db
 from Munia.munia_data import BIZ_MONTHS, BIZ_LABELS
 from Munia.deadline_edit import DeadlineEdit
+from shared.text_sizes import font_css, qfont
 
 STATUSES = ["quoted", "accepted", "complete", "declined", "no_response"]
 STATUS_DISPLAY = {
@@ -44,7 +45,7 @@ class ProjectForm(QWidget):
         hdr = QHBoxLayout()
         self._title = QLabel("New Project")
         self._title.setStyleSheet(
-            f'font-family: "{HEADING_FAMILY}"; font-size: 14px; '
+            f'font-family: "{HEADING_FAMILY}"; font-size: {font_css("body")}; '
             f"font-weight: bold; color: {TEXT_DARK};")
         hdr.addWidget(self._title)
         hdr.addStretch()
@@ -85,7 +86,7 @@ class ProjectForm(QWidget):
         self.start_year_spin.setFixedWidth(85)
         r2.addWidget(self.start_year_spin)
         self.start_suffix = QLabel(f"/ {self._view_year + 1}")
-        self.start_suffix.setStyleSheet(f"font-size: 12px; color: {TEXT_MID};")
+        self.start_suffix.setStyleSheet(f"font-size: {font_css('small')}; color: {TEXT_MID};")
         r2.addWidget(self.start_suffix)
         r2.addWidget(self._lbl("To:"))
         self.end_year_spin = QSpinBox()
@@ -93,7 +94,7 @@ class ProjectForm(QWidget):
         self.end_year_spin.setFixedWidth(85)
         r2.addWidget(self.end_year_spin)
         self.end_suffix = QLabel(f"/ {self._view_year + 1}")
-        self.end_suffix.setStyleSheet(f"font-size: 12px; color: {TEXT_MID};")
+        self.end_suffix.setStyleSheet(f"font-size: {font_css('small')}; color: {TEXT_MID};")
         r2.addWidget(self.end_suffix)
         self.start_year_spin.valueChanged.connect(self._on_year_spins_changed)
         self.end_year_spin.valueChanged.connect(self._on_year_spins_changed)
@@ -102,13 +103,13 @@ class ProjectForm(QWidget):
         alloc_hdr = QHBoxLayout()
         alloc_hdr.setSpacing(6)
         fl = QLabel("Allocations:")
-        fl.setStyleSheet(f'font-family: "{BODY_FAMILY}"; font-size: 12px; '
+        fl.setStyleSheet(f'font-family: "{BODY_FAMILY}"; font-size: {font_css("small")}; '
                          f"font-weight: bold; color: {TEXT_DARK};")
         alloc_hdr.addWidget(fl)
         arrow_css = (
             f"QPushButton {{ background: transparent; color: {TEXT_DARK}; "
             f"border: 1px solid {STONE_BORDER}; border-radius: 3px; "
-            f'font-family: "{BODY_FAMILY}"; font-size: 14px; font-weight: bold; '
+            f'font-family: "{BODY_FAMILY}"; font-size: {font_css("body")}; font-weight: bold; '
             f"padding: 0px; }}"
             f"QPushButton:hover {{ background: {WARM_GRAY_LIGHT}; }}")
         self.alloc_prev = QPushButton("<")
@@ -118,7 +119,7 @@ class ProjectForm(QWidget):
         alloc_hdr.addWidget(self.alloc_prev)
         self.alloc_year_lbl = QLabel("")
         self.alloc_year_lbl.setStyleSheet(
-            f'font-family: "{BODY_FAMILY}"; font-size: 13px; '
+            f'font-family: "{BODY_FAMILY}"; font-size: {font_css("body")}; '
             f"font-weight: bold; color: {TEXT_DARK};")
         alloc_hdr.addWidget(self.alloc_year_lbl)
         self.alloc_next = QPushButton(">")
@@ -142,7 +143,7 @@ class ProjectForm(QWidget):
         yr_row.addWidget(self.notes_edit, 1)
         layout.addLayout(yr_row)
         field_lbl = QLabel("Field days:")
-        field_lbl.setStyleSheet(f'font-family: "{BODY_FAMILY}"; font-size: 12px; '
+        field_lbl.setStyleSheet(f'font-family: "{BODY_FAMILY}"; font-size: {font_css("small")}; '
                                 f"font-weight: bold; color: {MOSS_GREEN};")
         layout.addWidget(field_lbl)
         self.field_grid = QTableWidget(1, 13)
@@ -157,9 +158,9 @@ class ProjectForm(QWidget):
         self.field_grid.setStyleSheet(
             f"QTableWidget {{ background: white; border: 1px solid {STONE_BORDER}; "
             f'gridline-color: {STONE_BORDER}; font-family: "{BODY_FAMILY}"; '
-            f"font-size: 12px; }}"
+            f"font-size: {font_css('small')}; }}"
             f"QHeaderView::section {{ background: {WARM_GRAY_LIGHT}; "
-            f'font-family: "{BODY_FAMILY}"; font-size: 11px; font-weight: 600; '
+            f'font-family: "{BODY_FAMILY}"; font-size: {font_css("caption")}; font-weight: 600; '
             f"border: none; border-bottom: 1px solid {STONE_BORDER}; padding: 2px; }}")
         for col in range(12):
             item = QTableWidgetItem("0")
@@ -168,7 +169,7 @@ class ProjectForm(QWidget):
         total = QTableWidgetItem("0")
         total.setTextAlignment(Qt.AlignCenter)
         total.setFlags(Qt.ItemIsEnabled)
-        total.setFont(QFont(BODY_FAMILY, 10, QFont.Bold))
+        total.setFont(qfont('body', BODY_FAMILY, QFont.Bold))
         total.setForeground(QBrush(QColor(MOSS_GREEN)))
         self.field_grid.setItem(0, 12, total)
         self.field_grid.cellChanged.connect(self._on_field_changed)
@@ -176,7 +177,7 @@ class ProjectForm(QWidget):
         bottom = QHBoxLayout()
         bottom.setSpacing(8)
         ml = QLabel("Micro:")
-        ml.setStyleSheet(f"font-weight: bold; color: {DUSTY_PURPLE}; font-size: 12px;")
+        ml.setStyleSheet(f"font-weight: bold; color: {DUSTY_PURPLE}; font-size: {font_css('small')};")
         bottom.addWidget(ml)
         self.micro_spin = QDoubleSpinBox()
         self.micro_spin.setRange(0, 365)
@@ -185,7 +186,7 @@ class ProjectForm(QWidget):
         self.micro_spin.setFixedWidth(80)
         bottom.addWidget(self.micro_spin)
         rl = QLabel("Report:")
-        rl.setStyleSheet(f"font-weight: bold; color: {AMBER}; font-size: 12px;")
+        rl.setStyleSheet(f"font-weight: bold; color: {AMBER}; font-size: {font_css('small')};")
         bottom.addWidget(rl)
         self.report_spin = QDoubleSpinBox()
         self.report_spin.setRange(0, 365)
@@ -208,7 +209,7 @@ class ProjectForm(QWidget):
         layout.addLayout(bottom)
     def _lbl(self, text):
         l = QLabel(text)
-        l.setStyleSheet(f"font-size: 12px; color: {TEXT_MID};")
+        l.setStyleSheet(f"font-size: {font_css('small')}; color: {TEXT_MID};")
         return l
     # Deadlines: any date or none -- DeadlineEdit (MUN-2: the old minimum of 1 Jan of
     # the season shown turned earlier deadlines into "Not set", and saving erased them)

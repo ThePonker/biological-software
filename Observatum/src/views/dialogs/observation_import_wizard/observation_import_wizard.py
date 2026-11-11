@@ -55,6 +55,7 @@ from .wizard_species_mixin import WizardSpeciesResolutionMixin
 from src.themes import theme
 from src.core.config import TabColors
 from shared.species_lookup import is_unresolved_error
+from shared.text_sizes import font_css
 
 
 class ObservationImportWizard(
@@ -174,17 +175,17 @@ class ObservationImportWizard(
         header_layout.setContentsMargins(24, 20, 24, 20)
 
         self.header_label = QLabel("Import Observations")
-        self.header_label.setStyleSheet("""
+        self.header_label.setStyleSheet(f"""
             color: white;
-            font-size: 18px;
+            font-size: {font_css('title')};
             font-weight: 600;
         """)
         header_layout.addWidget(self.header_label)
 
         self.step_label = QLabel("Step 1 of 7: Select Import Mode")
-        self.step_label.setStyleSheet("""
+        self.step_label.setStyleSheet(f"""
             color: rgba(255, 255, 255, 0.8);
-            font-size: 13px;
+            font-size: {font_css('body')};
         """)
         header_layout.addWidget(self.step_label)
 
@@ -350,7 +351,7 @@ class ObservationImportWizard(
         layout.setContentsMargins(16, 16, 16, 16)
 
         header = QLabel(f"{len(values)} existing {label.lower()}(s)")
-        header.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 12px;")
+        header.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('small')};")
         layout.addWidget(header)
 
         list_widget = QListWidget()
@@ -360,7 +361,7 @@ class ObservationImportWizard(
                 color: {t.get('text_primary')};
                 border: 1px solid {t.get('border')};
                 border-radius: 4px;
-                font-size: 13px;
+                font-size: {font_css('body')};
             }}
             QListWidget::item {{
                 padding: 10px 12px;

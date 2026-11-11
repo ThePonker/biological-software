@@ -35,6 +35,7 @@ from ..themes import theme
 
 # NEW: Import centralised config
 from ..core.config import TabColors
+from shared.text_sizes import font_css
 
 
 class MainWindow(BackgroundTabsMixin, QMainWindow):
@@ -784,7 +785,7 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
                 border-bottom: 3px solid transparent;
                 background-color: {t.get('surface')};
                 color: {t.get('text_secondary')};
-                font-size: 13px;
+                font-size: {font_css('body')};
             }}
             QTabBar::tab:hover {{
                 background-color: {t.get('surface_alt')};

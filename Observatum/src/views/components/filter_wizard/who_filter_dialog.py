@@ -21,6 +21,7 @@ from ....core.config import ButtonColors
 from .chip_display import FilterChip  # I9: one copy
 from .fuzzy import picking_from_popup, FuzzyCompleter
 from .chip_values import typed_chip
+from shared.text_sizes import font_css
 
 
 class WhoFilterDialog(QDialog):
@@ -71,7 +72,7 @@ class WhoFilterDialog(QDialog):
         header = QLabel("👤 Who to Include")
         header.setStyleSheet(f"""
             QLabel {{
-                font-size: 18px;
+                font-size: {font_css('title')};
                 font-weight: 600;
                 color: {self._accent_color};
                 background: transparent;
@@ -81,7 +82,7 @@ class WhoFilterDialog(QDialog):
         
         desc = QLabel("Search and press Enter to add. Multiple selections use OR logic.")
         desc.setWordWrap(True)
-        desc.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 12px; background: transparent;")
+        desc.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('small')}; background: transparent;")
         layout.addWidget(desc)
         
         sep = QFrame()
@@ -111,7 +112,7 @@ class WhoFilterDialog(QDialog):
         # CHIPS
         chip_header = QHBoxLayout()
         self._chip_title = QLabel("No filters applied")
-        self._chip_title.setStyleSheet(f"font-weight: 500; font-size: 12px; color: {t.get('text_secondary')};")
+        self._chip_title.setStyleSheet(f"font-weight: 500; font-size: {font_css('small')}; color: {t.get('text_secondary')};")
         chip_header.addWidget(self._chip_title)
         chip_header.addStretch()
         
@@ -126,7 +127,7 @@ class WhoFilterDialog(QDialog):
                 background: transparent;
                 border: none;
                 color: {self._accent_color};
-                font-size: 11px;
+                font-size: {font_css('caption')};
             }}
             QPushButton:hover {{
                 text-decoration: underline;
@@ -177,7 +178,7 @@ class WhoFilterDialog(QDialog):
                 border: 1px solid #a63d40;
                 border-radius: 4px;
                 padding: 10px 20px;
-                font-size: 13px;
+                font-size: {font_css('body')};
             }}
             QPushButton:hover {{
                 background-color: rgba(166, 61, 64, 0.1);
@@ -199,7 +200,7 @@ class WhoFilterDialog(QDialog):
                 border: 1px solid {t.get('border')};
                 border-radius: 4px;
                 padding: 10px 24px;
-                font-size: 13px;
+                font-size: {font_css('body')};
             }}
             QPushButton:hover {{
                 background-color: {t.get('hover')};
@@ -219,7 +220,7 @@ class WhoFilterDialog(QDialog):
                 border: none;
                 border-radius: 4px;
                 padding: 10px 24px;
-                font-size: 13px;
+                font-size: {font_css('body')};
                 font-weight: 500;
             }}
             QPushButton:hover {{
@@ -244,7 +245,7 @@ class WhoFilterDialog(QDialog):
         from PySide6.QtWidgets import QCheckBox
         label_row = QHBoxLayout()
         lbl = QLabel(label)
-        lbl.setStyleSheet(f"font-weight: 600; color: {t.get('text_primary')}; font-size: 13px; background: transparent;")
+        lbl.setStyleSheet(f"font-weight: 600; color: {t.get('text_primary')}; font-size: {font_css('body')}; background: transparent;")
         label_row.addWidget(lbl)
         
         label_row.addStretch()
@@ -254,7 +255,7 @@ class WhoFilterDialog(QDialog):
         partial_cb.setStyleSheet(f"""
             QCheckBox {{
                 color: {t.get('text_primary')};
-                font-size: 12px;
+                font-size: {font_css('small')};
                 spacing: 6px;
                 padding: 4px 8px;
                 background-color: {t.get('surface')};
@@ -275,7 +276,7 @@ class WhoFilterDialog(QDialog):
                 border: 1px solid {t.get('border')};
                 border-radius: 4px;
                 padding: 10px 14px;
-                font-size: 13px;
+                font-size: {font_css('body')};
                 color: {t.get('text_primary')};
             }}
             QLineEdit:focus {{
@@ -353,7 +354,7 @@ class WhoFilterDialog(QDialog):
         layout.setSpacing(8)
         
         lbl = QLabel(label)
-        lbl.setStyleSheet(f"font-weight: 600; color: {t.get('text_primary')}; font-size: 13px; background: transparent;")
+        lbl.setStyleSheet(f"font-weight: 600; color: {t.get('text_primary')}; font-size: {font_css('body')}; background: transparent;")
         layout.addWidget(lbl)
         
         input_widget = QLineEdit()
@@ -365,7 +366,7 @@ class WhoFilterDialog(QDialog):
                 border: 1px solid {t.get('border')};
                 border-radius: 4px;
                 padding: 10px 14px;
-                font-size: 13px;
+                font-size: {font_css('body')};
                 color: {t.get('text_primary')};
             }}
             QLineEdit:focus {{

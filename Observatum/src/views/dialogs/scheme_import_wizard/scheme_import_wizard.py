@@ -52,6 +52,7 @@ from .wizard_import_mixin import WizardImportMixin
 
 from src.themes import theme
 from src.core.config import TabColors
+from shared.text_sizes import font_css
 
 
 class SchemeImportWizard(
@@ -168,17 +169,17 @@ class SchemeImportWizard(
         header_layout.setContentsMargins(24, 20, 24, 20)
 
         self.title_label = QLabel("Import Recording Scheme Data")
-        self.title_label.setStyleSheet("""
+        self.title_label.setStyleSheet(f"""
             color: white;
-            font-size: 18px;
+            font-size: {font_css('title')};
             font-weight: 600;
         """)
         header_layout.addWidget(self.title_label)
 
         self.step_label = QLabel("Step 1 of 7: Select Import Mode")
-        self.step_label.setStyleSheet("""
+        self.step_label.setStyleSheet(f"""
             color: rgba(255, 255, 255, 0.8);
-            font-size: 13px;
+            font-size: {font_css('body')};
         """)
         header_layout.addWidget(self.step_label)
 

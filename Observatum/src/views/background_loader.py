@@ -37,6 +37,7 @@ from typing import Callable, Dict, List, Optional
 
 from PySide6.QtCore import QObject, Qt, QTimer, Signal
 from PySide6.QtWidgets import QLabel
+from shared.text_sizes import font_css
 
 POLL_MS = 15            # how often a step waiting for a thread or a condition is checked
 MAX_JOBS = 1            # worker threads at once: they are Python work and share one GIL,
@@ -228,7 +229,7 @@ class BackgroundLoader(QObject):
             from ..themes import theme
             t = theme()
             self.label.setStyleSheet(
-                f"color: {t.get('text_secondary')}; font-size: 11px; padding: 0 8px;")
+                f"color: {t.get('text_secondary')}; font-size: {font_css('caption')}; padding: 0 8px;")
         except Exception:
             pass
 

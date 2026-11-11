@@ -21,6 +21,7 @@ from shared.display_format import dmy
 from shared.fit_to_screen import fit_to_screen
 
 from ...themes import theme
+from shared.text_sizes import font_css
 
 ROLE_KEY = Qt.ItemDataRole.UserRole
 FIELD_NAMES = {"storage_location": "Storage location", "drawer_number": "Drawer",
@@ -41,7 +42,7 @@ class PreviewDialog(QDialog):
         head = QLabel(f"<b>{n_spec} specimen{'s' if n_spec != 1 else ''}, "
                       f"{len(changes)} change{'s' if len(changes) != 1 else ''}</b> — "
                       f"{da.where(storage, drawer)}")
-        head.setStyleSheet("font-size: 15px;")
+        head.setStyleSheet(f"font-size: {font_css('body_large')};")
         v.addWidget(head)
         self.lines = [f"{what}: {n} specimen{'s' if n != 1 else ''}"
                       for what, n in da.outline(changes, specs_by_id.values(), storage, drawer)]

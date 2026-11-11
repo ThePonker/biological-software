@@ -17,6 +17,7 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
 from DataEntry import theme
 from shared.maps import species_dist_map as _src
 from DataEntry.banner_layout import BannerCard, ElidedCheckBox, banner_height
+from shared.text_sizes import font_css
 
 # QSettings key per map source -- used by both the restore block and _on_source_toggle.
 SRC_SETTING_KEYS = {
@@ -342,13 +343,13 @@ class InfoPanel(QWidget):
         text_col.setContentsMargins(12, 10, 12, 10)
         text_col.setSpacing(2)
         self._l1 = QLabel()
-        self._l1.setStyleSheet(f"color: {theme.INK}; font-size: 16px; font-weight: 700; border: none; background: transparent;")
+        self._l1.setStyleSheet(f"color: {theme.INK}; font-size: {font_css('heading')}; font-weight: 700; border: none; background: transparent;")
         self._l2 = QLabel()
-        self._l2.setStyleSheet(f"color: {theme.MUTED}; font-size: 12px; border: none; background: transparent;")
+        self._l2.setStyleSheet(f"color: {theme.MUTED}; font-size: {font_css('small')}; border: none; background: transparent;")
         self._l3 = QLabel()
-        self._l3.setStyleSheet(f"color: {theme.MUTED}; font-size: 12px; border: none; background: transparent;")
+        self._l3.setStyleSheet(f"color: {theme.MUTED}; font-size: {font_css('small')}; border: none; background: transparent;")
         self._l4 = QLabel()  # location warning (grid-ref guardrail)
-        self._l4.setStyleSheet(f"color: {theme.CLAY}; font-size: 12px; font-weight: 600; border: none; background: transparent;")
+        self._l4.setStyleSheet(f"color: {theme.CLAY}; font-size: {font_css('small')}; font-weight: 600; border: none; background: transparent;")
         self._l1.setFixedHeight(42)   # room for a two-line name; 1-line names just sit at the top
         self._l2.setFixedHeight(18)
         self._l3.setFixedHeight(18)
@@ -365,7 +366,6 @@ class InfoPanel(QWidget):
         self._compact = False
         self._compact_strip = CompactStrip()
         self._compact_strip.setVisible(False)
-        self._compact_strip.unfold_btn.clicked.connect(lambda: self.set_compact(False))
         outer.addWidget(self._compact_strip, 1, Qt.AlignmentFlag.AlignTop)
         # conservation chips + count pills (flow rows)
         self._chips_row = _FlowRow()
@@ -400,7 +400,7 @@ class InfoPanel(QWidget):
             b = QPushButton("\u2922")  # pop-out glyph
             b.setToolTip(tip); b.setFixedSize(20, 18); b.setCursor(Qt.CursorShape.PointingHandCursor)
             b.setStyleSheet(f"border:1px solid {theme.LINE}; border-radius:3px; background:{theme.CARD};"
-                            f"color:{theme.SLATE}; font-size:11px;")
+                            f"color:{theme.SLATE}; font-size:{font_css('caption')};")
             return b
 
         # row 1: map visibility toggles + pop-out buttons
@@ -411,7 +411,7 @@ class InfoPanel(QWidget):
         self._chk_dist = ElidedCheckBox("All my records")
         self._btn_pop_dist = _pop_btn("Pop out the distribution map")
         for chk in (self._chk_loc, self._chk_dist):
-            chk.setStyleSheet(f"color: {theme.MUTED}; font-size: 11px; border: none;")
+            chk.setStyleSheet(f"color: {theme.MUTED}; font-size: {font_css('caption')}; border: none;")
         vis.addWidget(self._chk_loc); vis.addWidget(self._btn_pop_loc)
         vis.addSpacing(8)
         vis.addWidget(self._chk_dist); vis.addWidget(self._btn_pop_dist)
@@ -499,12 +499,12 @@ class InfoPanel(QWidget):
     def _build_legend(self):
         from PySide6.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel
         cols = _src.source_colours()
-        panel = BannerCard(168, 168)    # labels shorten with "..." if the font is wide (R9-8)
+        panel = BannerCard(190, 190)    # R18: 190 (was 168) at the larger text; labels shorten with "..." if the font is wide (R9-8)
         panel.setStyleSheet(theme.card_qss())
         self._banner_cards.append(panel)
         v = QVBoxLayout(panel); v.setContentsMargins(10, 8, 10, 8); v.setSpacing(4)
         title = QLabel("Records"); title.setStyleSheet(
-            f"color: {theme.HEADING}; font-size: 12px; font-weight: 700; border: none; background: transparent;")
+            f"color: {theme.HEADING}; font-size: {font_css('small')}; font-weight: 700; border: none; background: transparent;")
         v.addWidget(title)
         self._src_chk = {}; self._src_swatch = {}; self._src_lbl = {}
         for k in _src.SOURCE_ORDER:
@@ -512,12 +512,12 @@ class InfoPanel(QWidget):
             sw = QLabel(); sw.setFixedSize(11, 11)
             sw.setStyleSheet(f"background: {cols[k]}; border-radius: 5px; border: none;")
             chk = ElidedCheckBox(_src.SOURCE_LABELS[k]); chk.setChecked(True)
-            chk.setStyleSheet(f"color: {theme.INK}; font-size: 11px; border: none; background: transparent;")
+            chk.setStyleSheet(f"color: {theme.INK}; font-size: {font_css('caption')}; border: none; background: transparent;")
             row.addWidget(sw); row.addWidget(chk, 1)
             v.addLayout(row)
             self._src_chk[k] = chk; self._src_swatch[k] = sw; self._src_lbl[k] = chk
         self._dist_count = QLabel("")
-        self._dist_count.setStyleSheet(f"color: {theme.MUTED}; font-size: 11px; border: none; background: transparent;")
+        self._dist_count.setStyleSheet(f"color: {theme.MUTED}; font-size: {font_css('caption')}; border: none; background: transparent;")
         self._dist_count.setWordWrap(True)
         v.addSpacing(4); v.addWidget(self._dist_count)
         v.addStretch(1)
@@ -530,7 +530,7 @@ class InfoPanel(QWidget):
         self._src_swatch[k].setStyleSheet(f"background: {c}; border-radius: 5px; border: none;")
         txt = theme.INK if on else theme.DISABLED_TEXT
         self._src_chk[k].setStyleSheet(
-            f"color: {txt}; font-size: 11px; border: none; background: transparent;")
+            f"color: {txt}; font-size: {font_css('caption')}; border: none; background: transparent;")
 
     def _enabled_sources(self):
         if not getattr(self, "_src_chk", None):
@@ -789,13 +789,13 @@ class InfoPanel(QWidget):
 
         head = QLabel("Traps")
         head.setStyleSheet(
-            f"color: {theme.HEADING}; font-size: 13px; font-weight: 700;"
+            f"color: {theme.HEADING}; font-size: {font_css('body')}; font-weight: 700;"
             " border: none; background: transparent;")
         v.addWidget(head)
 
         self._loc_hint = QLabel("Click to copy")
         self._loc_hint.setStyleSheet(
-            f"color: {theme.FAINT}; font-size: 11px; border: none; background: transparent;")
+            f"color: {theme.FAINT}; font-size: {font_css('caption')}; border: none; background: transparent;")
         v.addWidget(self._loc_hint)
 
         self._loc_scroll = QScrollArea()
@@ -844,7 +844,7 @@ class InfoPanel(QWidget):
         if not entries:
             none_lab = QLabel("No traps recorded yet")
             none_lab.setStyleSheet(
-                f"color: {theme.FAINT}; font-size: 12px; border: none; background: transparent;")
+                f"color: {theme.FAINT}; font-size: {font_css('small')}; border: none; background: transparent;")
             self._loc_lay.addWidget(none_lab)
             self._loc_lay.addStretch(1)
             return
@@ -855,7 +855,7 @@ class InfoPanel(QWidget):
                 last_sub = sub
                 hdr = QLabel(sub or "No sub-location")
                 hdr.setStyleSheet(
-                    f"color: {theme.HEADING}; font-size: 11px; font-weight: 700;"
+                    f"color: {theme.HEADING}; font-size: {font_css('caption')}; font-weight: 700;"
                     " padding: 4px 0 1px 0; border: none; background: transparent;")
                 self._loc_lay.addWidget(hdr)
             text = (str(trap) + "  \u2014  " + ref) if trap else ref
@@ -864,7 +864,7 @@ class InfoPanel(QWidget):
             lab.setCursor(Qt.CursorShape.PointingHandCursor)
             lab.setWordWrap(True)
             lab.setStyleSheet(
-                f"color: {theme.INK}; font-size: 11px; padding: 1px 3px 1px 12px;"
+                f"color: {theme.INK}; font-size: {font_css('caption')}; padding: 1px 3px 1px 12px;"
                 " border: none; background: transparent;")
             lab.mousePressEvent = (lambda _e, r=ref: self._copy_grid_ref(r))
             self._loc_lay.addWidget(lab)
@@ -877,14 +877,14 @@ class InfoPanel(QWidget):
         self._banner_cards.append(card)
         v = QVBoxLayout(card); v.setContentsMargins(12, 10, 12, 10); v.setSpacing(4)
         head = QLabel("This workbook")
-        head.setStyleSheet(f"color: {theme.HEADING}; font-size: 13px; font-weight: 700; border: none; background: transparent;")
+        head.setStyleSheet(f"color: {theme.HEADING}; font-size: {font_css('body')}; font-weight: 700; border: none; background: transparent;")
         v.addWidget(head)
         self._wb_title = QLabel("No records yet")
-        self._wb_title.setStyleSheet(f"color: {theme.INK}; font-size: 13px; font-weight: 600; border: none; background: transparent;")
+        self._wb_title.setStyleSheet(f"color: {theme.INK}; font-size: {font_css('body')}; font-weight: 600; border: none; background: transparent;")
         self._wb_title.setWordWrap(True)
         v.addWidget(self._wb_title)
         cap = QLabel("By order")
-        cap.setStyleSheet(f"color: {theme.FAINT}; font-size: 11px; font-weight: 600; border: none; background: transparent;")
+        cap.setStyleSheet(f"color: {theme.FAINT}; font-size: {font_css('caption')}; font-weight: 600; border: none; background: transparent;")
         v.addSpacing(2); v.addWidget(cap)
         self._wb_grid = QGridLayout()
         self._wb_grid.setContentsMargins(0, 0, 0, 0)
@@ -942,7 +942,7 @@ class InfoPanel(QWidget):
             lab = QLabel(txt)
             muted = txt.startswith("+")
             lab.setStyleSheet(
-                f"color: {theme.FAINT if muted else theme.MUTED}; font-size: 12px;"
+                f"color: {theme.FAINT if muted else theme.MUTED}; font-size: {font_css('small')};"
                 f" border: none; background: transparent;")
             self._wb_grid.addWidget(lab, rowp, col, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
 

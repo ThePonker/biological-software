@@ -23,6 +23,7 @@ from src.themes import theme
 
 from ..import_common.mode_option_card import ModeOptionCard  # noqa: F401  (C4: one copy)
 from ..import_common.progress_pages import ImportProgressPagesMixin
+from shared.text_sizes import font_css
 
 
 class WizardPagesMixin(ImportProgressPagesMixin):
@@ -41,7 +42,7 @@ class WizardPagesMixin(ImportProgressPagesMixin):
         instructions = QLabel(
             "Select the type of data you want to import:"
         )
-        instructions.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 13px;")
+        instructions.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('body')};")
         instructions.setWordWrap(True)
         layout.addWidget(instructions)
         
@@ -105,7 +106,7 @@ class WizardPagesMixin(ImportProgressPagesMixin):
         comm_layout.setSpacing(12)
 
         comm_title = QLabel("Commercial Record Settings")
-        comm_title.setStyleSheet(f"font-weight: 600; font-size: 14px; color: {t.get('text_primary')}; border: none; background: transparent;")
+        comm_title.setStyleSheet(f"font-weight: 600; font-size: {font_css('body')}; color: {t.get('text_primary')}; border: none; background: transparent;")
         comm_layout.addWidget(comm_title)
 
         # Project name
@@ -173,7 +174,7 @@ class WizardPagesMixin(ImportProgressPagesMixin):
 
         # Info text
         self.embargo_info = QLabel("Records will be protected from iRecord upload until this date.")
-        self.embargo_info.setStyleSheet(f"color: {t.get('text_muted')}; font-size: 11px; border: none; background: transparent; margin-left: 20px;")
+        self.embargo_info.setStyleSheet(f"color: {t.get('text_muted')}; font-size: {font_css('caption')}; border: none; background: transparent; margin-left: 20px;")
         comm_layout.addWidget(self.embargo_info)
 
         layout.addWidget(self.commercial_settings_frame)
@@ -384,15 +385,15 @@ class WizardPagesMixin(ImportProgressPagesMixin):
         counters_layout.setSpacing(24)
         
         self.valid_label = QLabel("Valid: 0")
-        self.valid_label.setStyleSheet(f"color: {t.get('success')}; font-weight: 600; font-size: 13px;")
+        self.valid_label.setStyleSheet(f"color: {t.get('success')}; font-weight: 600; font-size: {font_css('body')};")
         counters_layout.addWidget(self.valid_label)
         
         self.warning_label = QLabel("Warnings: 0")
-        self.warning_label.setStyleSheet(f"color: {t.get('warning')}; font-weight: 600; font-size: 13px;")
+        self.warning_label.setStyleSheet(f"color: {t.get('warning')}; font-weight: 600; font-size: {font_css('body')};")
         counters_layout.addWidget(self.warning_label)
         
         self.error_label = QLabel("Errors: 0")
-        self.error_label.setStyleSheet(f"color: {t.get('error')}; font-weight: 600; font-size: 13px;")
+        self.error_label.setStyleSheet(f"color: {t.get('error')}; font-weight: 600; font-size: {font_css('body')};")
         counters_layout.addWidget(self.error_label)
         
         counters_layout.addStretch()
@@ -422,7 +423,7 @@ class WizardPagesMixin(ImportProgressPagesMixin):
                 border: 1px solid #4a7c59;
                 border-radius: 4px;
                 padding: 4px 12px;
-                font-size: 11px;
+                font-size: {font_css('caption')};
             }}
             QPushButton:hover {{
                 background-color: #4a7c59;
@@ -449,7 +450,7 @@ class WizardPagesMixin(ImportProgressPagesMixin):
             border-radius: {t.get('radius_md')};
             padding: 8px 12px;
             color: {t.get('info_text')};
-            font-size: 12px;
+            font-size: {font_css('small')};
         """)
         layout.addWidget(self.edit_hint)
         
@@ -487,7 +488,7 @@ class WizardPagesMixin(ImportProgressPagesMixin):
         filter_style = f"""
             QRadioButton {{
                 color: {t.get('text_primary')};
-                font-size: 13px;
+                font-size: {font_css('body')};
                 font-weight: 500;
                 spacing: 8px;
             }}
@@ -581,7 +582,7 @@ class WizardPagesMixin(ImportProgressPagesMixin):
         
         # Title
         summary_title = QLabel("Import Summary")
-        summary_title.setStyleSheet(f"font-size: 16px; font-weight: 600; color: {t.get('text_primary')};")
+        summary_title.setStyleSheet(f"font-size: {font_css('heading')}; font-weight: 600; color: {t.get('text_primary')};")
         summary_layout.addWidget(summary_title)
         
         # Stats grid
@@ -627,7 +628,7 @@ class WizardPagesMixin(ImportProgressPagesMixin):
         t = theme()
         radio_style = f"""
             QRadioButton {{
-                spacing: 8px; font-size: 12px; color: {t.get('text_primary')};
+                spacing: 8px; font-size: {font_css('small')}; color: {t.get('text_primary')};
             }}
         """
         self.import_all_checkbox = QRadioButton("Import all valid and warning rows (skip errors)")
@@ -684,7 +685,7 @@ class WizardPagesMixin(ImportProgressPagesMixin):
         options_layout.setSpacing(12)
         
         self.options_title = QLabel("Import Options")
-        self.options_title.setStyleSheet(f"font-size: 14px; font-weight: 600; color: {t.get('text_primary')};")
+        self.options_title.setStyleSheet(f"font-size: {font_css('body')}; font-weight: 600; color: {t.get('text_primary')};")
         options_layout.addWidget(self.options_title)
         
         # Never upload checkbox (ONLY for Personal Upload mode - hidden for iRecord Sync)

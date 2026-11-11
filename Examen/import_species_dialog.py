@@ -78,6 +78,7 @@ def resolve_names(names, uksi) -> list:
 
 from Examen.style import (BG, TEXT_SECONDARY, TEXT_MUTED, BORDER,
     SEPARATOR, MOSS_GREEN, ACCENT, ACCENT_DARK, RED_STATUS, WARM_GRAY)
+from shared.text_sizes import font_css
 
 
 class ImportSpeciesDialog(QDialog):
@@ -111,7 +112,7 @@ class ImportSpeciesDialog(QDialog):
         info = QLabel("Paste species names (one per line) or load from a CSV file. "
                        "Names are matched against UKSI to resolve TVKs.")
         info.setWordWrap(True)
-        info.setStyleSheet("color: " + TEXT_SECONDARY + "; font-size: 11px;")
+        info.setStyleSheet("color: " + TEXT_SECONDARY + f"; font-size: {font_css('caption')};")
         layout.addWidget(info)
 
         # Input area
@@ -121,7 +122,7 @@ class ImportSpeciesDialog(QDialog):
                                           "e.g.\nLucanus cervus\nBombus terrestris\nRutpela maculata")
         self.text_edit.setStyleSheet(
             "QTextEdit { border: 1px solid " + BORDER + "; border-radius: 4px; "
-            "font-size: 12px; padding: 6px; }")
+            f"font-size: {font_css('small')}; padding: 6px; }}")
         self.text_edit.setMaximumHeight(160)
         input_row.addWidget(self.text_edit, 1)
 
@@ -158,15 +159,15 @@ class ImportSpeciesDialog(QDialog):
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.table.setAlternatingRowColors(True)
         self.table.setStyleSheet(
-            "QTableWidget { border: 1px solid " + BORDER + "; gridline-color: " + SEPARATOR + "; font-size: 11px; }"
+            "QTableWidget { border: 1px solid " + BORDER + "; gridline-color: " + SEPARATOR + f"; font-size: {font_css('caption')}; }}"
             "QHeaderView::section { background: " + BG + "; border: none; border-bottom: 2px solid "
-            + BORDER + "; padding: 5px; font-weight: bold; font-size: 11px; }")
+            + BORDER + f"; padding: 5px; font-weight: bold; font-size: {font_css('caption')}; }}")
         layout.addWidget(self.table, 1)
 
         # Status + buttons
         bottom = QHBoxLayout()
         self.status_label = QLabel("")
-        self.status_label.setStyleSheet("color: " + TEXT_MUTED + "; font-size: 11px;")
+        self.status_label.setStyleSheet("color: " + TEXT_MUTED + f"; font-size: {font_css('caption')};")
         bottom.addWidget(self.status_label)
         bottom.addStretch()
         cancel_btn = QPushButton("Cancel")

@@ -1,6 +1,6 @@
 # Rules
 
-## Updated 12 October 2026 (rules from Rounds 2–8 added at the end)
+## Updated 10 November 2026 (rules from Rounds 2–8 and 16–17 added at the end)
 ## Every rule here was paid for. Read this before a long session.
 
 ---
@@ -595,3 +595,35 @@ clean-up in the tests. Attach delegates the first time the list fills.
 
 **Run the full suite in parallel** (13 Oct): `py -3.14 -m pytest tests -q -n 6`. Tests that
 change shared Qt state must put it back (`conftest.py` restores the application font).
+
+## Learned in Rounds 16–17, 10 November
+
+**Close the pooled connections before replacing a database in the same process.** Since Round 16
+each thread keeps one read connection (`database.py`); a restore or swap done in-process must call
+`close_connections()` first, or the old file stays open under the new one.
+
+**While an app is open, the main `.db` file is not the current database.** In WAL mode recent
+commits sit in `-wal`. A copy of the main file alone is out of date; a copy of the main file with a
+stale `-wal`/`-shm` is "malformed". Copy with `conn.backup()`, or read a staged main file alone with
+`immutable=1` and say it may be behind.
+
+**An explicit `BIOSOFT_ROOT` wins.** Tests run scripts in child processes; `paths.py` used to prefer
+the code folder's own `data\`, so those children read Wil's live database (dry run only, nothing
+changed). Check where a child process gets its paths.
+
+**Builders archive, never delete; tests never write into the repo.** A builder deleted
+`layer_colours.py` instead of moving it to `_archive` (restored 10 Nov), and a test saved its
+pictures into the project folder, which then got committed. Briefs say both; review the
+`git show --stat` of every builder commit for `delete mode` and stray files.
+
+**A tie needs a last rule.** 1,748 taxa had common names tied on every sort term, so SQLite
+returned whichever it stored first. Any "pick one" query ends with a deterministic tie-break
+(`shared/common_name_pick.py`).
+
+**Test isolation with global switches.** An app's `main()` run inside a test installed the GC
+scheduler (automatic GC off) for every later test in that worker. Anything that changes a
+process-wide switch is undone by a fixture (`tests/conftest.py`).
+
+**Native crashes: ask Windows which file failed.** When the crash log says "no Python frame",
+`Get-WinEvent -FilterHashtable @{LogName='Application'; Id=1000} -MaxEvents 3 | Format-List
+TimeCreated, Message` names the faulting DLL (it found `Qt6GraphsWidgets.dll`, F107).

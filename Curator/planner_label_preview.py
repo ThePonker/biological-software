@@ -5,6 +5,7 @@ Black and white friendly, cascading sizes, cut lines between labels.
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QScrollArea
 from PySide6.QtCore import Qt
 from .style import (BORDER, DANGER, LABEL_INK, TEXT_SECONDARY)
+from shared.text_sizes import font_css
 
 RANK_OFFSET = {"Order":6,"Suborder":6,"Superfamily":4,"Family":2,"Subfamily":2,"Genus":0,"Species":0}
 
@@ -68,7 +69,7 @@ class LabelPreviewWidget(QWidget):
                 pb_label = QLabel(f"— Page {page_num} —")
                 pb_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 pb_label.setStyleSheet(
-                    "color: " + DANGER + "; font-size: 11px; font-weight: bold; "
+                    "color: " + DANGER + f"; font-size: {font_css('caption')}; font-weight: bold; "
                     "background: white; border: none;"
                 )
                 pb_layout.addWidget(pb_label)

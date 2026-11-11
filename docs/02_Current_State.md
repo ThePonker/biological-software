@@ -1,6 +1,6 @@
 # Current State
 
-## 24 October 2026 (docs refresh after Round 11; code at `ed71524`). Figures marked "as of" were not re-measured
+## 10 November 2026 (Rounds 12–17 committed, `e0c2306`); component text last refreshed 24 Oct. Figures marked "as of" were not re-measured
 ## The only home for these figures. If a number appears elsewhere, it is a copy
 ## and it will drift. Session history is in `02b_History.md` (split out 12 Oct).
 
@@ -10,7 +10,7 @@
 
 | Component | State |
 |---|---|
-| **Observatum** | Active. Since 10 Oct: species-counting switches everywhere (Settings › Species counting; excluded rows dimmed, "Show only excluded"); Cleaning Report (Stats/Reports); Recording Scheme records read-only; Home cards Personal, Commercial, All, Scheme & Collection (Achievements card gone); Open in iRecord in record details and the Mapping square list; Species lookup "View N scheme records"; Edit Specimen "Field record" box; laptop sizes (dialogs fit 1280×720 and scroll with their buttons kept on screen; the window narrows to about 1,100 px). **Startup "window early, rest behind"** (§1a). Mapping: VC labels, VC boundaries (each border once), Local authority districts switch (OS Boundary-Line layer files since Round 8), Square opacity slider, County view, Current-view atlas PNG. **Map background layers (Rounds 8–11, built, Wil's checks and commit still to do):** land and districts from layer files, `Layers ▾` with remembered colours, panning by a saved picture, 40× zoom, and context layers off by default (place names, railways, national parks, foreshore, parks and green space, relief from OS Terrain 50). **Away mode (Round 9, built, not yet tested by Wil):** a read-only copy of the databases for his laptop (`01`). Dates show dd/mm/yyyy everywhere; green ticks come from one place (`shared/tick_style.py`). |
+| **Observatum** | Active. **10 Nov:** Rounds 12–17 tested and committed (`03` "Next (10 Nov)"); the PC runs Python 3.14.10 and PySide6 6.12.0; map layers load from binaries; the 3D view is paused (F107). Since 10 Oct: species-counting switches everywhere (Settings › Species counting; excluded rows dimmed, "Show only excluded"); Cleaning Report (Stats/Reports); Recording Scheme records read-only; Home cards Personal, Commercial, All, Scheme & Collection (Achievements card gone); Open in iRecord in record details and the Mapping square list; Species lookup "View N scheme records"; Edit Specimen "Field record" box; laptop sizes (dialogs fit 1280×720 and scroll with their buttons kept on screen; the window narrows to about 1,100 px). **Startup "window early, rest behind"** (§1a). Mapping: VC labels, VC boundaries (each border once), Local authority districts switch (OS Boundary-Line layer files since Round 8), Square opacity slider, County view, Current-view atlas PNG. **Map background layers (Rounds 8–11, built, Wil's checks and commit still to do):** land and districts from layer files, `Layers ▾` with remembered colours, panning by a saved picture, 40× zoom, and context layers off by default (place names, railways, national parks, foreshore, parks and green space, relief from OS Terrain 50). **Away mode (Round 9, built, not yet tested by Wil):** a read-only copy of the databases for his laptop (`01`). Dates show dd/mm/yyyy everywhere; green ticks come from one place (`shared/tick_style.py`). |
 | **Data Entry** | In production. Commits 2 Oct (Birmingham 172) and 8 Oct (1,136 records, five jobs). Count mode (F9) and repeat key (Ctrl+R) built 9 Oct. **Check before commit (B8) passed Wil's test 12 Oct.** A count of 0 is pink and blocks that row's commit; conservation chips read S.41 / SBL / S7 / Protected; "Showing: entry order" / "sorted by … (view only)" with Back to entry order; the banner cards narrow to fit the window. At 1280×720 the grid shows about 7 rows (compact banner agreed, Q54). **Rounds 7–8 (16–17 Oct, built; Wil's tests pending):** Check mark ("to check", Ctrl+T), "To check only", Export for checking, Read back checking, Last entered row, Test copy of a job (`09`). |
 | **Examen** | Reproduces an issued report's SQI exactly (Glory Park, 117). Reads `assessment_records`, so contributed records count. Excel, PDF and Word reports; compartments (E6), saproxylic SQI + IEC (E7), taxonomic summary (E8b). **PDF passed Wil's review 12 Oct (E3)**; style changes wait for the report-contents work. "1 sp." singular. Fits a laptop screen (minimum 1000×560, toolbar scrolls sideways). |
 | **Codex** | Rebuilt 9 October (D5) on **JNCC June 2026** and **UKSI July 2025**. **63 reviews** (35 status reviews + 28 atlases, accounts only), 6,566 review accounts. Known stale status: *Philanthus triangulum* still carries RDB2 (12 Oct). |
@@ -266,6 +266,14 @@ temula* (Tilbury). `scripts/list_missing_accounts.py`.
 website and are unaffected. Any SQI taken from **Examen** between April and
 2 October was inflated by 3–66 points. Badshot Lea's key species have moved from
 the issued 10 to 8 (jurisdiction, then research-only).
+
+### Coedely Park 2026 (RWE Wales, for Richard Wilson) — committed 10 Nov, not yet in the reference file
+
+703 records (Data Entry job 11, script commit), six compartments (ponds folded into Comp 6). Whole site,
+Codex full, Wales: **307 species, SQI 104, 7 key species**, 1 Rare Key on the Telfer basis (*Hypera ononidis*,
+RDBK). Per compartment, species / SQI: Comp 1 101/108, Comp 2 117/107, Comp 3 64/94, Comp 4 110/108, Comp 5
+61/94, Comp 6 92/94. Measured 10 Nov before the *Botanophila* move (a re-determination, no count change).
+Add to `scripts/reference_figures.json` once Richard's report is issued.
 
 ### Birmingham – Wheels Park 2026 — the first joint survey
 

@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout
 from PySide6.QtCore import Qt
 
 from src.themes import theme
+from shared.text_sizes import font_css
 
 
 class ModeOptionCard(QFrame):
@@ -41,7 +42,7 @@ class ModeOptionCard(QFrame):
         self.title_label = QLabel(title)
         self.title_label.setStyleSheet(f"""
             font-weight: 600;
-            font-size: 14px;
+            font-size: {font_css('body')};
             color: {t.get('text_primary')};
             background: transparent;
             border: none;
@@ -51,7 +52,7 @@ class ModeOptionCard(QFrame):
         self.desc_label = QLabel(description)
         self.desc_label.setStyleSheet(f"""
             color: {t.get('text_secondary')};
-            font-size: 12px;
+            font-size: {font_css('small')};
             background: transparent;
             border: none;
         """)

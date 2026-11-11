@@ -18,6 +18,7 @@ except ImportError:
     CHARTS_AVAILABLE = False
 
 from ...themes import theme
+from shared.text_sizes import font_px
 
 
 class MiniAccumulationChart(QFrame):
@@ -102,7 +103,7 @@ class MiniAccumulationChart(QFrame):
         self.axis_x.setMinorGridLineVisible(False)
         self.axis_x.setTickCount(5)
         font = self.axis_x.labelsFont()
-        font.setPointSize(8)
+        font.setPixelSize(font_px('caption'))
         self.axis_x.setLabelsFont(font)
         self.axis_x.setTitleVisible(False)
         self.chart.addAxis(self.axis_x, Qt.AlignBottom)
@@ -117,7 +118,7 @@ class MiniAccumulationChart(QFrame):
         self.axis_y.setMinorGridLineVisible(False)
         self.axis_y.setTickCount(4)
         font_y = self.axis_y.labelsFont()
-        font_y.setPointSize(8)
+        font_y.setPixelSize(font_px('caption'))
         self.axis_y.setLabelsFont(font_y)
         self.axis_y.setTitleVisible(False)
         self.chart.addAxis(self.axis_y, Qt.AlignLeft)

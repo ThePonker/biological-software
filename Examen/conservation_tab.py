@@ -51,6 +51,7 @@ def _legal_ok(text, jurisdiction):
 
 from Examen.style import (BG, SURFACE, TEXT_HEADING, TEXT_SECONDARY, TEXT_MUTED,
     BORDER, MOSS_GREEN, ACCENT_DARK, RED_STATUS, AMBER)
+from shared.text_sizes import font_css, qfont
 # Designations from another jurisdiction: shown for completeness, greyed because
 # they do not count towards key species here.
 NA_TEXT = TEXT_MUTED; NA_BAR = "#d9dce1"
@@ -139,7 +140,7 @@ class ConservationTab(QWidget):
 
         hdr = QLabel(f"{total_key} key species of {total_species} total "
                       f"({result.key_species_pct}%)")
-        hdr.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+        hdr.setFont(qfont('body_large', "Segoe UI", QFont.Weight.Bold))
         hdr.setStyleSheet("color: " + ACCENT_DARK + ";")
         self._add(hdr)
 
@@ -199,7 +200,7 @@ class ConservationTab(QWidget):
         gl = QVBoxLayout(grp); gl.setContentsMargins(12, 10, 12, 10); gl.setSpacing(6)
 
         title = QLabel(group_name)
-        title.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+        title.setFont(qfont('body', "Segoe UI", QFont.Weight.Bold))
         title.setStyleSheet("color: " + TEXT_HEADING + "; border: none;")
         gl.addWidget(title)
 
@@ -223,7 +224,7 @@ class ConservationTab(QWidget):
 
             code_lbl = QLabel(code)
             code_lbl.setFixedWidth(50)
-            code_lbl.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+            code_lbl.setFont(qfont('body', "Segoe UI", QFont.Weight.Bold))
             code_lbl.setStyleSheet(f"color: {colour}; border: none;")
             row.addWidget(code_lbl)
 
@@ -231,7 +232,7 @@ class ConservationTab(QWidget):
             desc_lbl.setFixedWidth(200)
             desc_lbl.setWordWrap(True)
             desc_lbl.setStyleSheet("color: " + (TEXT_SECONDARY if applies else NA_TEXT)
-                                   + "; font-size: 11px; border: none;"
+                                   + f"; font-size: {font_css('caption')}; border: none;"
                                    + ("" if applies else " font-style: italic;"))
             row.addWidget(desc_lbl)
 
@@ -245,7 +246,7 @@ class ConservationTab(QWidget):
 
             count_lbl = QLabel(str(count))
             count_lbl.setFixedWidth(30)
-            count_lbl.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+            count_lbl.setFont(qfont('body', "Segoe UI", QFont.Weight.Bold))
             count_lbl.setStyleSheet(f"color: {colour}; border: none;")
             count_lbl.setAlignment(Qt.AlignmentFlag.AlignRight)
             row.addWidget(count_lbl)
@@ -257,7 +258,7 @@ class ConservationTab(QWidget):
                           "They are shown for completeness and do not count "
                           f"towards key species under {self._juris}.")
             note.setWordWrap(True)
-            note.setStyleSheet("color: " + NA_TEXT + "; font-size: 11px; "
+            note.setStyleSheet("color: " + NA_TEXT + f"; font-size: {font_css('caption')}; "
                                "font-style: italic; border: none;")
             gl.addWidget(note)
 
@@ -271,7 +272,7 @@ class ConservationTab(QWidget):
                                    + BORDER + "; border-radius: 6px; }")
         gfl = QVBoxLayout(guild_frame); gfl.setContentsMargins(12, 10, 12, 10); gfl.setSpacing(4)
         gt = QLabel("Feeding guilds")
-        gt.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+        gt.setFont(qfont('body', "Segoe UI", QFont.Weight.Bold))
         gt.setStyleSheet("color: " + TEXT_HEADING + "; border: none;")
         gfl.addWidget(gt)
 
@@ -282,7 +283,7 @@ class ConservationTab(QWidget):
                 text = f"{label}: " + ", ".join(f"{k} ({v})" for k, v in top)
                 gl_lbl = QLabel(text)
                 gl_lbl.setWordWrap(True)
-                gl_lbl.setStyleSheet("color: " + TEXT_SECONDARY + "; font-size: 11px; border: none;")
+                gl_lbl.setStyleSheet("color: " + TEXT_SECONDARY + f"; font-size: {font_css('caption')}; border: none;")
                 gfl.addWidget(gl_lbl)
 
         self._add(guild_frame)

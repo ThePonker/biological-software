@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (QFrame, QVBoxLayout, QHBoxLayout, QLabel, QPushBu
 from PySide6.QtCore import Qt, Signal
 
 from ...themes import theme
+from shared.text_sizes import font_css
 
 try:
     from shared.species_accounts import get_species_accounts
@@ -50,7 +51,7 @@ class SpeciesAccountsPanel(QFrame):
 
         head = QHBoxLayout()
         title = QLabel("Species accounts")
-        title.setStyleSheet(f"font-size: 13px; font-weight: 600; color: {t.get('text_primary')};")
+        title.setStyleSheet(f"font-size: {font_css('body')}; font-weight: 600; color: {t.get('text_primary')};")
         head.addWidget(title)
         head.addStretch()
         self._btn = QPushButton("Edit my account")
@@ -58,7 +59,7 @@ class SpeciesAccountsPanel(QFrame):
         self._btn.setStyleSheet(f"""
             QPushButton {{ background-color: {accent}; color: white; border: none;
                           border-radius: {t.get('radius_sm')}; padding: 4px 12px;
-                          font-size: 11px; font-weight: 600; }}
+                          font-size: {font_css('caption')}; font-weight: 600; }}
             QPushButton:hover {{ background-color: {accent_dark}; }}
         """)
         self._btn.clicked.connect(self.edit_requested.emit)
@@ -118,10 +119,10 @@ class SpeciesAccountsPanel(QFrame):
         body = self._paras(own) if own else \
             "<p style='margin:4px 0'><i>No account of your own yet.</i></p>"
         self._body_layout.addWidget(self._label(
-            f"<div style='color:{self._dark}; font-size:11px'><b>Your account</b> &nbsp;·&nbsp; {meta}</div>{body}",
+            f"<div style='color:{self._dark}; font-size:{font_css('caption')}'><b>Your account</b> &nbsp;·&nbsp; {meta}</div>{body}",
             f"QLabel {{ background-color: {self._light}; border: 1px solid {self._accent}; "
             f"border-radius: {t.get('radius_md')}; padding: 9px 11px; color: {t.get('text_primary')}; "
-            f"font-size: 12px; }}"))
+            f"font-size: {font_css('small')}; }}"))
         self._btn.setText("Edit my account" if own else "Write my account")
         if not self._tvk:
             self._btn.setEnabled(False)
@@ -133,7 +134,7 @@ class SpeciesAccountsPanel(QFrame):
         self._body_layout.addWidget(self._label(
             f"<b>Published accounts ({n})</b> — reference" if n else
             "<b>Published accounts</b> — none for this species",
-            f"QLabel {{ color: {sub}; font-size: 11px; padding-top: 4px; }}"))
+            f"QLabel {{ color: {sub}; font-size: {font_css('caption')}; padding-top: 4px; }}"))
         for r in reviews:
             year = (r.date_published or "")[:4]
             cite = r.author or r.cite
@@ -152,7 +153,7 @@ class SpeciesAccountsPanel(QFrame):
                 head += f"<br><i>{'; '.join(notes)}</i>"
             colour = sub if r.superseded else t.get('text_primary')
             self._body_layout.addWidget(self._label(
-                f"<div style='font-size:11px'>{head}</div>{self._paras(r.text)}",
+                f"<div style='font-size:{font_css('caption')}'>{head}</div>{self._paras(r.text)}",
                 f"QLabel {{ background-color: {t.get('surface')}; border: 1px solid {t.get('border')}; "
-                f"border-radius: {t.get('radius_md')}; padding: 9px 11px; color: {colour}; font-size: 12px; }}"))
+                f"border-radius: {t.get('radius_md')}; padding: 9px 11px; color: {colour}; font-size: {font_css('small')}; }}"))
         self._body_layout.addStretch()

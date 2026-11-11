@@ -87,7 +87,7 @@ def test_commit_service_files_the_photo(lib):
             pass
 
     class Model:
-        def create(self, o):
+        def create(self, o, extra=None):
             return 91
 
     class Db:
@@ -204,7 +204,7 @@ def test_commit_keeps_links_when_they_cannot_move(lib, monkeypatch):
             pass
 
     class Model:
-        def create(self, o):
+        def create(self, o, extra=None):
             return 92
 
     class Db:

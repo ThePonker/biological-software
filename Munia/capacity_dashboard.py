@@ -13,15 +13,16 @@ from Munia.theme import (
 )
 from Munia import munia_data as db
 from Munia.munia_data import BIZ_MONTHS, BIZ_LABELS
+from shared.text_sizes import font_css, qfont
 
 FIELD_ROWS = ["Budget", "Quoted", "Accepted", "Remaining"]
 ACCEPTED_TIP = "Accepted and complete projects (both are won work)"
 TABLE_STYLE = (
     f"QTableWidget {{ background: {STONE_LIGHT}; border: 1px solid {STONE_BORDER}; "
-    f'gridline-color: {STONE_BORDER}; font-family: "{BODY_FAMILY}"; font-size: 12px; }}'
+    f'gridline-color: {STONE_BORDER}; font-family: "{BODY_FAMILY}"; font-size: {font_css("small")}; }}'
     f"QTableWidget::item {{ padding: 2px 4px; }}"
     f"QHeaderView::section {{ background: {WARM_GRAY_LIGHT}; "
-    f'font-family: "{BODY_FAMILY}"; font-size: 11px; font-weight: 600; '
+    f'font-family: "{BODY_FAMILY}"; font-size: {font_css("caption")}; font-weight: 600; '
     f"color: {TEXT_DARK}; border: none; "
     f"border-bottom: 1px solid {STONE_BORDER}; padding: 4px; }}")
 # Season tints by display column (1-indexed: col 1=Apr .. col 12=Mar)
@@ -41,7 +42,7 @@ class CapacityDashboard(QWidget):
         layout.setSpacing(4)
         field_lbl = QLabel("Field Days")
         field_lbl.setStyleSheet(
-            f'font-family: "{HEADING_FAMILY}"; font-size: 14px; '
+            f'font-family: "{HEADING_FAMILY}"; font-size: {font_css("body")}; '
             f"font-weight: bold; color: {MOSS_GREEN}; margin: 0; padding: 0;")
         layout.addWidget(field_lbl)
         self.field_table = QTableWidget(4, 14)
@@ -62,7 +63,7 @@ class CapacityDashboard(QWidget):
             item = QTableWidgetItem(f"  {label}")
             item.setFlags(Qt.ItemIsEnabled)
             is_budget = row == 0
-            item.setFont(QFont(BODY_FAMILY, 10, QFont.Bold if is_budget else QFont.Normal))
+            item.setFont(qfont('body', BODY_FAMILY, QFont.Bold if is_budget else QFont.Normal))
             item.setForeground(QBrush(QColor(MOSS_GREEN if is_budget else TEXT_MID)))
             if label == "Accepted":
                 item.setToolTip(ACCEPTED_TIP)
@@ -77,7 +78,7 @@ class CapacityDashboard(QWidget):
         micro_col.setSpacing(2)
         micro_lbl = QLabel("Microscope Days")
         micro_lbl.setStyleSheet(
-            f'font-family: "{HEADING_FAMILY}"; font-size: 14px; '
+            f'font-family: "{HEADING_FAMILY}"; font-size: {font_css("body")}; '
             f"font-weight: bold; color: {DUSTY_PURPLE}; margin: 0; padding: 0;")
         micro_col.addWidget(micro_lbl)
         self.micro_row = _CompactCard(DUSTY_PURPLE)
@@ -87,7 +88,7 @@ class CapacityDashboard(QWidget):
         report_col.setSpacing(2)
         report_lbl = QLabel("Report Days")
         report_lbl.setStyleSheet(
-            f'font-family: "{HEADING_FAMILY}"; font-size: 14px; '
+            f'font-family: "{HEADING_FAMILY}"; font-size: {font_css("body")}; '
             f"font-weight: bold; color: {AMBER}; margin: 0; padding: 0;")
         report_col.addWidget(report_lbl)
         self.report_row = _CompactCard(AMBER)
@@ -138,7 +139,7 @@ class CapacityDashboard(QWidget):
         item.setFlags(Qt.ItemIsEnabled)
         item.setForeground(QBrush(fg))
         font_wt = QFont.Bold if (bold or sub_idx == 0) else QFont.Normal
-        item.setFont(QFont(BODY_FAMILY, 10, font_wt))
+        item.setFont(qfont('body', BODY_FAMILY, font_wt))
         if sub_idx == 3 and value < 0:
             item.setBackground(QBrush(QColor("#fef2f2")))
         elif col in SEASON_TINT:
@@ -170,7 +171,7 @@ class _CompactCard(QFrame):
         lbl = QLabel(text)
         wt = "bold" if bold else "normal"
         lbl.setStyleSheet(
-            f'font-family: "{BODY_FAMILY}"; font-size: 11px; '
+            f'font-family: "{BODY_FAMILY}"; font-size: {font_css("caption")}; '
             f"font-weight: {wt}; color: {TEXT_MID};")
         return lbl
     def refresh(self, budget, quoted, accepted):
@@ -181,5 +182,5 @@ class _CompactCard(QFrame):
         col = FADED_CRIMSON if remaining < 0 else TEXT_DARK
         self.remain_lbl.setText(f"Remaining: {remaining:g}")
         self.remain_lbl.setStyleSheet(
-            f'font-family: "{BODY_FAMILY}"; font-size: 11px; '
+            f'font-family: "{BODY_FAMILY}"; font-size: {font_css("caption")}; '
             f"font-weight: bold; color: {col};")

@@ -14,6 +14,7 @@ from PySide6.QtCore import Qt
 
 from ....themes import theme
 from ....core.config import ButtonColors
+from shared.text_sizes import font_css
 
 
 class WizardPagesMixin:
@@ -170,7 +171,7 @@ class WizardPagesMixin:
                 border: 1px solid {ButtonColors.PRIMARY};
                 border-radius: 4px;
                 padding: 4px 12px;
-                font-size: 11px;
+                font-size: {font_css('caption')};
             }}
             QPushButton:hover {{
                 background-color: {ButtonColors.PRIMARY};
@@ -199,7 +200,7 @@ class WizardPagesMixin:
         )
         edit_instructions.setStyleSheet(f"""
             color: {t.get('text_secondary')};
-            font-size: 12px;
+            font-size: {font_css('small')};
             padding: 6px 10px;
             background-color: {t.get('info_bg')};
             border-radius: {t.get('radius_sm')};
@@ -372,14 +373,14 @@ class WizardPagesMixin:
         
         # Success icon
         self.summary_icon = QLabel("✓")
-        self.summary_icon.setStyleSheet(f"font-size: 48px; color: {t.get('success')};")
+        self.summary_icon.setStyleSheet(f"font-size: {font_css('display_48')}; color: {t.get('success')};")
         self.summary_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.summary_icon)
         
         # Title
         self.summary_title = QLabel("Import Complete!")
         self.summary_title.setStyleSheet(f"""
-            font-size: 24px;
+            font-size: {font_css('display_24')};
             font-weight: 600;
             color: {t.get('text_primary')};
         """)
@@ -389,7 +390,7 @@ class WizardPagesMixin:
         # Stats box
         self.summary_stats = QLabel("")
         self.summary_stats.setStyleSheet(f"""
-            font-size: 14px;
+            font-size: {font_css('body')};
             color: {t.get('text_secondary')};
             padding: 16px;
             background-color: {t.get('surface_alt')};

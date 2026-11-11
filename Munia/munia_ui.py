@@ -16,6 +16,7 @@ from Munia.project_form import ProjectForm
 from Munia.projects_panel import ProjectsPanel
 from Munia.budget_settings import BudgetSettingsDialog
 from shared.fit_to_screen import scroll_body
+from shared.text_sizes import font_css
 
 
 class MuniaWindow(QMainWindow):
@@ -59,16 +60,16 @@ class MuniaWindow(QMainWindow):
         header.addStretch()
         yl = QLabel("Season:")
         yl.setStyleSheet(
-            f'font-family: "{HEADING_FAMILY}"; font-size: 15px; '
+            f'font-family: "{HEADING_FAMILY}"; font-size: {font_css("body_large")}; '
             f"font-weight: bold; color: {TEXT_DARK};")
         self.year_spin = QSpinBox()
         self.year_spin.setRange(2020, 2040)
         self.year_spin.setValue(self._year)
         self.year_spin.setFixedWidth(90)
-        self.year_spin.setStyleSheet("font-size: 15px; font-weight: bold;")
+        self.year_spin.setStyleSheet(f"font-size: {font_css('body_large')}; font-weight: bold;")
         self.year_label = QLabel(f"/ {self._year + 1}")
         self.year_label.setStyleSheet(
-            f'font-family: "{HEADING_FAMILY}"; font-size: 15px; '
+            f'font-family: "{HEADING_FAMILY}"; font-size: {font_css("body_large")}; '
             f"font-weight: bold; color: {TEXT_MID};")
         header.addWidget(yl)
         header.addWidget(self.year_spin)
@@ -77,7 +78,7 @@ class MuniaWindow(QMainWindow):
         self.budget_btn = QPushButton("Budget Settings")
         self.budget_btn.setStyleSheet(
             "QPushButton { padding: 5px 14px; border: 1px solid " + STONE_BORDER + "; "
-            "border-radius: 4px; font-size: 11px; color: " + TEXT_MID + "; } "
+            f"border-radius: 4px; font-size: {font_css('caption')}; color: " + TEXT_MID + "; } "
             "QPushButton:hover { background-color: " + STONE_LIGHT + "; }")
         self.budget_btn.clicked.connect(self._open_budget_settings)
         header.addWidget(self.budget_btn)
@@ -110,7 +111,7 @@ class MuniaWindow(QMainWindow):
         left.addWidget(div2)
         stitle = QLabel("Pipeline Summary")
         stitle.setStyleSheet(
-            f'font-family: "{HEADING_FAMILY}"; font-size: 14px; '
+            f'font-family: "{HEADING_FAMILY}"; font-size: {font_css("body")}; '
             f"font-weight: bold; color: {TEXT_DARK};")
         left.addWidget(stitle)
         self.summary_card = QFrame()
@@ -143,7 +144,7 @@ class MuniaWindow(QMainWindow):
         # Confirmed days hero row
         days_title = QLabel("Confirmed Days (accepted + complete)")
         days_title.setStyleSheet(
-            f'font-family: "{BODY_FAMILY}"; font-size: 11px; '
+            f'font-family: "{BODY_FAMILY}"; font-size: {font_css("caption")}; '
             f"font-weight: bold; color: {TEXT_MID};")
         sc.addWidget(days_title)
         days_row = QHBoxLayout()
@@ -157,8 +158,8 @@ class MuniaWindow(QMainWindow):
         left.addWidget(self.summary_card)
         left.addStretch()
         self.projects = ProjectsPanel(self._conn)
-        body.addWidget(scroll_body(left_box), 2)
-        body.addWidget(self.projects, 3)
+        body.addWidget(scroll_body(left_box), 4)      # R18: 4:5 (was 2:3): the left column needs
+        body.addWidget(self.projects, 5)               # ~770 px at the larger text
         outer.addLayout(body, 1)
 
     def _srow(self, count_text, label_text, colour):
@@ -166,12 +167,12 @@ class MuniaWindow(QMainWindow):
         row.setSpacing(8)
         count = QLabel(count_text)
         count.setStyleSheet(
-            f'font-family: "{BODY_FAMILY}"; font-size: 18px; '
+            f'font-family: "{BODY_FAMILY}"; font-size: {font_css("title")}; '
             f"font-weight: bold; color: {colour};")
         count.setFixedWidth(30)
         label = QLabel(label_text)
         label.setStyleSheet(
-            f'font-family: "{BODY_FAMILY}"; font-size: 12px; color: {TEXT_MID};')
+            f'font-family: "{BODY_FAMILY}"; font-size: {font_css("small")}; color: {TEXT_MID};')
         row.addWidget(count)
         row.addWidget(label)
         row.addStretch()
@@ -182,11 +183,11 @@ class MuniaWindow(QMainWindow):
         col.setSpacing(0)
         lbl = QLabel(title)
         lbl.setStyleSheet(
-            f'font-family: "{BODY_FAMILY}"; font-size: 11px; color: {TEXT_MID};')
+            f'font-family: "{BODY_FAMILY}"; font-size: {font_css("caption")}; color: {TEXT_MID};')
         col.addWidget(lbl)
         val = QLabel(value)
         val.setStyleSheet(
-            f'font-family: "{BODY_FAMILY}"; font-size: 20px; '
+            f'font-family: "{BODY_FAMILY}"; font-size: {font_css("display_20")}; '
             f"font-weight: bold; color: {colour};")
         col.addWidget(val)
         parent_layout.addLayout(col)

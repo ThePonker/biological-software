@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Signal, Qt
 
 from ....themes import theme
+from shared.text_sizes import font_css
 
 
 class FilterCard(QFrame):
@@ -63,7 +64,7 @@ class FilterCard(QFrame):
         self.icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.icon_label.setStyleSheet(f"""
             QLabel {{
-                font-size: 17px;
+                font-size: {font_css('title')};
                 background-color: {self._lighten_color(self._accent_color, 0.85)};
                 border-radius: 6px;
             }}
@@ -79,7 +80,7 @@ class FilterCard(QFrame):
         self.title_label = QLabel(self._title)
         self.title_label.setStyleSheet(f"""
             QLabel {{
-                font-size: 13px;
+                font-size: {font_css('body')};
                 font-weight: 600;
                 color: {self._accent_color};
                 background: transparent;
@@ -92,7 +93,7 @@ class FilterCard(QFrame):
         self.desc_label.setWordWrap(True)
         self.desc_label.setStyleSheet(f"""
             QLabel {{
-                font-size: 11px;
+                font-size: {font_css('caption')};
                 color: {t.get('text_secondary')};
                 background: transparent;
             }}
@@ -105,7 +106,7 @@ class FilterCard(QFrame):
         arrow = QLabel("›")
         arrow.setStyleSheet(f"""
             QLabel {{
-                font-size: 16px;
+                font-size: {font_css('heading')};
                 color: {t.get('text_muted')};
                 background: transparent;
             }}

@@ -84,7 +84,7 @@ def test_failed_staging_delete_stops_the_commit(tmp_path, monkeypatch):
     class Model:
         n = 0
 
-        def create(self, o):
+        def create(self, o, extra=None):
             Model.n += 1
             return 100 + Model.n
 

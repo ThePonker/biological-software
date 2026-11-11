@@ -20,6 +20,7 @@ from Munia.theme import (
 )
 from Munia import munia_data as db
 from Munia.munia_data import BIZ_MONTHS, BIZ_LABELS, FIELD_MONTHS
+from shared.text_sizes import font_css
 
 
 class BudgetSettingsDialog(QDialog):
@@ -47,7 +48,7 @@ class BudgetSettingsDialog(QDialog):
 
         title = QLabel(f"Capacity Budget {self._year}/{self._year + 1}")
         title.setStyleSheet(
-            f'font-family: "{HEADING_FAMILY}"; font-size: 14px; '
+            f'font-family: "{HEADING_FAMILY}"; font-size: {font_css("body")}; '
             f"font-weight: bold; color: {TEXT_DARK};"
         )
         layout.addWidget(title)
@@ -57,7 +58,7 @@ class BudgetSettingsDialog(QDialog):
             "Changes apply to the selected business year only."
         )
         info.setWordWrap(True)
-        info.setStyleSheet(f"color: {TEXT_MID}; font-size: 11px;")
+        info.setStyleSheet(f"color: {TEXT_MID}; font-size: {font_css('caption')};")
         layout.addWidget(info)
 
         # Field days
@@ -162,7 +163,7 @@ class BudgetSettingsDialog(QDialog):
 
     def _group_style(self, accent):
         return (
-            f"QGroupBox {{ font-weight: 600; font-size: 12px; "
+            f"QGroupBox {{ font-weight: 600; font-size: {font_css('small')}; "
             f"color: {accent}; border: 1px solid {STONE_BORDER}; "
             f"border-radius: 4px; margin-top: 8px; padding-top: 16px; }}"
             f"QGroupBox::title {{ subcontrol-origin: margin; "

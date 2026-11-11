@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 from DataEntry import date_utils, theme
 from shared import bench_photos, photo_files, photo_links
 from shared.photo_names import IMAGE_EXTS, specimen_photo_stem
+from shared.text_sizes import font_css
 
 KEY_FOLDER = "DataEntry/captureFolder"
 KEY_VIEWS = "DataEntry/photoViews"
@@ -66,12 +67,12 @@ class PhotoAttachDialog(QDialog):
         bits = [row.get("species_name") or "no species", row.get("sex") or "",
                 date_utils.to_display(row.get("date"))]
         self._summary = QLabel(" · ".join(b for b in bits if b))
-        self._summary.setStyleSheet(f"color: {theme.INK}; font-size: 14px; font-weight: 600;")
+        self._summary.setStyleSheet(f"color: {theme.INK}; font-size: {font_css('body')}; font-weight: 600;")
         v.addWidget(self._summary)
 
         top = QHBoxLayout()
         self._folder_lbl = QLabel()
-        self._folder_lbl.setStyleSheet(f"color: {theme.MUTED}; font-size: 12px;")
+        self._folder_lbl.setStyleSheet(f"color: {theme.MUTED}; font-size: {font_css('small')};")
         self._folder_lbl.setWordWrap(True)
         top.addWidget(self._folder_lbl, 1)
         self._change_btn = QPushButton("Change folder…")
@@ -81,7 +82,7 @@ class PhotoAttachDialog(QDialog):
         v.addLayout(top)
 
         self._msg = QLabel()
-        self._msg.setStyleSheet(f"color: {theme.MUTED}; font-size: 12px;")
+        self._msg.setStyleSheet(f"color: {theme.MUTED}; font-size: {font_css('small')};")
         self._msg.setWordWrap(True)
         v.addWidget(self._msg)
 
@@ -106,13 +107,13 @@ class PhotoAttachDialog(QDialog):
         self._fill_views()
 
         self._preview = QLabel()
-        self._preview.setStyleSheet(f"color: {theme.INK}; font-size: 12px;")
+        self._preview.setStyleSheet(f"color: {theme.INK}; font-size: {font_css('small')};")
         v.addWidget(self._preview)
 
         # the row's own photos: a wrong one (or wrong view) goes back to the capture folder,
         # to attach again (14 Oct 2026)
         self._row_lbl = QLabel()
-        self._row_lbl.setStyleSheet(f"color: {theme.INK}; font-size: 12px; font-weight: 600;")
+        self._row_lbl.setStyleSheet(f"color: {theme.INK}; font-size: {font_css('small')}; font-weight: 600;")
         v.addWidget(self._row_lbl)
         self.row_list = QListWidget()
         self.row_list.setViewMode(QListView.ViewMode.IconMode)

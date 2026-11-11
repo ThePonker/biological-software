@@ -16,6 +16,7 @@ from shared.fit_to_screen import fit_to_screen
 
 from ...themes import theme
 from ...core.config import TabColors
+from shared.text_sizes import font_css
 
 
 class SchemeRecordDetailDialog(QDialog):
@@ -202,7 +203,7 @@ class SchemeRecordDetailDialog(QDialog):
 
         title = QLabel(self._title)
         title.setStyleSheet(f"""
-            font-size: 11px;
+            font-size: {font_css('caption')};
             font-weight: 600;
             color: {t.get('text_secondary')};
             letter-spacing: 0.5px;
@@ -220,7 +221,7 @@ class SchemeRecordDetailDialog(QDialog):
         # Scientific name (large, italic)
         sci_label = QLabel(species_name)
         sci_label.setStyleSheet(f"""
-            font-size: 18px;
+            font-size: {font_css('title')};
             font-weight: 600;
             font-style: italic;
             color: {t.get('text_primary')};
@@ -237,7 +238,7 @@ class SchemeRecordDetailDialog(QDialog):
         if common_name:
             common_label = QLabel(common_name)
             common_label.setStyleSheet(f"""
-                font-size: 14px;
+                font-size: {font_css('body')};
                 color: {t.get('text_primary')};
             """)
             layout.addWidget(common_label)
@@ -279,8 +280,8 @@ class SchemeRecordDetailDialog(QDialog):
 
         if self._observation_count > 0:
             records_label = QLabel("Records")
-            records_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 13px;")
-            records_label.setFixedWidth(70)
+            records_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('body')};")
+            records_label.setFixedWidth(90)
             records_row.addWidget(records_label)
 
             records_link = QPushButton("View records →")
@@ -289,7 +290,7 @@ class SchemeRecordDetailDialog(QDialog):
                     border: none;
                     background: transparent;
                     color: {TabColors.OBSERVATION};
-                    font-size: 12px;
+                    font-size: {font_css('small')};
                     padding: 0;
                 }}
                 QPushButton:hover {{
@@ -304,14 +305,14 @@ class SchemeRecordDetailDialog(QDialog):
 
             records_count = QLabel(str(self._observation_count))
             records_count.setStyleSheet(f"""
-                font-size: 16px;
+                font-size: {font_css('heading')};
                 font-weight: 700;
                 color: {TabColors.OBSERVATION};
             """)
             records_row.addWidget(records_count)
         else:
             no_records_label = QLabel("No Records")
-            no_records_label.setStyleSheet(f"color: {t.get('text_muted')}; font-size: 13px;")
+            no_records_label.setStyleSheet(f"color: {t.get('text_muted')}; font-size: {font_css('body')};")
             records_row.addWidget(no_records_label)
             records_row.addStretch()
 
@@ -322,8 +323,8 @@ class SchemeRecordDetailDialog(QDialog):
 
         if self._specimen_count > 0:
             collection_label = QLabel("Collection")
-            collection_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 13px;")
-            collection_label.setFixedWidth(70)
+            collection_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('body')};")
+            collection_label.setFixedWidth(90)
             collection_row.addWidget(collection_label)
 
             collection_link = QPushButton("View all →")
@@ -332,7 +333,7 @@ class SchemeRecordDetailDialog(QDialog):
                     border: none;
                     background: transparent;
                     color: {TabColors.COLLECTION};
-                    font-size: 12px;
+                    font-size: {font_css('small')};
                     padding: 0;
                 }}
                 QPushButton:hover {{
@@ -347,14 +348,14 @@ class SchemeRecordDetailDialog(QDialog):
 
             collection_count = QLabel(str(self._specimen_count))
             collection_count.setStyleSheet(f"""
-                font-size: 16px;
+                font-size: {font_css('heading')};
                 font-weight: 700;
                 color: {TabColors.COLLECTION};
             """)
             collection_row.addWidget(collection_count)
         else:
             not_in_collection_label = QLabel("Not in Collection")
-            not_in_collection_label.setStyleSheet(f"color: {t.get('text_muted')}; font-size: 13px;")
+            not_in_collection_label.setStyleSheet(f"color: {t.get('text_muted')}; font-size: {font_css('body')};")
             collection_row.addWidget(not_in_collection_label)
             collection_row.addStretch()
 
@@ -411,8 +412,8 @@ class SchemeRecordDetailDialog(QDialog):
         status_row = QHBoxLayout()
 
         status_label = QLabel("Status")
-        status_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 13px;")
-        status_label.setFixedWidth(70)
+        status_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('body')};")
+        status_label.setFixedWidth(90)
         status_row.addWidget(status_label)
 
         # Status badge
@@ -429,7 +430,7 @@ class SchemeRecordDetailDialog(QDialog):
             padding: 4px 8px;
             border-radius: {t.get('radius_sm')};
             font-weight: 600;
-            font-size: 12px;
+            font-size: {font_css('small')};
         """)
         status_row.addWidget(badge)
         status_row.addStretch()
@@ -464,8 +465,8 @@ class SchemeRecordDetailDialog(QDialog):
         source_row = QHBoxLayout()
 
         source_label = QLabel("Source")
-        source_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 13px;")
-        source_label.setFixedWidth(70)
+        source_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('body')};")
+        source_label.setFixedWidth(90)
         source_row.addWidget(source_label)
 
         # Source badge
@@ -482,7 +483,7 @@ class SchemeRecordDetailDialog(QDialog):
             padding: 4px 8px;
             border-radius: {t.get('radius_sm')};
             font-weight: 600;
-            font-size: 12px;
+            font-size: {font_css('small')};
         """)
         source_row.addWidget(badge)
         source_row.addStretch()
@@ -493,7 +494,7 @@ class SchemeRecordDetailDialog(QDialog):
             key_label = QLabel(source_key)
             key_label.setStyleSheet(f"""
                 font-family: 'Consolas', 'Monaco', monospace;
-                font-size: 11px;
+                font-size: {font_css('caption')};
                 color: {t.get('text_muted')};
             """)
             source_row.addWidget(key_label)
@@ -529,7 +530,7 @@ class SchemeRecordDetailDialog(QDialog):
         btn_layout.setSpacing(12)
 
         note = QLabel("Recording Scheme records are read-only.")
-        note.setStyleSheet(f"color: {t.get('text_muted')}; font-size: 12px; border: none;")
+        note.setStyleSheet(f"color: {t.get('text_muted')}; font-size: {font_css('small')}; border: none;")
         btn_layout.addWidget(note)
         btn_layout.addStretch()
 
@@ -553,12 +554,12 @@ class SchemeRecordDetailDialog(QDialog):
         row = QHBoxLayout()
 
         label_widget = QLabel(label)
-        label_widget.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 13px;")
-        label_widget.setFixedWidth(70)
+        label_widget.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('body')};")
+        label_widget.setFixedWidth(90)
         row.addWidget(label_widget)
 
         value_widget = QLabel(value if value else "—")
-        style = f"font-weight: 600; color: {t.get('text_primary')}; font-size: 13px;"
+        style = f"font-weight: 600; color: {t.get('text_primary')}; font-size: {font_css('body')};"
         if mono:
             style += " font-family: 'Consolas', 'Monaco', monospace;"
         value_widget.setStyleSheet(style)

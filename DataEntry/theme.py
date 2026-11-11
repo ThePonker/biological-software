@@ -5,6 +5,7 @@ back to local values. Style helpers are built directly from these tokens (we do 
 app's preset methods, since some rely on keys the Naturalist theme doesn't define).
 """
 from shared.theme_lookup import value as _g
+from shared.text_sizes import font_css
 
 INK         = _g("text_primary",   "#1f2937")
 HEADING     = _g("text_heading",   "#4b5563")
@@ -46,7 +47,7 @@ def _vpad(compact):
 def button_primary_qss(compact=False):
     return ("QPushButton { background-color: %s; color: #ffffff; border: none;"
             " border-radius: %s; padding: %dpx 14px;"
-            " font-weight: 600; font-size: 12px; }"
+            f" font-weight: 600; font-size: {font_css('small')}; }}"
             "QPushButton:hover { background-color: %s; }"
             "QPushButton:disabled { background-color: %s; color: %s; }"
             % (MOSS, RADIUS_MD, _vpad(compact), MOSS_HOVER, DISABLED_BG, DISABLED_TEXT))
@@ -54,13 +55,13 @@ def button_primary_qss(compact=False):
 def button_secondary_qss(compact=False):
     return ("QPushButton { background-color: transparent; color: %s;"
             " border: 1px solid %s; border-radius: %s; padding: %dpx 12px;"
-            " font-size: 12px; }"
+            f" font-size: {font_css('small')}; }}"
             "QPushButton:hover { background-color: %s; }" % (SLATE, SLATE, RADIUS_MD, _vpad(compact), HOVER))
 
 def button_delete_qss(compact=False):
     return ("QPushButton { background-color: transparent; color: %s;"
             " border: 1px solid %s; border-radius: %s; padding: %dpx 12px;"
-            " font-size: 12px; }"
+            f" font-size: {font_css('small')}; }}"
             "QPushButton:hover { background-color: %s; }" % (CLAY, CLAY, RADIUS_MD, _vpad(compact), CLAY_BG))
 
 def input_qss():
@@ -93,4 +94,4 @@ def badge_qss(kind="default"):
     }
     bg, fg = m.get(kind, m["default"])
     return ("background-color: %s; color: %s; padding: 2px 8px;"
-            " border-radius: %s; font-size: 11px; font-weight: 600;" % (bg, fg, RADIUS_SM))
+            f" border-radius: %s; font-size: {font_css('caption')}; font-weight: 600;" % (bg, fg, RADIUS_SM))

@@ -5,6 +5,7 @@ from PySide6.QtWidgets import QFrame, QLabel, QProgressBar, QVBoxLayout, QWidget
 from PySide6.QtCore import Qt
 
 from src.themes import theme
+from shared.text_sizes import font_css
 
 
 class ImportProgressPagesMixin:
@@ -28,13 +29,13 @@ class ImportProgressPagesMixin:
         layout.setContentsMargins(0, 0, 0, 0)
 
         value_label = QLabel(value)
-        value_label.setStyleSheet(f"font-size: 24px; font-weight: 700; color: {color};")
+        value_label.setStyleSheet(f"font-size: {font_css('display_24')}; font-weight: 700; color: {color};")
         value_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         value_label.setObjectName("value_label")
         layout.addWidget(value_label)
 
         name_label = QLabel(label)
-        name_label.setStyleSheet(f"font-size: 12px; color: {t.get('text_secondary')};")
+        name_label.setStyleSheet(f"font-size: {font_css('small')}; color: {t.get('text_secondary')};")
         name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(name_label)
 
@@ -53,7 +54,7 @@ class ImportProgressPagesMixin:
 
         # Status label
         self.import_status_label = QLabel("Preparing import...")
-        self.import_status_label.setStyleSheet(f"font-size: 16px; color: {t.get('text_primary')};")
+        self.import_status_label.setStyleSheet(f"font-size: {font_css('heading')}; color: {t.get('text_primary')};")
         self.import_status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.import_status_label)
 
@@ -100,19 +101,19 @@ class ImportProgressPagesMixin:
 
         # Icon
         self.summary_icon = QLabel("✓")
-        self.summary_icon.setStyleSheet(f"font-size: 64px; color: {t.get('success')};")
+        self.summary_icon.setStyleSheet(f"font-size: {font_css('display_64')}; color: {t.get('success')};")
         self.summary_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.summary_icon)
 
         # Title
         self.summary_title = QLabel("Import Complete!")
-        self.summary_title.setStyleSheet(f"font-size: 20px; font-weight: 600; color: {t.get('text_primary')};")
+        self.summary_title.setStyleSheet(f"font-size: {font_css('display_20')}; font-weight: 600; color: {t.get('text_primary')};")
         self.summary_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.summary_title)
 
         # Stats
         self.summary_stats = QLabel("")
-        self.summary_stats.setStyleSheet(f"font-size: 14px; color: {t.get('text_secondary')};")
+        self.summary_stats.setStyleSheet(f"font-size: {font_css('body')}; color: {t.get('text_secondary')};")
         self.summary_stats.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.summary_stats)
 

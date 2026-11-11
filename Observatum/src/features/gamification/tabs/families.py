@@ -11,6 +11,7 @@ from PySide6.QtCore import Qt, QByteArray
 from PySide6.QtSvgWidgets import QSvgWidget
 
 from ..theme import TEXT
+from shared.text_sizes import font_css
 
 
 class FamiliesTab:
@@ -46,7 +47,7 @@ class FamiliesTab:
         
         # Ribbons section
         ribbons_label = QLabel("Family First (Ribbons)")
-        ribbons_label.setStyleSheet(f"font-size: 14px; color: {TEXT['secondary']};")
+        ribbons_label.setStyleSheet(f"font-size: {font_css('body')}; color: {TEXT['secondary']};")
         layout.addWidget(ribbons_label)
         
         scroll = QScrollArea()
@@ -64,7 +65,7 @@ class FamiliesTab:
         
         # Medals section
         medals_label = QLabel("Family Depth (Medals)")
-        medals_label.setStyleSheet(f"font-size: 14px; color: {TEXT['secondary']}; margin-top: 10px;")
+        medals_label.setStyleSheet(f"font-size: {font_css('body')}; color: {TEXT['secondary']}; margin-top: 10px;")
         layout.addWidget(medals_label)
         
         medal_scroll = QScrollArea()

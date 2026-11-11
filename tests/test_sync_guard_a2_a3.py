@@ -206,7 +206,7 @@ def test_personal_commit_returns_rows_and_the_file_carries_keys(tmp_path):
     class Model:
         n = 0
 
-        def create(self, o):
+        def create(self, o, extra=None):
             Model.n += 1
             obs.execute("INSERT INTO observations VALUES (?, ?)", (Model.n, f"OBS-WJH-20261014-{Model.n:06d}"))
             return Model.n

@@ -13,6 +13,7 @@ from shared.fit_to_screen import fit_to_screen
 from ..components.natural_sort_proxy import NaturalItem
 from ...themes import theme
 from ...utils.date_utils import format_date_display
+from shared.text_sizes import font_css, qfont
 
 
 class SpeciesListDialog(QDialog):
@@ -65,7 +66,7 @@ class SpeciesListDialog(QDialog):
 
         # Count label
         count_label = QLabel(f"{len(self._species_data)} species")
-        count_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 12px;")
+        count_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('small')};")
         layout.addWidget(count_label)
 
         if self._show_families:
@@ -235,7 +236,7 @@ class SpeciesListDialog(QDialog):
                     border: 1px solid {t.get('border')};
                     border-radius: 3px;
                     font-weight: bold;
-                    font-size: 11px;
+                    font-size: {font_css('caption')};
                 }}
                 QPushButton:hover {{
                     background-color: {t.get('hover')};
@@ -357,7 +358,7 @@ class SpeciesListDialog(QDialog):
         for row, species in enumerate(self._species_data):
             name = species.get('species_name', '')
             name_item = NaturalItem(name)
-            name_item.setFont(QFont(t.get('font_family', 'Segoe UI'), 10, QFont.Weight.Normal, italic=True))
+            name_item.setFont(qfont('body', t.get('font_family', 'Segoe UI'), QFont.Weight.Normal, italic=True))
             self.table.setItem(row, 0, name_item)
 
             first_date = species.get('first_date', '')
@@ -391,7 +392,7 @@ class SpeciesListDialog(QDialog):
         for family_name, species_list in sorted_families:
             # Family header
             family_header = QLabel(f"{family_name} ({len(species_list)} species)")
-            family_header.setFont(QFont(t.get('font_family', 'Segoe UI'), 11, QFont.Weight.Bold))
+            family_header.setFont(qfont('body_large', t.get('font_family', 'Segoe UI'), QFont.Weight.Bold))
             family_header.setStyleSheet(f"""
                 color: {t.get('text_primary')};
                 background-color: {t.get('surface_alt')};
@@ -426,7 +427,7 @@ class SpeciesListDialog(QDialog):
             for row, sp in enumerate(species_sorted):
                 name = sp.get('species_name', '')
                 name_item = NaturalItem(name)
-                name_item.setFont(QFont(t.get('font_family', 'Segoe UI'), 10, QFont.Weight.Normal, italic=True))
+                name_item.setFont(qfont('body', t.get('font_family', 'Segoe UI'), QFont.Weight.Normal, italic=True))
                 family_table.setItem(row, 0, name_item)
 
                 first_date = sp.get('first_date', '')

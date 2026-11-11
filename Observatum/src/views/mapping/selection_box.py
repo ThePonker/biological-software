@@ -23,6 +23,7 @@ from ...core.config import TabColors
 from ...services.map_taxa import RANK_LABELS, search_taxa
 from ...themes import theme
 from .square_style import default_taxon_colour
+from shared.text_sizes import font_css
 
 MAX_RESULTS = 8
 
@@ -48,7 +49,7 @@ class MapSelectionBox(QWidget):
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(4)
         head = QLabel("Map")
-        head.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {t.get('text_secondary')};")
+        head.setStyleSheet(f"font-size: {font_css('caption')}; font-weight: 600; color: {t.get('text_secondary')};")
         lay.addWidget(head)
 
         row = QHBoxLayout()
@@ -89,12 +90,12 @@ class MapSelectionBox(QWidget):
         foot = QHBoxLayout()
         self.summary = QLabel("Nothing chosen: the map shows every record.")
         self.summary.setWordWrap(True)
-        self.summary.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 11px;")
+        self.summary.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('caption')};")
         foot.addWidget(self.summary, 1)
         self.clear_btn = QPushButton("Clear taxa")      # the panel's Clear all clears the rest
         self.clear_btn.setStyleSheet(
             f"QPushButton {{ padding: 4px 8px; border: 1px solid {t.get('border')}; "
-            f"border-radius: {t.get('radius_sm')}; font-size: 11px; }}"
+            f"border-radius: {t.get('radius_sm')}; font-size: {font_css('caption')}; }}"
             f"QPushButton:hover {{ background-color: {t.get('hover')}; }}")
         self.clear_btn.clicked.connect(self.clear)
         self.clear_btn.hide()
@@ -169,14 +170,14 @@ class MapSelectionBox(QWidget):
             sub.append(m["rank"])
         if sub:
             s = QLabel(" · ".join(sub))
-            s.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 11px;")
+            s.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('caption')};")
             info.addWidget(s)
         row.addLayout(info)
         row.addStretch()
         n = QLabel(f"{m['records']:,}")
         n.setToolTip("Records in every source")
         n.setStyleSheet(f"background-color: {t.get('surface_alt')}; padding: 2px 6px; "
-                        f"border-radius: {t.get('radius_sm')}; font-size: 11px;")
+                        f"border-radius: {t.get('radius_sm')}; font-size: {font_css('caption')};")
         row.addWidget(n)
         item.mousePressEvent = lambda e, m=m: self.add(m)
         return item
@@ -283,7 +284,7 @@ class MapSelectionBox(QWidget):
             count = f"{n:,} record{'s' if n != 1 else ''} mapped"
         else:
             count = f"{c.get('records', 0):,} in all sources"
-        return f"{name} <span style='font-size:11px'>({rank}) · {count}</span>"
+        return f"{name} <span style='font-size:{font_css('caption')}'>({rank}) · {count}</span>"
 
     def _render_chips(self):
         t = theme()

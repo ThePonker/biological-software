@@ -1,8 +1,9 @@
 from __future__ import annotations   # pd.DataFrame annotations: never evaluated
 from src.utils.constants import compute_taxonomic_sort_key
 import paths
-from shared.species_lookup import lookup_names
-from shared.species_lookup_entries import entries
+from shared import crash_log
+from shared.species_lookup import LookupFailure, lookup_names
+from shared.species_lookup_entries import entries, entry, failure_text
 """
 Validation Worker for Specimen Import Wizard.
 
@@ -215,73 +216,108 @@ class ValidationWorker(QThread):
         # synonyms, and a close spelling of one species of the same genus (decision 3, 10 Oct,
         # warned "Close spelling"); anything else is an error naming the closest UKSI names, to be confirmed
         # with Resolve Species. Saved aliases are no longer used.
-        species_lookup = entries(lookup_names(unique_species, self.uksi_model,
-                                              cancelled=lambda: self._cancelled,
-                                              close_spellings=True))
+        species_lookup = self._species_entries(unique_species)
 
-        # Apply to DataFrame
+        # Apply to DataFrame: a row that raises is marked unmatched with the error text and
+        # logged, and validation goes on (R18 B2; it used to end the worker thread and hang the wizard)
         for idx, row in df.iterrows():
-            name = row["species_name"]
-            if name and name in species_lookup:
-                lookup = species_lookup[name]
-                df.at[idx, "species_tvk"] = lookup.get("tvk", "")
-                df.at[idx, "species_error"] = lookup.get("error", "")
-                df.at[idx, "common_name"] = lookup.get("common_name", "")
-                df.at[idx, "order_name"] = lookup.get("order_name", "")
-                df.at[idx, "family"] = lookup.get("family", "")
-                df.at[idx, "matched_name"] = lookup.get("species_name", name)   # UKSI's (IMP-15)
-                # Compute taxonomic sort key and superfamily
-                tvk = lookup.get("tvk", "")
-                if tvk:
-                    try:
-                        sc_result = self.uksi_model.db.execute_uksi(
-                            'SELECT sort_code, "order", superfamily FROM taxa WHERE tvk = ?', (tvk,)
-                        )
-                        sc = sc_result[0] if sc_result else None
-                        if sc:
-                            df.at[idx, "taxonomic_sort_key"] = compute_taxonomic_sort_key(sc[1] or '', sc[0] or 0)
-                            df.at[idx, "superfamily"] = sc[2] or ''
-                            # Subfamily via parent chain (genus->subfamily or genus->tribe->subfamily)
-                            try:
-                                sf_result = self.uksi_model.db.execute_uksi(
-                                    'SELECT sf.scientific_name FROM taxa sp '
-                                    'JOIN taxa g ON sp.parent_tvk = g.tvk '
-                                    'JOIN taxa sf ON g.parent_tvk = sf.tvk AND sf.rank = "Subfamily" '
-                                    'WHERE sp.tvk = ? '
-                                    'UNION '
-                                    'SELECT sf.scientific_name FROM taxa sp '
-                                    'JOIN taxa g ON sp.parent_tvk = g.tvk '
-                                    'JOIN taxa t ON g.parent_tvk = t.tvk '
-                                    'JOIN taxa sf ON t.parent_tvk = sf.tvk AND sf.rank = "Subfamily" '
-                                    'WHERE sp.tvk = ? '
-                                    'LIMIT 1', (tvk, tvk)
-                                )
-                                df.at[idx, "subfamily"] = sf_result[0][0] if sf_result else ''
-                            except Exception:
-                                df.at[idx, "subfamily"] = ''
-                            # Taxon group: shared/taxon_groups.py (10 Oct 2026). The inline map
-                            # here disagreed with the observation wizard's (Neuroptera,
-                            # Trichoptera, 'insect' for snakeflies) and made butterflies moths.
-                            from shared.taxon_groups import taxon_group
-                            df.at[idx, "taxon_group"] = taxon_group(
-                                sc[1] or '', lookup.get("family"), lookup.get("class_name"),
-                                lookup.get("kingdom"), lookup.get("phylum")) or ''
-                    except Exception as e:
-                        print(f"[specimen import] taxonomy lookup failed for {tvk}: {e}")
-                warning = lookup.get("warning", "")
-                sk = df.at[idx, "taxonomic_sort_key"]
-                if tvk and (sk is None or pd.isna(sk) or not sk):
-                    # I7 (9 Oct 2026): without a sort key the specimen is invisible in the
-                    # collection sidebar -- say so instead of importing it silently
-                    warning = "; ".join(w for w in (warning, "No taxonomic sort key -- it would "
-                                        "not show in the collection sidebar") if w)
-                df.at[idx, "species_warning"] = warning
-                df.at[idx, "species_error"] = lookup.get("error", "")
-                df.at[idx, "import_notes"] = lookup.get("import_notes", "")
-            elif not name:
-                df.at[idx, "species_error"] = "Species name is required"
+            try:
+                self._apply_species_row(df, idx, row, species_lookup)
+            except Exception as e:
+                name = row["species_name"]
+                text = failure_text(LookupFailure(str(name), "error", str(e)))
+                crash_log.note(f"[specimen import] species row failed for {name!r}: {e}", e)
+                df.at[idx, "species_tvk"] = ""
+                df.at[idx, "species_error"] = text
+                df.at[idx, "species_warning"] = ""
 
         return df
+
+    def _species_entries(self, names) -> Dict[str, dict]:
+        """entries(lookup_names(...)) for the distinct names, guarded (R18 B2): if the batch
+        raises, each name is looked up on its own, and a name that still raises becomes a
+        "lookup failed" entry carrying the error text (so its rows are marked unmatched) and is
+        logged. Validation always finishes."""
+        try:
+            return entries(lookup_names(names, self.uksi_model,
+                                        cancelled=lambda: self._cancelled, close_spellings=True))
+        except Exception as e:
+            crash_log.note(f"[specimen import] species lookup failed for the batch: {e}", e)
+        out: Dict[str, dict] = {}
+        for name in names:
+            if self._cancelled:
+                break
+            try:
+                out.update(entries(lookup_names([name], self.uksi_model,
+                                                cancelled=lambda: self._cancelled,
+                                                close_spellings=True)))
+            except Exception as e:
+                crash_log.note(f"[specimen import] species lookup failed for {name!r}: {e}", e)
+                out[name] = entry(LookupFailure(name, "error", str(e)))
+        return out
+
+    def _apply_species_row(self, df, idx, row, species_lookup):
+        """One row's species columns from the lookup (the body of _batch_species_lookup's loop)."""
+        name = row["species_name"]
+        if name and name in species_lookup:
+            lookup = species_lookup[name]
+            df.at[idx, "species_tvk"] = lookup.get("tvk", "")
+            df.at[idx, "species_error"] = lookup.get("error", "")
+            df.at[idx, "common_name"] = lookup.get("common_name", "")
+            df.at[idx, "order_name"] = lookup.get("order_name", "")
+            df.at[idx, "family"] = lookup.get("family", "")
+            df.at[idx, "matched_name"] = lookup.get("species_name", name)   # UKSI's (IMP-15)
+            # Compute taxonomic sort key and superfamily
+            tvk = lookup.get("tvk", "")
+            if tvk:
+                try:
+                    sc_result = self.uksi_model.db.execute_uksi(
+                        'SELECT sort_code, "order", superfamily FROM taxa WHERE tvk = ?', (tvk,)
+                    )
+                    sc = sc_result[0] if sc_result else None
+                    if sc:
+                        df.at[idx, "taxonomic_sort_key"] = compute_taxonomic_sort_key(sc[1] or '', sc[0] or 0)
+                        df.at[idx, "superfamily"] = sc[2] or ''
+                        # Subfamily via parent chain (genus->subfamily or genus->tribe->subfamily)
+                        try:
+                            sf_result = self.uksi_model.db.execute_uksi(
+                                'SELECT sf.scientific_name FROM taxa sp '
+                                'JOIN taxa g ON sp.parent_tvk = g.tvk '
+                                'JOIN taxa sf ON g.parent_tvk = sf.tvk AND sf.rank = "Subfamily" '
+                                'WHERE sp.tvk = ? '
+                                'UNION '
+                                'SELECT sf.scientific_name FROM taxa sp '
+                                'JOIN taxa g ON sp.parent_tvk = g.tvk '
+                                'JOIN taxa t ON g.parent_tvk = t.tvk '
+                                'JOIN taxa sf ON t.parent_tvk = sf.tvk AND sf.rank = "Subfamily" '
+                                'WHERE sp.tvk = ? '
+                                'LIMIT 1', (tvk, tvk)
+                            )
+                            df.at[idx, "subfamily"] = sf_result[0][0] if sf_result else ''
+                        except Exception:
+                            df.at[idx, "subfamily"] = ''
+                        # Taxon group: shared/taxon_groups.py (10 Oct 2026). The inline map
+                        # here disagreed with the observation wizard's (Neuroptera,
+                        # Trichoptera, 'insect' for snakeflies) and made butterflies moths.
+                        from shared.taxon_groups import taxon_group
+                        df.at[idx, "taxon_group"] = taxon_group(
+                            sc[1] or '', lookup.get("family"), lookup.get("class_name"),
+                            lookup.get("kingdom"), lookup.get("phylum")) or ''
+                except Exception as e:
+                    print(f"[specimen import] taxonomy lookup failed for {tvk}: {e}")
+            warning = lookup.get("warning", "")
+            sk = df.at[idx, "taxonomic_sort_key"]
+            if tvk and (sk is None or pd.isna(sk) or not sk):
+                # I7 (9 Oct 2026): without a sort key the specimen is invisible in the
+                # collection sidebar -- say so instead of importing it silently
+                warning = "; ".join(w for w in (warning, "No taxonomic sort key -- it would "
+                                    "not show in the collection sidebar") if w)
+            df.at[idx, "species_warning"] = warning
+            df.at[idx, "species_error"] = lookup.get("error", "")
+            df.at[idx, "import_notes"] = lookup.get("import_notes", "")
+        elif not name:
+            df.at[idx, "species_error"] = "Species name is required"
+
 
     def _batch_vc_lookup(self, df: pd.DataFrame) -> pd.DataFrame:
         df["vc_number"] = None

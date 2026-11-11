@@ -17,6 +17,7 @@ from DataEntry import date_utils, theme
 from DataEntry import staging_repo as repo
 from DataEntry.photo_attach import KEY_FOLDER, PhotoAttachDialog, _settings, capture_folder
 from shared import photo_intake
+from shared.text_sizes import font_css
 
 THUMB = 160
 
@@ -44,7 +45,7 @@ class PhotoIntakeDialog(QDialog):
 
         top = QHBoxLayout()
         self._folder_lbl = QLabel()
-        self._folder_lbl.setStyleSheet(f"color: {theme.MUTED}; font-size: 12px;")
+        self._folder_lbl.setStyleSheet(f"color: {theme.MUTED}; font-size: {font_css('small')};")
         self._folder_lbl.setWordWrap(True)
         top.addWidget(self._folder_lbl, 1)
         self._change_btn = QPushButton("Change folder…")
@@ -54,7 +55,7 @@ class PhotoIntakeDialog(QDialog):
         v.addLayout(top)
 
         self._msg = QLabel()
-        self._msg.setStyleSheet(f"color: {theme.MUTED}; font-size: 12px;")
+        self._msg.setStyleSheet(f"color: {theme.MUTED}; font-size: {font_css('small')};")
         self._msg.setWordWrap(True)
         v.addWidget(self._msg)
 
@@ -83,7 +84,7 @@ class PhotoIntakeDialog(QDialog):
         srow.addWidget(self.find_btn)
         v.addLayout(srow)
         self._species_lbl = QLabel()
-        self._species_lbl.setStyleSheet(f"color: {theme.INK}; font-size: 12px;")
+        self._species_lbl.setStyleSheet(f"color: {theme.INK}; font-size: {font_css('small')};")
         v.addWidget(self._species_lbl)
 
         jrow = QHBoxLayout()
@@ -98,7 +99,7 @@ class PhotoIntakeDialog(QDialog):
         self._fill_jobs()
 
         self._result = QLabel()
-        self._result.setStyleSheet(f"color: {theme.INK}; font-size: 12px;")
+        self._result.setStyleSheet(f"color: {theme.INK}; font-size: {font_css('small')};")
         self._result.setWordWrap(True)
         v.addWidget(self._result)
 

@@ -1,5 +1,6 @@
 """Round 16 (B11 / Q54): the Data Entry banner folds to one line, remembered in settings.
 Offscreen at 1280x720 on a small temp database."""
+from PySide6.QtWidgets import QPushButton
 from tests.test_dataentry_r3 import (_make_widget, _open_grid, _pump,  # noqa: F401,F811
                                      _tidy_widgets, qapp, settings_isolated)
 
@@ -45,7 +46,9 @@ def test_compact_default_off_and_shows_more_rows(qapp, settings_isolated,  # noq
     assert ip._compact_strip.isVisible()
     assert g._banner_scroll.height() < full_banner - 100
     assert _rows_shown(g) >= full_rows + 5, (full_rows, _rows_shown(g))
-    ip._compact_strip.unfold_btn.click()
+    assert not hasattr(ip._compact_strip, "unfold_btn")   # R18: the strip has no button of its own
+    assert not ip._compact_strip.findChildren(QPushButton)
+    w._fold_top_btn.click()                            # the top line's button unfolds
     _pump(qapp, 8)
     assert not ip.is_compact() and not ip._compact_strip.isVisible()
     assert btn.text() == "\u25B4 Fold banner"

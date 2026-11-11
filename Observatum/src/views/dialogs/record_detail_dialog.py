@@ -19,6 +19,7 @@ from shared.irecord_links import irecord_url
 from ...themes import theme
 from ...utils.date_utils import format_date_display
 from ...core.config import TabColors, ButtonColors
+from shared.text_sizes import font_css
 
 
 class RecordDetailDialog(QDialog):
@@ -267,7 +268,7 @@ class RecordDetailDialog(QDialog):
         
         title = QLabel(self._title)
         title.setStyleSheet(f"""
-            font-size: 11px;
+            font-size: {font_css('caption')};
             font-weight: 600;
             color: {t.get('text_secondary')};
             letter-spacing: 0.5px;
@@ -286,7 +287,7 @@ class RecordDetailDialog(QDialog):
         # Scientific name (large, italic)
         sci_label = QLabel(species_name)
         sci_label.setStyleSheet(f"""
-            font-size: 18px;
+            font-size: {font_css('title')};
             font-weight: 600;
             font-style: italic;
             color: {t.get('text_primary')};
@@ -303,7 +304,7 @@ class RecordDetailDialog(QDialog):
         if common_name:
             common_label = QLabel(common_name)
             common_label.setStyleSheet(f"""
-                font-size: 14px;
+                font-size: {font_css('body')};
                 color: {t.get('text_primary')};
             """)
             layout.addWidget(common_label)
@@ -345,8 +346,8 @@ class RecordDetailDialog(QDialog):
         if self._observation_count > 0:
             # Has records - show clickable link with count
             records_label = QLabel("Records")
-            records_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 13px;")
-            records_label.setFixedWidth(70)
+            records_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('body')};")
+            records_label.setFixedWidth(90)
             records_row.addWidget(records_label)
             
             records_link = QPushButton("View records →")
@@ -355,7 +356,7 @@ class RecordDetailDialog(QDialog):
                     border: none;
                     background: transparent;
                     color: {TabColors.OBSERVATION};
-                    font-size: 12px;
+                    font-size: {font_css('small')};
                     padding: 0;
                 }}
                 QPushButton:hover {{
@@ -370,7 +371,7 @@ class RecordDetailDialog(QDialog):
             
             records_count = QLabel(str(self._observation_count))
             records_count.setStyleSheet(f"""
-                font-size: 16px;
+                font-size: {font_css('heading')};
                 font-weight: 700;
                 color: {TabColors.OBSERVATION};
             """)
@@ -378,7 +379,7 @@ class RecordDetailDialog(QDialog):
         else:
             # No records - show simple text
             no_records_label = QLabel("No Records")
-            no_records_label.setStyleSheet(f"color: {t.get('text_muted')}; font-size: 13px;")
+            no_records_label.setStyleSheet(f"color: {t.get('text_muted')}; font-size: {font_css('body')};")
             records_row.addWidget(no_records_label)
             records_row.addStretch()
         
@@ -390,8 +391,8 @@ class RecordDetailDialog(QDialog):
         if self._specimen_count > 0:
             # Has specimens - show clickable link with count
             collection_label = QLabel("Collection")
-            collection_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 13px;")
-            collection_label.setFixedWidth(70)
+            collection_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('body')};")
+            collection_label.setFixedWidth(90)
             collection_row.addWidget(collection_label)
             
             collection_link = QPushButton("View all →")
@@ -400,7 +401,7 @@ class RecordDetailDialog(QDialog):
                     border: none;
                     background: transparent;
                     color: {TabColors.COLLECTION};
-                    font-size: 12px;
+                    font-size: {font_css('small')};
                     padding: 0;
                 }}
                 QPushButton:hover {{
@@ -423,7 +424,7 @@ class RecordDetailDialog(QDialog):
             if summary:
                 sex_label = QLabel(summary)
                 sex_label.setStyleSheet(
-                    f"font-size: 12px; color: {t.get('text_secondary')};"
+                    f"font-size: {font_css('small')}; color: {t.get('text_secondary')};"
                     " padding-right: 6px;")
                 sex_label.setToolTip(
                     f"{self._specimen_sexes[0]} male, {self._specimen_sexes[1]} "
@@ -434,7 +435,7 @@ class RecordDetailDialog(QDialog):
 
             collection_count = QLabel(str(self._specimen_count))
             collection_count.setStyleSheet(f"""
-                font-size: 16px;
+                font-size: {font_css('heading')};
                 font-weight: 700;
                 color: {TabColors.COLLECTION};
             """)
@@ -442,7 +443,7 @@ class RecordDetailDialog(QDialog):
         else:
             # No specimens - show simple text
             not_in_collection_label = QLabel("Not in Collection")
-            not_in_collection_label.setStyleSheet(f"color: {t.get('text_muted')}; font-size: 13px;")
+            not_in_collection_label.setStyleSheet(f"color: {t.get('text_muted')}; font-size: {font_css('body')};")
             collection_row.addWidget(not_in_collection_label)
             collection_row.addStretch()
         
@@ -524,8 +525,8 @@ class RecordDetailDialog(QDialog):
             status_row = QHBoxLayout()
             
             status_label = QLabel("Status")
-            status_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 13px;")
-            status_label.setFixedWidth(70)
+            status_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('body')};")
+            status_label.setFixedWidth(90)
             status_row.addWidget(status_label)
             
             # Status badge
@@ -542,7 +543,7 @@ class RecordDetailDialog(QDialog):
                 padding: 4px 8px;
                 border-radius: {t.get('radius_sm')};
                 font-weight: 600;
-                font-size: 12px;
+                font-size: {font_css('small')};
             """)
             status_row.addWidget(badge)
             status_row.addStretch()
@@ -614,7 +615,7 @@ class RecordDetailDialog(QDialog):
         header_text = "Specimen Notes" if self.record_type == 'specimen' else "Notes"
         header = QLabel(header_text)
         header.setStyleSheet(f"""
-            font-size: 13px;
+            font-size: {font_css('body')};
             font-weight: 600;
             color: {t.get('text_primary')};
         """)
@@ -625,7 +626,7 @@ class RecordDetailDialog(QDialog):
             notes_label.setWordWrap(True)
             notes_label.setStyleSheet(f"""
                 color: {t.get('text_primary')};
-                font-size: 12px;
+                font-size: {font_css('small')};
                 padding: 4px 0;
             """)
             layout.addWidget(notes_label)
@@ -636,7 +637,7 @@ class RecordDetailDialog(QDialog):
             import_label.setWordWrap(True)
             import_label.setStyleSheet(f"""
                 color: {t.get('text_muted')};
-                font-size: 11px;
+                font-size: {font_css('caption')};
                 font-style: italic;
             """)
             layout.addWidget(import_label)
@@ -673,7 +674,7 @@ class RecordDetailDialog(QDialog):
                 border: none;
                 border-radius: {t.get('radius_md')};
                 padding: 10px 24px;
-                font-size: 13px;
+                font-size: {font_css('body')};
                 font-weight: 500;
             }}
             QPushButton:hover {{
@@ -693,7 +694,7 @@ class RecordDetailDialog(QDialog):
                 border: 1px solid {ButtonColors.DANGER};
                 border-radius: {t.get('radius_md')};
                 padding: 10px 24px;
-                font-size: 13px;
+                font-size: {font_css('body')};
                 font-weight: 500;
             }}
             QPushButton:hover {{
@@ -721,7 +722,7 @@ class RecordDetailDialog(QDialog):
                 border: 1px solid {self._accent};
                 border-radius: {t.get('radius_md')};
                 padding: 10px 24px;
-                font-size: 13px;
+                font-size: {font_css('body')};
                 font-weight: 500;
             }}
             QPushButton:hover {{
@@ -748,7 +749,7 @@ class RecordDetailDialog(QDialog):
             self.edit_note = QLabel(EDIT_NOTE)
             self.edit_note.setWordWrap(True)
             self.edit_note.setObjectName("irecord_edit_note")
-            self.edit_note.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 12px; "
+            self.edit_note.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('small')}; "
                                          f"border: none;")
             btn_layout.addWidget(self.edit_note, 1)
 
@@ -820,12 +821,12 @@ class RecordDetailDialog(QDialog):
         row = QHBoxLayout()
         
         label_widget = QLabel(label)
-        label_widget.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 13px;")
-        label_widget.setFixedWidth(70)
+        label_widget.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('body')};")
+        label_widget.setFixedWidth(90)
         row.addWidget(label_widget)
         
         value_widget = QLabel(value if value else "—")
-        style = f"font-weight: 600; color: {t.get('text_primary')}; font-size: 13px;"
+        style = f"font-weight: 600; color: {t.get('text_primary')}; font-size: {font_css('body')};"
         if mono:
             style += " font-family: 'Consolas', 'Monaco', monospace;"
         value_widget.setStyleSheet(style)

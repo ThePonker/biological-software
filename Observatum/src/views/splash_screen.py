@@ -19,6 +19,7 @@ from PySide6.QtGui import (
     QPixmap, QColor, QPainter, QFont, QLinearGradient,
     QPen, QPainterPath, QImage
 )
+from shared.text_sizes import font_css, qfont
 
 
 class ObservatumSplashScreen(QSplashScreen):
@@ -263,7 +264,7 @@ class ObservatumSplashScreen(QSplashScreen):
             "OBSERVATUM"
         )
 
-        sub_font = QFont("Georgia", 11)
+        sub_font = qfont('body_large', "Georgia")
         sub_font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 1.5)
         p.setFont(sub_font)
         p.setPen(QColor(self.WARM_GRAY))
@@ -273,7 +274,7 @@ class ObservatumSplashScreen(QSplashScreen):
             "Biological Recording System"
         )
 
-        tag_font = QFont("Georgia", 8)
+        tag_font = qfont('caption', "Georgia")
         tag_font.setItalic(True)
         tag_font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 0.8)
         p.setFont(tag_font)
@@ -284,7 +285,7 @@ class ObservatumSplashScreen(QSplashScreen):
             "Recording the natural world, one observation at a time"
         )
 
-        ver_font = QFont("Segoe UI", 8)
+        ver_font = qfont('caption', "Segoe UI")
         ver_font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 0.5)
         p.setFont(ver_font)
         p.setPen(QColor(self.TEXT_DIM))
@@ -330,7 +331,7 @@ class ObservatumSplashScreen(QSplashScreen):
         self._status.setStyleSheet(f"""
             color: {self.WARM_GRAY};
             font-family: 'Segoe UI';
-            font-size: 11px;
+            font-size: {font_css('caption')};
             letter-spacing: 0.5px;
         """)
 

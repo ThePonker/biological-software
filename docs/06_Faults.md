@@ -1,10 +1,10 @@
 # Faults
 
-## Updated 24 October 2026
+## Updated 10 November 2026
 ## Open faults carry an action. Closed ones are kept in brief, because knowing
 ## what has already gone wrong is how the rules in `05` were earned. Older closed
 ## faults are in `06b_Faults_Closed.md` (split out 12 Oct). New faults take the
-## next free number (F107 next).
+## next free number (F110 next).
 
 ---
 
@@ -133,73 +133,45 @@ unconverted, so multi-line string anchors still fail unpredictably.
 
 ---
 
-## Found in the 24 October review (code at `ed71524`)
+## Found in the 24 October review (code at `ed71524`): status 10 Nov 2026
 
-Read from the code, not yet reproduced on Wil's PC unless a line says so. Round 12 fixes the ones marked.
+Closed, checked against the code on 10 Nov (`57efc9b`):
+- **F88** `build_codex_db.py`: backs up first, keeps or stops, builds into `codex_new.db`, swaps by moving (Round 12).
+- **F89, F93** reset/seed scripts and `mark_irecord_commercial.py` archived (Round 12).
+- **F91** `move_photos.py --reverse` repoints `photo_links` (Round 12).
+- **F92** `prune_backups.py` moves to `_expired`, newest per label, dry run first (Round 12).
+- **F94** photo numbering across file types, renumbered at commit (Round 12). The rename of the 33 "(2)" names is
+  `scripts/_oneoff/rename_bracket_numbers_20261024.py`; **not recorded whether it has been run on the PC.**
+- **F95** edit dialog re-determination: rank, kingdom, group, superfamily, subfamily, sort key (Round 12); order,
+  family and common name too (Round 17).
+- **F96** Examen quotes the CIEEM 2019 validity bands (Round 12). **F97** no US month-first date unless chosen in
+  Settings (Round 12). **F98** scheme VC-from-name fallback import fixed. **F99** scheme dashboard common names.
+  **F100** Data Entry's 15-minute staging backup started. **F101** Commercial type colour. **F102** Lector `+` beats a
+  suite `-`. **F103** failed row deletes reported; import wizards read Windows-1252. **F104** per-worker test sandbox.
+  **F105** embargo written with the record. (All Round 12.) **F106** one settings store (Round 13).
 
-### F88. `build_codex_db.py` deletes `codex.db` after a keep step whose errors are swallowed
-If the keep step (manual entries, reviews, accounts) fails, for example on a lock, the script
-carries on, deletes the file and rebuilds without them. **Action:** make a failed keep stop the
-build before the delete.
+Still open:
 
-### F89. `reset*.bat`, `reset_*.py` and `seed_database.py` wipe or fill the live database with no backup
-**Action:** being archived to `_archive\` (not deleted).
+### F90. Away mode: the Lector store and Codex Manager still connect writable
+Photo moves and direct writes were fixed in Round 12. **Action:** route both through the read-only guard.
 
-### F90. Away mode: photo moves and direct read-write opens bypass the read-only guard -- fixing in Round 12 (photo moves and direct writes)
-On an away machine the photos are the live OneDrive library, and some code opens a database
-read-write directly instead of through `DatabaseManager`. The Lector store and Codex Manager still
-connect writable: **open**, not in Round 12. See `01` §4f.
+---
 
-### F91. `move_photos.py --reverse` never repoints `photo_links`
-A reversed move leaves links pointing at the old path. **Action:** repoint on reverse.
+## Found 10 November 2026
 
-### F92. `prune_backups.py` deletes rather than moves, and keeps 2 per prefix whatever the label
-Breaks the never-delete rule, and a label such as `..._pre_X_` can lose its only pre-change copy.
-**Action:** move to an archive folder; keep by label.
+### F107. The 3D view crashes inside Qt's 3D graph component
+`Qt6GraphsWidgets.dll` access violations on Wil's PC (Windows Event Viewer, 10 Nov), with Direct3D and OpenGL, on
+PySide6 6.10.1 and 6.12.0. Since Round 16 the view runs in its own process, so Observatum survives. **Action:** the 3D
+button is paused (Round 17); rebuild the view in Qt's built-in Chromium with three.js (backlog, parked).
 
-### F93. `mark_irecord_commercial.py` rewrites type, project and client by site name, with no dry run or backup
-**Action:** being archived.
+### F108. Garbage-collection crashes in Qt handlers on Python 3.14
+"Garbage-collecting" access violations inside Qt event handlers (25 Oct on 3.14.0; 10 Nov 20:30 and 20:49 on 3.14.10).
+**Action taken:** Round 17 `shared/gc_schedule.py` collects from a timer on the GUI thread, never inside a handler
+(`BIOSOFT_GC_AUTO=1` turns it off). **Watch:** any new crash log entry in `data\logs`.
 
-### F94. Photo numbering: "X 2 2" names and 33 "(2)" names
-`free_path` counts only files with the same extension, and commit keeps the `_Bench` number, so a
-photo can become "X 2 2". The 13 Oct consolidation left 33 names ending "(2)". **Action:** count
-all extensions; renumber at commit; rename the 33 (a dry run first).
-
-### F95. Edit dialog leaves taxonomy stale on a re-determination -- fixing in Round 12 (G1)
-Changing the species in Edit leaves the sort key and the rest of the taxonomy block on the old
-species (`40_Code_Sweep` §2a).
-
-### F96. Examen survey validity says "two years", which contradicts Q80 -- fixing in Round 12 (CIEEM bands, Q80)
-
-### F97. `parse_display_date` accepts US mm/dd/yyyy
-A date typed as 03/04/2026 can be read the American way. Display is dd/mm/yyyy everywhere since Round 7.
-
-### F98. Scheme import: the VC-from-name fallback never ran
-Its relative import is broken, so the fallback is skipped silently.
-
-### F99. Scheme dashboard common names are blank
-The code calls UKSI methods that do not exist under those names.
-
-### F100. Data Entry's 15-minute staging backup timer is never started
-`01` §7 lists it; job close, commit and app close do back up.
-
-### F101. Commercial rows draw their Type in magenta
-The theme key `accent_purple` is missing, so the fallback colour shows.
-
-### F102. Lector: a `+` line in `lector_synonyms.txt` loses to a suite `-` (Q95 is backwards) -- fixing in Round 12
-Wil decided on 12 Oct that his own `+` should win (see F25).
-
-### F103. Data Entry `delete_rows` hides failures; the specimen import refuses cp1252 files
-
-### F104. Tests: no QSettings/HOME sandbox
-Tests share the real settings store; some opened the live database read-write; two Stats dashboard
-tests segfault.
-
-### F105. Commit embargo is set by a second UPDATE after the create
-It can fail after the commit has been written, leaving the record without its embargo.
-
-### F106. Settings are split across QSettings stores
-Standalone Data Entry cannot see the default recorder and determiner. **Action:** Round 16; needs Wil's OK.
+### F109. "QThreadStorage: entry destroyed before end of thread" at exit
+Not reproduced on Linux; the cause is a guess (a Qt-using thread alive at exit). Round 17 filters exactly that message
+(`shared/qt_messages.py`). **Action:** only if it matters, catch it on Windows and find the thread.
 
 ---
 

@@ -23,6 +23,7 @@ except ImportError:  # pragma: no cover
 
 from Examen.style import (BG, TEXT_HEADING, TEXT_SECONDARY, TEXT_MUTED, BORDER,
     SEPARATOR, MOSS_GREEN, AMBER)
+from shared.text_sizes import font_css, qfont
 
 THRESHOLDS_PATH = Path(__file__).parent / "sat_thresholds.json"
 _thresholds_cache = None
@@ -50,14 +51,14 @@ class AssemblageTab(QWidget):
         layout = QVBoxLayout(self); layout.setContentsMargins(8, 12, 8, 8); layout.setSpacing(10)
 
         lbl = QLabel("Specific Assemblage Types (SATs)")
-        lbl.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+        lbl.setFont(qfont('body', "Segoe UI", QFont.Weight.Bold))
         lbl.setStyleSheet("color: " + TEXT_HEADING + ";"); layout.addWidget(lbl)
 
         info = QLabel("SATs represent ecologically restricted species assemblages indicative of "
                        "conservation value. Favourable Condition (FC) thresholds indicate the minimum "
                        "species count for SSSI-level quality.")
         info.setWordWrap(True)
-        info.setStyleSheet("color: " + TEXT_SECONDARY + "; font-size: 11px;")
+        info.setStyleSheet("color: " + TEXT_SECONDARY + f"; font-size: {font_css('caption')};")
         layout.addWidget(info)
 
         self.table = QTableWidget(); self.table.setColumnCount(7)
@@ -73,13 +74,13 @@ class AssemblageTab(QWidget):
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.table.setAlternatingRowColors(True)
         self.table.setStyleSheet(
-            "QTableWidget { border: 1px solid " + BORDER + "; gridline-color: " + SEPARATOR + "; font-size: 11px; }"
+            "QTableWidget { border: 1px solid " + BORDER + "; gridline-color: " + SEPARATOR + f"; font-size: {font_css('caption')}; }}"
             "QHeaderView::section { background: " + BG + "; border: none; border-bottom: 2px solid "
-            + BORDER + "; padding: 5px; font-weight: bold; font-size: 11px; color: " + TEXT_HEADING + "; }")
+            + BORDER + f"; padding: 5px; font-weight: bold; font-size: {font_css('caption')}; color: " + TEXT_HEADING + "; }")
         layout.addWidget(self.table, 1)
 
         self.summary = QLabel("")
-        self.summary.setStyleSheet("color: " + TEXT_MUTED + "; font-size: 11px;")
+        self.summary.setStyleSheet("color: " + TEXT_MUTED + f"; font-size: {font_css('caption')};")
         self.summary.setWordWrap(True)
         layout.addWidget(self.summary)
 
@@ -138,7 +139,7 @@ class AssemblageTab(QWidget):
                 ptt_item = QTableWidgetItem(f"{ptt}%"); ptt_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 if count >= threshold:
                     ptt_item.setForeground(QColor(MOSS_GREEN))
-                    ptt_item.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+                    ptt_item.setFont(qfont('body_large', "Segoe UI", QFont.Weight.Bold))
                     favourable.append((name, count, threshold))
                     ptt_item.setToolTip(f"Favourable ({count} species, {threshold} required)")
                 else:

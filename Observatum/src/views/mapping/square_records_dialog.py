@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (QDialog, QHBoxLayout, QHeaderView, QLabel, QPushB
 from ...themes import theme
 from ..components.irecord_button import IRecordButton
 from ..components.natural_sort_proxy import NaturalItem
+from shared.text_sizes import font_css
 
 _COLUMNS = [("Source", "source"), ("Species", "species_name"), ("Date", "date"),
             ("Grid ref", "grid_ref"), ("Site", "site_name"), ("Recorder / collector", "person"),
@@ -28,7 +29,7 @@ class SquareRecordsDialog(QDialog):
         n = len(records)
         head = QLabel(f"<b>{label}</b> ({grid_text}) — {n} record{'s' if n != 1 else ''}"
                       + (f" of <i>{species_text}</i>" if species_text else ""))
-        head.setStyleSheet(f"color: {t.get('text_primary')}; font-size: 13px;")
+        head.setStyleSheet(f"color: {t.get('text_primary')}; font-size: {font_css('body')};")
         lay.addWidget(head)
 
         self.table = QTableWidget(n, len(_COLUMNS))

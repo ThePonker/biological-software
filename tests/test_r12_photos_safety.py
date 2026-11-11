@@ -248,7 +248,7 @@ def test_embargo_status_is_written_with_the_record():
     class Model:
         made = []
 
-        def create(self, o):
+        def create(self, o, extra=None):
             self.made.append(o.kw)
             return 9
 

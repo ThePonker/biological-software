@@ -12,6 +12,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
 from ...themes import theme
 from ...core.config import TabColors
+from shared.text_sizes import font_css
 
 
 class ColumnSelectorDialog(QDialog):
@@ -73,13 +74,13 @@ class ColumnSelectorDialog(QDialog):
         center_buttons.addStretch()
         
         add_btn = QPushButton("Add →")
-        add_btn.setFixedWidth(100)
+        add_btn.setFixedWidth(116)
         add_btn.setStyleSheet(self._get_action_btn_style())
         add_btn.clicked.connect(self._on_add_clicked)
         center_buttons.addWidget(add_btn)
         
         remove_btn = QPushButton("← Remove")
-        remove_btn.setFixedWidth(100)
+        remove_btn.setFixedWidth(116)
         remove_btn.setStyleSheet(self._get_action_btn_style())
         remove_btn.clicked.connect(self._on_remove_clicked)
         center_buttons.addWidget(remove_btn)
@@ -87,13 +88,13 @@ class ColumnSelectorDialog(QDialog):
         center_buttons.addSpacing(16)
         
         add_all_btn = QPushButton("Add All »")
-        add_all_btn.setFixedWidth(100)
+        add_all_btn.setFixedWidth(116)
         add_all_btn.setStyleSheet(self._get_secondary_btn_style())
         add_all_btn.clicked.connect(self._on_add_all_clicked)
         center_buttons.addWidget(add_all_btn)
         
         remove_all_btn = QPushButton("« Remove All")
-        remove_all_btn.setFixedWidth(100)
+        remove_all_btn.setFixedWidth(116)
         remove_all_btn.setStyleSheet(self._get_secondary_btn_style())
         remove_all_btn.clicked.connect(self._on_remove_all_clicked)
         center_buttons.addWidget(remove_all_btn)
@@ -441,7 +442,7 @@ class ColumnSelectorDialog(QDialog):
                 color: {t.get('text_secondary')};
                 border: 1px solid {t.get('border')};
                 border-radius: 4px;
-                font-size: 14px;
+                font-size: {font_css('body')};
             }}
             QPushButton:hover {{
                 background-color: {t.get('hover')};

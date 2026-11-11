@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QVBoxLayout, QLabel
 from ...themes import theme
 from ...core.config import TabColors
 from .source_picker import sources_label
+from shared.text_sizes import font_css
 
 NO_TAXON_TITLE = "All records (no taxon chosen)"     # L33: was "All Species"
 
@@ -41,18 +42,18 @@ class MapHeader(QFrame):
         title_section = QVBoxLayout()
         
         self.title = QLabel(NO_TAXON_TITLE)
-        self.title.setStyleSheet(f"font-weight: 600; color: {self._accent_dark}; font-size: 14px;")
+        self.title.setStyleSheet(f"font-weight: 600; color: {self._accent_dark}; font-size: {font_css('body')};")
         title_section.addWidget(self.title)
         
         self.subtitle = QLabel("National distribution • 10km grid • Personal records")
-        self.subtitle.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 11px;")
+        self.subtitle.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('caption')};")
         self.subtitle.setWordWrap(True)        # a long note wraps; it never widens the map (L30)
         title_section.addWidget(self.subtitle)
         
         layout.addLayout(title_section, 1)      # the wrapped subtitle gets the room
         
         self.grid_count = QLabel("0 grid squares")
-        self.grid_count.setStyleSheet(f"color: {t.get('text_heading')}; font-size: 12px;")
+        self.grid_count.setStyleSheet(f"color: {t.get('text_heading')}; font-size: {font_css('small')};")
         layout.addWidget(self.grid_count)
     
     def set_species(self, species: dict = None):

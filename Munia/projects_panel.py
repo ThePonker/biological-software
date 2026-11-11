@@ -12,6 +12,7 @@ from Munia.theme import (
     MOSS_GREEN, DUSTY_PURPLE, FADED_CRIMSON, WARM_GRAY
 )
 from Munia import munia_data as db
+from shared.text_sizes import font_css, qfont
 
 class _SortItem(QTableWidgetItem):
     """Table item that sorts by UserRole data instead of display text."""
@@ -19,7 +20,7 @@ class _SortItem(QTableWidgetItem):
         return (self.data(Qt.UserRole) or "") < (other.data(Qt.UserRole) or "")
 
 COLUMNS = [
-    ("Project", 130), ("Client", 90), ("Status", 80), ("Years", 60),
+    ("Project", 130), ("Client", 90), ("Status", 96), ("Years", 60),
     ("Quote", 75), ("Field", 45), ("Micro", 45), ("Report", 45),
     ("ID Due", 80), ("Rpt Due", 80),
 ]
@@ -66,12 +67,12 @@ class ProjectsPanel(QWidget):
         self.table.setStyleSheet(
             f"QTableWidget {{ background: {STONE_LIGHT}; "
             f"border: 1px solid {STONE_BORDER}; gridline-color: {STONE_BORDER}; "
-            f'font-family: "{BODY_FAMILY}"; font-size: 12px; color: {TEXT_DARK}; '
+            f'font-family: "{BODY_FAMILY}"; font-size: {font_css("small")}; color: {TEXT_DARK}; '
             f"selection-background-color: #c8bfdb; selection-color: {TEXT_DARK}; }}"
             f"QTableWidget::item {{ padding: 3px 5px; }}"
             f"QTableWidget::item:alternate {{ background: #f4f3f1; }}"
             f"QHeaderView::section {{ background: {WARM_GRAY_LIGHT}; "
-            f'font-family: "{BODY_FAMILY}"; font-size: 11px; font-weight: 600; '
+            f'font-family: "{BODY_FAMILY}"; font-size: {font_css("caption")}; font-weight: 600; '
             f"color: {TEXT_DARK}; border: none; "
             f"border-bottom: 1px solid {STONE_BORDER}; padding: 4px; }}")
         h = self.table.horizontalHeader()
@@ -96,7 +97,7 @@ class ProjectsPanel(QWidget):
             si = QTableWidgetItem(STATUS_DISPLAY.get(status, status))
             si.setTextAlignment(Qt.AlignCenter)
             si.setForeground(QBrush(STATUS_COLOURS.get(status, QColor(TEXT_MID))))
-            si.setFont(QFont(BODY_FAMILY, 10, QFont.Bold))
+            si.setFont(qfont('body', BODY_FAMILY, QFont.Bold))
             self.table.setItem(row, 2, si)
             sy, ey = p.get("start_year", 0), p.get("end_year", 0)
             yr_text = str(sy) if sy == ey else f"{sy}\u2013{ey}"

@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 from DataEntry import theme
 from DataEntry import staging_repo as repo
 from DataEntry.jobs_list_page import JobsListPage
+from shared.text_sizes import font_css
 
 LIVE_DB_BASENAME = "observatum.db"
 
@@ -195,13 +196,13 @@ class DataEntryWidget(QWidget):
             self._stack.setCurrentIndex(0)
         else:
             err = QLabel(f"Could not open the staging schema: {self._schema_error or 'no connection'}")
-            err.setStyleSheet(f"color: {theme.CLAY}; padding: 18px; font-size: 13px;")
+            err.setStyleSheet(f"color: {theme.CLAY}; padding: 18px; font-size: {font_css('body')};")
             err.setWordWrap(True)
             self._stack.addWidget(err)
 
         self._status = QLabel(self._summary())
         self._status.setStyleSheet(
-            f"color: {theme.MUTED}; font-size: 11px; padding: 6px 10px;"
+            f"color: {theme.MUTED}; font-size: {font_css('caption')}; padding: 6px 10px;"
             f"border-top: 1px solid {theme.LINE}; background: {theme.PAPER};"
         )
         # long lines wrap rather than set a minimum width on the window (R3 fix, Wil's PC)
@@ -213,7 +214,7 @@ class DataEntryWidget(QWidget):
         w.setWordWrap(True)   # wraps on a narrow window instead of widening it (R3 fix)
         go_live = getattr(self, "_embedded", False) and self._allow_commit is True
         def _st(bg, fg, accent, bold=600):
-            return (f"color: {fg}; background: {bg}; font-weight: {bold}; font-size: 12px;"
+            return (f"color: {fg}; background: {bg}; font-weight: {bold}; font-size: {font_css('small')};"
                     f"padding: 7px 16px; border-left: 4px solid {accent};")
         if go_live:
             w.setText("LIVE \u2014 commits go into Observatum (observatum.db). Make sure you have a backup.")
@@ -262,7 +263,7 @@ class DataEntryWidget(QWidget):
         lab = QLabel("  \u00b7  ".join(b for b in bits if b))
         lab.setTextFormat(Qt.TextFormat.RichText)
         lab.setWordWrap(True)  # a long job / client / project name wraps (R3 fix)
-        lab.setStyleSheet(f"color: {theme.INK}; font-size: 13px; padding-left: 10px;")
+        lab.setStyleSheet(f"color: {theme.INK}; font-size: {font_css('body')}; padding-left: 10px;")
         top.addWidget(lab, 1)   # takes the free width, so it wraps only when it must
         tw = QWidget(); tw.setLayout(top)
         self._job_layout.addWidget(tw)

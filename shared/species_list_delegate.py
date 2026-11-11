@@ -22,6 +22,7 @@ from typing import Optional
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QColor, QFont, QFontMetrics
 from PySide6.QtWidgets import QStyle, QStyledItemDelegate, QStyleOptionViewItem
+from shared.text_sizes import font_px
 
 HIT_ROLE = Qt.ItemDataRole.UserRole + 40     # the row's dict (see hit_from_result)
 _SPECIES_RANKS = {"Species", ""}
@@ -79,9 +80,9 @@ class SpeciesListDelegate(QStyledItemDelegate):
         italic.setItalic(True)
         small = QFont(base)
         if base.pointSizeF() > 0:
-            small.setPointSizeF(max(8.0, base.pointSizeF() * 0.85))
+            small.setPointSizeF(max(font_px('caption') * 0.75, base.pointSizeF() * 0.85))
         elif base.pixelSize() > 0:
-            small.setPixelSize(max(11, round(base.pixelSize() * 0.85)))
+            small.setPixelSize(max(font_px('caption'), round(base.pixelSize() * 0.85)))
         return base, italic, small
 
     def _runs(self, hit: dict, option):

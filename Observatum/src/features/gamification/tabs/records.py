@@ -14,10 +14,11 @@ from PySide6.QtCore import Qt, QByteArray
 from PySide6.QtSvgWidgets import QSvgWidget
 
 from ..theme import BACKGROUND, TEXT
+from shared.text_sizes import font_css
 
 # Layout constants
 CARD_WIDTH = 160
-CARD_HEIGHT = 155
+CARD_HEIGHT = 170        # R18: 170 (was 155): the larger text wraps to three lines
 SEAL_SIZE = 64
 GRID_COLUMNS = 8  # Number of columns in grid
 
@@ -76,7 +77,7 @@ class RecordsTab:
                     border: 1px solid {BACKGROUND['border']};
                     border-radius: 4px;
                     padding: 3px 10px;
-                    font-size: 11px;
+                    font-size: {font_css('caption')};
                 }}
                 QPushButton:checked {{
                     background-color: {TEXT['accent']};
@@ -116,7 +117,7 @@ class RecordsTab:
         daily_layout.setSpacing(10)
         
         daily_label = QLabel("Daily Records")
-        daily_label.setStyleSheet(f"font-size: 14px; font-weight: bold; color: {TEXT['accent']};")
+        daily_label.setStyleSheet(f"font-size: {font_css('body')}; font-weight: bold; color: {TEXT['accent']};")
         daily_layout.addWidget(daily_label)
         
         daily_container = QWidget()
@@ -136,7 +137,7 @@ class RecordsTab:
         annual_layout.setSpacing(10)
         
         annual_label = QLabel("Annual Records")
-        annual_label.setStyleSheet(f"font-size: 14px; font-weight: bold; color: {TEXT['accent']};")
+        annual_label.setStyleSheet(f"font-size: {font_css('body')}; font-weight: bold; color: {TEXT['accent']};")
         annual_layout.addWidget(annual_label)
         
         annual_container = QWidget()
@@ -250,11 +251,11 @@ class RecordsTab:
         name = QLabel(achievement["name"])
         name.setWordWrap(True)
         name.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        name.setFixedHeight(36)
+        name.setFixedHeight(48)
         if achievement["earned"]:
-            name.setStyleSheet(f"font-size: 11px; font-weight: bold; color: {achievement['colour']};")
+            name.setStyleSheet(f"font-size: {font_css('caption')}; font-weight: bold; color: {achievement['colour']};")
         else:
-            name.setStyleSheet(f"font-size: 11px; color: {TEXT['muted']};")
+            name.setStyleSheet(f"font-size: {font_css('caption')}; color: {TEXT['muted']};")
         layout.addWidget(name)
         
         # Threshold vs Personal Best
@@ -270,7 +271,7 @@ class RecordsTab:
         
         stats = QLabel(stats_text)
         stats.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        stats.setStyleSheet(f"font-size: 11px; color: {stats_colour};")
+        stats.setStyleSheet(f"font-size: {font_css('caption')}; color: {stats_colour};")
         layout.addWidget(stats)
         
         return card

@@ -23,6 +23,7 @@ from ...utils.constants import (
 # Import centralised config
 from ...core.config import Settings, Defaults
 from shared.db_open import connect_ro  # D9: reference data, read-only
+from shared.text_sizes import font_css
 
 
 class GeneralSettingsPanel(QScrollArea):
@@ -263,7 +264,7 @@ class GeneralSettingsPanel(QScrollArea):
         auto_layout.addWidget(filter_label)
         
         filter_desc = QLabel("Exclude incomplete identifications from species counts and lists.")
-        filter_desc.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 11px;")
+        filter_desc.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('caption')};")
         filter_desc.setWordWrap(True)
         auto_layout.addWidget(filter_desc)
         
@@ -338,7 +339,7 @@ class GeneralSettingsPanel(QScrollArea):
         grid.addWidget(self.scheme_families_input, 0, 1)
 
         hint = QLabel("Controls which families are shown in the Recording Scheme tab and filter wizard.")
-        hint.setStyleSheet(f"color: {t.get('text_muted')}; font-size: 11px; font-style: italic;")
+        hint.setStyleSheet(f"color: {t.get('text_muted')}; font-size: {font_css('caption')}; font-style: italic;")
         grid.addWidget(hint, 1, 0, 1, 2)
 
         layout.addWidget(group)

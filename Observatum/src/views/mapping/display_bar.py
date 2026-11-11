@@ -24,6 +24,7 @@ from ...services.map_square_service import BAND_PRESET_LABELS
 from ...themes import theme
 from .layers_window import LayersWindow, group_members
 from .square_style import STYLES
+from shared.text_sizes import font_css
 
 VC_LABELS_SETTING = "mapping/vc_labels"      # R9-5: VC numbers / names on the map (default on)
 VC_BOUNDS_SETTING = "mapping/vc_boundaries"  # R4: VC boundary lines on the map (default on)
@@ -108,7 +109,7 @@ class MapDisplayBar(QFrame):
         lay = QHBoxLayout(self)
         lay.setContentsMargins(16, 6, 16, 6)
         lay.setSpacing(8)
-        lab_style = f"color: {t.get('text_heading')}; font-size: 12px; border: none;"
+        lab_style = f"color: {t.get('text_heading')}; font-size: {font_css('small')}; border: none;"
 
         lab = QLabel("Style:")
         lab.setStyleSheet(lab_style)
@@ -438,7 +439,7 @@ class MapDisplayBar(QFrame):
             sw.setStyleSheet(f"background: {swatch_css(colour)}; border: 1px solid {t.get('border_strong')};")
             self.legend_layout.addWidget(sw)
             tx = QLabel(label)
-            tx.setStyleSheet(f"color: {t.get('text_primary')}; font-size: 11px; border: none;")
+            tx.setStyleSheet(f"color: {t.get('text_primary')}; font-size: {font_css('caption')}; border: none;")
             self.legend_layout.addWidget(tx)
         self.legend_layout.addStretch()
         self.legend_box.setToolTip("\n".join(label for _c, label in legend))

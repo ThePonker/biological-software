@@ -14,6 +14,7 @@ from PySide6.QtCore import Qt, QByteArray
 from PySide6.QtSvgWidgets import QSvgWidget
 
 from ..theme import TEXT, RARITY_TIERS, PAPER
+from shared.text_sizes import font_css
 
 
 class RareTab:
@@ -53,7 +54,7 @@ class RareTab:
         summary_bar.setSpacing(20)
         
         self.rare_summary_label = QLabel("Loading rare species...")
-        self.rare_summary_label.setStyleSheet(f"font-size: 13px; color: {TEXT['primary']};")
+        self.rare_summary_label.setStyleSheet(f"font-size: {font_css('body')}; color: {TEXT['primary']};")
         summary_bar.addWidget(self.rare_summary_label)
         
         summary_bar.addStretch()
@@ -69,7 +70,7 @@ class RareTab:
             btn.setFixedHeight(26)
             btn.setStyleSheet(f"""
                 QPushButton {{
-                    font-size: 11px;
+                    font-size: {font_css('caption')};
                     padding: 4px 10px;
                     border: 1px solid {RARITY_TIERS.get(tier_key, {}).get('primary', TEXT['muted'])};
                     border-radius: 4px;
@@ -92,7 +93,7 @@ class RareTab:
         
         # Milestones section
         milestones_label = QLabel("Milestones")
-        milestones_label.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {TEXT['accent']};")
+        milestones_label.setStyleSheet(f"font-size: {font_css('body')}; font-weight: bold; color: {TEXT['accent']};")
         layout.addWidget(milestones_label)
         
         self.rare_milestones_row = QHBoxLayout()
@@ -102,7 +103,7 @@ class RareTab:
         
         # Pins section header
         pins_label = QLabel("Rare Species Observed")
-        pins_label.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {TEXT['accent']}; margin-top: 10px;")
+        pins_label.setStyleSheet(f"font-size: {font_css('body')}; font-weight: bold; color: {TEXT['accent']}; margin-top: 10px;")
         layout.addWidget(pins_label)
         
         # Scrollable grid of pins
@@ -218,7 +219,7 @@ class RareTab:
         """Create a card for a rare species milestone."""
         card = QFrame()
         card.setObjectName("card")
-        card.setFixedSize(100, 110)
+        card.setFixedSize(150, 130)
         layout = QVBoxLayout(card)
         layout.setContentsMargins(6, 6, 6, 6)
         layout.setSpacing(4)
@@ -240,7 +241,7 @@ class RareTab:
         # Name
         name = QLabel(milestone["name"])
         name.setStyleSheet(f"""
-            font-size: 11px;
+            font-size: {font_css('caption')};
             font-weight: bold;
             color: {TEXT['primary'] if milestone['earned'] else TEXT['muted']};
         """)
@@ -249,7 +250,7 @@ class RareTab:
         
         # Progress
         progress = QLabel(f"{milestone['current_count']}/{milestone['threshold']}")
-        progress.setStyleSheet(f"font-size: 11px; color: {TEXT['muted']};")
+        progress.setStyleSheet(f"font-size: {font_css('caption')}; color: {TEXT['muted']};")
         progress.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(progress)
         
@@ -259,7 +260,7 @@ class RareTab:
         """Create a card for a rare species pin."""
         card = QFrame()
         card.setObjectName("card")
-        card.setFixedSize(95, 100)
+        card.setFixedSize(136, 112)
         layout = QVBoxLayout(card)
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(2)
@@ -277,13 +278,13 @@ class RareTab:
         if len(display_name) > 14:
             display_name = display_name[:12] + "..."
         name = QLabel(display_name)
-        name.setStyleSheet(f"font-size: 11px; font-weight: bold; color: {TEXT['primary']};")
+        name.setStyleSheet(f"font-size: {font_css('caption')}; font-weight: bold; color: {TEXT['primary']};")
         name.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(name)
         
         # Status
         status = QLabel(pin_data.get("status_text", "")[:15])
-        status.setStyleSheet(f"font-size: 11px; color: {TEXT['muted']};")
+        status.setStyleSheet(f"font-size: {font_css('caption')}; color: {TEXT['muted']};")
         status.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(status)
         

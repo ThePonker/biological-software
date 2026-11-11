@@ -18,6 +18,7 @@ from ....core.config import ButtonColors
 
 
 from .chip_display import FilterChip  # I9: one copy
+from shared.text_sizes import font_css
 
 
 class HowFilterDialog(QDialog):
@@ -64,7 +65,7 @@ class HowFilterDialog(QDialog):
         header = QLabel("🔧 How to Include")
         header.setStyleSheet(f"""
             QLabel {{
-                font-size: 18px;
+                font-size: {font_css('title')};
                 font-weight: 600;
                 color: {self._accent_color};
                 background: transparent;
@@ -74,7 +75,7 @@ class HowFilterDialog(QDialog):
         
         desc = QLabel("Select methods using checkboxes, or search notes/comments for specific terms.")
         desc.setWordWrap(True)
-        desc.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 12px; background: transparent;")
+        desc.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('small')}; background: transparent;")
         layout.addWidget(desc)
         
         sep = QFrame()
@@ -85,7 +86,7 @@ class HowFilterDialog(QDialog):
         
         # METHOD CHECKBOXES
         method_label = QLabel("Sample Methods")
-        method_label.setStyleSheet(f"font-weight: 600; color: {t.get('text_primary')}; font-size: 13px; background: transparent;")
+        method_label.setStyleSheet(f"font-weight: 600; color: {t.get('text_primary')}; font-size: {font_css('body')}; background: transparent;")
         layout.addWidget(method_label)
         
         method_scroll = QScrollArea()
@@ -109,7 +110,7 @@ class HowFilterDialog(QDialog):
         
         if not self._method_list:
             none_lbl = QLabel("No sample methods are recorded in this tab's records.")
-            none_lbl.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 12px;")
+            none_lbl.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('small')};")
             method_grid.addWidget(none_lbl, 0, 0)
 
         # Create checkboxes for each method (2 columns)
@@ -118,7 +119,7 @@ class HowFilterDialog(QDialog):
             cb.setStyleSheet(f"""
                 QCheckBox {{
                     color: {t.get('text_primary')};
-                    font-size: 12px;
+                    font-size: {font_css('small')};
                     spacing: 6px;
                 }}
             """)
@@ -149,7 +150,7 @@ class HowFilterDialog(QDialog):
         # CHIPS for notes search
         chip_header = QHBoxLayout()
         self._chip_title = QLabel("Notes search terms:")
-        self._chip_title.setStyleSheet(f"font-weight: 500; font-size: 12px; color: {t.get('text_secondary')};")
+        self._chip_title.setStyleSheet(f"font-weight: 500; font-size: {font_css('small')}; color: {t.get('text_secondary')};")
         chip_header.addWidget(self._chip_title)
         chip_header.addStretch()
         
@@ -164,7 +165,7 @@ class HowFilterDialog(QDialog):
                 background: transparent;
                 border: none;
                 color: {self._accent_color};
-                font-size: 11px;
+                font-size: {font_css('caption')};
             }}
             QPushButton:hover {{
                 text-decoration: underline;
@@ -215,7 +216,7 @@ class HowFilterDialog(QDialog):
                 border: 1px solid #a63d40;
                 border-radius: 4px;
                 padding: 10px 20px;
-                font-size: 13px;
+                font-size: {font_css('body')};
             }}
             QPushButton:hover {{
                 background-color: rgba(166, 61, 64, 0.1);
@@ -237,7 +238,7 @@ class HowFilterDialog(QDialog):
                 border: 1px solid {t.get('border')};
                 border-radius: 4px;
                 padding: 10px 24px;
-                font-size: 13px;
+                font-size: {font_css('body')};
             }}
             QPushButton:hover {{
                 background-color: {t.get('hover')};
@@ -257,7 +258,7 @@ class HowFilterDialog(QDialog):
                 border: none;
                 border-radius: 4px;
                 padding: 10px 24px;
-                font-size: 13px;
+                font-size: {font_css('body')};
                 font-weight: 500;
             }}
             QPushButton:hover {{
@@ -279,11 +280,11 @@ class HowFilterDialog(QDialog):
         layout.setSpacing(8)
         
         lbl = QLabel("Search Notes/Comments")
-        lbl.setStyleSheet(f"font-weight: 600; color: {t.get('text_primary')}; font-size: 13px; background: transparent;")
+        lbl.setStyleSheet(f"font-weight: 600; color: {t.get('text_primary')}; font-size: {font_css('body')}; background: transparent;")
         layout.addWidget(lbl)
         
         hint = QLabel("Searches the record's comments and notes (e.g., 'nettle', 'oak')")
-        hint.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 11px; background: transparent;")
+        hint.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('caption')}; background: transparent;")
         layout.addWidget(hint)
         
         self._notes_input = QLineEdit()
@@ -295,7 +296,7 @@ class HowFilterDialog(QDialog):
                 border: 1px solid {t.get('border')};
                 border-radius: 4px;
                 padding: 10px 14px;
-                font-size: 13px;
+                font-size: {font_css('body')};
                 color: {t.get('text_primary')};
             }}
             QLineEdit:focus {{

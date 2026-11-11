@@ -7,6 +7,7 @@ Supports both dark (Victorian) and light modes.
 
 from .theme import BACKGROUND, TEXT
 from .theme_bridge import get_color
+from shared.text_sizes import font_css
 
 
 # =============================================================================
@@ -37,7 +38,7 @@ QDialog {{
 
 QWidget {{
     font-family: Georgia, serif;
-    font-size: 13px;
+    font-size: {font_css('body')};
     color: {text_primary};
 }}
 
@@ -56,41 +57,41 @@ QFrame#tierCard {{
 }}
 
 QLabel#title {{
-    font-size: 24px;
+    font-size: {font_css('display_24')};
     font-weight: bold;
     color: {text_accent};
 }}
 
 QLabel#subtitle {{
-    font-size: 14px;
+    font-size: {font_css('body')};
     color: {text_secondary};
 }}
 
 QLabel#tierName {{
-    font-size: 20px;
+    font-size: {font_css('display_20')};
     font-weight: bold;
     color: {text_accent};
 }}
 
 QLabel#tierNumber {{
-    font-size: 48px;
+    font-size: {font_css('display_48')};
     font-weight: bold;
     color: {text_accent};
 }}
 
 QLabel#statValue {{
-    font-size: 28px;
+    font-size: {font_css('display_28')};
     font-weight: bold;
     color: {text_accent};
 }}
 
 QLabel#statLabel {{
-    font-size: 12px;
+    font-size: {font_css('small')};
     color: {text_secondary};
 }}
 
 QLabel#sectionTitle {{
-    font-size: 16px;
+    font-size: {font_css('heading')};
     font-weight: bold;
     color: {text_accent};
     padding: 8px 0;
@@ -235,7 +236,7 @@ QDialog {{
 
 QWidget {{
     font-family: Georgia, serif;
-    font-size: 13px;
+    font-size: {font_css('body')};
     color: {text_primary};
 }}
 
@@ -254,41 +255,41 @@ QFrame#tierCard {{
 }}
 
 QLabel#title {{
-    font-size: 24px;
+    font-size: {font_css('display_24')};
     font-weight: bold;
     color: {text_primary};
 }}
 
 QLabel#subtitle {{
-    font-size: 14px;
+    font-size: {font_css('body')};
     color: {text_secondary};
 }}
 
 QLabel#tierName {{
-    font-size: 20px;
+    font-size: {font_css('display_20')};
     font-weight: bold;
     color: {text_primary};
 }}
 
 QLabel#tierNumber {{
-    font-size: 48px;
+    font-size: {font_css('display_48')};
     font-weight: bold;
     color: {text_primary};
 }}
 
 QLabel#statValue {{
-    font-size: 28px;
+    font-size: {font_css('display_28')};
     font-weight: bold;
     color: {text_primary};
 }}
 
 QLabel#statLabel {{
-    font-size: 12px;
+    font-size: {font_css('small')};
     color: {text_secondary};
 }}
 
 QLabel#sectionTitle {{
-    font-size: 16px;
+    font-size: {font_css('heading')};
     font-weight: bold;
     color: {text_primary};
     padding: 8px 0;

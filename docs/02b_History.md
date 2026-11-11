@@ -5,6 +5,29 @@
 
 ---
 
+### Session 52 — 25 October – 10 November 2026
+
+**Coedely Park, Rounds 15–17, Round 18 started.** RWE Wales Coedely job (Data Entry job 11) finished
+for Richard Wilson: Machen Hemiptera and two Odonata added within adult seasons, keeled skimmer
+removed, name/TVK mismatches and non-invertebrates fixed or removed, then committed by script (703
+records, project "Coedely Park"); *Botanophila discreta* moved to *B. striolata*; tables and species
+lists in Excel and Word. Code review for speed and stability (project note 56): the PC had never run
+the layer binary converter, and was on Python 3.14.0. **Round 16** (built by five builders): binary
+layers on, VC/coast disk cache, threaded Generate, pooled read connections, species index cache, one
+event filter, 3D in its own process, synonym rule (store the current UKSI name) and name/TVK check at
+commit, compact banner, `paths.py` honours `BIOSOFT_ROOT`. Measured on the PC: VC23 first paint 6.4 s →
+0.35 s, GB 5.8 s → 0.6 s, window at 5.3 s, ready at 13.2 s. Python updated to 3.14.10 and PySide6 to
+6.12.0; GC crashes continued and the 3D view crashed natively in `Qt6GraphsWidgets.dll` with Direct3D
+and OpenGL (F107, F108). **Round 17** (three builders): GC from a timer, Interface size, 11 px minimum
+text, Identify ✕, layer group switches, layer legend on the export, decade filter, recorders per person,
+Reference column (not in client exports), Species Info status/SQS, common-name tie rule, edit dialog
+refreshes taxonomy, Sync panel and "coming soon" removed, 3D paused. Wil's tests passed; full suite
+2,241 passed; reference ALL MATCH; committed and pushed (`8b7d121`, `e0c2306`). GB soil layer rebuilt
+(24,840 features). Lector parked after the delete-search test. **Round 18** agreed 23:21: text sizes
+(named sizes, 12 px minimum, before/after pictures for approval) and Observatum fixes.
+
+---
+
 ### Session 51 — 17–24 October 2026
 
 **Rounds 10 and 11, the review, Round 12.** **Round 10** (18 Oct): the map pans by sliding a saved

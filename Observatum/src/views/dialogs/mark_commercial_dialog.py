@@ -12,6 +12,7 @@ from PySide6.QtCore import Qt, QDate
 
 from ...themes import theme
 from ...models.database import get_database
+from shared.text_sizes import font_css
 
 
 class MarkCommercialDialog(QDialog):
@@ -34,11 +35,11 @@ class MarkCommercialDialog(QDialog):
 
         # Header
         header = QLabel(f"Mark {self.record_count} record(s) as Commercial")
-        header.setStyleSheet(f"font-size: 16px; font-weight: bold; color: {t.get('text_primary')};")
+        header.setStyleSheet(f"font-size: {font_css('heading')}; font-weight: bold; color: {t.get('text_primary')};")
         layout.addWidget(header)
 
         desc = QLabel("Set commercial metadata for the selected records.")
-        desc.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 12px;")
+        desc.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('small')};")
         layout.addWidget(desc)
 
         # Form
@@ -137,14 +138,14 @@ class MarkCommercialDialog(QDialog):
         self.embargo_date.setStyleSheet(input_style)
         self.embargo_date.setEnabled(False)
         # Fix calendar popup arrow display (dots -> arrows)
-        self.embargo_date.calendarWidget().setStyleSheet("""
-            QCalendarWidget QToolButton {
-                color: #4a4a4a; font-size: 14px; font-weight: bold; padding: 4px;
-            }
-            QCalendarWidget QToolButton#qt_calendar_prevmonth { qproperty-text: "<"; }
-            QCalendarWidget QToolButton#qt_calendar_nextmonth { qproperty-text: ">"; }
-            QCalendarWidget QToolButton::menu-indicator { image: none; }
-            QCalendarWidget QWidget#qt_calendar_navigationbar { background-color: #f5f0eb; }
+        self.embargo_date.calendarWidget().setStyleSheet(f"""
+            QCalendarWidget QToolButton {{
+                color: #4a4a4a; font-size: {font_css('body')}; font-weight: bold; padding: 4px;
+            }}
+            QCalendarWidget QToolButton#qt_calendar_prevmonth {{ qproperty-text: "<"; }}
+            QCalendarWidget QToolButton#qt_calendar_nextmonth {{ qproperty-text: ">"; }}
+            QCalendarWidget QToolButton::menu-indicator {{ image: none; }}
+            QCalendarWidget QWidget#qt_calendar_navigationbar {{ background-color: #f5f0eb; }}
         """)
         self.embargo_label = QLabel("Embargo Until:")
         form_layout.addRow(self.embargo_label, self.embargo_date)

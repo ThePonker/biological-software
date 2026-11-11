@@ -50,6 +50,7 @@ from .wizard_file_mixin import WizardFileMixin
 
 from ....themes import theme
 from ....core.config import TabColors
+from shared.text_sizes import font_css
 
 
 class SpecimenImportWizard(
@@ -153,17 +154,17 @@ class SpecimenImportWizard(
         header_layout.setContentsMargins(24, 20, 24, 20)
 
         self.header_label = QLabel("Import Specimen Collection")
-        self.header_label.setStyleSheet("""
+        self.header_label.setStyleSheet(f"""
             color: white;
-            font-size: 18px;
+            font-size: {font_css('title')};
             font-weight: 600;
         """)
         header_layout.addWidget(self.header_label)
 
         self.step_label = QLabel("Step 1 of 5: Select File")
-        self.step_label.setStyleSheet("""
+        self.step_label.setStyleSheet(f"""
             color: rgba(255, 255, 255, 0.8);
-            font-size: 13px;
+            font-size: {font_css('body')};
         """)
         header_layout.addWidget(self.step_label)
 
@@ -499,11 +500,11 @@ class SpecimenImportWizard(
         
         if self.error_count > 0:
             self.summary_icon.setText("⚠")
-            self.summary_icon.setStyleSheet(f"font-size: 48px; color: {t.get('warning')};")
+            self.summary_icon.setStyleSheet(f"font-size: {font_css('display_48')}; color: {t.get('warning')};")
             self.summary_title.setText("Import Complete with Warnings")
         else:
             self.summary_icon.setText("✓")
-            self.summary_icon.setStyleSheet(f"font-size: 48px; color: {t.get('success')};")
+            self.summary_icon.setStyleSheet(f"font-size: {font_css('display_48')}; color: {t.get('success')};")
             self.summary_title.setText("Import Complete!")
     
     def _go_back(self):

@@ -93,6 +93,7 @@ class _NumberDelegate(_TextDelegate):
 
 
 from shared.species_rank import resolve_name   # one decision for every species search
+from shared.text_sizes import font_css
 
 
 def _to_species_dict(r):
@@ -136,14 +137,14 @@ class SpeciesPickerDialog(QDialog):
         v = QVBoxLayout(self)
         lbl = QLabel(f"{'Multiple matches' if len(results) > 1 else 'A close match'} for "
                      f"\u201c{term}\u201d \u2014 choose one:")
-        lbl.setStyleSheet(f"color: {theme.INK}; font-size: 13px;")
+        lbl.setStyleSheet(f"color: {theme.INK}; font-size: {font_css('body')};")
         lbl.setWordWrap(True)
         v.addWidget(lbl)
 
         self.listw = _PickList()
         self.listw.setStyleSheet(
             f"QListWidget {{ background: {theme.CARD}; border: 1px solid {theme.LINE};"
-            f" font-size: 13px; outline: none; }}"
+            f" font-size: {font_css('body')}; outline: none; }}"
             f"QListWidget::item {{ padding: 4px 6px; }}"
             f"QListWidget::item:selected {{ background: {theme.SLATE}; color: {theme.PAPER}; }}"
         )
@@ -168,7 +169,7 @@ class SpeciesPickerDialog(QDialog):
         v.addWidget(self.listw)
 
         hint = QLabel("Up/Down + Enter, type the number, or double-click. Esc to cancel.")
-        hint.setStyleSheet(f"color: {theme.MUTED}; font-size: 11px;")
+        hint.setStyleSheet(f"color: {theme.MUTED}; font-size: {font_css('caption')};")
         v.addWidget(hint)
 
         btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)

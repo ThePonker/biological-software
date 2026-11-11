@@ -18,6 +18,7 @@ from ...models.observation import ObservationModel
 from .stat_widgets import StatCard, MonthlyActivityChart
 from ...themes import theme
 from ...core.config import TabColors, scheme_families
+from shared.text_sizes import font_css
 
 
 class SpeciesDashboard(QScrollArea):
@@ -108,7 +109,7 @@ class SpeciesDashboard(QScrollArea):
                 border: 1px solid {t.get("border")};
                 border-radius: {t.get("radius_sm")};
                 color: {t.get("text_muted")};
-                font-size: 16px;
+                font-size: {font_css('heading')};
             }}
             QPushButton:hover {{
                 background-color: {t.get("hover")};
@@ -150,7 +151,7 @@ class SpeciesDashboard(QScrollArea):
         ph_layout.setContentsMargins(48, 48, 48, 48)
         
         icon = QLabel("🔍")
-        icon.setStyleSheet("font-size: 48px;")
+        icon.setStyleSheet(f"font-size: {font_css('display_48')};")
         icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         ph_layout.addWidget(icon)
         
@@ -523,7 +524,7 @@ class SpeciesDashboard(QScrollArea):
         name_row = QHBoxLayout()
         name_info = QVBoxLayout()
         
-        species_lbl = QLabel(f"<span style='font-size: 20px;'><i>{species['species']}</i></span>")
+        species_lbl = QLabel(f"<span style='font-size: {font_css('display_20')};'><i>{species['species']}</i></span>")
         species_lbl.setStyleSheet(f"color: {t.get('text_primary')};")
         name_info.addWidget(species_lbl)
         

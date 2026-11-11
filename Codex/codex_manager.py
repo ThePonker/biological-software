@@ -21,6 +21,7 @@ from PySide6.QtGui import QFont
 from . import theme
 from .reviews_tab import ReviewsTab
 from .species_tab import SpeciesTab
+from shared.text_sizes import font_css
 
 # Where reviews come from now (CDX-3): shown under the tabs.
 IMPORT_NOTE = ("New reviews are loaded with scripts\\import_status_review.py "
@@ -58,7 +59,7 @@ class CodexManager(QMainWindow):
         header_layout.addWidget(title)
 
         subtitle = QLabel("Conservation Status Manager")
-        subtitle.setStyleSheet(f"color: {theme.ACCENT_LIGHT}; font-size: 12px;")
+        subtitle.setStyleSheet(f"color: {theme.ACCENT_LIGHT}; font-size: {font_css('small')};")
         header_layout.addWidget(subtitle)
         header_layout.addStretch()
 
@@ -73,7 +74,7 @@ class CodexManager(QMainWindow):
             }}
             QTabBar::tab {{
                 padding: 10px 24px;
-                font-size: 12px;
+                font-size: {font_css('small')};
                 font-weight: 600;
                 color: {theme.TEXT_SECONDARY};
                 border: none;
@@ -103,14 +104,14 @@ class CodexManager(QMainWindow):
 
         note = QLabel(IMPORT_NOTE)
         note.setWordWrap(True)
-        note.setStyleSheet(f"color: {theme.TEXT_SECONDARY}; font-size: 11px; padding: 4px 20px;")
+        note.setStyleSheet(f"color: {theme.TEXT_SECONDARY}; font-size: {font_css('caption')}; padding: 4px 20px;")
         layout.addWidget(note)
 
         # Status bar
         self.status_bar = QStatusBar()
         self.status_bar.setStyleSheet(
             f"background-color: {theme.SURFACE_ALT}; "
-            f"color: {theme.TEXT_SECONDARY}; font-size: 11px;"
+            f"color: {theme.TEXT_SECONDARY}; font-size: {font_css('caption')};"
         )
         self.setStatusBar(self.status_bar)
         self._update_status()

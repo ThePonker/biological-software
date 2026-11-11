@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
 )
 
 from DataEntry import theme
+from shared.text_sizes import font_css
 
 
 class ExportOptionsDialog(QDialog):
@@ -18,14 +19,14 @@ class ExportOptionsDialog(QDialog):
         self.setStyleSheet(theme.input_qss())
         v = QVBoxLayout(self)
         intro = QLabel("Export this job's rows to a CSV file.")
-        intro.setStyleSheet(f"color: {theme.INK}; font-size: 13px;")
+        intro.setStyleSheet(f"color: {theme.INK}; font-size: {font_css('body')};")
         intro.setWordWrap(True)
         v.addWidget(intro)
         self.chk_clear = QCheckBox("Clear the job after export")
         self.chk_clear.setChecked(True)  # default: export-and-discard (unchanged behaviour)
         v.addWidget(self.chk_clear)
         hint = QLabel("Untick to keep the job open and its rows intact.")
-        hint.setStyleSheet(f"color: {theme.MUTED}; font-size: 11px;")
+        hint.setStyleSheet(f"color: {theme.MUTED}; font-size: {font_css('caption')};")
         hint.setWordWrap(True)
         v.addWidget(hint)
         btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
@@ -51,7 +52,7 @@ class EmbargoDialog(QDialog):
         v = QVBoxLayout(self)
 
         intro = QLabel("Hold these records from iRecord until a date, or release with no embargo?")
-        intro.setStyleSheet(f"color: {theme.INK}; font-size: 13px;")
+        intro.setStyleSheet(f"color: {theme.INK}; font-size: {font_css('body')};")
         intro.setWordWrap(True)
         v.addWidget(intro)
 

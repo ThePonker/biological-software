@@ -12,6 +12,7 @@ from PySide6.QtWidgets import QCheckBox, QGridLayout, QLabel, QVBoxLayout, QWidg
 
 from ...services.map_selection import BASE_SOURCES, normalise_sources
 from ...themes import theme
+from shared.text_sizes import font_css
 
 DEFAULT_SOURCES = ("personal",)
 SHORT_LABELS = {"personal": "Personal", "commercial": "Commercial",
@@ -52,7 +53,7 @@ class MapSourcePicker(QWidget):
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(4)
         head = QLabel("Data sources")
-        head.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {t.get('text_secondary')};")
+        head.setStyleSheet(f"font-size: {font_css('caption')}; font-weight: 600; color: {t.get('text_secondary')};")
         lay.addWidget(head)
         grid = QGridLayout()
         grid.setContentsMargins(0, 0, 0, 0)

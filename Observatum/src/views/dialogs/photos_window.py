@@ -25,6 +25,7 @@ from shared import photo_links
 
 from ...core.config import ButtonColors
 from ...themes import theme
+from shared.text_sizes import font_css, font_px
 
 THUMB = 180
 BATCH = 4          # thumbnails per timer tick: keeps the window responsive
@@ -178,7 +179,7 @@ class PhotosWindow(QDialog):
         root.setSpacing(12)
 
         self.header = QLabel()
-        self.header.setStyleSheet(f"font-size: 13px; font-weight: 600; color: {t.get('text_primary')};")
+        self.header.setStyleSheet(f"font-size: {font_css('body')}; font-weight: 600; color: {t.get('text_primary')};")
         root.addWidget(self.header)
 
         self.list = QListWidget()
@@ -190,13 +191,13 @@ class PhotosWindow(QDialog):
         self.list.setMovement(QListView.Movement.Static)
         self.list.setWordWrap(False)
         self.list.setTextElideMode(Qt.TextElideMode.ElideMiddle)
-        self.list.setStyleSheet(f"QListWidget {{ color: {t.get('text_primary')}; font-size: 11px; }}")
+        self.list.setStyleSheet(f"QListWidget {{ color: {t.get('text_primary')}; font-size: {font_css('caption')}; }}")
         self.list.itemDoubleClicked.connect(self._open_item)
         self.list.currentItemChanged.connect(lambda *_: self._update_link_buttons())
 
         self.empty_label = QLabel(EMPTY_TEXT)
         self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.empty_label.setStyleSheet(f"font-size: 13px; color: {t.get('text_secondary')};")
+        self.empty_label.setStyleSheet(f"font-size: {font_css('body')}; color: {t.get('text_secondary')};")
 
         holder = QWidget()
         self._stack = QStackedLayout(holder)
@@ -226,7 +227,7 @@ class PhotosWindow(QDialog):
             QPushButton {{
                 background-color: transparent; color: {colour};
                 border: 1px solid {colour}; border-radius: {t.get('radius_md')};
-                padding: 8px 20px; font-size: 13px; font-weight: 500;
+                padding: 8px 20px; font-size: {font_css('body')}; font-weight: 500;
             }}
             QPushButton:hover {{ background-color: {t.get('surface_alt')}; }}
             QPushButton:disabled {{ color: {t.get('text_secondary')}; border-color: {t.get('border')}; }}
@@ -266,7 +267,7 @@ class PhotosWindow(QDialog):
             p.setPen(QColor(theme().get('surface')))
             f = QFont()
             f.setBold(True)
-            f.setPointSize(9)
+            f.setPixelSize(font_px('caption'))
             p.setFont(f)
             p.drawText(0, 0, THUMB, 24, Qt.AlignmentFlag.AlignCenter, BAND if mine else OTHER_BAND)
         p.end()

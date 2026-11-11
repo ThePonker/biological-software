@@ -13,6 +13,7 @@ from shared.species_list_delegate import HIT_ROLE, SpeciesListDelegate, hit_from
 from PySide6.QtCore import Qt, QTimer
 
 from . import theme
+from shared.text_sizes import font_css
 
 
 # ============================================================
@@ -76,7 +77,7 @@ class SpeciesTab(QWidget):
                 border: 2px solid {theme.BORDER};
                 border-radius: {theme.RADIUS_MD};
                 padding: 6px 12px;
-                font-size: 14px;
+                font-size: {font_css('body')};
             }}
             QLineEdit:focus {{
                 border-color: {theme.ACCENT};
@@ -253,7 +254,7 @@ class SpeciesTab(QWidget):
             back = QPushButton(f"\u25c2 Back to {g_name}")
             back.setCursor(Qt.CursorShape.PointingHandCursor)
             back.setStyleSheet(f"QPushButton {{ border: none; color: {theme.ACCENT}; "
-                               f"font-size: 12px; text-align: left; padding: 2px 0; }}")
+                               f"font-size: {font_css('small')}; text-align: left; padding: 2px 0; }}")
             back.clicked.connect(lambda: self._select_species(g_tvk, g_name))
             self.profile_layout.insertWidget(0, back)
 
@@ -299,7 +300,7 @@ class SpeciesTab(QWidget):
             empty = QLabel("No conservation status recorded for this species in Codex.")
             empty.setStyleSheet(
                 f"color: {theme.TEXT_SECONDARY}; padding: 16px; "
-                f"font-style: italic; font-size: 13px;"
+                f"font-style: italic; font-size: {font_css('body')};"
             )
             self.profile_layout.insertWidget(idx, empty)
             idx += 1
@@ -341,18 +342,18 @@ class SpeciesTab(QWidget):
         self.group_header = QLabel(
             f"<i>{sci_name}</i> \u2014 {n:,} species with a conservation status")
         self.group_header.setStyleSheet(
-            f"color: {theme.ACCENT_DARK}; font-size: 20px; font-weight: 700;")
+            f"color: {theme.ACCENT_DARK}; font-size: {font_css('display_20')}; font-weight: 700;")
         cl.addWidget(self.group_header)
         sub = QLabel(f"{rank + ': ' if rank else ''}{found['members']:,} species and "
                      f"subspecies under it in UKSI. Click one to see its statuses.")
-        sub.setStyleSheet(f"color: {theme.TEXT_SECONDARY}; font-size: 12px;")
+        sub.setStyleSheet(f"color: {theme.TEXT_SECONDARY}; font-size: {font_css('small')};")
         cl.addWidget(sub)
         self.profile_layout.insertWidget(0, card)
 
         if not rows:
             empty = QLabel(f"No species under {sci_name} holds a conservation status in Codex.")
             empty.setStyleSheet(f"color: {theme.TEXT_SECONDARY}; padding: 16px; "
-                                f"font-style: italic; font-size: 13px;")
+                                f"font-style: italic; font-size: {font_css('body')};")
             self.profile_layout.insertWidget(1, empty)
             return
 
@@ -412,7 +413,7 @@ class SpeciesTab(QWidget):
 
         name_lbl = QLabel(f"<i>{sci_name}</i>")
         name_lbl.setStyleSheet(
-            f"color: {theme.ACCENT_DARK}; font-size: 20px; font-weight: 700;"
+            f"color: {theme.ACCENT_DARK}; font-size: {font_css('display_20')}; font-weight: 700;"
         )
         layout.addWidget(name_lbl)
 
@@ -428,7 +429,7 @@ class SpeciesTab(QWidget):
             badge = QLabel(f"  {tier} Key Species  ")
             badge.setStyleSheet(
                 f"background-color: {badge_colour}; color: white; "
-                f"font-weight: 700; font-size: 12px; padding: 4px 12px; "
+                f"font-weight: 700; font-size: {font_css('small')}; padding: 4px 12px; "
                 f"border-radius: 4px;"
             )
             row.addWidget(badge)
@@ -436,7 +437,7 @@ class SpeciesTab(QWidget):
             # Make scope explicit so users don't assume a missing badge is a bug
             note = QLabel("Non-invertebrate (key-species scope: invertebrates only)")
             note.setStyleSheet(
-                f"color: {theme.TEXT_SECONDARY}; font-size: 11px; font-style: italic;"
+                f"color: {theme.TEXT_SECONDARY}; font-size: {font_css('caption')}; font-style: italic;"
             )
             row.addWidget(note)
 
@@ -444,7 +445,7 @@ class SpeciesTab(QWidget):
         if display:
             status_lbl = QLabel(display)
             status_lbl.setStyleSheet(
-                f"font-size: 14px; font-weight: 600; color: {theme.TEXT_PRIMARY};"
+                f"font-size: {font_css('body')}; font-weight: 600; color: {theme.TEXT_PRIMARY};"
             )
             row.addWidget(status_lbl)
 
@@ -452,7 +453,7 @@ class SpeciesTab(QWidget):
         if sqs:
             sqs_lbl = QLabel(f"SQS: {sqs}")
             sqs_lbl.setStyleSheet(
-                f"color: {theme.GOLD}; font-weight: 700; font-size: 14px;"
+                f"color: {theme.GOLD}; font-weight: 700; font-size: {font_css('body')};"
             )
             row.addWidget(sqs_lbl)
 
@@ -481,14 +482,14 @@ class SpeciesTab(QWidget):
 
         head = QLabel("About this species")
         head.setStyleSheet(
-            f"color: {theme.TEXT_HEADING}; font-size: 13px; font-weight: 600;"
+            f"color: {theme.TEXT_HEADING}; font-size: {font_css('body')}; font-weight: 600;"
         )
         layout.addWidget(head)
 
         body = QLabel(profile_text)
         body.setWordWrap(True)
         body.setStyleSheet(
-            f"color: {theme.TEXT_PRIMARY}; font-size: 13px; line-height: 1.4;"
+            f"color: {theme.TEXT_PRIMARY}; font-size: {font_css('body')}; line-height: 1.4;"
         )
         layout.addWidget(body)
 
@@ -496,7 +497,7 @@ class SpeciesTab(QWidget):
             src = QLabel(f"Source: {source}")
             src.setWordWrap(True)
             src.setStyleSheet(
-                f"color: {theme.TEXT_SECONDARY}; font-size: 11px; font-style: italic;"
+                f"color: {theme.TEXT_SECONDARY}; font-size: {font_css('caption')}; font-style: italic;"
             )
             layout.addWidget(src)
         return card
@@ -536,16 +537,16 @@ class SpeciesTab(QWidget):
         left.setSpacing(2)
         lbl = QLabel(label)
         lbl.setStyleSheet(
-            f"color: {theme.TEXT_HEADING}; font-size: 13px; font-weight: 600;"
+            f"color: {theme.TEXT_HEADING}; font-size: {font_css('body')}; font-weight: 600;"
         )
         left.addWidget(lbl)
         sub = QLabel(sublabel)
-        sub.setStyleSheet(f"color: {theme.TEXT_SECONDARY}; font-size: 11px;")
+        sub.setStyleSheet(f"color: {theme.TEXT_SECONDARY}; font-size: {font_css('caption')};")
         left.addWidget(sub)
         if len(entries) > 1:
             count = QLabel(f"{len(entries)} entries")
             count.setStyleSheet(
-                f"color: {theme.TEXT_SECONDARY}; font-size: 11px; font-style: italic;"
+                f"color: {theme.TEXT_SECONDARY}; font-size: {font_css('caption')}; font-style: italic;"
             )
             left.addWidget(count)
         layout.addLayout(left)
@@ -588,7 +589,7 @@ class SpeciesTab(QWidget):
             val_lbl.setMinimumWidth(60)
             val_lbl.setStyleSheet(
                 f"background-color: {colour}; color: white; "
-                f"font-weight: 700; font-size: 14px; padding: 6px 16px; "
+                f"font-weight: 700; font-size: {font_css('body')}; padding: 6px 16px; "
                 f"border-radius: 4px;"
             )
             wl.addWidget(val_lbl, 0, Qt.AlignmentFlag.AlignRight)
@@ -599,7 +600,7 @@ class SpeciesTab(QWidget):
             d.setWordWrap(True)
             d.setMaximumWidth(350)
             d.setStyleSheet(
-                f"color: {theme.TEXT_PRIMARY}; font-size: 11px; font-weight: 500;"
+                f"color: {theme.TEXT_PRIMARY}; font-size: {font_css('caption')}; font-weight: 500;"
             )
             wl.addWidget(d, 0, Qt.AlignmentFlag.AlignRight)
 
@@ -607,7 +608,7 @@ class SpeciesTab(QWidget):
             ver = QLabel(f"({iucn} guidelines)")
             ver.setAlignment(Qt.AlignmentFlag.AlignRight)
             ver.setStyleSheet(
-                f"color: {theme.TEXT_SECONDARY}; font-size: 11px; font-style: italic;"
+                f"color: {theme.TEXT_SECONDARY}; font-size: {font_css('caption')}; font-style: italic;"
             )
             wl.addWidget(ver, 0, Qt.AlignmentFlag.AlignRight)
 
@@ -616,7 +617,7 @@ class SpeciesTab(QWidget):
             src.setAlignment(Qt.AlignmentFlag.AlignRight)
             src.setWordWrap(True)
             src.setMaximumWidth(350)
-            src.setStyleSheet(f"color: {theme.TEXT_SECONDARY}; font-size: 11px;")
+            src.setStyleSheet(f"color: {theme.TEXT_SECONDARY}; font-size: {font_css('caption')};")
             wl.addWidget(src, 0, Qt.AlignmentFlag.AlignRight)
 
         return wrap

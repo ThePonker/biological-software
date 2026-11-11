@@ -27,6 +27,8 @@ Tab Header Style:
 UPDATED: Added missing tokens (success_bg_light, info_bg_light, info_border, error_bg_light)
 """
 
+from shared.text_sizes import TEXT_PX   # R18: the named pixel text sizes (one source)
+
 NATURALIST_THEME = {
     # =========================================================================
     # Core Surfaces
@@ -298,3 +300,7 @@ NATURALIST_THEME = {
     'shadow_lg': '0 10px 15px rgba(0, 0, 0, 0.1)',
     'shadow_xl': '0 20px 25px rgba(0, 0, 0, 0.15)',
 }
+
+# R18: pixel text sizes by name (font_px_caption .. font_px_display_64). Apps read them through
+# shared.text_sizes.font_px / font_css; the point tokens above are unchanged.
+NATURALIST_THEME.update({f"font_px_{_name}": _px for _name, _px in TEXT_PX.items()})

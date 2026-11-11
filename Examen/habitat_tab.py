@@ -24,6 +24,7 @@ except ImportError:  # pragma: no cover
 
 from Examen.style import (BG, TEXT_HEADING, TEXT_MUTED,
     BORDER, SEPARATOR, MOSS_GREEN, AMBER)
+from shared.text_sizes import font_css, qfont
 
 _ref_cache = {}  # Cached reference counts {type: {name: count}}
 
@@ -56,7 +57,7 @@ class HabitatTab(QWidget):
         layout = QVBoxLayout(self); layout.setContentsMargins(8, 12, 8, 8); layout.setSpacing(10)
 
         # Habitat hierarchy tree
-        lbl = QLabel("Habitat hierarchy"); lbl.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+        lbl = QLabel("Habitat hierarchy"); lbl.setFont(qfont('body', "Segoe UI", QFont.Weight.Bold))
         lbl.setStyleSheet("color: " + TEXT_HEADING + ";"); layout.addWidget(lbl)
 
         self.tree = QTreeWidget()
@@ -69,13 +70,13 @@ class HabitatTab(QWidget):
         hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         for col in range(1, 5): hdr.setSectionResizeMode(col, QHeaderView.ResizeMode.ResizeToContents)
         self.tree.setStyleSheet(
-            "QTreeWidget { border: 1px solid " + BORDER + "; font-size: 11px; }"
+            "QTreeWidget { border: 1px solid " + BORDER + f"; font-size: {font_css('caption')}; }}"
             "QHeaderView::section { background: " + BG + "; border: none; border-bottom: 2px solid "
-            + BORDER + "; padding: 5px; font-weight: bold; font-size: 11px; color: " + TEXT_HEADING + "; }")
+            + BORDER + f"; padding: 5px; font-weight: bold; font-size: {font_css('caption')}; color: " + TEXT_HEADING + "; }")
         layout.addWidget(self.tree, 2)
 
         # Fidelity scores
-        flbl = QLabel("Fidelity indices"); flbl.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+        flbl = QLabel("Fidelity indices"); flbl.setFont(qfont('body', "Segoe UI", QFont.Weight.Bold))
         flbl.setStyleSheet("color: " + TEXT_HEADING + ";"); layout.addWidget(flbl)
 
         self.fidelity_table = QTableWidget(); self.fidelity_table.setColumnCount(3)
@@ -84,9 +85,9 @@ class HabitatTab(QWidget):
         self.fidelity_table.setAlternatingRowColors(True)
         self.fidelity_table.setMaximumHeight(180)
         self.fidelity_table.setStyleSheet(
-            "QTableWidget { border: 1px solid " + BORDER + "; gridline-color: " + SEPARATOR + "; font-size: 11px; }"
+            "QTableWidget { border: 1px solid " + BORDER + "; gridline-color: " + SEPARATOR + f"; font-size: {font_css('caption')}; }}"
             "QHeaderView::section { background: " + BG + "; border: none; border-bottom: 2px solid "
-            + BORDER + "; padding: 5px; font-weight: bold; font-size: 11px; color: " + TEXT_HEADING + "; }")
+            + BORDER + f"; padding: 5px; font-weight: bold; font-size: {font_css('caption')}; color: " + TEXT_HEADING + "; }")
         layout.addWidget(self.fidelity_table, 1)
 
     def set_result(self, result, detail=None, fidelity_data=None):
@@ -161,7 +162,7 @@ class HabitatTab(QWidget):
 
             bio_item = QTreeWidgetItem()
             bio_item.setText(0, bio_name)
-            bio_item.setFont(0, QFont("Segoe UI", 10, QFont.Weight.Bold))
+            bio_item.setFont(0, qfont('body', "Segoe UI", QFont.Weight.Bold))
             self._fill(bio_item, bio_count, bio_map.get(bio_name), pct)
 
             habs = pair_counts.get(bio_name, {})

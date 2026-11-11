@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Signal, Qt
 
 from ....themes import theme
+from shared.text_sizes import font_css
 
 
 class FilterChip(QFrame):
@@ -56,7 +57,7 @@ class FilterChip(QFrame):
         label.setStyleSheet(f"""
             QLabel {{
                 color: {t.get('text_primary')};
-                font-size: 12px;
+                font-size: {font_css('small')};
                 background: transparent;
             }}
         """)
@@ -76,7 +77,7 @@ class FilterChip(QFrame):
                 color: {t.get('text_secondary')};
                 border: none;
                 border-radius: 10px;
-                font-size: 14px;
+                font-size: {font_css('body')};
                 font-weight: bold;
             }}
             QPushButton:hover {{
@@ -151,7 +152,7 @@ class ChipDisplay(QWidget):
         self._title.setStyleSheet(f"""
             QLabel {{
                 font-weight: 500;
-                font-size: 12px;
+                font-size: {font_css('small')};
                 color: {t.get('text_secondary')};
             }}
         """)
@@ -169,7 +170,7 @@ class ChipDisplay(QWidget):
                 background: transparent;
                 border: none;
                 color: {self._accent_color};
-                font-size: 11px;
+                font-size: {font_css('caption')};
                 padding: 2px 6px;
             }}
             QPushButton:hover {{

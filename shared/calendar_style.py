@@ -28,6 +28,7 @@ from PySide6.QtWidgets import QApplication, QCalendarWidget
 
 from shared import app_filter
 from shared.tick_mark import CACHE
+from shared.text_sizes import font_css
 
 COLOURS = ("surface", "surface_alt", "text_primary", "text_secondary", "text_muted", "border",
            "hover", "accent", "accent_text", "weekend", "today_bg")
@@ -64,7 +65,7 @@ def calendar_qss(c: Dict[str, str]) -> str:
             background-color: {c['accent']}; padding: 2px 4px; }}
         QCalendarWidget QToolButton {{
             color: {c['accent_text']}; background-color: transparent; border: none;
-            border-radius: 3px; padding: 4px 8px; font-weight: 600; font-size: 13px; }}
+            border-radius: 3px; padding: 4px 8px; font-weight: 600; font-size: {font_css('body')}; }}
         QCalendarWidget QToolButton:hover {{ background-color: rgba(255, 255, 255, 0.18); }}
         QCalendarWidget QToolButton::menu-indicator {{ image: none; }}
         QCalendarWidget QToolButton#qt_calendar_prevmonth {{
@@ -80,7 +81,7 @@ def calendar_qss(c: Dict[str, str]) -> str:
             selection-background-color: {c['accent']}; selection-color: {c['accent_text']}; }}
         QCalendarWidget QAbstractItemView {{
             background-color: {c['surface']}; color: {c['text_primary']}; border: none;
-            border-radius: 0; outline: none; font-size: 12px;
+            border-radius: 0; outline: none; font-size: {font_css('small')};
             selection-background-color: {c['accent']}; selection-color: {c['accent_text']}; }}
         QCalendarWidget QAbstractItemView:disabled {{ color: {c['text_muted']}; }}
         QCalendarWidget QAbstractItemView::item:hover {{ background-color: {c['hover']}; }}

@@ -20,6 +20,7 @@ from PySide6.QtGui import QColor
 
 from ....themes import theme
 from ....core.config import TabColors, ButtonColors
+from shared.text_sizes import font_css
 
 
 class BulkSpeciesResolutionDialog(QDialog):
@@ -64,7 +65,7 @@ class BulkSpeciesResolutionDialog(QDialog):
         
         # Header
         header = QLabel(f"<b>{len(self.unmatched_species)}</b> species could not be matched to UKSI")
-        header.setStyleSheet(f"font-size: 14px; color: {t.get('error')};")
+        header.setStyleSheet(f"font-size: {font_css('body')}; color: {t.get('error')};")
         layout.addWidget(header)
         
         instructions = QLabel(
@@ -105,7 +106,7 @@ class BulkSpeciesResolutionDialog(QDialog):
         
         # Stats
         self.stats_label = QLabel("0 / 0 resolved")
-        self.stats_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 12px;")
+        self.stats_label.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('small')};")
         left_panel.addWidget(self.stats_label)
         
         content.addLayout(left_panel, 1)
@@ -116,7 +117,7 @@ class BulkSpeciesResolutionDialog(QDialog):
         # Current species being resolved
         self.current_species_label = QLabel("Select a species to resolve")
         self.current_species_label.setStyleSheet(f"""
-            font-size: 14px;
+            font-size: {font_css('body')};
             font-weight: 600;
             padding: 8px;
             background-color: {self._accent_light};
@@ -137,7 +138,7 @@ class BulkSpeciesResolutionDialog(QDialog):
                 padding: 8px 12px;
                 border: 1px solid {t.get('border')};
                 border-radius: {t.get('radius_md')};
-                font-size: 13px;
+                font-size: {font_css('body')};
             }}
             QLineEdit:focus {{
                 border: 2px solid {self._accent};
@@ -276,7 +277,7 @@ class BulkSpeciesResolutionDialog(QDialog):
                 f"✓ {species} → {resolution.get('scientific_name', 'Unknown')}"
             )
             self.current_species_label.setStyleSheet(f"""
-                font-size: 14px;
+                font-size: {font_css('body')};
                 font-weight: 600;
                 padding: 8px;
                 background-color: {t.get('success_bg')};
@@ -416,7 +417,7 @@ class BulkSpeciesResolutionDialog(QDialog):
             f"✓ Matched: {original_species} → {uksi_data['scientific_name']}"
         )
         self.current_species_label.setStyleSheet(f"""
-            font-size: 14px;
+            font-size: {font_css('body')};
             font-weight: 600;
             padding: 8px;
             background-color: {t.get('success_bg')};

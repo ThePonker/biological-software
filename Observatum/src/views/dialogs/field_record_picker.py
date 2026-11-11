@@ -25,6 +25,7 @@ from shared.specimen_links import candidates
 
 from ...themes import theme
 from ...core.config import ButtonColors
+from shared.text_sizes import font_css
 
 COLUMNS = ("Obs ID", "Date", "Site", "Grid ref", "Distance", "Recorder", "Qty",
            "Specimens linked", "Sex", "Match")
@@ -86,7 +87,7 @@ class FieldRecordPicker(QDialog):
                       f"{when}, {s.get('grid_ref') or 'no grid ref'}, "
                       f"{s.get('collector') or 'no collector'}"
                       + (f", {s.get('sex')}" if s.get("sex") else ""))
-        head.setStyleSheet(f"color: {t.get('text_primary')}; font-size: 13px;")
+        head.setStyleSheet(f"color: {t.get('text_primary')}; font-size: {font_css('body')};")
         lay.addWidget(head)
 
         row = QHBoxLayout()
@@ -101,7 +102,7 @@ class FieldRecordPicker(QDialog):
 
         self.note = QLabel("")
         self.note.setWordWrap(True)
-        self.note.setStyleSheet(f"color: {t.get('text_muted')}; font-size: 11px;")
+        self.note.setStyleSheet(f"color: {t.get('text_muted')}; font-size: {font_css('caption')};")
         lay.addWidget(self.note)
 
         self.table = QTableWidget(0, len(COLUMNS))
@@ -118,7 +119,7 @@ class FieldRecordPicker(QDialog):
         lay.addWidget(self.table, 1)
 
         self.status = QLabel("")
-        self.status.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 11px;")
+        self.status.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('caption')};")
         lay.addWidget(self.status)
 
         btns = QHBoxLayout()

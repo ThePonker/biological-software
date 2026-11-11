@@ -19,6 +19,7 @@ from ..components.species_search import SpeciesSearch
 
 from ...themes import theme
 from ...core.config import TabColors, ButtonColors
+from shared.text_sizes import font_css
 
 
 
@@ -124,7 +125,7 @@ class AddSpecimenDialog(QDialog):
         # Species search
         species_group = QVBoxLayout()
         species_label = QLabel("Species *")
-        species_label.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {t.get('text_secondary')};")
+        species_label.setStyleSheet(f"font-size: {font_css('caption')}; font-weight: 600; color: {t.get('text_secondary')};")
         species_group.addWidget(species_label)
 
         self.species_search = SpeciesSearch()
@@ -133,7 +134,7 @@ class AddSpecimenDialog(QDialog):
 
         # Species info (auto-populated)
         self.species_info_label = QLabel()
-        self.species_info_label.setStyleSheet(f"font-size: 12px; color: {self._accent}; font-style: italic;")
+        self.species_info_label.setStyleSheet(f"font-size: {font_css('small')}; color: {self._accent}; font-style: italic;")
         self.species_info_label.hide()
         species_group.addWidget(self.species_info_label)
         
@@ -145,10 +146,10 @@ class AddSpecimenDialog(QDialog):
         auto_layout1 = QVBoxLayout(auto_note1)
         auto_layout1.setContentsMargins(10, 8, 10, 8)
         auto_header1 = QLabel("<b>Auto-populated from UKSI:</b>")
-        auto_header1.setStyleSheet(f"font-size: 11px; color: {t.get('text_secondary')};")
+        auto_header1.setStyleSheet(f"font-size: {font_css('caption')}; color: {t.get('text_secondary')};")
         auto_layout1.addWidget(auto_header1)
         auto_fields1 = QLabel("Order, Family, Common Name")
-        auto_fields1.setStyleSheet(f"font-size: 11px; color: {t.get('text_muted')};")
+        auto_fields1.setStyleSheet(f"font-size: {font_css('caption')}; color: {t.get('text_muted')};")
         auto_layout1.addWidget(auto_fields1)
         layout.addWidget(auto_note1)
         
@@ -167,7 +168,7 @@ class AddSpecimenDialog(QDialog):
         # Grid Reference
         grid_group = QVBoxLayout()
         grid_label = QLabel("Grid Reference *")
-        grid_label.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {t.get('text_secondary')};")
+        grid_label.setStyleSheet(f"font-size: {font_css('caption')}; font-weight: 600; color: {t.get('text_secondary')};")
         grid_group.addWidget(grid_label)
         
         self.gridref_edit = QLineEdit()
@@ -178,7 +179,7 @@ class AddSpecimenDialog(QDialog):
                 border: 1px solid {t.get('border')};
                 border-radius: {t.get('radius_sm')};
                 padding: 8px;
-                font-size: 13px;
+                font-size: {font_css('body')};
             }}
             QLineEdit:focus {{
                 border-color: {self._accent};
@@ -188,7 +189,7 @@ class AddSpecimenDialog(QDialog):
         
         # Grid ref validation feedback
         self.gridref_feedback = QLabel()
-        self.gridref_feedback.setStyleSheet("font-size: 11px;")
+        self.gridref_feedback.setStyleSheet(f"font-size: {font_css('caption')};")
         self.gridref_feedback.hide()
         grid_group.addWidget(self.gridref_feedback)
         
@@ -200,10 +201,10 @@ class AddSpecimenDialog(QDialog):
         auto_layout2 = QVBoxLayout(auto_note2)
         auto_layout2.setContentsMargins(10, 8, 10, 8)
         auto_header2 = QLabel("<b>Auto-calculated from Grid Ref:</b>")
-        auto_header2.setStyleSheet(f"font-size: 11px; color: {t.get('text_secondary')};")
+        auto_header2.setStyleSheet(f"font-size: {font_css('caption')}; color: {t.get('text_secondary')};")
         auto_layout2.addWidget(auto_header2)
         self.vc_info_label = QLabel("Vice County")
-        self.vc_info_label.setStyleSheet(f"font-size: 11px; color: {t.get('text_muted')};")
+        self.vc_info_label.setStyleSheet(f"font-size: {font_css('caption')}; color: {t.get('text_muted')};")
         auto_layout2.addWidget(self.vc_info_label)
         layout.addWidget(auto_note2)
         
@@ -235,7 +236,7 @@ class AddSpecimenDialog(QDialog):
         if self._loc_map is not None:
             _map_lbl = QLabel("Location")
             _map_lbl.setStyleSheet(
-                f"font-size: 11px; font-weight: 600; color: {t.get('text_secondary')};")
+                f"font-size: {font_css('caption')}; font-weight: 600; color: {t.get('text_secondary')};")
             layout.addWidget(_map_lbl)
             layout.addWidget(self._loc_map)
         layout.addStretch()
@@ -245,7 +246,7 @@ class AddSpecimenDialog(QDialog):
         # Sex
         sex_group = QVBoxLayout()
         sex_label = QLabel("Sex")
-        sex_label.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {t.get('text_secondary')};")
+        sex_label.setStyleSheet(f"font-size: {font_css('caption')}; font-weight: 600; color: {t.get('text_secondary')};")
         sex_group.addWidget(sex_label)
         
         self.sex_combo = QComboBox()
@@ -256,7 +257,7 @@ class AddSpecimenDialog(QDialog):
                 border: 1px solid {t.get('border')};
                 border-radius: {t.get('radius_sm')};
                 padding: 8px;
-                font-size: 13px;
+                font-size: {font_css('body')};
             }}
         """)
         sex_group.addWidget(self.sex_combo)
@@ -272,7 +273,7 @@ class AddSpecimenDialog(QDialog):
             grp = QVBoxLayout()
             lbl = QLabel(label_text)
             lbl.setStyleSheet(
-                f"font-size: 11px; font-weight: 600; color: {t.get('text_secondary')};")
+                f"font-size: {font_css('caption')}; font-weight: 600; color: {t.get('text_secondary')};")
             grp.addWidget(lbl)
             cb = QComboBox()
             cb.addItems(items)
@@ -283,7 +284,7 @@ class AddSpecimenDialog(QDialog):
             cb.setMinimumHeight(36)
             cb.setStyleSheet(
                 f"QComboBox {{ border: 1px solid {t.get('border')};"
-                f" border-radius: {t.get('radius_sm')}; padding: 8px; font-size: 13px; }}")
+                f" border-radius: {t.get('radius_sm')}; padding: 8px; font-size: {font_css('body')}; }}")
             grp.addWidget(cb)
             setattr(self, attr, cb)
             layout.addLayout(grp)
@@ -312,7 +313,7 @@ class AddSpecimenDialog(QDialog):
         # Specimen Notes (specific to this specimen)
         notes_group = QVBoxLayout()
         notes_label = QLabel("Specimen Notes")
-        notes_label.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {t.get('text_secondary')};")
+        notes_label.setStyleSheet(f"font-size: {font_css('caption')}; font-weight: 600; color: {t.get('text_secondary')};")
         notes_group.addWidget(notes_label)
         
         self.notes_edit = QTextEdit()
@@ -323,7 +324,7 @@ class AddSpecimenDialog(QDialog):
                 border: 1px solid {t.get('border')};
                 border-radius: {t.get('radius_sm')};
                 padding: 8px;
-                font-size: 13px;
+                font-size: {font_css('body')};
             }}
             QTextEdit:focus {{
                 border-color: {self._accent};
@@ -359,7 +360,7 @@ class AddSpecimenDialog(QDialog):
                 border-radius: {t.get('radius_md')};
                 padding: 12px 24px;
                 font-weight: bold;
-                font-size: 13px;
+                font-size: {font_css('body')};
             }}
             QPushButton:hover {{ background-color: {ButtonColors.PRIMARY_HOVER}; }}
         """)
@@ -374,7 +375,7 @@ class AddSpecimenDialog(QDialog):
                 color: {ButtonColors.SECONDARY};
                 border-radius: {t.get('radius_md')};
                 padding: 12px 24px;
-                font-size: 13px;
+                font-size: {font_css('body')};
             }}
             QPushButton:hover {{ background-color: {t.get('hover')}; }}
         """)
@@ -390,7 +391,7 @@ class AddSpecimenDialog(QDialog):
         
         group = QVBoxLayout()
         label = QLabel(label_text)
-        label.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {t.get('text_secondary')};")
+        label.setStyleSheet(f"font-size: {font_css('caption')}; font-weight: 600; color: {t.get('text_secondary')};")
         group.addWidget(label)
         
         edit = QLineEdit()
@@ -401,7 +402,7 @@ class AddSpecimenDialog(QDialog):
                 border: 1px solid {t.get('border')};
                 border-radius: {t.get('radius_sm')};
                 padding: 8px;
-                font-size: 13px;
+                font-size: {font_css('body')};
             }}
             QLineEdit:focus {{
                 border-color: {self._accent};
@@ -457,7 +458,7 @@ class AddSpecimenDialog(QDialog):
         header_row = QHBoxLayout()
         
         profile_header = QLabel("Species Profile")
-        profile_header.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {t.get('text_secondary')};")
+        profile_header.setStyleSheet(f"font-size: {font_css('caption')}; font-weight: 600; color: {t.get('text_secondary')};")
         header_row.addWidget(profile_header)
         
         header_row.addStretch()
@@ -469,7 +470,7 @@ class AddSpecimenDialog(QDialog):
                 border: none;
                 background: transparent;
                 color: {self._accent};
-                font-size: 11px;
+                font-size: {font_css('caption')};
                 padding: 0;
             }}
             QPushButton:hover {{
@@ -487,7 +488,7 @@ class AddSpecimenDialog(QDialog):
         self.profile_display.setWordWrap(True)
         self.profile_display.setStyleSheet(f"""
             color: {t.get('text_muted')};
-            font-size: 12px;
+            font-size: {font_css('small')};
             font-style: italic;
             padding: 8px 0;
         """)
@@ -609,7 +610,7 @@ class AddSpecimenDialog(QDialog):
             self.profile_display.setText(display_text)
             self.profile_display.setStyleSheet(f"""
                 color: {t.get('text_primary')};
-                font-size: 12px;
+                font-size: {font_css('small')};
                 font-style: normal;
                 padding: 8px 0;
             """)
@@ -618,7 +619,7 @@ class AddSpecimenDialog(QDialog):
             self.profile_display.setText("No profile for this species yet.")
             self.profile_display.setStyleSheet(f"""
                 color: {t.get('text_muted')};
-                font-size: 12px;
+                font-size: {font_css('small')};
                 font-style: italic;
                 padding: 8px 0;
             """)
@@ -673,7 +674,7 @@ class AddSpecimenDialog(QDialog):
             is_valid, message = self._vc_service.validate_grid_ref(grid_ref)
             if is_valid:
                 self.gridref_feedback.setText("✓ Valid grid reference")
-                self.gridref_feedback.setStyleSheet(f"font-size: 11px; color: {t.get('success_text')};")
+                self.gridref_feedback.setStyleSheet(f"font-size: {font_css('caption')}; color: {t.get('success_text')};")
                 
                 # Look up vice county
                 vc_info = self._vc_service.get_vice_county(grid_ref)
@@ -683,7 +684,7 @@ class AddSpecimenDialog(QDialog):
                     self.vc_info_label.setText("Vice County: Unknown")
             else:
                 self.gridref_feedback.setText(f"✗ {message}")
-                self.gridref_feedback.setStyleSheet(f"font-size: 11px; color: {t.get('error_text')};")
+                self.gridref_feedback.setStyleSheet(f"font-size: {font_css('caption')}; color: {t.get('error_text')};")
             
             self.gridref_feedback.show()
         except Exception as e:

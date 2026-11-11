@@ -40,6 +40,7 @@ from .date_check import date_problems, decade_choices, reversed_text
 from .selection_box import MapSelectionBox
 from .source_picker import MapSourcePicker
 from .square_list import MapSquareList
+from shared.text_sizes import font_css
 
 TETRAD_SETTING = "mapping/include_tetrad_refs"     # decision 10: on by default (the maps already showed them since 9 Oct)
 
@@ -82,7 +83,7 @@ class MapFilterPanel(QFrame):
     # ---------------------------------------------------------------- layout
     def _label(self, text: str) -> QLabel:
         lab = QLabel(text)
-        lab.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {theme().get('text_secondary')};")
+        lab.setStyleSheet(f"font-size: {font_css('caption')}; font-weight: 600; color: {theme().get('text_secondary')};")
         return lab
 
     def _setup_ui(self):
@@ -106,7 +107,7 @@ class MapFilterPanel(QFrame):
 
         head = QHBoxLayout()
         title = QLabel("MAP FILTERS")
-        title.setStyleSheet(f"font-weight: 600; color: {t.get('text_heading')}; font-size: 11px; letter-spacing: 1px;")
+        title.setStyleSheet(f"font-weight: 600; color: {t.get('text_heading')}; font-size: {font_css('caption')}; letter-spacing: 1px;")
         head.addWidget(title)
         head.addStretch()
         self.clear_all_btn = QPushButton("Clear all")
@@ -160,7 +161,7 @@ class MapFilterPanel(QFrame):
         group.addLayout(row)
         self.date_error = QLabel("")
         self.date_error.setWordWrap(True)
-        self.date_error.setStyleSheet(f"color: {t.get('error')}; font-size: 11px;")
+        self.date_error.setStyleSheet(f"color: {t.get('error')}; font-size: {font_css('caption')};")
         self.date_error.hide()
         group.addWidget(self.date_error)
 
@@ -175,7 +176,7 @@ class MapFilterPanel(QFrame):
                     padding: 4px 6px;
                     border: 1px solid {t.get('border')};
                     border-radius: {t.get('radius_sm')};
-                    font-size: 11px;
+                    font-size: {font_css('caption')};
                 }}
                 QPushButton:hover {{ background-color: {t.get('hover')}; }}
             """)
@@ -280,7 +281,7 @@ class MapFilterPanel(QFrame):
             "Records with a 2 km tetrad grid ref (e.g. SP46Q; Recording Scheme only) are mapped "
             "on hectad and tetrad maps, never on 1 km maps. Off: they are left off and the map "
             "says how many. Remembered.")
-        self.tetrad_check.setStyleSheet(f"color: {theme().get('text_secondary')}; font-size: 11px;")
+        self.tetrad_check.setStyleSheet(f"color: {theme().get('text_secondary')}; font-size: {font_css('caption')};")
         self.tetrad_check.setChecked(include_tetrads())
         self.tetrad_check.toggled.connect(self._on_tetrads)
         group.addWidget(self.tetrad_check)
@@ -313,7 +314,7 @@ class MapFilterPanel(QFrame):
                 border: none;
                 border-radius: {t.get('radius_md')};
                 font-weight: 600;
-                font-size: 13px;
+                font-size: {font_css('body')};
             }}
             QPushButton:hover {{ background-color: {self._accent_dark}; }}
             QPushButton:disabled {{ background-color: {t.get('disabled_bg')};

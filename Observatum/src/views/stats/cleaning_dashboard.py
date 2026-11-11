@@ -39,6 +39,7 @@ from ...services.cleaning_report import (
 )
 from ...themes import theme
 from .cleaning_table import CleaningRowModel, CleaningTableView, link_colour
+from shared.text_sizes import font_css
 
 _TILES_PER_ROW = 6
 NO_ROW_TIP = "Select a record first."
@@ -364,7 +365,7 @@ class CleaningDashboard(QWidget):
         self.title.setStyleSheet(f"font-size: {t.font_size('xl')}; font-weight: 600; "
                                  f"color: {t.get('text_primary')};")
         self.lbl_summary.setStyleSheet(f"color: {t.get('text_secondary')};")
-        self.lbl_hint.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 12px;")
+        self.lbl_hint.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('small')};")
         self.chk_copies.setStyleSheet(f"color: {t.get('text_secondary')};")
         self.btn_export.setStyleSheet(t.button_primary_style())
         self.btn_refresh.setStyleSheet(t.button_secondary_style())

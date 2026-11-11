@@ -270,5 +270,5 @@ def test_same_species_adds_nothing(redet_dbs):
 def test_emptied_grid_ref_clears_the_vice_county():
     from src.views.observations.observation_detail_mixin import ObservationDetailMixin as M
     assert M._derive_location_fields("", "SO539092", None) == (
-        {"vice_county": None, "vc_number": None}, "")
+        {"vice_county": None, "vc_number": None, "latitude": None, "longitude": None}, "")
     assert M._derive_location_fields("", "", None) == ({}, "")

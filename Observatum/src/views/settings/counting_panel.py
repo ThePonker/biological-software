@@ -15,6 +15,7 @@ from shared.species_counting import (OFFERED, excluded_kinds, kind_label, notifi
                                      set_excluded)
 
 from ...themes import theme
+from shared.text_sizes import font_css
 
 _INTRO = ("Records with incomplete names (genus only, aggregates and so on) are always kept "
           "and always listed. Ticked kinds are left out of counts, statistics, maps and "
@@ -68,7 +69,7 @@ class SpeciesCountingPanel(QScrollArea):
                 self._boxes[(source, kind)] = box
             note = QLabel(_NOTES[source])
             note.setWordWrap(True)
-            note.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: 11px;")
+            note.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('caption')};")
             gl.addWidget(note)
             layout.addWidget(group)
 

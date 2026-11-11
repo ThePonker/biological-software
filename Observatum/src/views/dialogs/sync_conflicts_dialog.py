@@ -18,6 +18,7 @@ from shared.display_format import dmy
 
 from ...core.config import ButtonColors
 from ...themes import theme
+from shared.text_sizes import font_css
 
 KEEP_OBS, TAKE_IREC = "Keep Observatum's", "Take iRecord's"
 
@@ -36,7 +37,7 @@ class SyncConflictsDialog(QDialog):
             f"{len(conflicts)} record(s) were edited here and have also changed in iRecord since "
             "the last sync. Nothing has been written for them. Choose which version to keep.")
         intro.setWordWrap(True)
-        intro.setStyleSheet(f"color: {t.get('text_primary')}; font-size: 13px;")
+        intro.setStyleSheet(f"color: {t.get('text_primary')}; font-size: {font_css('body')};")
         root.addWidget(intro)
 
         self.table = QTableWidget(0, 5)

@@ -40,7 +40,7 @@ from shared.maps.species_dist_map import _load_gb_outline
 from shared.maps.vc_labels import draw_labels, draw_outline, label_points, point_in_ring
 from shared.maps.vc_map import load_vc_polygons, vc_names
 
-ZOOM_MAX = 40.0          # R10 (18 Oct 2026): this map zooms further than the mini-maps' 8x
+ZOOM_MAX = 40.0          # R10: this map's lowest zoom limit; R18: _zoom_limit() goes down to ~1 km across
 _CLICK_SLOP = 4          # px of movement still counted as a click, not a drag
 
 

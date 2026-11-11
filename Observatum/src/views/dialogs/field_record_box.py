@@ -33,6 +33,7 @@ from shared.specimen_staging import staged
 
 from ...themes import theme
 from ...core.config import TabColors, ButtonColors
+from shared.text_sizes import font_css
 
 SCRIPT_HINT = ("To mark a specimen \"checked: no field record\", run "
                "scripts\\add_specimen_link_check_column.py once (Observatum closed).")
@@ -86,18 +87,18 @@ class FieldRecordBox(QFrame):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(10, 8, 10, 8)
         title = QLabel("Field record")
-        title.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {t.get('text_secondary')};")
+        title.setStyleSheet(f"font-size: {font_css('caption')}; font-weight: 600; color: {t.get('text_secondary')};")
         lay.addWidget(title)
         self.summary = QLabel("")
         self.summary.setWordWrap(True)
-        self.summary.setStyleSheet(f"font-size: 12px; color: {t.get('text_primary')};")
+        self.summary.setStyleSheet(f"font-size: {font_css('small')}; color: {t.get('text_primary')};")
         lay.addWidget(self.summary)
 
         row = QHBoxLayout()
         self.pick_btn = QPushButton("Pick…")
         self.pick_btn.setStyleSheet(
             f"QPushButton {{ border: 1px solid {accent}; color: {accent};"
-            f" border-radius: {t.get('radius_sm')}; padding: 4px 12px; font-size: 12px; }}"
+            f" border-radius: {t.get('radius_sm')}; padding: 4px 12px; font-size: {font_css('small')}; }}"
             f"QPushButton:hover {{ background-color: {t.get('hover')}; }}")
         self.pick_btn.clicked.connect(self._on_pick)
         row.addWidget(self.pick_btn)
@@ -105,7 +106,7 @@ class FieldRecordBox(QFrame):
         self.clear_btn.setStyleSheet(
             f"QPushButton {{ border: 1px solid {ButtonColors.SECONDARY}; color: "
             f"{ButtonColors.SECONDARY}; border-radius: {t.get('radius_sm')}; padding: 4px 12px;"
-            f" font-size: 12px; }} QPushButton:hover {{ background-color: {t.get('hover')}; }}"
+            f" font-size: {font_css('small')}; }} QPushButton:hover {{ background-color: {t.get('hover')}; }}"
             f" QPushButton:disabled {{ color: {t.get('text_muted')};"
             f" border-color: {t.get('text_muted')}; }}")
         self.clear_btn.clicked.connect(self.clear_link)
@@ -120,11 +121,11 @@ class FieldRecordBox(QFrame):
         lay.addWidget(self.check)
         self.staged_note = QLabel("")
         self.staged_note.setWordWrap(True)
-        self.staged_note.setStyleSheet(f"font-size: 11px; color: {t.get('text_muted')};")
+        self.staged_note.setStyleSheet(f"font-size: {font_css('caption')}; color: {t.get('text_muted')};")
         lay.addWidget(self.staged_note)
         self.hint = QLabel("")
         self.hint.setWordWrap(True)
-        self.hint.setStyleSheet(f"font-size: 11px; color: {t.get('text_muted')};")
+        self.hint.setStyleSheet(f"font-size: {font_css('caption')}; color: {t.get('text_muted')};")
         lay.addWidget(self.hint)
 
     # ── state ──────────────────────────────────────────────────────────

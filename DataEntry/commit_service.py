@@ -1,8 +1,8 @@
 """The three job exits: commit to Observatum, export-and-discard, discard.
 
 commit builds an Observation from each eligible staging row and writes it via Observatum's
-canonical ObservationModel.create() (then the supplementary UPDATE for the three Session-26
-internal columns), reusing the same pattern/guard as write_service. Job-level values
+canonical ObservationModel.create() (the survey columns, batch stamp and taxonomy columns go in
+the same INSERT via create(extra=...), R18 B5), reusing the same pattern/guard as write_service. Job-level values
 (record_type from mode, client, project) and the embargo come in at commit time.
 
 build_kwargs_from_row is pure and unit-tested. commit_job takes an injectable observation_cls
@@ -448,7 +448,16 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
             tax = {}
         try:
             kwargs = build_kwargs_from_row(row, job, embargo_until, tax)
-            new_id = model.create(observation_cls(**kwargs))
+            # the survey fields, the batch stamp and the taxonomy columns go in the same INSERT
+            # (R18 B5; they used to be written by a second UPDATE)
+            new_id = model.create(observation_cls(**kwargs), extra={
+                "sub_location": row.get("sub_location") or None,
+                "trap_number": row.get("trap_number") or None,
+                "visit_number": row.get("visit_number") or None,
+                "import_notes": batch,
+                "superfamily": tax.get("superfamily"),
+                "taxonomic_sort_key": tax.get("taxonomic_sort_key"),
+            })
         except Exception as e:
             error = f"{row.get('species_name')}: {e}"
             break
@@ -466,26 +475,6 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
             unresolved += 1  # committed anyway (species_name is the required field), but flagged
         if date_utils.is_future(row.get("date")):
             future += 1
-        try:
-            db.execute_main_write(
-                "UPDATE observations SET sub_location=?, trap_number=?, visit_number=?, import_notes=?, "
-                "superfamily=?, taxonomic_sort_key=? WHERE id=?",
-                (row.get("sub_location") or None, row.get("trap_number") or None,
-                 row.get("visit_number") or None, batch,
-                 tax.get("superfamily"), tax.get("taxonomic_sort_key"), new_id),
-            )
-        except Exception as e:
-            # the record IS written: take it out of staging so a retry cannot double it
-            error = f"{row.get('species_name')} was written (id {new_id}) but its survey " \
-                    f"fields were not: {e}"
-            committed_rows.append((dict(row), new_id))
-            safe = _photos_follow_row(conn, row["id"], new_id, photo_problems, filing)
-            _specimens_follow_row(conn, row["id"], new_id, photo_problems)
-            gone = _out_of_staging(conn, row, new_id, safe)
-            if gone:
-                error += f"; also {gone}"
-            committed += 1
-            break
         committed_rows.append((dict(row), new_id))
         safe = _photos_follow_row(conn, row["id"], new_id, photo_problems, filing)
         _specimens_follow_row(conn, row["id"], new_id, photo_problems)

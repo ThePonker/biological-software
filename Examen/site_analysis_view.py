@@ -25,22 +25,23 @@ from .conservation_tab import ConservationTab
 from Examen.style import (BG, TEXT_PRIMARY, TEXT_HEADING, TEXT_SECONDARY, TEXT_MUTED,
     BORDER, SEPARATOR, MOSS_GREEN, MOSS_HOVER, ACCENT, ACCENT_LIGHT, ACCENT_DARK,
     RED_STATUS, AMBER)
+from shared.text_sizes import font_css, qfont
 
 BTN_PRIMARY = ("QPushButton { background-color: " + MOSS_GREEN + "; color: white; border: none; "
-    "padding: 6px 16px; border-radius: 4px; font-size: 12px; } QPushButton:hover { background-color: " + MOSS_HOVER + "; }"
+    f"padding: 6px 16px; border-radius: 4px; font-size: {font_css('small')}; }} QPushButton:hover {{ background-color: " + MOSS_HOVER + "; }"
     " QPushButton:disabled { background: #d1d5db; color: #9ca3af; }")
 BTN_ACCENT = ("QPushButton { background-color: " + ACCENT + "; color: white; border: none; "
-    "padding: 6px 16px; border-radius: 4px; font-size: 12px; } QPushButton:hover { background-color: " + ACCENT_DARK + "; }")
+    f"padding: 6px 16px; border-radius: 4px; font-size: {font_css('small')}; }} QPushButton:hover {{ background-color: " + ACCENT_DARK + "; }")
 BTN_OUTLINE = ("QPushButton { color: " + MOSS_GREEN + "; border: 1px solid " + MOSS_GREEN + "; "
-    "padding: 6px 16px; border-radius: 4px; font-size: 12px; background: none; } QPushButton:hover { background: #e6f0ea; }"
+    f"padding: 6px 16px; border-radius: 4px; font-size: {font_css('small')}; background: none; }} QPushButton:hover {{ background: #e6f0ea; }}"
     " QPushButton:disabled { color: #d1d5db; border-color: #d1d5db; }")
-TABLE_STYLE = ("QTableWidget { border: 1px solid " + BORDER + "; gridline-color: " + SEPARATOR + "; font-size: 12px; }"
+TABLE_STYLE = ("QTableWidget { border: 1px solid " + BORDER + "; gridline-color: " + SEPARATOR + f"; font-size: {font_css('small')}; }}"
     "QHeaderView::section { background: " + BG + "; border: none; border-bottom: 2px solid " + BORDER + "; "
-    "padding: 6px; font-weight: bold; font-size: 11px; color: " + TEXT_HEADING + "; }"
+    f"padding: 6px; font-weight: bold; font-size: {font_css('caption')}; color: " + TEXT_HEADING + "; }"
     "QTableWidget::item:selected { background: " + ACCENT_LIGHT + "; color: " + TEXT_PRIMARY + "; }")
 TAB_STYLE = (
     "QTabWidget::pane { border: 1px solid " + BORDER + "; border-top: none; background: " + BG + "; }"
-    "QTabBar::tab { padding: 6px 16px; font-size: 11px; border: none; "
+    f"QTabBar::tab {{ padding: 6px 16px; font-size: {font_css('caption')}; border: none; "
     "border-bottom: 2px solid transparent; color: " + TEXT_MUTED + "; background: none; }"
     "QTabBar::tab:selected { color: " + ACCENT_DARK + "; border-bottom: 2px solid " + ACCENT + "; font-weight: bold; }"
     "QTabBar::tab:hover:!selected { color: " + TEXT_SECONDARY + "; }")
@@ -104,7 +105,7 @@ class SiteAnalysisView(QWidget):
     def _setup_ui(self):
         layout = QVBoxLayout(self); layout.setContentsMargins(8, 8, 8, 8); layout.setSpacing(6)
         toolbar = QHBoxLayout(); toolbar.setSpacing(8)
-        title = QLabel("Commercial projects"); title.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+        title = QLabel("Commercial projects"); title.setFont(qfont('body_large', "Segoe UI", QFont.Weight.Bold))
         title.setStyleSheet("color: " + TEXT_HEADING + ";"); toolbar.addWidget(title); toolbar.addStretch()
         # A project may hold several surveys. One row per survey year is the
         # default because that is what a report covers; pooling is a choice.
@@ -129,7 +130,7 @@ class SiteAnalysisView(QWidget):
         self.juris_combo.currentTextChanged.connect(self._on_jurisdiction_changed)
         self.juris_combo.setStyleSheet(
             "QComboBox { padding: 3px 6px; border: 1px solid " + BORDER +
-            "; border-radius: 3px; font-size: 11px; }")
+            f"; border-radius: 3px; font-size: {font_css('caption')}; }}")
         toolbar.addWidget(self.juris_combo)
 
         import_btn = QPushButton("Import List..."); import_btn.setStyleSheet(BTN_ACCENT)
@@ -221,7 +222,7 @@ class SiteAnalysisView(QWidget):
             lambda *_: named("Flauna", "Examen").setValue(
                 "site_analysis/splitter", self._splitter.saveState()))
         layout.addWidget(splitter, 1)
-        self.summary_label = QLabel(""); self.summary_label.setStyleSheet("color: " + TEXT_MUTED + "; font-size: 11px;")
+        self.summary_label = QLabel(""); self.summary_label.setStyleSheet("color: " + TEXT_MUTED + f"; font-size: {font_css('caption')};")
         layout.addWidget(self.summary_label)
 
     def _load_projects(self):
@@ -293,10 +294,10 @@ class SiteAnalysisView(QWidget):
         if errors:
             text += (f"  |  \u26a0 Codex / Pantheon could not be read ({len(errors)} error(s)); "
                      f"figures missing: {errors[0]}")
-            self.summary_label.setStyleSheet("color: " + RED_STATUS + "; font-size: 11px;")
+            self.summary_label.setStyleSheet("color: " + RED_STATUS + f"; font-size: {font_css('caption')};")
             self.summary_label.setToolTip("\n".join(errors))
         else:
-            self.summary_label.setStyleSheet("color: " + TEXT_MUTED + "; font-size: 11px;")
+            self.summary_label.setStyleSheet("color: " + TEXT_MUTED + f"; font-size: {font_css('caption')};")
             self.summary_label.setToolTip("")
         self.summary_label.setText(text)
 

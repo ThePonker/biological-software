@@ -22,21 +22,16 @@ from PySide6.QtWidgets import QWidget
 
 from shared.maps._theme import theme
 
-_LETTERS = "ABCDEFGHJKLMNOPQRSTUVWXYZ"  # no 'I'
 TILE_PX = 4000
 TILE_SCALE_M = 25.0          # metres per pixel
 TILE_SPAN_M = 100000         # 100 km square
 
 
 def en_to_100km_code(E: float, N: float) -> Optional[str]:
-    x = int(E // 100000)
-    y = int(N // 100000)
-    try:
-        first = _LETTERS[(3 - y // 5) * 5 + (x // 5 + 2)]
-        second = _LETTERS[(4 - (y % 5)) * 5 + (x % 5)]
-    except IndexError:
-        return None
-    return first + second
+    """The two letters of the 100 km square holding (E, N); None off the grid. The one
+    implementation is shared/osgb.py (R18 B6; this was a private copy of its letter sums)."""
+    from shared.osgb import en_to_gridref
+    return en_to_gridref(E, N, 0)
 
 
 def pillow_available() -> bool:
@@ -125,6 +120,9 @@ class RasterMiniMap(PanZoomMixin, QWidget):
 
     def has_data(self) -> bool:
         return self._ok
+
+    def _zoom_extent(self):
+        return (0.0, 0.0, float(self._window_m), float(self._window_m))    # the crop shown
 
     def update_for_row(self, row: Optional[dict]):
         self._last_row = row
