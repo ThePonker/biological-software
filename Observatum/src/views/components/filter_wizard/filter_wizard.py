@@ -56,7 +56,7 @@ class FilterWizard(QWidget):
         parent=None
     ):
         super().__init__(parent)
-        self._accent_color = accent_color or "#5f8575"
+        self._accent_color = accent_color or theme().get('accent_observation')
         self._tab_name = tab_name
         
         # Filter state

@@ -87,9 +87,9 @@ class ObservationExportMixin:
                 color: {t.get('text_primary')};
             }}
             QRadioButton:checked {{
-                background-color: #e8f0ea;
-                border-color: #4a7c59;
-                color: #4a7c59;
+                background-color: {t.get('radio_checked_bg')};
+                border-color: {t.get('focus_border')};
+                color: {t.get('primary')};
                 font-weight: bold;
             }}
         """

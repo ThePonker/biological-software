@@ -32,6 +32,10 @@ def main(argv=None) -> int:
     parser.add_argument("--db", default=None, help="Path to the main SQLite database.")
     args = parser.parse_args(argv)
 
+    # R21: the stored theme first, before anything imports Observatum's src.themes (bootstrap does)
+    from shared import theme_choice
+    theme_choice.use_stored_theme_for_this_program()
+
     import paths
     if getattr(paths, "AWAY_MODE", False):          # read-only laptop copy: no recording here
         from DataEntry.embed import AWAY_MESSAGE
@@ -76,6 +80,8 @@ def main(argv=None) -> int:
     light_scheme.prepare()
     app = QApplication.instance() or QApplication(sys.argv)
     light_scheme.install(app)
+    from shared import theme_fonts            # the 1940s theme's fonts (nothing for Naturalist)
+    theme_fonts.install(app)
     from shared import gc_schedule, qt_messages
     gc_schedule.install(app)         # the cyclic collector runs from a timer, not inside Qt handlers
     qt_messages.install()

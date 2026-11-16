@@ -67,8 +67,8 @@ def test_settings_tab_and_main_window_drop_database_changed(qapp):
 def test_unread_settings_are_hidden_not_deleted(qapp):
     from src.views.settings.general_panel import GeneralSettingsPanel
     g = GeneralSettingsPanel()
-    # hidden: saved but nothing reads them
-    assert g.theme_group.isHidden() and g.auto_vc.isHidden()
+    # hidden: saved but nothing reads them (the Appearance group is shown since R21: two themes)
+    assert g.auto_vc.isHidden() and not g.theme_group.isHidden()
     # the Tabella record-books setting was removed on 24 Oct 2026 (Wil agreed); theme kept
     assert not hasattr(g, "record_books_group") and g.theme_combo is not None
     for w in (g.default_recorder, g.date_format, g.cn_home,

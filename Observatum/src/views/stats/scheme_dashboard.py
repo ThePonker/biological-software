@@ -374,7 +374,7 @@ class VCExplorer(QFrame):
         self.view_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {TabColors.RECORDING_SCHEME};
-                color: white;
+                color: {t.get('on_accent_text')};
                 border: none;
                 border-radius: {t.get('radius_sm')};
                 padding: 8px 16px;
@@ -638,7 +638,7 @@ class FilterChip(QPushButton):
             }}
             QPushButton:checked {{
                 background-color: {TabColors.RECORDING_SCHEME};
-                color: white;
+                color: {t.get('on_accent_text')};
                 border-color: {TabColors.RECORDING_SCHEME};
             }}
         """)
@@ -1186,7 +1186,7 @@ class VCDetailsDialog(QDialog):
             }}
             QPushButton:hover {{
                 background-color: {ButtonColors.SECONDARY};
-                color: #ffffff;
+                color: {t.get('on_accent_text')};
             }}
         """)
         
@@ -1530,7 +1530,7 @@ class SchemeDashboard(QScrollArea):
                     border-radius: 4px;
                     gridline-color: {t.get('border')};
                     color: {t.get('text_primary')};
-                    selection-background-color: #e8e0f0;
+                    selection-background-color: {t.get('scheme_selection_bg')};
                     selection-color: {t.get('text_primary')};
                     outline: 0;
                 }}
@@ -1539,7 +1539,7 @@ class SchemeDashboard(QScrollArea):
                     border: none;
                 }}
                 QTableWidget::item:selected {{
-                    background-color: #e8e0f0;
+                    background-color: {t.get('scheme_selection_bg')};
                     color: {t.get('text_primary')};
                 }}
                 QTableWidget::item:hover {{
@@ -1609,7 +1609,7 @@ class SchemeDashboard(QScrollArea):
                 }}
                 QPushButton:hover {{
                     background-color: {t.get("primary")};
-                    color: white;
+                    color: {t.get('primary_text')};
                 }}
             """)
             export_btn.clicked.connect(_do_export)
@@ -1715,7 +1715,7 @@ class SchemeDashboard(QScrollArea):
                     border-radius: 4px;
                     gridline-color: {t.get('border')};
                     color: {t.get('text_primary')};
-                    selection-background-color: #e8e0f0;
+                    selection-background-color: {t.get('scheme_selection_bg')};
                     selection-color: {t.get('text_primary')};
                     outline: 0;
                 }}
@@ -1724,7 +1724,7 @@ class SchemeDashboard(QScrollArea):
                     border: none;
                 }}
                 QTableWidget::item:selected {{
-                    background-color: #e8e0f0;
+                    background-color: {t.get('scheme_selection_bg')};
                     color: {t.get('text_primary')};
                 }}
                 QTableWidget::item:hover {{
@@ -1806,7 +1806,7 @@ class SchemeDashboard(QScrollArea):
                 }}
                 QPushButton:hover {{
                     background-color: {t.get("primary")};
-                    color: white;
+                    color: {t.get('primary_text')};
                 }}
             """)
             export_btn.clicked.connect(_do_export)

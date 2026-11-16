@@ -49,6 +49,7 @@ class Card(QFrame):
         self._header_layout.setContentsMargins(0, 0, 0, 0)
         
         self._header_label = QLabel(title.upper())
+        self._header_label.setObjectName('cardTitle')   # R21: the 1940s theme's title font (shared/theme_fonts.py)
         self._header_label.setStyleSheet(f"""
             font-weight: 600;
             color: {t.get('text_heading')};

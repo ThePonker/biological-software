@@ -24,7 +24,8 @@ from pathlib import Path
 from typing import Optional, Dict
 import sys
 import paths
-from ..themes.naturalist import NATURALIST_THEME as _T   # one source for the colours (R13)
+from ..themes import active_theme_dict   # one source for the colours (R13); the active theme (R21)
+_T = active_theme_dict()
 
 
 # =============================================================================

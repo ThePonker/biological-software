@@ -80,7 +80,7 @@ def swatch_css(colour) -> str:
     bands (the map's split square)."""
     if not isinstance(colour, (tuple, list)):
         return str(colour)
-    cols = list(colour) or ["#999999"]
+    cols = list(colour) or ["#999999"]   # fixed: map colour (R21)
     n = len(cols)
     stops = []
     for i, c in enumerate(cols):

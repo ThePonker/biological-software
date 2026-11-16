@@ -148,7 +148,7 @@ class EditObservationDialog(QDialog):
         save_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {ButtonColors.PRIMARY};
-                color: white;
+                color: {t.get('primary_text')};
                 border: none;
                 border-radius: {t.get('radius_md')};
                 padding: 12px 24px;

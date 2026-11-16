@@ -10,6 +10,10 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root.parent))  # Biological Software root
 import paths
+# R21: the stored theme (Naturalist / 1940s) is chosen FIRST: src.themes and src.core.config read it
+# when they are first imported, and nothing above or below this line imports them before it
+from shared import theme_choice
+theme_choice.use_stored_theme_for_this_program()
 import src.startup_timing  # noqa: F401  (starts the startup clock)
 
 from PySide6.QtWidgets import QApplication
@@ -63,6 +67,8 @@ def main():
     light_scheme.prepare()
     app = QApplication(sys.argv)
     light_scheme.install(app)
+    from shared import theme_fonts            # the 1940s theme's fonts (nothing for Naturalist)
+    theme_fonts.install(app)
     from shared import gc_schedule, qt_messages
     gc_schedule.install(app)         # the cyclic collector runs from a timer, not inside Qt handlers
     qt_messages.install()

@@ -77,10 +77,10 @@ class FamilyDetailPanel(QWidget):
         self.profile_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {TabColors.COLLECTION};
-                color: white; border: none; border-radius: 4px;
+                color: {t.get('on_accent_text')}; border: none; border-radius: 4px;
                 padding: 5px 12px; font-size: {font_css('caption')};
             }}
-            QPushButton:hover {{ background-color: #7a7068; }}
+            QPushButton:hover {{ background-color: {t.get('collection_profile_btn_hover')}; }}
         """)
         self.profile_btn.clicked.connect(self._on_profile_clicked)
         self.profile_btn.setVisible(False)
@@ -118,11 +118,11 @@ class FamilyDetailPanel(QWidget):
         self.save_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {ButtonColors.PRIMARY};
-                color: white; border: none; border-radius: 4px;
+                color: {t.get('primary_text')}; border: none; border-radius: 4px;
                 padding: 4px 12px; font-size: {font_css('caption')};
             }}
-            QPushButton:hover {{ background-color: #3d6649; }}
-            QPushButton:disabled {{ background-color: #ccc; color: #888; }}
+            QPushButton:hover {{ background-color: {t.get('primary_hover')}; }}
+            QPushButton:disabled {{ background-color: {t.get('btn_disabled_bg')}; color: {t.get('btn_disabled_text')}; }}
         """)
         self.save_btn.clicked.connect(self._save_notes)
         layout.addWidget(self.save_btn, 0, Qt.AlignmentFlag.AlignRight)

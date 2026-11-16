@@ -71,7 +71,7 @@ class MarkCommercialDialog(QDialog):
                 color: {t.get('text_primary')};
             }}
             QLineEdit:focus, QComboBox:focus, QDateEdit:focus {{
-                border-color: #4a7c59;
+                border-color: {t.get('focus_border')};
             }}
         """
 
@@ -140,12 +140,12 @@ class MarkCommercialDialog(QDialog):
         # Fix calendar popup arrow display (dots -> arrows)
         self.embargo_date.calendarWidget().setStyleSheet(f"""
             QCalendarWidget QToolButton {{
-                color: #4a4a4a; font-size: {font_css('body')}; font-weight: bold; padding: 4px;
+                color: {t.get('calendar_nav_text')}; font-size: {font_css('body')}; font-weight: bold; padding: 4px;
             }}
             QCalendarWidget QToolButton#qt_calendar_prevmonth {{ qproperty-text: "<"; }}
             QCalendarWidget QToolButton#qt_calendar_nextmonth {{ qproperty-text: ">"; }}
             QCalendarWidget QToolButton::menu-indicator {{ image: none; }}
-            QCalendarWidget QWidget#qt_calendar_navigationbar {{ background-color: #f5f0eb; }}
+            QCalendarWidget QWidget#qt_calendar_navigationbar {{ background-color: {t.get('calendar_nav_bg')}; }}
         """)
         self.embargo_label = QLabel("Embargo Until:")
         form_layout.addRow(self.embargo_label, self.embargo_date)
@@ -165,7 +165,7 @@ class MarkCommercialDialog(QDialog):
             QPushButton {{
                 background-color: {t.get('surface')};
                 color: {t.get('text_primary')};
-                border: 1px solid #8b8178;
+                border: 1px solid {t.get('secondary')};
                 border-radius: 4px;
                 padding: 8px 16px;
             }}
@@ -179,14 +179,14 @@ class MarkCommercialDialog(QDialog):
         apply_btn.setMinimumWidth(150)
         apply_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: #4a7c59;
-                color: white;
+                background-color: {t.get('primary')};
+                color: {t.get('primary_text')};
                 border: none;
                 border-radius: 4px;
                 padding: 8px 16px;
                 font-weight: bold;
             }}
-            QPushButton:hover {{ background-color: #3d6348; }}
+            QPushButton:hover {{ background-color: {t.get('primary_hover_deep')}; }}
         """)
         apply_btn.clicked.connect(self.accept)
         btn_layout.addWidget(apply_btn)

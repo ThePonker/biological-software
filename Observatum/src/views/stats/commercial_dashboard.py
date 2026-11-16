@@ -278,9 +278,9 @@ class CommercialStatsDashboard(SpeciesListsMixin, QScrollArea):
                     species_count=species_count,
                     record_type='observation',
                     parent=self,
-                    accent_color='#b8860b',
-                    accent_light='#fdf5e6',
-                    accent_dark='#8b6914'
+                    accent_color=theme().get('stats_commercial_accent'),
+                    accent_light=theme().get('stats_commercial_accent_light'),
+                    accent_dark=theme().get('stats_commercial_accent_dark')
                 )
                 dlg.navigate_to_observations.connect(self.navigate_to_species.emit)
                 dlg.profile_requested.connect(self._on_profile_requested)

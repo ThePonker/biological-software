@@ -23,6 +23,7 @@ from .collection import InsectCollectionTab
 # (startup_preload.py, Round 5), or on first opening if that failed (LazyTabPage)
 from .lazy_tab import LazyTabPage
 from .main_window_background import BackgroundTabsMixin, waits_for
+from .main_window_header import add_header_mark, header_style
 
 from ..models.database import get_database
 from ..models.uksi import UKSIModel
@@ -160,6 +161,7 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
         self.tabs = QTabWidget()
         self.tabs.setTabPosition(QTabWidget.TabPosition.North)
         layout.addWidget(self.tabs)
+        add_header_mark(self.tabs, theme())     # R21: the 1940s beetle mark (none for Naturalist)
 
         # Add tabs
         self.home_tab = HomeTab()
@@ -822,7 +824,7 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
             }}
             QTabBar::tab:first:selected {{
                 border-bottom-color: {t.get('text_secondary')};
-            }}
+            }}{header_style(t)}
             /* Observation Data tab - Sage Green */
             QTabBar::tab:nth-of-type(2) {{
                 border-bottom-color: transparent;

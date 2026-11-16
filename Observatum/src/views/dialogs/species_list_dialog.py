@@ -152,7 +152,7 @@ class SpeciesListDialog(QDialog):
             }}
             QPushButton:hover {{
                 background-color: {t.get("primary", "#4a7c59")};
-                color: white;
+                color: {t.get('primary_text')};
             }}
         """)
         export_btn.clicked.connect(self._export_csv)

@@ -76,7 +76,7 @@ class SyncConflictsDialog(QDialog):
                             "padding: 8px 20px; }")
         later.clicked.connect(self.reject)
         apply_btn = QPushButton("Apply")
-        apply_btn.setStyleSheet(f"QPushButton {{ background: {ButtonColors.PRIMARY}; color: white; border: none; "
+        apply_btn.setStyleSheet(f"QPushButton {{ background: {ButtonColors.PRIMARY}; color: {t.get('primary_text')}; border: none; "
                                 f"border-radius: {t.get('radius_md')}; padding: 8px 24px; }}")
         apply_btn.clicked.connect(self._apply)
         row.addWidget(later)

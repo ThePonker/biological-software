@@ -41,8 +41,8 @@ class VisitDateDialog(QDialog):
         t.verticalHeader().setVisible(False)
         for i, r in enumerate(rows):
             for c, k in enumerate(("specimen_code", "species_name", "date_collected", "site_name")):
-                v = str(r.get(k) or "")
-                t.setItem(i, c, QTableWidgetItem(_show(v) if k == "date_collected" and v else v))
+                cell = str(r.get(k) or "")        # not `v`: that is the layout (R21 fix)
+                t.setItem(i, c, QTableWidgetItem(_show(cell) if k == "date_collected" and cell else cell))
         t.horizontalHeader().setStretchLastSection(True)
         v.addWidget(t, 1)
         row = QHBoxLayout()

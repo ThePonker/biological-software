@@ -36,7 +36,7 @@ class WhenFilterDialog(QDialog):
         parent=None
     ):
         super().__init__(parent)
-        self._accent_color = accent_color or "#5f8575"
+        self._accent_color = accent_color or theme().get('accent_observation')
         self._current = current_values or {}
         
         # The years in this tab's own records (SRCH12), as numbers, newest first; the last
@@ -250,7 +250,7 @@ class WhenFilterDialog(QDialog):
         apply_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {ButtonColors.PRIMARY};
-                color: white;
+                color: {t.get('button_primary_text')};
                 border: none;
                 border-radius: 4px;
                 padding: 10px 24px;

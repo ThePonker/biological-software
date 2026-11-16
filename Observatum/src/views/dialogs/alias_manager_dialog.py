@@ -95,12 +95,12 @@ class AliasManagerDialog(QDialog):
         delete_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {t.get('surface')};
-                color: #a63d40;
-                border: 1px solid #a63d40;
+                color: {t.get('danger_text')};
+                border: 1px solid {t.get('danger')};
                 border-radius: 4px;
                 padding: 8px 16px;
             }}
-            QPushButton:hover {{ background-color: #fdf0f0; }}
+            QPushButton:hover {{ background-color: {t.get('danger_hover_bg')}; }}
         """)
         delete_btn.clicked.connect(self._delete_selected)
         btn_layout.addWidget(delete_btn)

@@ -208,8 +208,8 @@ class JobsListPage(QWidget):
         self.table.setStyleSheet(
             f"QTableWidget {{ background: {theme.CARD}; border: 1px solid {theme.LINE};"
             f"  border-radius: 6px; font-size: {font_css('body')};"
-            f"  selection-background-color: rgba(74,124,89,0.30); selection-color: {theme.INK}; }}"
-            f"QTableWidget::item:selected {{ background: rgba(74,124,89,0.30); color: {theme.INK}; }}"
+            f"  selection-background-color: {theme.SELECTION_BG}; selection-color: {theme.INK}; }}"
+            f"QTableWidget::item:selected {{ background: {theme.SELECTION_BG}; color: {theme.INK}; }}"
             f"QHeaderView::section {{ background: {theme.PAPER}; padding: 5px; border: none;"
             f"  border-bottom: 1px solid {theme.LINE}; font-weight: 600; }}"
         )

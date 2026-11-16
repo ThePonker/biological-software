@@ -142,7 +142,7 @@ class SpeciesProfileDialog(QDialog):
         self.delete_btn = QPushButton("Delete My Account")
         self.delete_btn.setMinimumHeight(38)
         self.delete_btn.setStyleSheet(f"""
-            QPushButton {{ background-color: {t.get('error')}; color: white; padding: 8px 20px;
+            QPushButton {{ background-color: {t.get('error')}; color: {t.get('text_on_error')}; padding: 8px 20px;
                           border: none; border-radius: {t.get('radius_md')}; font-weight: 500; }}
             QPushButton:hover {{ background-color: {t.get('error_text')}; }}
         """)
@@ -167,7 +167,7 @@ class SpeciesProfileDialog(QDialog):
         self.save_btn.setMinimumHeight(38)
         self.save_btn.setMinimumWidth(140)
         self.save_btn.setStyleSheet(f"""
-            QPushButton {{ background-color: {t.get('success')}; color: white; padding: 8px 24px;
+            QPushButton {{ background-color: {t.get('success')}; color: {t.get('text_on_success')}; padding: 8px 24px;
                           border: none; border-radius: {t.get('radius_md')}; font-weight: 600; }}
             QPushButton:hover {{ background-color: {t.get('success_light')}; }}
             QPushButton:disabled {{ background-color: {t.get('border')}; }}

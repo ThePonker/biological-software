@@ -40,7 +40,7 @@ class FilterCard(QFrame):
         self._title = title
         self._description = description
         self._icon = icon
-        self._accent_color = accent_color or "#5f8575"
+        self._accent_color = accent_color or theme().get('accent_observation')
         self._has_filters = False
         
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -203,7 +203,7 @@ class FilterCardGrid(QWidget):
         parent=None
     ):
         super().__init__(parent)
-        self._accent_color = accent_color or "#5f8575"
+        self._accent_color = accent_color or theme().get('accent_observation')
         self._columns = columns
         self._card_defs = cards or self.DEFAULT_CARDS
         self._cards: Dict[str, FilterCard] = {}

@@ -180,7 +180,7 @@ class BulkSpeciesResolutionDialog(QDialog):
         self.apply_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {ButtonColors.PRIMARY};
-                color: white;
+                color: {t.get('primary_text')};
                 border: none;
                 padding: 8px 16px;
                 border-radius: {t.get('radius_md')};
@@ -227,7 +227,7 @@ class BulkSpeciesResolutionDialog(QDialog):
         self.done_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {self._accent};
-                color: white;
+                color: {t.get('on_accent_text')};
                 border: none;
                 padding: 10px 20px;
                 border-radius: {t.get('radius_md')};

@@ -182,7 +182,7 @@ class MapToolbar(QFrame):
                 btn.setStyleSheet(f"""
                     QPushButton {{
                         background-color: {self._accent};
-                        color: white;
+                        color: {t.get('text_on_accent')};
                         border: none;
                         padding: 6px 12px;
                         font-size: {font_css('small')};

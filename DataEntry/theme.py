@@ -33,6 +33,12 @@ SLATE_BG = _g("accent_stats_light", "#eaecef")
 GOLD_BG  = _g("warning_bg",         "#fef3c7")
 CLAY_BG  = _g("danger_bg",          "#fce8e8")
 
+# R21: colours that used to be written into the views
+ON_PRIMARY    = _g("button_primary_text",        "#ffffff")   # text on a Moss button
+ON_ACCENT     = _g("text_on_accent",             "#ffffff")   # text on a selected / accent fill
+SELECTION_BG  = _g("table_selection_overlay",    "rgba(74,124,89,0.30)")   # selected grid / job row
+UNMATCHED_BG  = _g("staging_unmatched_species_bg", "#faded6")   # a species with no TVK
+
 RADIUS_SM = _g("radius_sm", "4px")
 RADIUS_MD = _g("radius_md", "6px")
 RADIUS_LG = _g("radius_lg", "8px")
@@ -45,12 +51,12 @@ def _vpad(compact):
     return 3 if compact else 6
 
 def button_primary_qss(compact=False):
-    return ("QPushButton { background-color: %s; color: #ffffff; border: none;"
+    return ("QPushButton { background-color: %s; color: %s; border: none;"
             " border-radius: %s; padding: %dpx 14px;"
             f" font-weight: 600; font-size: {font_css('small')}; }}"
             "QPushButton:hover { background-color: %s; }"
             "QPushButton:disabled { background-color: %s; color: %s; }"
-            % (MOSS, RADIUS_MD, _vpad(compact), MOSS_HOVER, DISABLED_BG, DISABLED_TEXT))
+            % (MOSS, ON_PRIMARY, RADIUS_MD, _vpad(compact), MOSS_HOVER, DISABLED_BG, DISABLED_TEXT))
 
 def button_secondary_qss(compact=False):
     return ("QPushButton { background-color: transparent; color: %s;"
@@ -69,8 +75,8 @@ def input_qss():
             " border-radius: %s; padding: 4px 8px; color: %s; }"
             "QLineEdit:focus, QComboBox:focus, QSpinBox:focus { border: 2px solid %s; padding: 3px 7px; }"
             "QComboBox QAbstractItemView { background: %s; border: 1px solid %s;"
-            " selection-background-color: %s; selection-color: #ffffff; outline: none; }"
-            % (CARD, LINE, RADIUS_SM, INK, MOSS, CARD, LINE, SLATE))
+            " selection-background-color: %s; selection-color: %s; outline: none; }"
+            % (CARD, LINE, RADIUS_SM, INK, MOSS, CARD, LINE, SLATE, ON_ACCENT))
 
 def checkbox_qss():
     return "QCheckBox { color: %s; spacing: 6px; }" % INK

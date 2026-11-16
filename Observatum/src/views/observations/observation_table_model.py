@@ -283,7 +283,7 @@ class ObservationTableModel(CheckedByIdMixin, QAbstractTableModel):
                 return "✓" if ticked else ""
             if role == Qt.ItemDataRole.ForegroundRole:
                 if ticked:
-                    return QColor("#4a7c59")
+                    return QColor(theme().get('primary'))
             if role == Qt.ItemDataRole.FontRole:
                 if ticked:
                     font = QFont()
@@ -292,7 +292,7 @@ class ObservationTableModel(CheckedByIdMixin, QAbstractTableModel):
                     return font
             if role == Qt.ItemDataRole.BackgroundRole:
                 if ticked:
-                    return QColor("#e8f0ea")
+                    return QColor(theme().get('checked_row_bg'))
             if role == Qt.ItemDataRole.TextAlignmentRole:
                 return Qt.AlignmentFlag.AlignCenter
             return None
@@ -306,7 +306,7 @@ class ObservationTableModel(CheckedByIdMixin, QAbstractTableModel):
             if role == Qt.ItemDataRole.TextAlignmentRole:
                 return Qt.AlignmentFlag.AlignCenter
             if role == Qt.ItemDataRole.BackgroundRole and self.is_row_checked(row):
-                return QColor("#e8f0ea")
+                return QColor(theme().get('checked_row_bg'))
             return None
 
         # Records the species-counting switches leave out: shown, dimmed (backlog A)
@@ -343,7 +343,7 @@ class ObservationTableModel(CheckedByIdMixin, QAbstractTableModel):
         # Highlight entire row when checked
         if role == Qt.ItemDataRole.BackgroundRole:
             if self.is_row_checked(row):
-                return QColor("#e8f0ea")
+                return QColor(theme().get('checked_row_bg'))
             return None
 
         if role == Qt.ItemDataRole.DisplayRole:

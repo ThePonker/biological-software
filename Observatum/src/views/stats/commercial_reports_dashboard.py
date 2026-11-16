@@ -59,7 +59,7 @@ class EditProjectDialog(QDialog):
         form.addRow("Project", self.cmb_project)
         form.addRow("Client", self.cmb_client)
         self.err = QLabel("")
-        self.err.setStyleSheet("color: #a63d40;")
+        self.err.setStyleSheet(f"color: {theme().get('danger_text')};")
         form.addRow("", self.err)
         btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         btns.accepted.connect(self._accept)
@@ -121,8 +121,8 @@ class CommercialReportsDashboard(QScrollArea):
         self._alert_frame.setVisible(False)
         self._alert_frame.setStyleSheet(f"""
             QFrame {{
-                background-color: #fff3e0;
-                border: 1px solid #ffb74d;
+                background-color: {t.get('embargo_alert_bg')};
+                border: 1px solid {t.get('embargo_alert_border')};
                 border-radius: 6px;
                 padding: 12px;
             }}
@@ -133,7 +133,7 @@ class CommercialReportsDashboard(QScrollArea):
         self._alert_label = QLabel()
         self._alert_label.setWordWrap(True)
         self._alert_label.setStyleSheet(
-            f"color: #e65100; font-size: {font_css('body')}; font-weight: bold; border: none;"
+            f"color: {t.get('embargo_expired')}; font-size: {font_css('body')}; font-weight: bold; border: none;"
         )
         alert_layout.addWidget(self._alert_label, 1)
 
@@ -155,7 +155,7 @@ class CommercialReportsDashboard(QScrollArea):
         cards_layout.addWidget(self._active_card)
 
         self._expired_card = StatCard("Expired Embargoes", "0", "ready to release",
-                                      "#e65100")
+                                      t.get('embargo_expired'))
         cards_layout.addWidget(self._expired_card)
 
         self._released_card = StatCard("Released", "0", "uploaded to iRecord",
@@ -403,12 +403,12 @@ class CommercialReportsDashboard(QScrollArea):
                 status_item = QTableWidgetItem(status)
                 status_item.setTextAlignment(Qt.AlignCenter)
                 if status == "EXPIRED":
-                    status_item.setForeground(QColor("#e65100"))
+                    status_item.setForeground(QColor(theme().get('embargo_expired')))
                     status_item.setFont(QFont("", -1, QFont.Weight.Bold))
                 elif status == "Under Embargo":
                     status_item.setForeground(QColor(TabColors.COMMERCIAL))
                 elif status == "Released":
-                    status_item.setForeground(QColor("#2e7d32"))
+                    status_item.setForeground(QColor(theme().get('embargo_released')))
                 self._table.setItem(row_idx, 4, status_item)
 
                 self._table.setItem(row_idx, 5, QTableWidgetItem(until))
@@ -420,14 +420,14 @@ class CommercialReportsDashboard(QScrollArea):
                     btn.setStyleSheet(f"""
                         QPushButton {{
                             background-color: {ButtonColors.PRIMARY};
-                            color: white;
+                            color: {theme().get('primary_text')};
                             border: none;
                             border-radius: 4px;
                             padding: 4px 12px;
                             font-size: {font_css('caption')};
                         }}
                         QPushButton:hover {{
-                            background-color: #3d6b4a;
+                            background-color: {theme().get('success_hover')};
                         }}
                     """)
                     btn.clicked.connect(
@@ -439,7 +439,7 @@ class CommercialReportsDashboard(QScrollArea):
                     released_label = QLabel("✓ Released")
                     released_label.setAlignment(Qt.AlignCenter)
                     released_label.setStyleSheet(
-                        f"color: #2e7d32; font-size: {font_css('caption')}; border: none;"
+                        f"color: {theme().get('embargo_released')}; font-size: {font_css('caption')}; border: none;"
                     )
                     self._table.setCellWidget(row_idx, 6, released_label)
             self._table.blockSignals(False)

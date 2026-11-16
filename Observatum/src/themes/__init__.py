@@ -1,7 +1,7 @@
 """
 Observatum V2 Theme System.
 
-Provides the Naturalist theme - a cohesive color palette inspired
+Provides the Naturalist theme (and, from R21, the 1940s theme) - a cohesive color palette inspired
 by Victorian naturalist field journals with coordinated tab colors.
 
 Usage:
@@ -18,5 +18,6 @@ Usage:
 """
 
 from .theme_manager import ThemeManager, theme
+from .active import active_theme_dict, active_theme_name
 
-__all__ = ['ThemeManager', 'theme']
+__all__ = ['ThemeManager', 'theme', 'active_theme_dict', 'active_theme_name']

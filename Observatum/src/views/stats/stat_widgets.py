@@ -732,7 +732,7 @@ class YearByYearTable(QFrame):
             self.table.setItem(row, 2, records_item)
 
             new_item = QTableWidgetItem(f"+{stats['newSpecies']}")
-            new_item.setForeground(Qt.GlobalColor.darkGreen)
+            new_item.setForeground(QColor(theme().get('new_species_text')))
             new_item.setFlags(new_item.flags() & ~Qt.ItemFlag.ItemIsSelectable)
             self.table.setItem(row, 3, new_item)
 

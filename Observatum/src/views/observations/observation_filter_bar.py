@@ -157,7 +157,7 @@ class ObservationFilterBar(QFrame, SavedFiltersMixin):
                 }}
                 QPushButton:checked {{
                     background-color: {TabColors.OBSERVATION_DARK};
-                    color: white;
+                    color: {t.get('on_accent_text')};
                     border-color: {TabColors.OBSERVATION_DARK};
                     font-weight: 700;
                 }}

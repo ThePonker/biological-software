@@ -130,7 +130,7 @@ def get_clear_button_style() -> str:
         }}
         QPushButton:pressed {{
             background-color: {t.get('error')};
-            color: white;
+            color: {t.get('text_on_error')};
         }}
     """
 

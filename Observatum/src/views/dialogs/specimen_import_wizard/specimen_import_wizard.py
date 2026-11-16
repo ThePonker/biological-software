@@ -155,7 +155,7 @@ class SpecimenImportWizard(
 
         self.header_label = QLabel("Import Specimen Collection")
         self.header_label.setStyleSheet(f"""
-            color: white;
+            color: {t.get('on_accent_text')};
             font-size: {font_css('title')};
             font-weight: 600;
         """)
@@ -163,7 +163,7 @@ class SpecimenImportWizard(
 
         self.step_label = QLabel("Step 1 of 5: Select File")
         self.step_label.setStyleSheet(f"""
-            color: rgba(255, 255, 255, 0.8);
+            color: {t.get('on_accent_text_soft')};
             font-size: {font_css('body')};
         """)
         header_layout.addWidget(self.step_label)
@@ -262,7 +262,7 @@ class SpecimenImportWizard(
         self.next_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {self._accent};
-                color: white;
+                color: {t.get('on_accent_text')};
                 border: none;
                 padding: 8px 16px;
                 border-radius: {t.get('radius_md')};

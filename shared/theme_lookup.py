@@ -34,3 +34,17 @@ def value(key, fallback):
         except Exception:
             pass
     return fallback
+
+
+def naturalist_value(key, fallback):
+    """The NATURALIST theme's value for `key`, whatever theme the program is drawing in (R21):
+    for drawing that must not change with the theme, such as the maps. The fallback is used only
+    if the Naturalist theme cannot be imported or lacks the key."""
+    try:
+        from src.themes.naturalist import NATURALIST_THEME
+        v = NATURALIST_THEME.get(key)
+        if v:
+            return v
+    except Exception:
+        pass
+    return fallback

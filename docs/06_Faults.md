@@ -1,10 +1,10 @@
 # Faults
 
-## Updated 10 November 2026
+## Updated 16 November 2026
 ## Open faults carry an action. Closed ones are kept in brief, because knowing
 ## what has already gone wrong is how the rules in `05` were earned. Older closed
 ## faults are in `06b_Faults_Closed.md` (split out 12 Oct). New faults take the
-## next free number (F110 next).
+## next free number (F112 next).
 
 ---
 
@@ -172,6 +172,18 @@ button is paused (Round 17); rebuild the view in Qt's built-in Chromium with thr
 ### F109. "QThreadStorage: entry destroyed before end of thread" at exit
 Not reproduced on Linux; the cause is a guess (a Qt-using thread alive at exit). Round 17 filters exactly that message
 (`shared/qt_messages.py`). **Action:** only if it matters, catch it on Windows and find the thread.
+
+### F110. The main window's per-tab underline colours never showed
+`_apply_window_style` (`main_window.py`) gives each tab its own selected underline with
+`QTabBar::tab:nth-of-type(n)`; Qt style sheets do not support `nth-of-type`, so the rules are ignored
+(measured offscreen 11 Nov: a red `nth-of-type(4)` rule painted 0 pixels). Removing the Contributed tab
+(Round 20) therefore changed nothing. The Round 21 theme builder reports that Qt drops every rule after
+the first unsupported selector in that sheet (not checked separately); the 1940s header rules sit before it. **Action:** if per-tab colours are wanted, set them in code on tab
+change (with the theme work, Round 21 or later); otherwise remove the dead rules.
+
+### F111. A pytest-xdist worker crash ("node down") in Claude's workspace
+Seen twice (Round 19 and Round 20 full runs, Linux offscreen, `-n 3`), not reproduced on Wil's PC (2,321
+and 2,340 passed). **Watch:** if it appears on the PC, run that file alone with `-p no:randomly -x`.
 
 ---
 

@@ -37,7 +37,7 @@ class FilterChip(QFrame):
         self._category = category
         self._value = value
         self._display = display_text or value
-        self._accent_color = accent_color or "#4a7c59"
+        self._accent_color = accent_color or theme().get('primary')
         
         self._setup_ui()
     
@@ -132,7 +132,7 @@ class ChipDisplay(QWidget):
     
     def __init__(self, accent_color: str = None, parent=None):
         super().__init__(parent)
-        self._accent_color = accent_color or "#4a7c59"
+        self._accent_color = accent_color or theme().get('primary')
         self._chips: Dict[str, List[FilterChip]] = {}
         
         self._setup_ui()

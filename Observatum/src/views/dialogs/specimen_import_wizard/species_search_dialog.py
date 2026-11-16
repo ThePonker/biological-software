@@ -125,7 +125,7 @@ class SpeciesSearchDialog(QDialog):
         self.select_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {t.get('success')};
-                color: white;
+                color: {t.get('primary_text')};
                 border: none;
                 padding: 8px 16px;
                 border-radius: 6px;

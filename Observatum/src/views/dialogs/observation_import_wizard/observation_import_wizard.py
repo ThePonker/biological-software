@@ -176,7 +176,7 @@ class ObservationImportWizard(
 
         self.header_label = QLabel("Import Observations")
         self.header_label.setStyleSheet(f"""
-            color: white;
+            color: {t.get('on_accent_text')};
             font-size: {font_css('title')};
             font-weight: 600;
         """)
@@ -184,7 +184,7 @@ class ObservationImportWizard(
 
         self.step_label = QLabel("Step 1 of 7: Select Import Mode")
         self.step_label.setStyleSheet(f"""
-            color: rgba(255, 255, 255, 0.8);
+            color: {t.get('on_accent_text_soft')};
             font-size: {font_css('body')};
         """)
         header_layout.addWidget(self.step_label)
@@ -271,7 +271,7 @@ class ObservationImportWizard(
             }}
             QPushButton:hover {{
                 background-color: {self._accent};
-                color: white;
+                color: {t.get('on_accent_text')};
             }}
         """)
         self.resolve_species_btn.clicked.connect(self._open_resolve_species_dialog)
@@ -283,7 +283,7 @@ class ObservationImportWizard(
         self.next_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {self._accent};
-                color: white;
+                color: {t.get('on_accent_text')};
                 border: none;
                 padding: 10px 24px;
                 border-radius: {t.get('radius_md')};

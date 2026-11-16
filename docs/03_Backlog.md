@@ -1,6 +1,6 @@
 # Backlog
 
-## Updated 10 November 2026 (Rounds 16–17 committed, Round 18 being built; see "Next (10 Nov)"); older sections below
+## Updated 16 November 2026 (Rounds 18–20 committed, Round 21 being built; see "Next (16 Nov)"); older sections below
 ## Check this before starting a session.
 
 This file is the working list: how we work, what is next, what is decided but not built,
@@ -28,49 +28,52 @@ comes first either way. *(Update 24 Oct: Q1 was settled by the order of work of 
 
 ---
 
-## Next (10 Nov): Rounds 16–17 committed and pushed; Round 18 being built
+## Next (16 Nov): Rounds 18–20 committed and pushed; Round 21 (1940s theme) being built
 
-**On the PC and pushed (`e0c2306`):** Rounds 15–17. Round 16 (speed and stability: binary layers,
-disk caches, threaded Generate, pooled read connections, species index cache, one app event filter,
-3D in its own process, synonym and name/TVK checks at commit, compact banner). Round 17 (GC from a
-timer, Interface size setting, 11 px minimum text, Identify ✕, layer group switches, layer legend on the
-export, decade filter, recorders counted per person, Reference column kept out of client exports,
-Species Info status/SQS, common-name tie rule, edit dialog refreshes taxonomy, Sync panel and
-"coming soon" line removed, 3D paused). Wil's tests passed 10 Nov; full suite 2,241 passed; reference
-check ALL MATCH. PC: Python 3.14.10, PySide6 6.12.0; layer binaries converted; GB soil layer rebuilt.
+**On the PC and pushed (`a5d22fe`):** Rounds 18–20. Round 18 (named text sizes, map zoom to ~1 km,
+import guards, one-step record create, one grid-reference converter, Data Entry fold button, emptying
+a grid ref clears lat/long). Round 19 (new Home: map card, species card, last 10 new species; table
+text 13 px; grid-square overlay on maps and exports; scheme tetrad letters match the standard).
+Round 20 (text one step bigger: caption 13, small 14, body 15, body_large 16, heading 17, title 19,
+tables 14 px / 28 px rows, saved column widths scaled once; Home: species card fixed height, map card
+recorded-or-not with a year list, Year list chart in place of Notable records; Contributed tab → a
+"Contributed records…" window from Observation Data; years follow the calendar (Quick Select five
+years, decade bands, Munia year boxes, one two-digit-year rule, "status unavailable"); Esc ends
+Mapping Identify). Wil's tests passed 16 Nov; full suite 2,340 passed; reference check ALL MATCH.
 
-**Round 18 (agreed 10 Nov, 23:21), being built; pictures for Wil's approval before delivery:**
-- Text sizes: named sizes in the theme (caption 12, small 13, body 14, body_large 15, heading 16,
-  title 18 px, larger sizes unchanged); the ~700 written-in sizes moved onto them; 12 px minimum
-  (Word 9 pt); boxes that clip made to fit; no new scroll bars. Maps and exports untouched.
-- Observatum fixes: map zoom to ~1 km from any view; specimen import fuzzy-lookup hang; scheme import
-  cf./agg. errors shown; "scheme records cannot be removed" sentence in the scheme wizard;
-  `ObservationModel.create` writes every column (no second UPDATE; reviewed); one grid-reference
-  converter (INF9; reviewed, identical outputs proven); Data Entry folded strip loses its extra Unfold
-  button; emptying a grid ref also clears latitude/longitude.
+**Round 21 (agreed 16 Nov, 19:17), being built:** the 1940s theme Wil chose (post-war nature book:
+cream page, cloth-green header with a mustard rule, rust accent; Cormorant SC headings, EB Garamond
+text, both bundled, open licence). Step 1 every written-in colour in the views onto theme tokens
+(Naturalist unchanged to the pixel); step 2 Settings › Appearance › Theme (Naturalist / 1940s, takes
+effect next start; Observatum and Data Entry only — Examen, Curator, Munia, Codex, Lector, Atrium,
+maps, exports and reports stay Naturalist); step 3 the theme; step 4 pictures in both themes.
 
-**Round 18 tests deferred until the importers are tested with fresh data (Wil, 11 Nov):**
-- Edit a record, empty its grid ref, then put it back: vice-county, latitude and longitude clear.
-- Home › Quick Entry: add one record; order, family, sort key and superfamily look right in Observations.
-- Scheme import wizard to the confirm page (don't import): the "cannot be removed" sentence shows.
-- Data Entry: commit a small job; trap, visit, sub-location and sort key arrive as before (one-step create).
+**Wil's list of 11 Nov** (project note `claude/61_Wils_List_20261111.md`, with his answers): done in
+Round 20: 1–3, 5–8. Open, in order: Round 22 photo health check (read-only script) + photo test
+session (9); nightly automatic off-site backup with "last backed up" shown (11); partner's laptop
+install with its own data folder and an "Update" file that fetches the latest pushed version (10);
+Data Entry banner redesign from mock-ups (4; Wil uses species details, workbook summary + traps,
+mini-maps + legend); then laptop data entry by job files via a OneDrive folder or file export (12;
+after away mode is tested) and shared scheme reviewing with his partner, split by dataset (13, with M1).
 
-**Next round (asked 11 Nov):** table text larger (cells use the 12 px default, rows fixed at 24 px);
-grid-square overlay on the map (100 km / 10 km / tetrad / 1 km lines and labels, by zoom); Recording
-Scheme statistics tetrad letters (SP52E → SP52V); Home screen redesign (Wil considering; ideas
-discussed 11 Nov).
+**Tests waiting** (put off until the importers are tested with fresh data, Wil 11 Nov): edit a record,
+empty its grid ref, put it back (VC, lat/long clear); scheme import wizard to the confirm page ("cannot
+be removed" sentence); Data Entry commit of a small job (trap, visit, sub-location, sort key); Species
+Match Report opened once (F41). Quick Entry's test is dropped (Quick Entry removed in Round 19). Older:
+away mode (Round 9, never tested; needed before laptop entry); Read back checking on the Coedely test
+copy (Round 8); Records from photos tests 9–11 (Round 6); two-photo records review; Drawer in hand on
+the 1280×720 laptop (Test 36).
 
-**Open after Round 18:**
+**Open:**
 - Data tidy (each a script, dry run first): `subfamily` NULL vs '' (F16); two specimens without a TVK
   (F15); has `link_specimens_to_observations.py --apply` (~1,115 links) been run on the PC?; has
   `rename_bracket_numbers_20261024.py` (F94, 33 "(2)" names) been run?
-- Species Match Report in the import wizards never seen opened (F41): a one-minute check.
 - Map content deferred: OS 1:250k colour raster review; Small Settlements; railway tunnels drawn as surface.
 - Wil's decisions: the `seed_codex.py` DELETE; Coedely Park into `reference_figures.json` after Richard's report.
 - Away mode: Lector store and Codex Manager still connect writable (F90).
-- Big jobs, in the suggested order: batch maps screen (design Q41–Q50); specimens → records (Q23–Q33);
-  first real iRecord round trip; phone photo intake (B4); Data Entry map switch-over; **3D view rebuilt
-  in Qt's built-in Chromium with three.js (parked by Wil 10 Nov; QtGraphs crashes natively, F107)**.
+- Big jobs, in the suggested order: specimens → records (Q23–Q33); final Recording Scheme dataset (M1);
+  first real iRecord round trip; phone photo intake (B4); batch maps screen (Q41–Q50); Data Entry map
+  switch-over; **3D view in Qt's built-in Chromium with three.js (parked by Wil 10 Nov; F107)**.
 - Lector parked after the Round 15 delete-search test (Wil, 10 Nov): the rest of its Round 15 tests wait.
 
 ## Next (26 Oct): Round 15 built overnight (`202e586`) -- DONE: tested and committed 10 Nov

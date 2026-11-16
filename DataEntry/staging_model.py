@@ -351,7 +351,7 @@ class StagingTableModel(QAbstractTableModel):
             if row.get("species_name") and not row.get("species_tvk"):      # B4/B6: not matched
                 if role == Qt.ItemDataRole.BackgroundRole:
                     from PySide6.QtGui import QColor
-                    return QColor(250, 222, 214)
+                    return QColor(theme.UNMATCHED_BG)
                 return ("Not matched to a species -- no TVK. Type over it to choose; "
                         "the commit check lists any left.")
             return None

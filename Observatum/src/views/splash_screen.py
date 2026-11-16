@@ -20,22 +20,21 @@ from PySide6.QtGui import (
     QPen, QPainterPath, QImage
 )
 from shared.text_sizes import font_css, qfont
+from ..themes import theme
 
 
 class ObservatumSplashScreen(QSplashScreen):
     """Victorian naturalist-themed splash screen with ornamental progress."""
 
-    # Palette
-    BG_DARK = "#1c1c1e"
-    BG_MID = "#252527"
-    MOSS = "#4a7c59"
-    MOSS_LIGHT = "#5a9a6e"
-    MOSS_DIM = "#3a6248"
-    WARM_GRAY = "#8b8178"
-    CREAM = "#d4cdc4"
-    GOLD_DIM = "#8a7a5a"
-    TEXT_DIM = "#5a5650"
-    HEATHER = "#8e6cb8"
+    # Palette: the theme's splash_* colours, read when a splash screen is built (_load_palette)
+    PALETTE = {
+        "BG_DARK": "splash_bg", "BG_MID": "splash_bg_mid", "MOSS": "splash_moss",
+        "MOSS_LIGHT": "splash_moss_light", "MOSS_DIM": "splash_moss_dim",
+        "WARM_GRAY": "splash_text_warm", "CREAM": "splash_cream", "GOLD_DIM": "splash_gold_dim",
+        "TEXT_DIM": "splash_text_dim", "HEATHER": "splash_heather",
+        "GRAD_TOP": "splash_gradient_top", "GRAD_MID": "splash_gradient_mid",
+        "GLOW": "splash_glow", "BORDER_INNER": "splash_border_inner",
+    }
 
     WIDTH = 580
     HEIGHT = 400
@@ -43,7 +42,13 @@ class ObservatumSplashScreen(QSplashScreen):
     # Silhouette thresholds — each lights up at this progress %
     SIL_THRESHOLDS = [0, 20, 40, 60, 80]
 
+    def _load_palette(self):
+        t = theme()
+        for name, key in self.PALETTE.items():
+            setattr(self, name, t.get(key))
+
     def __init__(self):
+        self._load_palette()
         pixmap = QPixmap(self.WIDTH, self.HEIGHT)
         pixmap.fill(QColor(self.BG_DARK))
 
@@ -195,13 +200,13 @@ class ObservatumSplashScreen(QSplashScreen):
         w, h = self.WIDTH, self.HEIGHT
 
         grad = QLinearGradient(0, 0, 0, h)
-        grad.setColorAt(0.0, QColor("#2a2a2c"))
-        grad.setColorAt(0.4, QColor("#222224"))
+        grad.setColorAt(0.0, QColor(self.GRAD_TOP))
+        grad.setColorAt(0.4, QColor(self.GRAD_MID))
         grad.setColorAt(1.0, QColor(self.BG_DARK))
         p.fillRect(0, 0, w, h, grad)
 
         centre_grad = QLinearGradient(w / 2, h * 0.3, w / 2, h)
-        centre_grad.setColorAt(0.0, QColor(74, 124, 89, 12))
+        centre_grad.setColorAt(0.0, QColor(self.GLOW))
         centre_grad.setColorAt(1.0, QColor(0, 0, 0, 0))
         p.fillRect(0, 0, w, h, centre_grad)
 
@@ -215,7 +220,7 @@ class ObservatumSplashScreen(QSplashScreen):
         p.setPen(pen)
         p.drawRect(m, m, w - 2 * m, h - 2 * m)
 
-        pen.setColor(QColor(74, 124, 89, 80))
+        pen.setColor(QColor(self.BORDER_INNER))
         pen.setWidthF(0.5)
         p.setPen(pen)
         inner = m + 4

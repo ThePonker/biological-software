@@ -173,7 +173,7 @@ def _stamp(img: QImage, text: str, dpi: int):
     f.setPointSize(28)
     f.setBold(True)
     p.setFont(f)
-    p.setPen(QColor(theme().get('text_primary') or "#1f2937"))
+    p.setPen(QColor(theme().get('text_primary') or "#1f2937"))   # fixed: export colour (R21)
     box = QRectF(img.width() - 12 * mm - 80 * mm, 12 * mm + 22 * mm, 78 * mm, 16 * mm)
     p.drawText(box, int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter), text)
     p.end()

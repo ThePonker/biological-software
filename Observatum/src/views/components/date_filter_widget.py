@@ -138,7 +138,7 @@ class DateFilterWidget(QWidget):
             QPushButton:hover {{
                 background-color: {self._accent_color};
                 border-color: {self._accent_color};
-                color: white;
+                color: {t.get('text_on_accent')};
             }}
         """)
         self.up_btn.clicked.connect(self._increment_day)
@@ -162,7 +162,7 @@ class DateFilterWidget(QWidget):
             QPushButton:hover {{
                 background-color: {self._accent_color};
                 border-color: {self._accent_color};
-                color: white;
+                color: {t.get('text_on_accent')};
             }}
         """)
         self.down_btn.clicked.connect(self._decrement_day)

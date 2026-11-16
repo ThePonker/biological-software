@@ -177,7 +177,7 @@ class ObservationToolbar(QFrame):
                 border: none;
                 border-radius: {t.get('radius_sm')};
                 background-color: {t.get('success')};
-                color: white;
+                color: {t.get('primary_text')};
                 font-size: {t.font_size('sm')};
                 font-weight: bold;
             }}
@@ -217,7 +217,7 @@ class ObservationToolbar(QFrame):
             }}
             QPushButton:hover {{
                 background-color: {t.get('error')};
-                color: white;
+                color: {t.get('on_accent_text')};
             }}
             QPushButton:pressed {{
                 background-color: {t.get('error_text')};
@@ -249,7 +249,7 @@ class ObservationToolbar(QFrame):
                     border: 1px solid {TabColors.OBSERVATION};
                     border-radius: {t.get('radius_sm')};
                     background: {TabColors.OBSERVATION};
-                    color: white;
+                    color: {t.get('on_accent_text')};
                     font-size: {t.font_size('sm')};
                     font-weight: 500;
                 }}

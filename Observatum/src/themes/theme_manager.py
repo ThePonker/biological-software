@@ -46,10 +46,11 @@ class ThemeManager(QObject):
         self._load_theme()
     
     def _load_theme(self) -> None:
-        """Load the Naturalist theme."""
-        from .naturalist import NATURALIST_THEME
-        self._theme: Dict = NATURALIST_THEME
-        self._name: str = 'Naturalist'
+        """Load the theme this program draws in (Naturalist, or 1940s when the program chose
+        it at start-up: shared/theme_choice.py)."""
+        from .active import active_theme_dict, active_theme_name
+        self._theme: Dict = active_theme_dict()
+        self._name: str = active_theme_name()
     
     def get(self, key: str, fallback: str = '#ff00ff') -> str:
         """
@@ -85,17 +86,16 @@ class ThemeManager(QObject):
     @property
     def available_themes(self) -> list:
         """Get list of available theme names."""
-        return ['Naturalist']
+        from shared import theme_choice
+        return list(theme_choice.NAMES)
 
     def set_theme(self, name: str) -> bool:
-        """Switch theme; True only if it changed.
+        """Store the theme choice. There is no live switch: it takes effect when the program
+        is next opened (shared/theme_choice.py), so this always returns False."""
+        from shared import theme_choice
+        theme_choice.save_name(name)
+        return False
 
-        Settings > Appearance called this and it did not exist (review OBS-20: an
-        AttributeError on any change of the combo). One theme exists, so there is
-        nothing to switch to and this returns False.
-        """
-        return False          # single-theme mode: nothing else to load
-    
     # =========================================================================
     # Preset Styles - Common component styles
     # =========================================================================

@@ -36,7 +36,7 @@ class WhoFilterDialog(QDialog):
         parent=None
     ):
         super().__init__(parent)
-        self._accent_color = accent_color or "#5f8575"
+        self._accent_color = accent_color or theme().get('accent_observation')
         self._current = current_values or {}
         
         # The people in this tab's own records, from the wizard (SRCH12; for the
@@ -174,14 +174,14 @@ class WhoFilterDialog(QDialog):
         clear_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: transparent;
-                color: #a63d40;
-                border: 1px solid #a63d40;
+                color: {t.get('danger_text')};
+                border: 1px solid {t.get('danger')};
                 border-radius: 4px;
                 padding: 10px 20px;
                 font-size: {font_css('body')};
             }}
             QPushButton:hover {{
-                background-color: rgba(166, 61, 64, 0.1);
+                background-color: {t.get('danger_hover_overlay')};
             }}
         """)
         button_layout.addWidget(clear_btn)
@@ -216,7 +216,7 @@ class WhoFilterDialog(QDialog):
         apply_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {ButtonColors.PRIMARY};
-                color: white;
+                color: {t.get('button_primary_text')};
                 border: none;
                 border-radius: 4px;
                 padding: 10px 24px;

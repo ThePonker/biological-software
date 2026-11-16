@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Signal, QSettings, Qt
 
 from ...themes import theme
+from shared import theme_choice
 from ...utils.constants import (
     DATE_FORMAT_OPTIONS
 )
@@ -108,19 +109,17 @@ class GeneralSettingsPanel(QScrollArea):
 
         self.theme_combo = QComboBox()
         self.theme_combo.addItems(t.available_themes)
+        self.theme_combo.setCurrentText(theme_choice.load_name())    # the stored choice (R21)
         self.theme_combo.setMinimumHeight(28)
         self.theme_combo.setMinimumWidth(150)
         self.theme_combo.currentTextChanged.connect(self._on_theme_changed)
         theme_layout.addWidget(self.theme_combo)
 
-        theme_note = QLabel("Changes take effect immediately")
+        theme_note = QLabel("Takes effect when Observatum is next opened")
         theme_note.setStyleSheet(f"color: {t.get('text_muted')}; font-size: {t.font_size('sm')};")
         theme_layout.addWidget(theme_note)
 
         theme_layout.addStretch()
-        # Hidden (decision 11, 10 Oct): one theme exists, so the choice saves and
-        # changes nothing. Kept, not deleted, for when a second theme exists.
-        theme_group.setVisible(False)
         self.theme_group = theme_group
         layout.addWidget(theme_group)
 
@@ -128,10 +127,7 @@ class GeneralSettingsPanel(QScrollArea):
         """Handle theme selection change."""
         if self._loading:
             return
-        t = theme()
-        if t.set_theme(theme_name):
-            # Theme changed, emit settings_changed to trigger UI refresh
-            self.settings_changed.emit()
+        theme_choice.save_name(theme_name)      # applied the next time Observatum / Data Entry start
 
 
     def _setup_defaults_section(self, layout):

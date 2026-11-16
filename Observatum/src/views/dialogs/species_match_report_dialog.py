@@ -36,6 +36,19 @@ def original_name(row, name_columns=()) -> str:
     return ''
 
 
+def _type_colours(t) -> dict:
+    """Match type -> the colour its count and table cell are drawn in (one place for both)."""
+    return {
+        "Direct": t.get('success'),
+        "Synonym": t.get('match_synonym'),
+        "Alias": t.get('match_alias'),
+        "cf. resolved": t.get('match_cf_resolved'),
+        "Aggregate": t.get('match_aggregate'),
+        "Manual resolution": t.get('match_manual'),
+        "Unmatched": t.get('error'),
+    }
+
+
 class SpeciesMatchReportDialog(QDialog):
     """Shows species matching results grouped by match type."""
 
@@ -188,15 +201,7 @@ class SpeciesMatchReportDialog(QDialog):
         summary_layout.addStretch()
 
         # Individual type counts
-        type_colours = {
-            "Direct": t.get('success'),
-            "Synonym": "#2196F3",
-            "Alias": "#9C27B0",
-            "cf. resolved": "#FF9800",
-            "Aggregate": "#FF9800",
-            "Manual resolution": "#FF9800",
-            "Unmatched": t.get('error'),
-        }
+        type_colours = _type_colours(t)
 
         for mt in ["Direct", "Synonym", "Alias", "cf. resolved", "Aggregate",
                     "Manual resolution", "Unmatched"]:
@@ -275,7 +280,7 @@ class SpeciesMatchReportDialog(QDialog):
             }}
             QPushButton:hover {{
                 background-color: {ButtonColors.PRIMARY};
-                color: white;
+                color: {t.get('primary_text')};
             }}
         """)
         export_btn.clicked.connect(self._export_csv)
@@ -286,14 +291,14 @@ class SpeciesMatchReportDialog(QDialog):
         close_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {ButtonColors.PRIMARY};
-                color: white;
+                color: {t.get('primary_text')};
                 border: none;
                 border-radius: 4px;
                 padding: 6px 20px;
                 font-size: {font_css('small')};
             }}
             QPushButton:hover {{
-                background-color: #3d6b4a;
+                background-color: {t.get('success_hover')};
             }}
         """)
         close_btn.clicked.connect(self.accept)
@@ -306,15 +311,7 @@ class SpeciesMatchReportDialog(QDialog):
         t = theme()
         self._table.setRowCount(len(self._match_data))
 
-        type_colours = {
-            "Direct": t.get('success'),
-            "Synonym": "#2196F3",
-            "Alias": "#9C27B0",
-            "cf. resolved": "#FF9800",
-            "Aggregate": "#FF9800",
-            "Manual resolution": "#FF9800",
-            "Unmatched": t.get('error'),
-        }
+        type_colours = _type_colours(t)
 
         for row_idx, item in enumerate(self._match_data):
             # CSV Name

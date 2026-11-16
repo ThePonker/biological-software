@@ -127,7 +127,7 @@ class FieldRecordPicker(QDialog):
         self.link_btn = QPushButton("Link to this record")
         self.link_btn.setEnabled(False)
         self.link_btn.setStyleSheet(
-            f"QPushButton {{ background-color: {ButtonColors.PRIMARY}; color: white; border: none;"
+            f"QPushButton {{ background-color: {ButtonColors.PRIMARY}; color: {t.get('primary_text')}; border: none;"
             f" border-radius: {t.get('radius_md')}; padding: 8px 18px; font-weight: bold; }}"
             f"QPushButton:hover {{ background-color: {ButtonColors.PRIMARY_HOVER}; }}"
             f"QPushButton:disabled {{ background-color: {t.get('text_muted')}; }}")

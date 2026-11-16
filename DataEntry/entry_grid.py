@@ -114,8 +114,8 @@ class EntryGridPage(GridExitsMixin, GridLayoutMixin, QWidget):
         self._view.setStyleSheet(
             f"QTableView {{ background: {theme.CARD}; border: 1px solid {theme.LINE};"
             f"  gridline-color: {theme.LINE}; font-size: {font_css('body')};"
-            f"  selection-background-color: rgba(74,124,89,0.30); selection-color: {theme.INK}; }}"
-            f"QTableView::item:selected {{ background: rgba(74,124,89,0.30); color: {theme.INK}; }}"
+            f"  selection-background-color: {theme.SELECTION_BG}; selection-color: {theme.INK}; }}"
+            f"QTableView::item:selected {{ background: {theme.SELECTION_BG}; color: {theme.INK}; }}"
             f"QHeaderView::section {{ background: {theme.PAPER}; padding: 4px; border: none;"
             f"  border-right: 1px solid {theme.LINE}; border-bottom: 1px solid {theme.LINE};"
             f"  font-weight: 600; }}"

@@ -670,7 +670,7 @@ class RecordDetailDialog(QDialog):
         edit_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {ButtonColors.PRIMARY};
-                color: white;
+                color: {t.get('primary_text')};
                 border: none;
                 border-radius: {t.get('radius_md')};
                 padding: 10px 24px;

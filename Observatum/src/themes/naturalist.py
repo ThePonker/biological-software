@@ -269,6 +269,14 @@ NATURALIST_THEME = {
     # Note: Font sizes are integers (points). Use with f"{t.get('font_size_base')}pt"
     # =========================================================================
     'font_family': 'Segoe UI, system-ui, -apple-system, sans-serif',
+    # R21: font_family '' or a name that shared/theme_fonts does not bundle means "leave the
+    # application font as it is"; font_heading '' means the same for card/section titles.
+    'font_heading': '',
+    # R21: the main window's tab bar "header" (1940s only; '' = none, the tab bar draws as before)
+    'header_bg': '',
+    'header_rule': '',
+    'header_text': '',
+    'header_mark': '',
     'font_size_xs': 9,
     'font_size_sm': 10,
     'font_size_base': 11,
@@ -299,6 +307,78 @@ NATURALIST_THEME = {
     'shadow_md': '0 4px 6px rgba(0, 0, 0, 0.07)',
     'shadow_lg': '0 10px 15px rgba(0, 0, 0, 0.1)',
     'shadow_xl': '0 20px 25px rgba(0, 0, 0, 0.15)',
+    
+    # --- R21 A: tokens for colours that were written into views ---
+    # Text on a filled accent / secondary-coloured button or header (not a primary button)
+    'on_accent_text': '#ffffff',
+    'on_accent_text_soft': 'rgba(255, 255, 255, 0.8)',
+    # Detail-dialog accents of the Stats dashboards (Personal / All / Commercial)
+    'stats_personal_accent': '#7a9e7e',
+    'stats_personal_accent_light': '#e8f0ea',
+    'stats_personal_accent_dark': '#3d5e44',
+    'stats_all_accent': '#6e8898',
+    'stats_all_accent_light': '#e8eef2',
+    'stats_all_accent_dark': '#4a6070',
+    'stats_commercial_accent': '#b8860b',
+    'stats_commercial_accent_light': '#fdf5e6',
+    'stats_commercial_accent_dark': '#8b6914',
+    # Commercial Reports: embargo alert banner and status colours
+    'embargo_alert_bg': '#fff3e0',
+    'embargo_alert_border': '#ffb74d',
+    'embargo_expired': '#e65100',
+    'embargo_released': '#2e7d32',
+    # Recording Scheme dashboard / toolbar
+    'scheme_selection_bg': '#e8e0f0',
+    'scheme_toolbar_hover': '#5a7888',
+    # Stats tables
+    'new_species_text': '#008000',
+    # Buttons, hovers and disabled states written into dialogs and toolbars
+    'primary_hover_deep': '#3d6348',
+    'danger_hover_bg': '#fdf0f0',
+    'btn_disabled_bg': '#ccc',
+    'btn_disabled_text': '#888',
+    'btn_outline_disabled_text': '#aaa',
+    'btn_outline_disabled_border': '#ccc',
+    'collection_toolbar_hover': '#7a7168',
+    'collection_profile_btn_hover': '#7a7068',
+    # Dialogs: calendar popup, drawer bar, checked rows, species match types
+    'calendar_nav_text': '#4a4a4a',
+    'calendar_nav_bg': '#f5f0eb',
+    'collection_bar_border': '#e8dcc0',
+    'radio_checked_bg': '#e8f0ea',
+    'checked_row_bg': '#e8f0ea',
+    'match_synonym': '#2196F3',
+    'match_alias': '#9C27B0',
+    'match_cf_resolved': '#FF9800',
+    'match_aggregate': '#FF9800',
+    'match_manual': '#FF9800',
+
+    # --- R21 B: tokens for colours that were written into views ---
+    # Text on a coloured fill (a second theme may colour each differently)
+    'text_on_accent': '#ffffff',       # text on a tab-accent fill (hover, selected row, accent button)
+    'text_on_success': '#ffffff',      # text on a success (green) button
+    'text_on_error': '#ffffff',        # text on an error (red) button or pressed state
+    # Buttons and overlays
+    'button_primary_hover_dark': '#3d6b4a',      # hover of the primary button in the column dialog
+    'danger_hover_overlay': 'rgba(166, 61, 64, 0.1)',    # hover wash of an outlined danger button
+    'table_selection_overlay': 'rgba(74,124,89,0.30)',   # selected row of the Data Entry grid and jobs list
+    'staging_unmatched_species_bg': '#faded6',   # Data Entry: a species with no TVK
+    'calendar_nav_hover': 'rgba(255, 255, 255, 0.18)',   # hover on the calendar's month/year buttons
+    # Splash screen (dark, drawn with QPainter)
+    'splash_bg': '#1c1c1e',
+    'splash_bg_mid': '#252527',
+    'splash_gradient_top': '#2a2a2c',
+    'splash_gradient_mid': '#222224',
+    'splash_moss': '#4a7c59',
+    'splash_moss_light': '#5a9a6e',
+    'splash_moss_dim': '#3a6248',
+    'splash_text_warm': '#8b8178',
+    'splash_cream': '#d4cdc4',
+    'splash_gold_dim': '#8a7a5a',
+    'splash_text_dim': '#5a5650',
+    'splash_heather': '#8e6cb8',
+    'splash_glow': '#0c4a7c59',          # centre glow, alpha 12 of Moss Green
+    'splash_border_inner': '#504a7c59',  # inner frame line, alpha 80 of Moss Green
 }
 
 # R18: pixel text sizes by name (font_px_caption .. font_px_display_64). Apps read them through

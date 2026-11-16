@@ -262,7 +262,7 @@ class MapSelectionBox(QWidget):
         if not (0 <= index < len(self._chips)):
             return
         c = self._chips[index]
-        col = QColorDialog.getColor(QColor(c.get("colour") or "#0072B2"), self,
+        col = QColorDialog.getColor(QColor(c.get("colour") or "#0072B2"), self,   # fixed: map colour (R21)
                                     f"Colour for {c.get('scientific_name', '')}")
         if col.isValid():
             self.set_chip_colour(index, col.name())

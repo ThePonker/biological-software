@@ -57,7 +57,7 @@ class SpeciesAccountsPanel(QFrame):
         self._btn = QPushButton("Edit my account")
         self._btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._btn.setStyleSheet(f"""
-            QPushButton {{ background-color: {accent}; color: white; border: none;
+            QPushButton {{ background-color: {accent}; color: {t.get('text_on_accent')}; border: none;
                           border-radius: {t.get('radius_sm')}; padding: 4px 12px;
                           font-size: {font_css('caption')}; font-weight: 600; }}
             QPushButton:hover {{ background-color: {accent_dark}; }}

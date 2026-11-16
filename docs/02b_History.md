@@ -5,6 +5,25 @@
 
 ---
 
+### Session 53 — 11–16 November 2026
+
+**Rounds 18–20, the 1940s theme chosen.** **Round 18**: named text sizes (12 px minimum), map zoom to
+~1 km, specimen import guard, scheme cf./agg. errors and the "cannot be removed" sentence, one-step
+`ObservationModel.create`, one grid-reference converter (golden corpus; float tolerance and a geopandas
+stub needed on Windows), Data Entry's extra Unfold button removed, emptying a grid ref clears lat/long.
+**Round 19**: Home redesigned from mock-ups (Quick Entry removed and archived; map card, species card,
+last 10 new species, notable records), table text 13 px, grid-square overlay on maps and the export's
+Grid tick, Recording Scheme tetrad letters on the standard DINTY lettering (counts unchanged). Committed
+`d27c392`. Wil's list of 11 Nov (14 items, answers in project note 61). **Round 20**: text one step
+bigger with saved column widths scaled once; Home species card fixed height, map card recorded-or-not
+with a year list, Year list chart (Personal; final point equals This Year Species) in place of Notable
+records; Contributed as a window from Observation Data; years from the calendar; Esc ends Identify.
+Wil's tests passed; full suite 2,340 passed; reference ALL MATCH; committed and pushed `a5d22fe`.
+Four 1940s Home mock-ups; Wil chose the post-war nature book with the museum cabinet's type (Cormorant
+SC, EB Garamond). **Round 21** agreed 19:17: colours onto the theme, theme switching, the 1940s theme.
+
+---
+
 ### Session 52 — 25 October – 10 November 2026
 
 **Coedely Park, Rounds 15–17, Round 18 started.** RWE Wales Coedely job (Data Entry job 11) finished

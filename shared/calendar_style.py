@@ -27,6 +27,7 @@ from PySide6.QtGui import QBrush, QColor, QFont, QImage, QPainter, QPen, QTextCh
 from PySide6.QtWidgets import QApplication, QCalendarWidget
 
 from shared import app_filter
+from shared.theme_lookup import value as _theme_value
 from shared.tick_mark import CACHE
 from shared.text_sizes import font_css
 
@@ -66,7 +67,7 @@ def calendar_qss(c: Dict[str, str]) -> str:
         QCalendarWidget QToolButton {{
             color: {c['accent_text']}; background-color: transparent; border: none;
             border-radius: 3px; padding: 4px 8px; font-weight: 600; font-size: {font_css('body')}; }}
-        QCalendarWidget QToolButton:hover {{ background-color: rgba(255, 255, 255, 0.18); }}
+        QCalendarWidget QToolButton:hover {{ background-color: {_theme_value('calendar_nav_hover', 'rgba(255, 255, 255, 0.18)')}; }}
         QCalendarWidget QToolButton::menu-indicator {{ image: none; }}
         QCalendarWidget QToolButton#qt_calendar_prevmonth {{
             qproperty-icon: url("{_chevron_image(c['accent_text'], True)}"); }}

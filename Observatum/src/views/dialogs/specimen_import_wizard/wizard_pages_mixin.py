@@ -175,7 +175,7 @@ class WizardPagesMixin:
             }}
             QPushButton:hover {{
                 background-color: {ButtonColors.PRIMARY};
-                color: white;
+                color: {t.get('primary_text')};
             }}
         """)
         self.match_report_btn.clicked.connect(self._show_match_report)
@@ -269,7 +269,7 @@ class WizardPagesMixin:
         self.revalidate_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {self._accent};
-                color: white;
+                color: {t.get('on_accent_text')};
                 border: none;
                 padding: 6px 14px;
                 border-radius: {t.get('radius_sm')};

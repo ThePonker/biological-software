@@ -257,7 +257,7 @@ class WizardPagesMixin(ImportProgressPagesMixin):
         self.browse_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {self._accent};
-                color: white;
+                color: {t.get('on_accent_text')};
                 border: none;
                 padding: 10px 16px;
                 border-radius: {t.get('radius_md')};
@@ -419,19 +419,19 @@ class WizardPagesMixin(ImportProgressPagesMixin):
         self.match_report_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: transparent;
-                color: #4a7c59;
-                border: 1px solid #4a7c59;
+                color: {t.get('primary')};
+                border: 1px solid {t.get('primary')};
                 border-radius: 4px;
                 padding: 4px 12px;
                 font-size: {font_css('caption')};
             }}
             QPushButton:hover {{
-                background-color: #4a7c59;
-                color: white;
+                background-color: {t.get('primary')};
+                color: {t.get('primary_text')};
             }}
             QPushButton:disabled {{
-                color: #aaa;
-                border-color: #ccc;
+                color: {t.get('btn_outline_disabled_text')};
+                border-color: {t.get('btn_outline_disabled_border')};
             }}
         """)
         self.match_report_btn.setEnabled(False)
@@ -536,7 +536,7 @@ class WizardPagesMixin(ImportProgressPagesMixin):
         self.revalidate_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {self._accent};
-                color: white;
+                color: {t.get('on_accent_text')};
                 border: none;
                 padding: 8px 16px;
                 border-radius: {t.get('radius_md')};

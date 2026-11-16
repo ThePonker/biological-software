@@ -277,9 +277,9 @@ class PersonalStatsDashboard(SpeciesListsMixin, QScrollArea):
                     species_count=species_count,
                     record_type='observation',
                     parent=self,
-                    accent_color='#7a9e7e',
-                    accent_light='#e8f0ea',
-                    accent_dark='#3d5e44'
+                    accent_color=theme().get('stats_personal_accent'),
+                    accent_light=theme().get('stats_personal_accent_light'),
+                    accent_dark=theme().get('stats_personal_accent_dark')
                 )
                 dlg.navigate_to_observations.connect(self.navigate_to_species.emit)
                 dlg.profile_requested.connect(self._on_profile_requested)

@@ -92,11 +92,11 @@ class ComboFilterWidget(QWidget):
             QPushButton:hover {{
                 background-color: {self._accent_color};
                 border-color: {self._accent_color};
-                color: white;
+                color: {t.get('text_on_accent')};
             }}
             QPushButton:pressed {{
                 background-color: {self._accent_color};
-                color: white;
+                color: {t.get('text_on_accent')};
             }}
             QPushButton:disabled {{
                 background-color: {t.get('surface_alt')};
@@ -120,7 +120,7 @@ class ComboFilterWidget(QWidget):
             }}
             QMenu::item:selected {{
                 background-color: {self._accent_color};
-                color: white;
+                color: {t.get('text_on_accent')};
             }}
         """)
     

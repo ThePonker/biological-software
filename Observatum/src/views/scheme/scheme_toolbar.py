@@ -126,11 +126,11 @@ class SchemeToolbar(QFrame):
                     border: 1px solid {color};
                     border-radius: {t.get('radius_sm')};
                     background: {color};
-                    color: white;
+                    color: {t.get('on_accent_text')};
                     font-size: {t.font_size('sm')};
                     font-weight: 500;
                 }}
-                QPushButton:hover {{ background-color: #5a7888; }}
+                QPushButton:hover {{ background-color: {t.get('scheme_toolbar_hover')}; }}
             """
         return f"""
             QPushButton {{
@@ -202,7 +202,7 @@ class SchemeToolbar(QFrame):
                 border: none;
                 border-radius: {t.get('radius_sm')};
                 background-color: {t.get('success')};
-                color: white;
+                color: {t.get('primary_text')};
                 font-size: {t.font_size('sm')};
                 font-weight: bold;
             }}

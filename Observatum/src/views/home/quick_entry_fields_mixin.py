@@ -213,7 +213,7 @@ class QuickEntryFieldsMixin:
         self.save_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {t.get('success')};
-                color: white;
+                color: {t.get('text_on_success')};
                 padding: 6px 20px;
                 border: none;
                 border-radius: {t.get('radius_md')};

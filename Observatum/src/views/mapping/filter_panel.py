@@ -311,7 +311,7 @@ class MapFilterPanel(QFrame):
         self.generate_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {self._accent};
-                color: white;
+                color: {t.get('text_on_accent')};
                 border: none;
                 border-radius: {t.get('radius_md')};
                 font-weight: 600;

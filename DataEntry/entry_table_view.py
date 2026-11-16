@@ -423,6 +423,7 @@ class EntryTableView(QTableView):
         if not self._clip_marker:
             return
         from PySide6.QtGui import QPainter, QPen, QColor
+        from DataEntry import theme as de_theme
         r0, r1, c0, c1 = self._clip_marker
         m = self.model()
         if m is None or r1 >= m.rowCount() or c1 >= m.columnCount():
@@ -431,7 +432,7 @@ class EntryTableView(QTableView):
         br = self.visualRect(m.index(r1, c1))
         rect = tl.united(br).adjusted(0, 0, -1, -1)
         p = QPainter(self.viewport())
-        pen = QPen(QColor(74, 124, 89), 2, Qt.PenStyle.DashLine)
+        pen = QPen(QColor(de_theme.MOSS), 2, Qt.PenStyle.DashLine)
         p.setPen(pen)
         p.drawRect(rect)
         p.end()

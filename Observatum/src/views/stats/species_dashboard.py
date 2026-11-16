@@ -673,7 +673,7 @@ class SpeciesDashboard(QScrollArea):
             }}
             QPushButton:hover {{
                 background-color: {border};
-                color: white;
+                color: {t.get('on_accent_text')};
             }}
         """)
         btn.clicked.connect(on_click)

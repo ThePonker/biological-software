@@ -374,7 +374,7 @@ class ColumnSelectorDialog(QDialog):
             }}
             QListWidget::item:selected {{
                 background-color: {self._tab_color};
-                color: white;
+                color: {t.get('text_on_accent')};
             }}
             QListWidget::item:hover:!selected {{
                 background-color: {t.get('hover')};
@@ -386,15 +386,15 @@ class ColumnSelectorDialog(QDialog):
         t = theme()
         return f"""
             QPushButton {{
-                background-color: #4a7c59;
-                color: white;
+                background-color: {t.get('button_primary')};
+                color: {t.get('button_primary_text')};
                 border: none;
                 padding: 8px 16px;
                 border-radius: {t.get('radius_sm')};
                 font-weight: 600;
             }}
             QPushButton:hover {{
-                background-color: #3d6b4a;
+                background-color: {t.get('button_primary_hover_dark')};
             }}
         """
     
@@ -428,7 +428,7 @@ class ColumnSelectorDialog(QDialog):
             }}
             QPushButton:hover {{
                 background-color: {self._tab_color};
-                color: white;
+                color: {t.get('text_on_accent')};
                 border-color: {self._tab_color};
             }}
         """
