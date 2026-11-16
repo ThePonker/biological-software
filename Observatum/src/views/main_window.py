@@ -17,7 +17,6 @@ from PySide6.QtWidgets import (
 # Import from refactored packages
 from .home import HomeTab
 from .observations import ObservationTab
-from .contributed import ContributedTab
 from .scheme import RecordingSchemeTab
 from .collection import InsectCollectionTab
 # Stats/Reports, Mapping and Settings are imported when built: under the splash screen
@@ -44,8 +43,8 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
 
     Tabs:
     - Home: Quick entry form and recent activity
-    - Observation Data: Personal and commercial records
-    - Contributed: Records other people sent (read-only)
+    - Observation Data: Personal and commercial records (its "Contributed records…" button
+      opens the contributed records in their own window: open_contributed_records)
     - Recording Scheme: Cerambycidae recording scheme data
     - Insect Collection: Specimen database
     - Stats/Reports: Statistics and report generation
@@ -188,13 +187,13 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
         self.tabs.addTab(self.observation_tab, "Observation Data")
         self._pump_splash("window: Observation Data tab")
 
-        # Contributed records (other people's) -- read-only browse, backlog K1
-        self.contributed_tab = ContributedTab()
-        self.tabs.addTab(self.contributed_tab, "Contributed")
+        # Contributed records (other people's) are not a tab since Round 20: a window opened
+        # from Observation Data (open_contributed_records), built on first use
+        self._contributed_dialog = None
 
         self.recording_scheme_tab = RecordingSchemeTab()
         self.tabs.addTab(self.recording_scheme_tab, "Recording Scheme")
-        self._pump_splash("window: Contributed and Recording Scheme tabs")
+        self._pump_splash("window: Recording Scheme tab")
 
         self.insect_collection_tab = InsectCollectionTab()
         self.tabs.addTab(self.insect_collection_tab, "Insect Collection")
@@ -277,13 +276,14 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
         self.recording_scheme_tab.navigate_to_observations.connect(self._navigate_to_observation_tab)
         self.recording_scheme_tab.navigate_to_collection.connect(self._navigate_to_collection_tab)
 
+        self._connect_contributed_button()
+
         # When "View specimens" is clicked on Home tab, navigate to Insect Collection
         try:
             self.home_tab.navigate_to_collection.connect(self._navigate_to_collection_tab)
             self.home_tab.navigate_to_observations.connect(self._navigate_to_observation_tab)
             self.home_tab.navigate_to_species_lookup.connect(self._navigate_to_species_lookup)
             self.home_tab.navigate_to_mapping.connect(self._navigate_to_mapping_tab)
-            self.home_tab.navigate_to_notable.connect(self._navigate_to_observation_tab_by_ids)
         except AttributeError:
             pass  # Signal not available yet
 
@@ -317,6 +317,14 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
         # Settings > Species counting / the Scheme dashboard chips (backlog A)
         from shared.species_counting import notifier as _counting
         _counting().changed.connect(self._on_counting_changed)
+
+    def _connect_contributed_button(self):
+        """Observation Data's "Contributed records…" button opens the window (R20)."""
+        try:
+            self.observation_tab.toolbar.contributed_requested.connect(
+                lambda: self.open_contributed_records())
+        except AttributeError:
+            pass        # a stand-in tab without the toolbar
 
     def _get_stats_data_type(self) -> str:
         """Get data type filter based on active stats sub-tab."""
@@ -374,28 +382,24 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
         else:
             self.observation_tab.show_new_species_list()
 
+    def open_contributed_records(self, text: str = ""):
+        """Open the Contributed records window (one only: asking again raises it); `text`
+        is put in its filter box. This is where the Contributed tab used to be opened."""
+        from .contributed import ContributedDialog
+        dlg = self._contributed_dialog
+        if dlg is not None:
+            from shiboken6 import isValid
+            if not isValid(dlg):
+                dlg = None
+        if dlg is None:
+            dlg = ContributedDialog(self)
+            self._contributed_dialog = dlg
+        dlg.show_records(text)
+        return dlg
+
     def _navigate_to_mapping_tab(self):
         """Home's "Open in Mapping": the Mapping tab (built on first opening)."""
         self.tabs.setCurrentWidget(self._mapping_page)
-
-    def _navigate_to_observation_tab_by_ids(self, ids):
-        """Observation Data showing only these records (Home's "All N this year" notable
-        records): the tab's own list, filtered by id like the by-month / by-year views."""
-        self.tabs.setCurrentWidget(self.observation_tab)
-        tab = self.observation_tab
-        if hasattr(tab, 'filter_bar'):
-            tab.filter_bar.clear_filters()
-        if hasattr(tab, 'clear_wizard_filters'):
-            tab.clear_wizard_filters()
-        self._set_data_type_visual()
-        if not getattr(tab, '_all_observations', None) and hasattr(tab, '_load_data'):
-            tab._load_data()
-        wanted = set(ids or ())
-        records = [o for o in (getattr(tab, '_all_observations', None) or [])
-                   if getattr(o, 'id', None) in wanted]
-        tab._show_list(records)
-        self.statusBar().showMessage(
-            f"Showing {len(records):,} notable record{'' if len(records) == 1 else 's'} from this year", 8000)
 
     def _navigate_to_observation_tab_by_month(self, month: int):
         """Navigate to Observation Data tab filtered by a specific month (all years)."""
@@ -850,7 +854,6 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
         tabs_with_theme = [
             self.home_tab,
             self.observation_tab,
-            self.contributed_tab,
             self.recording_scheme_tab,
             self.insect_collection_tab,
             self.stats_reports_tab,
@@ -911,7 +914,7 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
         self._pump_splash()
 
     def preload(self, timing=None):
-        """Load Home, Observation Data, Contributed and Insect Collection before the window
+        """Load Home, Observation Data and Insect Collection before the window
         is shown (startup_preload; the rest: start_background); the result says whether the
         splash was closed (cancelled) and what could not be loaded."""
         from .startup_preload import StartupPreloader
@@ -992,8 +995,6 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
                 self.observation_tab.initialize()
                 if hasattr(self.observation_tab, '_enable_sorting_on_first_view'):
                     self.observation_tab._enable_sorting_on_first_view()
-            elif w is self.contributed_tab:
-                self.contributed_tab.initialize()
             elif w is self.recording_scheme_tab:
                 self.recording_scheme_tab.initialize(self._main_db_path, self._uksi_db_path)
                 # Sorting enabled after async data load completes (in _on_data_loaded)

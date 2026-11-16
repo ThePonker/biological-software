@@ -26,6 +26,7 @@ class ObservationToolbar(QFrame):
     columns_requested = Signal()
     mark_commercial_requested = Signal()
     select_all_requested = Signal(bool)  # True=select, False=deselect
+    contributed_requested = Signal()     # "Contributed records…" (R20): the main window opens it
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -56,6 +57,14 @@ class ObservationToolbar(QFrame):
         self.wizard_btn.setChecked(False)
         self.wizard_btn.clicked.connect(self._on_wizard_toggled)
         layout.addWidget(self.wizard_btn)
+
+        # Contributed records (other people's, read-only) open in their own window (R20; the
+        # Contributed tab is gone). On this always-visible row, not inside the folded filters.
+        self.contributed_btn = QPushButton("Contributed records…")
+        self.contributed_btn.setToolTip("Records other people sent (read-only browse)")
+        self.contributed_btn.setStyleSheet(self._get_secondary_button_style())
+        self.contributed_btn.clicked.connect(self.contributed_requested.emit)
+        layout.addWidget(self.contributed_btn)
 
         
         # Clear Filters button (red hover effect)

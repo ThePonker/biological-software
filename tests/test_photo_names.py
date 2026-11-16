@@ -75,8 +75,11 @@ def test_folder_disagrees():
 def test_date_warnings():
     assert p("Pterostichus niger 1.iiii.21.jpg").date is None
     assert any("bad month" in w for w in p("Pterostichus niger 1.iiii.21.jpg").warnings)
-    fut = p("Pterostichus niger 1.vi.29.jpg")
+    fut = p("Pterostichus niger 1.vi.2029.jpg")
     assert fut.date == "2029-06-01" and any("future" in w for w in fut.warnings)
+    # R20: a two-digit year is never one still to come, the imports' rule ('98' -> 1998)
+    assert p("Pterostichus niger 1.vi.98.jpg").date == "1998-06-01"
+    assert p("Pterostichus niger 1.vi.21.jpg").date == "2021-06-01"
     assert p("Pterostichus niger 31.ii.21.jpg").date is None
     digits = p("Pterostichus niger 3.6.21.jpg")
     assert digits.date == "2021-06-03" and any("digits" in w for w in digits.warnings)

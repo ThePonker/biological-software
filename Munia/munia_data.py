@@ -1,5 +1,6 @@
 """Munia data layer — capacity planning with April-March business year."""
 
+import datetime
 import sqlite3
 from pathlib import Path
 
@@ -10,6 +11,15 @@ BIZ_LABELS = ["Apr", "May", "Jun", "Jul", "Aug", "Sep",
 FIELD_MONTHS = {4, 5, 6, 7}
 MICRO_MONTHS = {8, 9, 10}
 REPORT_MONTHS = {11, 12}
+
+
+def year_range():
+    """(first, last) season year the year boxes offer: from 2020 (or ten years back, if
+    earlier) to ten years ahead of this year. It used to stop at 2040 (R20, 11 Nov 2026)."""
+    y = datetime.date.today().year
+    return min(2020, y - 10), y + 10
+
+
 SEASON_DAYS = 15
 
 # Work that is won: accepted, and accepted work that has since been done. Revenue

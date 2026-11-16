@@ -1,6 +1,9 @@
 """
 Species card for Home (Round 19 layout; the old Species Info panel, re-laid out).
 
+The card never changes height (Round 20): the area under the search box is as tall as the filled
+state, and shows the hint when no species is chosen, so nothing below it moves.
+
 A search box (the suite's SpeciesSearch, as Quick Entry used) and, for the chosen species: name,
 family, status and SQS (Codex, via species_status), your records with a "view" link, first / last
 record, in the collection or not, "Species profile" and "Open in Species lookup".
@@ -9,7 +12,8 @@ record, in the collection or not, "Species profile" and "Open in Species lookup"
 from typing import Dict, Optional
 
 from PySide6.QtCore import QSettings, Qt, Signal
-from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (QGridLayout, QHBoxLayout, QLabel, QStackedLayout, QVBoxLayout,
+                               QWidget)
 
 from shared.text_sizes import font_css
 from .card import Card
@@ -54,6 +58,9 @@ class SpeciesInfoPanel(Card):
         self.clear_btn = link_button("Clear", theme().get('text_secondary'))
         self.clear_btn.clicked.connect(self.clear)
         self.clear_btn.setVisible(False)
+        sp = self.clear_btn.sizePolicy()                # its space is kept while hidden, so the
+        sp.setRetainSizeWhenHidden(True)                # header (and the card) keeps one height
+        self.clear_btn.setSizePolicy(sp)
         self.add_header_widget(self.clear_btn)
 
         self.search = SpeciesSearch()
@@ -104,14 +111,36 @@ class SpeciesInfoPanel(Card):
         self.lookup_btn.setToolTip("Every count for this species: records, scheme, specimens, phenology")
         self.lookup_btn.clicked.connect(self._on_lookup)
         lay.addWidget(self.lookup_btn, 0, Qt.AlignmentFlag.AlignLeft)
-        self.content.setVisible(False)
-        self.add_widget(self.content)
+        lay.addStretch()
 
+        # One fixed-height area: the details, or the hint centred in the same space
+        self.body = QWidget()
+        self.body.setStyleSheet("background: transparent;")
+        self._stack = QStackedLayout(self.body)
+        self._stack.setContentsMargins(0, 0, 0, 0)
         self.placeholder = QLabel("Search for a species to see its details")
         self.placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.placeholder.setWordWrap(True)
-        self.add_widget(self.placeholder)
+        self._stack.addWidget(self.content)
+        self._stack.addWidget(self.placeholder)
+        self._stack.setCurrentWidget(self.placeholder)
+        self.add_widget(self.body)
         self._style()
+        self._fix_height()
+
+    def _fix_height(self):
+        """Fix the body's height to the filled state: name, common name, the two rows of figures
+        and the lookup link, plus one more name line (a long name may wrap)."""
+        shown = (self.common_name_label, self.view_records_btn, self.view_specimens_btn)
+        was = [not w.isHidden() for w in shown]
+        for w in shown:
+            w.setVisible(True)
+        for w in (self.content, *self.content.findChildren(QWidget)):
+            w.ensurePolished()
+        spare = self.name_label.fontMetrics().lineSpacing()
+        self.body.setFixedHeight(self.content.layout().sizeHint().height() + spare)
+        for w, v in zip(shown, was):
+            w.setVisible(v)
 
     def _cell(self, grid, row, col, caption) -> QLabel:
         """A caption over a value (a row for the value, so a link can sit beside it)."""
@@ -143,7 +172,7 @@ class SpeciesInfoPanel(Card):
         for val in (self.family_value, self.status_value, self.sqs_value, self.records_value,
                     self.first_last_value, self.collection_status):
             val.setStyleSheet(f"color: {t.get('text_primary')}; font-size: {font_css('body')}; {base}")
-        self.placeholder.setStyleSheet(f"color: {t.get('text_muted')}; font-style: italic; padding: 24px; {base}")
+        self.placeholder.setStyleSheet(f"color: {t.get('text_muted')}; font-style: italic; {base}")
 
     # ------------------------------------------------------------------ content
     def clear(self):
@@ -160,12 +189,10 @@ class SpeciesInfoPanel(Card):
         """Update the displayed species (None: empty card)."""
         self._current_species = species_data
         if not species_data:
-            self.content.setVisible(False)
-            self.placeholder.setVisible(True)
+            self._stack.setCurrentWidget(self.placeholder)
             self.clear_btn.setVisible(False)
             return
-        self.content.setVisible(True)
-        self.placeholder.setVisible(False)
+        self._stack.setCurrentWidget(self.content)
         self.clear_btn.setVisible(True)
 
         self.name_label.setText(species_data.get('scientific_name', 'Unknown'))
@@ -236,6 +263,7 @@ class SpeciesInfoPanel(Card):
     def apply_theme(self):
         super().apply_theme()
         self._style()
+        self._fix_height()
         if self._current_species:
             self.set_species(self._current_species)
 

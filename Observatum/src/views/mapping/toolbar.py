@@ -103,7 +103,7 @@ class MapToolbar(QFrame):
         self.identify_btn.setCheckable(True)
         self.identify_btn.setToolTip(
             "On: click the map to see the grid references, vice county, records and layers at "
-            "that point (Esc closes the panel). Off: a click selects a square.")
+            "that point. Esc or a second click switches it off. Off: a click selects a square.")
         self.identify_btn.toggled.connect(self._on_identify_toggled)
         self._style_identify_button()
         layout.addWidget(self.identify_btn)

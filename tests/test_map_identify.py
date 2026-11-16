@@ -216,3 +216,27 @@ def test_nearest_place_follows_the_classes_drawn(qapp, tmp_path):
     assert m.identify_at(50000, 50000) == []
     m.set_extent((47000, 47000, 53000, 53000))      # about 7.5 km: drawn
     assert m.identify_at(50000, 50000) == [("Place", "Tiny, 0.3 km E")]
+
+
+def test_escape_switches_identify_off(qapp, tmp_path):
+    """R20 (Wil, 11 Nov): Esc on the map, or in the pop-up, closes it AND switches Identify off;
+    the button un-highlights. With no pop-up open, Esc still switches Identify off."""
+    from src.views.mapping.identify_popup import IdentifyController
+    from src.views.mapping.toolbar import MapToolbar
+    m = _map_with_square(tmp_path)
+    tb = MapToolbar()
+    ctl = IdentifyController(m, tb, lambda: m._squares, vc_service=_VC())
+    tb.identify_btn.click()
+    ctl.identify(455500, 255500, QPoint(100, 100))
+    ctl._map_esc.activated.emit()
+    assert ctl.popup() is None and not tb.identify_btn.isChecked() and not m.identify_mode()
+    # no pop-up: Esc on the map still turns it off
+    tb.identify_btn.click()
+    assert m.identify_mode()
+    ctl._map_esc.activated.emit()
+    assert not tb.identify_btn.isChecked() and not m.identify_mode()
+    # Esc inside the pop-up
+    tb.identify_btn.click()
+    ctl.identify(455500, 255500, QPoint(100, 100))
+    ctl.popup()._on_esc()
+    assert ctl.popup() is None and not tb.identify_btn.isChecked() and not m.identify_mode()

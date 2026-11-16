@@ -4,7 +4,7 @@ The Identify button (toolbar.py) puts GridMap in Identify mode; a click then com
 identify_requested(e, n, global_pos). build_info() gathers what is at the point (grid references,
 vice county, the records of the square, and what the ticked layers hold: GridMap.identify_at) and
 IdentifyPopup shows it in a small frameless panel at the click. It closes on Esc, on its close button (top right), when Identify is
-turned off, and a new click moves it. Colours and sizes come from theme(). Display only.
+turned off, and a new click moves it. Esc also switches Identify off (R20, 11 Nov 2026). Colours and sizes come from theme(). Display only.
 """
 from __future__ import annotations
 
@@ -65,6 +65,7 @@ class IdentifyPopup(QFrame):
     """A small frameless panel showing an IdentifyInfo. Esc closes it."""
 
     open_records = Signal(str)          # the square's label ("Open records")
+    escaped = Signal()                  # Esc pressed in the pop-up (R20: Identify goes off too)
 
     def __init__(self, info: IdentifyInfo, parent=None):
         super().__init__(parent, Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint)
@@ -148,7 +149,7 @@ class IdentifyPopup(QFrame):
                 self._add_layer_label(lay, f"{label}: {name}" if name else label)
         self._esc = QShortcut(QKeySequence(Qt.Key.Key_Escape), self)
         self._esc.setContext(Qt.ShortcutContext.WindowShortcut)
-        self._esc.activated.connect(self.close)
+        self._esc.activated.connect(self._on_esc)
 
     def _add_layer_label(self, lay, text: str):
         lab = QLabel(text)
@@ -188,9 +189,13 @@ class IdentifyPopup(QFrame):
         """Copy the 100 m grid reference to the clipboard."""
         QGuiApplication.clipboard().setText(self.info.refs[-1][1])
 
+    def _on_esc(self):
+        self.close()
+        self.escaped.emit()
+
     def keyPressEvent(self, ev):
         if ev.key() == Qt.Key.Key_Escape:
-            self.close()
+            self._on_esc()
         else:
             super().keyPressEvent(ev)
 
@@ -219,13 +224,15 @@ class IdentifyController(QObject):
                  parent=None, vc_service=None):
         super().__init__(parent)
         self._map, self._squares, self._vc = map_widget, squares, vc_service
+        self._toolbar = toolbar
         self._popup: Optional[IdentifyPopup] = None
         toolbar.identify_toggled.connect(self.set_active)
         map_widget.identify_requested.connect(self.identify)
-        # Esc closes the pop-up from the map too (after a click the map, not the pop-up, has focus)
+        # Esc on the map (after a click the map, not the pop-up, has focus) or in the pop-up
+        # closes the pop-up and switches Identify off, as clicking the button does (R20, Wil)
         self._map_esc = QShortcut(QKeySequence(Qt.Key.Key_Escape), map_widget)
         self._map_esc.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
-        self._map_esc.activated.connect(self.close_popup)
+        self._map_esc.activated.connect(self.escape)
 
     def popup(self) -> Optional[IdentifyPopup]:
         return self._popup if self._popup is not None and self._popup.isVisible() else None
@@ -234,6 +241,13 @@ class IdentifyController(QObject):
         self._map.set_identify_mode(on)
         if not on:
             self.close_popup()
+
+    def escape(self):
+        """Esc: close the pop-up and switch Identify off (the button un-highlights with it)."""
+        self.close_popup()
+        btn = getattr(self._toolbar, "identify_btn", None)
+        if btn is not None and btn.isChecked():
+            btn.setChecked(False)           # toggled -> identify_toggled -> set_active(False)
 
     def close_popup(self):
         if self._popup is not None:
@@ -256,6 +270,7 @@ class IdentifyController(QObject):
         info = build_info(self._map, e, n, self._squares(), self._vc_service())
         self._popup = IdentifyPopup(info, self._map.window())
         self._popup.open_records.connect(self._open_records)
+        self._popup.escaped.connect(self.escape)
         self._popup.show_at(global_pos)
 
     def _open_records(self, label: str):

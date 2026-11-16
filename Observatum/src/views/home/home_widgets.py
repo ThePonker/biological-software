@@ -1,4 +1,4 @@
-"""Small shared pieces of the redesigned Home cards (Round 19): links, toggles, headings."""
+"""Small shared pieces of the redesigned Home cards (Round 19): links, notes."""
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel, QPushButton
 
@@ -16,21 +16,6 @@ def link_button(text: str, color: str = "") -> QPushButton:
         f"QPushButton {{ color: {color or t.get('success_text')}; font-size: {font_css('small')};"
         " padding: 0; border: none; background: transparent; text-align: right; }"
         "QPushButton:hover { text-decoration: underline; }")
-    return b
-
-
-def pill_button(text: str) -> QPushButton:
-    """A small checkable pill (Newest / Highest status / Personal only)."""
-    t = theme()
-    b = QPushButton(text)
-    b.setCheckable(True)
-    b.setCursor(Qt.CursorShape.PointingHandCursor)
-    b.setStyleSheet(
-        f"QPushButton {{ font-size: {font_css('caption')}; padding: 3px 8px; border-radius: 11px;"
-        f" border: 1px solid {t.get('border_strong', t.get('border'))}; background: {t.get('surface')};"
-        f" color: {t.get('text_primary')}; }}"
-        f"QPushButton:checked {{ border: 1px solid {t.get('success')}; background: {t.get('success_bg')};"
-        f" color: {t.get('success_text')}; }}")
     return b
 
 

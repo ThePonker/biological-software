@@ -1,8 +1,9 @@
-"""Home > "Where I've recorded" (Round 19): the suite's GridMap (shared/maps) showing the 10 km
-squares that hold your records, shaded by number of records (1-9, 10-99, 100+).
+"""Home > "Where I've recorded" (Round 19; recorded-or-not and the year choice, Round 20): the suite's
+GridMap (shared/maps) showing the 10 km squares that hold your records, all in one colour.
 
-Show: This year (default) / All years / Selected species (the one chosen in the species card).
-The squares are one aggregate query (home_data.hectad_squares) run off the GUI thread. Click a
+Show: This year (default) / All years / Selected species (the one chosen in the species card) /
+then every year with a Personal record (newest first, apart from this year). The squares are one
+aggregate query (home_data.hectad_squares) run off the GUI thread, with the list of years. Click a
 square -> its records in the Mapping tab's SquareRecordsDialog. "Open in Mapping" -> signal.
 """
 from datetime import date
@@ -22,13 +23,9 @@ from ...themes import theme
 MODES = ((hd.THIS_YEAR, "This year"), (hd.ALL_YEARS, "All years"), (hd.SELECTED, "Selected species"))
 
 
-def class_colours() -> list:
-    """The three shades, light to dark, mixed from the theme's observation greens with the
-    Mapping tab's own colour mixer."""
-    from ..mapping.square_style import _mix
-    t = theme()
-    light, dark = t.get("accent_observation_light"), t.get("accent_observation_dark")
-    return [_mix(light, dark, k) for k in (0.45, 0.72, 1.0)]
+def recorded_colour() -> str:
+    """The one colour of every square with a record: the darkest of the theme's observation greens."""
+    return theme().get("accent_observation_dark")
 
 
 def count_line(n: int, mode: str, year: int, name: str = "") -> str:
@@ -37,7 +34,7 @@ def count_line(n: int, mode: str, year: int, name: str = "") -> str:
         return f"{sq} in {year}"
     if mode == hd.SELECTED:
         return f"{sq} for {name}" if name else "Choose a species in the species card"
-    return f"{sq}, all years"
+    return f"{sq} in all years"
 
 
 class HomeMapCard(Card):
@@ -55,8 +52,7 @@ class HomeMapCard(Card):
         self.count_label.setStyleSheet(f"color: {t.get('text_primary')}; font-size: {font_css('body')};"
                                        " border: none; background: transparent;")
         self.mode_combo = QComboBox()
-        for key, text in MODES:
-            self.mode_combo.addItem(text, key)
+        self._fill_combo([], hd.THIS_YEAR)
         self.mode_combo.currentIndexChanged.connect(self.reload)
         show = QLabel("Show")
         show.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('small')};"
@@ -76,21 +72,18 @@ class HomeMapCard(Card):
 
         self.key_row = QHBoxLayout()
         self.key_row.setSpacing(6)
-        self._swatches = []
-        for _i, (_lo, _hi, label) in enumerate(hd.CLASSES):
-            box = QFrame()
-            box.setFixedSize(12, 12)
-            self._swatches.append(box)
-            lab = QLabel(label)
-            lab.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('caption')};"
-                              " border: none; background: transparent;")
-            self.key_row.addWidget(box)
-            self.key_row.addWidget(lab)
+        self.swatch = QFrame()
+        self.swatch.setFixedSize(12, 12)
+        lab = QLabel("Recorded")
+        lab.setStyleSheet(f"color: {t.get('text_secondary')}; font-size: {font_css('caption')};"
+                          " border: none; background: transparent;")
+        self.key_row.addWidget(self.swatch)
+        self.key_row.addWidget(lab)
         self.key_row.addStretch()
         self.open_btn = link_button("Open in Mapping →", t.get("accent_mapping_dark"))
         self.open_btn.clicked.connect(self.open_mapping_clicked.emit)
         self.key_row.addWidget(self.open_btn)
-        self.add_layout(self.key_row)       # swatches are coloured in ensure_map (mapping import)
+        self.add_layout(self.key_row)       # the swatch is coloured in ensure_map
 
     def ensure_map(self):
         """Build the GridMap if it is not built yet (a no-op afterwards)."""
@@ -109,8 +102,29 @@ class HomeMapCard(Card):
             self.map_widget.set_squares(self._squares, HECTAD)
 
     # ------------------------------------------------------------------ data
+    def _fill_combo(self, years, choice: str):
+        """The Show list: This year, All years, Selected species, a separator, then each year
+        (newest first, not this year); `choice` is selected again when it is still offered."""
+        combo = self.mode_combo
+        combo.blockSignals(True)
+        combo.clear()
+        for key, text in MODES:
+            combo.addItem(text, key)
+        this_year = date.today().year
+        years = [y for y in years if y != this_year]
+        if years:
+            combo.insertSeparator(combo.count())
+            for y in years:
+                combo.addItem(str(y), f"{hd.YEAR_PREFIX}{y}")
+        i = combo.findData(choice)
+        combo.setCurrentIndex(i if i >= 0 else 0)      # a year no longer in the data: This year
+        combo.blockSignals(False)
+
+    def choice(self) -> str:
+        return self.mode_combo.currentData() or hd.THIS_YEAR
+
     def mode(self) -> str:
-        return self.mode_combo.currentData()
+        return hd.choice_mode(self.choice())[0]
 
     def set_database(self, db_path):
         self._db_path = db_path
@@ -122,19 +136,34 @@ class HomeMapCard(Card):
             self.reload()
 
     def reload(self, *_a):
-        """Read the squares again (off the GUI thread) and draw them."""
+        """Read the years and the squares again (off the GUI thread) and draw them."""
         if not self._db_path:
             return
-        mode, sp, year, path = self.mode(), dict(self._species), date.today().year, self._db_path
+        choice, sp, path = self.choice(), dict(self._species), self._db_path
+        mode, year = hd.choice_mode(choice)
         if mode == hd.SELECTED and not sp["tvk"]:
             self._show({}, mode, year, sp)
             return
-        self._jobs.start(lambda: hd.hectad_squares(path, mode, year, sp["tvk"], sp["name"]),
-                         lambda sq: self._show(sq, mode, year, sp))
+
+        def read():
+            years = hd.map_years(path)
+            eff = choice
+            if choice.startswith(hd.YEAR_PREFIX) and year not in years:
+                eff = hd.THIS_YEAR                        # the remembered year has no records now
+            m, y = hd.choice_mode(eff)
+            return years, eff, hd.hectad_squares(path, m, y, sp["tvk"], sp["name"])
+
+        self._jobs.start(read, lambda out: self._loaded(out, sp))
+
+    def _loaded(self, out, sp: dict):
+        years, choice, squares = out
+        self._fill_combo(years, choice)
+        mode, year = hd.choice_mode(choice)
+        self._show(squares, mode, year, sp)
 
     def _show(self, squares: dict, mode: str, year: int, sp: dict):
-        cols = class_colours()
-        self._squares = {k: dict(v, fill=cols[v["class"]]) for k, v in squares.items()}
+        fill = recorded_colour()
+        self._squares = {k: dict(v, fill=fill) for k, v in squares.items()}
         self._mode_shown = (mode, year, dict(sp))
         if self.map_widget is not None:
             self.map_widget.set_squares(self._squares, HECTAD)
@@ -144,7 +173,7 @@ class HomeMapCard(Card):
     def _on_square_clicked(self, label: str):
         if not self._db_path:
             return
-        mode, year, sp = getattr(self, "_mode_shown", (self.mode(), date.today().year, self._species))
+        mode, year, sp = getattr(self, "_mode_shown", (*hd.choice_mode(self.choice()), self._species))
         path = self._db_path
         self._dialog_jobs.start(lambda: hd.square_records(path, label, mode, year, sp["tvk"], sp["name"]),
                                 lambda recs: self._open_dialog(label, recs, sp["name"] if mode == hd.SELECTED else ""))
@@ -155,8 +184,7 @@ class HomeMapCard(Card):
 
     # ------------------------------------------------------------------ look
     def _paint_key(self):
-        for box, col in zip(self._swatches, class_colours()):
-            box.setStyleSheet(f"background: {col}; border: none;")
+        self.swatch.setStyleSheet(f"background: {recorded_colour()}; border: none;")
 
     def apply_theme(self):
         super().apply_theme()
@@ -165,5 +193,4 @@ class HomeMapCard(Card):
             self._show(self._squares_as_counts(), *self._mode_shown)
 
     def _squares_as_counts(self) -> dict:
-        return {k: {"count": v["count"], "class": v["class"]} for k, v in self._squares.items()}
-
+        return {k: {"count": v["count"]} for k, v in self._squares.items()}

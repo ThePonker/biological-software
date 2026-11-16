@@ -11,6 +11,7 @@ from PySide6.QtCore import Qt, QSettings, QAbstractTableModel, QModelIndex
 from PySide6.QtGui import QColor, QFont
 
 from shared.display_format import RECORD_DATE_COLUMNS, dmy_time
+from shared.table_text import scaled_width
 
 from ...themes import theme
 from ...utils.date_utils import format_date_display
@@ -402,8 +403,9 @@ class SchemeRecordModel(CheckedByIdMixin, QAbstractTableModel):
         self.endResetModel()
 
     def get_column_widths(self) -> List[int]:
-        """Get list of column widths."""
-        return [col[2] for col in self._columns]
+        """Get list of column widths (grown with the table text, as the other tables
+        do: shared.table_text.scaled_width)."""
+        return [scaled_width(col[2]) for col in self._columns]
 
     # Compatibility methods for code that expects QStandardItemModel
     def item(self, row, col):

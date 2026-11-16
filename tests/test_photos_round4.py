@@ -94,7 +94,7 @@ def test_column_widths_kept_by_column(named_app):
     QSettings().remove(prefix)
     k = ColumnWidthKeeper(v, lambda: cols, prefix)
     k.apply()
-    from shared.table_text import scaled_width                # R19: defaults grow with the 13 px table text
+    from shared.table_text import scaled_width                # R19: defaults grow with the 14 px table text
     assert v.columnWidth(2) == scaled_width(44)
     v.setColumnWidth(2, 61)                       # Wil drags it
     assert QSettings().value(f"{prefix}/photos") in (61, "61")

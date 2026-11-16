@@ -84,7 +84,7 @@ def test_home_builds_without_quick_entry(qapp):
     texts = {lab.text() for lab in h.findChildren(QLabel)}
     assert "Dropdown Options Reference" not in texts
     assert not any("QUICK SINGLE OBSERVATION" in t.upper() for t in texts)
-    for name in ("map_card", "species_info", "recent_panel", "notable_card"):
+    for name in ("map_card", "species_info", "recent_panel", "year_list_card"):
         assert getattr(h, name) is not None
 
 
@@ -115,20 +115,15 @@ def test_hectad_squares_this_year_all_years_and_one_species(tmp_path):
     db = _obs_db(tmp_path, rows)
     cur = hd.hectad_squares(db, hd.THIS_YEAR)
     assert set(cur) == {"SP52", "TQ38", "SP58"}
-    assert cur["SP52"]["count"] == 11 and cur["SP52"]["class"] == 1      # 10-99 (Personal + Commercial)
-    assert cur["TQ38"]["count"] == 100 and cur["TQ38"]["class"] == 2     # 100+
+    assert cur["SP52"]["count"] == 11                                    # Personal + Commercial
+    assert cur["TQ38"]["count"] == 100
     alltime = hd.hectad_squares(db, hd.ALL_YEARS)
-    assert "SU12" in alltime and alltime["SU12"] == {"count": 1, "class": 0}   # 1-9
+    assert "SU12" in alltime and alltime["SU12"] == {"count": 1}
     assert "SU12" not in cur
     # one species: only the squares of its records (its own TVK, all years)
     sp = hd.hectad_squares(db, hd.SELECTED, tvk=HIPPO, name="Hippodamia variegata")
     assert set(sp) == {"SP52"} and sp["SP52"]["count"] == 1
     assert hd.hectad_squares(db, hd.SELECTED) == {}                       # none chosen
-
-
-def test_record_classes():
-    from src.views.home.home_data import record_class
-    assert [record_class(n) for n in (1, 9, 10, 99, 100, 5000)] == [0, 0, 1, 1, 2, 2]
 
 
 # ------------------------------------------------------------------ last 10 new species
@@ -182,69 +177,3 @@ def test_notable_status_excludes_nt_includes_ns_and_picks_highest(tmp_path):
     assert st["T_NT"].is_key                     # the report rule still counts NT; Home does not
     assert NOTABLE_STATUS_ORDER.index("CR") < NOTABLE_STATUS_ORDER.index("NS")
     codex.close()
-
-
-def test_notable_records_filter_sort_and_personal_only(tmp_path):
-    from src.views.home import home_data as hd
-    codex = _codex(tmp_path, [("T_NT", "threat_iucn_2001", "NT"), ("T_NS", "rarity_modern", "NS"),
-                              ("T_CR", "threat_iucn_2001", "CR"), ("T_NB", "rarity_legacy", "Nb")])
-    rows = [("Personal", "Nt one", "T_NT", f"{YEAR}-08-01", "SP5820", "a"),
-            ("Personal", "Ns one", "T_NS", f"{YEAR}-07-01", "SP5820", "b"),
-            ("Commercial", "Cr one", "T_CR", f"{YEAR}-06-01", "SP5820", "c"),
-            ("Personal", "Nb one", "T_NB", f"{YEAR}-09-01", "SP5820", "d"),
-            ("Personal", "Ns old", "T_NS", f"{YEAR - 1}-07-01", "SP5820", "e")]   # last year
-    db = _obs_db(tmp_path, rows)
-    newest = hd.notable_records(db, codex=codex)
-    assert newest["total"] == 3 and len(newest["ids"]) == 3
-    assert [r["species_name"] for r in newest["rows"]] == ["Nb one", "Ns one", "Cr one"]
-    assert [r["status"] for r in newest["rows"]] == ["Nb", "NS", "CR"]
-    best = hd.notable_records(db, sort=hd.HIGHEST, codex=codex)
-    assert [r["status"] for r in best["rows"]] == ["CR", "NS", "Nb"]
-    personal = hd.notable_records(db, personal_only=True, codex=codex)
-    assert [r["species_name"] for r in personal["rows"]] == ["Nb one", "Ns one"]
-    assert personal["total"] == 2
-    codex.close()
-
-
-def test_notable_rows_are_one_per_species_with_a_count(tmp_path):
-    from src.views.home import home_data as hd
-    codex = _codex(tmp_path, [("T_NS", "rarity_modern", "NS")])
-    rows = [("Personal", "Ns one", "T_NS", f"{YEAR}-07-01", "SP5820", "b"),
-            ("Personal", "Ns one", "T_NS", f"{YEAR}-08-03", "SP5821", "c"),
-            ("Personal", "Ns one", "T_NS", f"{YEAR}-06-01", "SP5822", "d")]
-    out = hd.notable_records(_obs_db(tmp_path, rows), codex=codex)
-    assert out["total"] == 3 and len(out["ids"]) == 3 and out["species"] == 1
-    assert len(out["rows"]) == 1 and out["rows"][0]["n"] == 3
-    assert out["rows"][0]["date"] == f"{YEAR}-08-03"            # its latest record
-    codex.close()
-
-
-def test_notable_card_toggles_reload_with_their_choices(qapp, monkeypatch):
-    from src.views.home import home_lists
-    calls = []
-    monkeypatch.setattr(home_lists.hd, "notable_records",
-                        lambda path, personal_only=False, sort="newest": calls.append((personal_only, sort))
-                        or {"total": 0, "ids": [], "rows": []})
-    monkeypatch.setattr(home_lists.JobRunner, "start", lambda self, fn, done: done(fn()))
-    card = home_lists.NotableCard()
-    card.set_database("x.db")
-    card.reload()
-    card.highest_btn.click()
-    card.personal_btn.click()
-    card.newest_btn.click()
-    assert calls == [(False, "newest"), (False, "highest"), (True, "highest"), (True, "newest")]
-
-
-def test_notable_all_link_emits_the_ids(qapp):
-    from src.views.home.home_lists import NotableCard
-    card = NotableCard()
-    got = []
-    card.all_clicked.connect(got.append)
-    card.show_data({"total": 2, "ids": [4, 9], "rows": [
-        {"id": 4, "status": "NS", "species_name": "A b", "common_name": "", "site_name": "s",
-         "grid_ref": "SP1", "date": f"{YEAR}-01-02", "short_date": "2 Jan"},
-        {"id": 9, "status": "CR", "species_name": "C d", "common_name": "", "site_name": "",
-         "grid_ref": "", "date": "", "short_date": ""}]})
-    assert card.all_btn.text() == "All 2 records"
-    card.all_btn.click()
-    assert got == [[4, 9]]

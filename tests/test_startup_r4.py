@@ -122,10 +122,6 @@ def _fakes():
         def clear_wizard_filters(self):
             pass
 
-    class Contributed(Base):
-        def initialize(self):
-            self.calls.append("init")
-
     class Scheme(Base):
         _initialized = False
 
@@ -202,7 +198,7 @@ def _fakes():
         def initialize(self):
             self.calls.append("init")
 
-    return dict(Home=Home, Obs=Obs, Contributed=Contributed, Scheme=Scheme,
+    return dict(Home=Home, Obs=Obs, Scheme=Scheme,
                 Collection=Collection, Stats=Stats, Mapping=Mapping, Settings=Settings)
 
 
@@ -217,7 +213,6 @@ def window(qapp, monkeypatch):
     f = _fakes()
     monkeypatch.setattr(mw, "HomeTab", f["Home"])
     monkeypatch.setattr(mw, "ObservationTab", f["Obs"])
-    monkeypatch.setattr(mw, "ContributedTab", f["Contributed"])
     monkeypatch.setattr(mw, "RecordingSchemeTab", f["Scheme"])
     monkeypatch.setattr(mw, "InsectCollectionTab", f["Collection"])
     monkeypatch.setattr(stats_pkg, "StatsReportsTab", f["Stats"])

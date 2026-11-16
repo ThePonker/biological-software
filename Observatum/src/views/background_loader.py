@@ -1,7 +1,7 @@
 """Finish loading in the background after the main window has opened (Round 6, 11 Oct 2026).
 
-Wil chose "window early, rest behind": the window opens once Home, Observation Data,
-Contributed and Insect Collection are loaded (under the splash screen, startup_preload.py);
+Wil chose "window early, rest behind": the window opens once Home, Observation Data
+and Insect Collection are loaded (under the splash screen, startup_preload.py);
 the Recording Scheme records, Stats/Reports, Mapping, Settings and the species-search index
 then finish here, within a few seconds, while the window can be used. A small line in the
 status bar says what is still loading and goes when everything is ready.

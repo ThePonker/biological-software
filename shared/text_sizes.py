@@ -1,11 +1,11 @@
-"""The suite's named interface text sizes, in pixels (R18, 10 Nov 2026) - the one source.
+"""The suite's named interface text sizes, in pixels (R18, 10 Nov 2026; one step bigger in R20) - the one source.
 
 Wil's screen is 1920x1080 at 100% scaling. Every stylesheet and font in the apps takes its size
 from here, by name, so a size is changed in one place:
 
     from shared.text_sizes import font_css, font_px
-    label.setStyleSheet(f"color: {c}; font-size: {font_css('body')};")     # -> "font-size: 14px;"
-    font_px("body")                                                        # -> 14
+    label.setStyleSheet(f"color: {c}; font-size: {font_css('body')};")     # -> "font-size: 15px;"
+    font_px("body")                                                        # -> 15
     qfont("body", "Segoe UI", QFont.Weight.Bold)                           # a QFont of that pixel size
 
 No Qt and no theme import at module level: the theme (Observatum/src/themes/naturalist.py) reads
@@ -15,12 +15,12 @@ The display_* names keep the sizes the code used before R18 (nothing of 16 px or
 """
 
 TEXT_PX = {
-    "caption": 12,
-    "small": 13,
-    "body": 14,
-    "body_large": 15,
-    "heading": 16,
-    "title": 18,
+    "caption": 13,
+    "small": 14,
+    "body": 15,
+    "body_large": 16,
+    "heading": 17,
+    "title": 19,
     "display_20": 20,
     "display_22": 22,
     "display_24": 24,
@@ -38,7 +38,7 @@ def font_px(name):
 
 
 def font_css(name):
-    """The size as a stylesheet value, e.g. font_css('body') -> '14px'."""
+    """The size as a stylesheet value, e.g. font_css('body') -> '15px'."""
     return f"{TEXT_PX[name]}px"
 
 

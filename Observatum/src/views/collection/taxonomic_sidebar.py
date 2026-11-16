@@ -450,9 +450,8 @@ class TaxonomicSidebar(QWidget):
                 # C1 (9 Oct 2026): conservation from live Codex. uksi.db's status columns were
                 # carried over from the 2023 file and predate every review loaded since.
                 conservation = self._codex_status(tvk)
-                if conservation is None:            # Codex unavailable: the old columns, marked
-                    statuses = [s for s in [row[1], row[2], row[3]] if s]
-                    conservation = ("; ".join(statuses) + " (UKSI 2023)") if statuses else ""
+                if conservation is None:            # Codex unavailable: say so (R20; the old
+                    conservation = "status unavailable"   # UKSI columns predate every review)
 
             if tvk:
                 cn_cursor = conn.execute(

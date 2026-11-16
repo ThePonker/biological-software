@@ -40,8 +40,20 @@ from typing import Iterable, Optional, Tuple
 
 from shared.recorder_names import count_people, split_names
 
-DECADES = (("pre-1950", None, 1949), ("1950–79", 1950, 1979), ("1980–99", 1980, 1999),
-           ("2000–09", 2000, 2009), ("2010–19", 2010, 2019), ("2020–", 2020, None))
+def decade_bands(year: Optional[int] = None) -> Tuple[Tuple[str, Optional[int], Optional[int]], ...]:
+    """The "Records by decade" bands: pre-1950, 1950–79, 1980–99, then one band per decade
+    from 2000; the decade holding `year` (default this year) is open-ended ("2020–"), so a new
+    decade appears by itself ("2020–29", "2030–" from 2030; Wil, 11 Nov 2026)."""
+    y = year or _dt.date.today().year
+    bands = [("pre-1950", None, 1949), ("1950–79", 1950, 1979), ("1980–99", 1980, 1999)]
+    last = max(2000, y - y % 10)
+    for lo in range(2000, last, 10):
+        bands.append((f"{lo}–{str(lo + 9)[2:]}", lo, lo + 9))
+    bands.append((f"{last}–", last, None))
+    return tuple(bands)
+
+
+DECADES = decade_bands()
 MONTH_NAMES = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 MONTH_INITIALS = "JFMAMJJASOND"
 

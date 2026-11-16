@@ -31,7 +31,6 @@ STEPS: List[Tuple[str, str, float]] = [
     ("services", "Opening the databases…", 0.28),
     ("home", "Filling in the Home page…", 0.3),
     ("observations", "Loading your observation records…", 1.8),
-    ("contributed", "Loading contributed records…", 0.25),
     ("collection", "Loading insect collection specimens…", 0.8),
 ]
 

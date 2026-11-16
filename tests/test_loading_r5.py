@@ -3,7 +3,7 @@
 Round 5 loaded everything under the splash screen (14.7 s on Wil's PC); Wil found that slower
 than before Round 4 and chose "window early, rest behind" (Round 6):
 
-- Under the splash (MainWindow.preload): Home, Observation Data, Contributed and Insect
+- Under the splash (MainWindow.preload): Home, Observation Data and Insect
   Collection only. The window then opens.
 - After it (MainWindow.start_background): the Recording Scheme records, Stats/Reports,
   Mapping, Settings and the species search, in the background; afterwards every tab is
@@ -146,7 +146,6 @@ def make_window(monkeypatch):
     f = _preload_fakes()
     monkeypatch.setattr(mw, "HomeTab", f["Home"])
     monkeypatch.setattr(mw, "ObservationTab", f["Obs"])
-    monkeypatch.setattr(mw, "ContributedTab", f["Contributed"])
     monkeypatch.setattr(mw, "RecordingSchemeTab", f["Scheme"])
     monkeypatch.setattr(mw, "InsectCollectionTab", f["Collection"])
     monkeypatch.setattr(stats_pkg, "StatsReportsTab", f["Stats"])
@@ -189,17 +188,18 @@ def test_preload_loads_the_first_tabs_only(window):
     w, f = window
     result = w.preload()
     assert not result.cancelled and result.problems == []
-    assert result.done == ["home", "observations", "contributed", "collection"]
+    assert result.done == ["home", "observations", "collection"]
     obs, ic, rs = w.observation_tab, w.insect_collection_tab, w.recording_scheme_tab
     # records read in a background thread, then shown without a second read
     loading = [c for c in obs.calls if c != "theme"]
     assert loading[:3] == ["prepare", ("read", False), ("init", ["r1", "r2"])]
     assert ("read", {"order": ""}) in ic.calls and ("init", ["s1"]) in ic.calls
-    assert "init" in w.home_tab.calls and "init" in w.contributed_tab.calls
+    assert "init" in w.home_tab.calls
+    assert not hasattr(w, "contributed_tab")          # a window since Round 20
     # the rest waits for the background phase, after the window has opened
     assert "preload" not in rs.calls and "init" not in rs.calls
     assert w.stats_reports_tab is None and w.mapping_tab is None and w.settings_tab is None
-    ready = {w.tabs.indexOf(t) for t in (w.home_tab, obs, w.contributed_tab, ic)}
+    ready = {w.tabs.indexOf(t) for t in (w.home_tab, obs, ic)}
     assert w._initialized_tabs == ready
 
 
@@ -223,7 +223,7 @@ def test_opening_tabs_after_startup_loads_nothing_more(window, qapp):
     finish_background(w, qapp)
     before = {name: list(getattr(w, name).calls) for name in
               ("observation_tab", "insect_collection_tab", "recording_scheme_tab",
-               "contributed_tab", "mapping_tab", "settings_tab")}
+               "mapping_tab", "settings_tab")}
     for i in range(w.tabs.count()):
         w.tabs.setCurrentIndex(i)
         qapp.processEvents()
@@ -427,11 +427,11 @@ def test_bar_creeps_when_a_step_runs_long_and_glides_after_a_pause():
 def test_bar_uses_this_computers_durations():
     from src.views.splash_progress import ProgressPlan, STEPS
     # "scheme": kept by a Round 5 startup, no longer a splash step (ignored)
-    plan = ProgressPlan(seconds={"contributed": 6.0, "nonsense": 5, "home": -1,
+    plan = ProgressPlan(seconds={"collection": 6.0, "nonsense": 5, "home": -1,
                                  "scheme": 3.0})
     default = ProgressPlan()
     width = lambda p, k: p.span[k][1] - p.span[k][0]   # noqa: E731
-    assert width(plan, "contributed") > 3 * width(default, "contributed")
+    assert width(plan, "collection") > 3 * width(default, "collection")
     assert width(plan, "home") < width(default, "home")       # bad value ignored, others shrink
     assert plan.keys == [k for k, _l, _s in STEPS]
     assert "scheme" not in plan.keys and "stats" not in plan.keys   # after the window (R6)
@@ -602,5 +602,4 @@ def test_real_startup_loads_every_tab_without_loading_boxes(tmp_path):
     assert all(b >= a for a, b in zip(seen, seen[1:])) and max(seen) < 100
     assert r["before_finish"] < 100
     # (the bar's steps: "imports" and "window" are begun by main.py, not here)
-    assert set(r["measured"]) == {"services", "home", "observations", "contributed",
-                                  "collection"}
+    assert set(r["measured"]) == {"services", "home", "observations", "collection"}

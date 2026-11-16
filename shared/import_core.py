@@ -127,12 +127,19 @@ def _month(word: str) -> Optional[int]:
     return None
 
 
+def full_year(yy: int, today: Optional[_dt.date] = None) -> int:
+    """A two-digit year as a full one, never a year still to come: 21 -> 2021, 85 -> 1985
+    (in 2026). The one rule for imports and photo names (R20, 11 Nov 2026)."""
+    today = today or _dt.date.today()
+    return yy + (2000 if yy <= today.year % 100 else 1900)
+
+
 def _year(text: str, today: _dt.date) -> Optional[int]:
     if not text.isdigit() or len(text) not in (2, 4):
         return None
     y = int(text)
-    if len(text) == 2:                     # 21 -> 2021, 85 -> 1985: never a year still to come
-        y += 2000 if y <= today.year % 100 else 1900
+    if len(text) == 2:
+        y = full_year(y, today)
     return y if y >= _MIN_YEAR else None
 
 

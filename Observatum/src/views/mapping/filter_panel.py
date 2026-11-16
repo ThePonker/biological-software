@@ -46,11 +46,12 @@ TETRAD_SETTING = "mapping/include_tetrad_refs"     # decision 10: on by default 
 
 
 def quick_presets(today: Optional[date] = None) -> List[Tuple[str, str, str]]:
-    """[(button text, from, to)]: this year, the two before, the last five years, all (MAP13)."""
+    """[(button text, from, to)]: this year, the two before, the last five years (this year
+    and the four before: 2022–26 in 2026; it was six, R20), all (MAP13)."""
     y = (today or date.today()).year
     return [(str(y), str(y), str(y)), (str(y - 1), str(y - 1), str(y - 1)),
             (str(y - 2), str(y - 2), str(y - 2)),
-            (f"{y - 5}–{str(y)[2:]}", str(y - 5), str(y)), ("All", "", "")]
+            (f"{y - 4}–{str(y)[2:]}", str(y - 4), str(y)), ("All", "", "")]
 
 
 def include_tetrads() -> bool:

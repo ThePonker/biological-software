@@ -1,6 +1,6 @@
-"""R17 C4, raised in R18: no interface text below 12 px (stylesheets) or 9 pt (fonts set in code).
+"""R17 C4, raised in R18: no interface text below 13 px (stylesheets) or 9 pt (fonts set in code).
 
-Scans the .py files for literal `font-size: Npx` (N < 12) / `font-size: Npt` (N < 9) and for
+Scans the .py files for literal `font-size: Npx` (N < 13) / `font-size: Npt` (N < 9) and for
 setPointSize(N) / QFont("...", N) with N < 9. Left out, on purpose: text drawn onto maps,
 exports and the 3D view (views/mapping, shared/maps), Curator's printed-label and box previews
 (painted at print size), tests, scripts, the archive, the manual's screenshot script, and the
@@ -35,7 +35,7 @@ def test_no_small_text_in_stylesheets_or_fonts():
         for n, line in enumerate(p.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
             for m in CSS.finditer(line):
                 v, unit = float(m.group(1)), m.group(2)
-                if (unit == "px" and v < 12) or (unit == "pt" and v < 9):
+                if (unit == "px" and v < 13) or (unit == "pt" and v < 9):
                     found.append(f"{rel}:{n}: {m.group(0)}")
             for m in PT_CODE.finditer(line):
                 v = float(m.group(1) or m.group(2))

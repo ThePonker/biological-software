@@ -10,13 +10,18 @@ under the column's key and put back after every refill of the table.
 `get_columns()` returns [(key, header, default width, ...)] in view order. The old
 position-keyed values are read once, for columns that have no key-saved width yet, and kept
 under the column's key from then on. The last column (stretched to fill the table) is never
-saved or set.
+saved or set. Saved widths follow the table text size: when it changes, they are scaled once
+(R20, 11 Nov 2026).
 """
 from __future__ import annotations
 
 from PySide6.QtCore import QObject, QSettings, QTimer
 
 from shared.table_text import scaled_width
+from shared.text_sizes import font_px
+
+TEXT_PX_KEY = "_text_px"      # the table text size the saved widths were made at (R20)
+PRE_R20_TEXT_PX = 13           # widths saved before R20 were made at 13 px table text
 
 
 class ColumnWidthKeeper(QObject):
@@ -53,10 +58,32 @@ class ColumnWidthKeeper(QObject):
             return default
         return v if v > 0 else default
 
+    def _rescale_saved(self, s: QSettings, cols) -> None:
+        """When the table text size changed since the widths were saved (R20: 13 -> 14 px),
+        widen (or narrow) every saved width in proportion, once, so Wil's columns keep
+        showing what they showed instead of cutting the larger text off."""
+        now = font_px("small")
+        try:
+            was = int(s.value(f"{self.prefix}/{TEXT_PX_KEY}", PRE_R20_TEXT_PX))
+        except (TypeError, ValueError):
+            was = PRE_R20_TEXT_PX
+        if was == now or was <= 0:
+            return
+        for col in cols:
+            v = s.value(f"{self.prefix}/{col[0]}", None)
+            try:
+                v = int(v)
+            except (TypeError, ValueError):
+                continue
+            if v > 0:
+                s.setValue(f"{self.prefix}/{col[0]}", round(v * now / was))
+        s.setValue(f"{self.prefix}/{TEXT_PX_KEY}", now)
+
     def apply(self) -> None:
         cols = list(self.columns_fn() or [])
         header = self.view.horizontalHeader()
         s = QSettings()
+        self._rescale_saved(s, cols)
         self._applying = True
         try:
             last = header.count() - 1 if header.stretchLastSection() else -1

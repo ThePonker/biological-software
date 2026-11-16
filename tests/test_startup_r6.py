@@ -1,6 +1,6 @@
 """Startup Round 6 (11 Oct 2026): "window early, rest behind" (Wil's choice).
 
-The window opens once Home, Observation Data, Contributed and Insect Collection are loaded;
+The window opens once Home, Observation Data and Insect Collection are loaded;
 the Recording Scheme records, Stats/Reports, Mapping, Settings and the species search then
 finish in the background (background_loader.py, background_steps.py,
 main_window_background.py). Checked here:
@@ -450,8 +450,7 @@ def test_splash_steps_are_the_pre_window_steps_only():
     from src.views.background_steps import LABELS
     from src.views.splash_progress import STEPS
     keys = [k for k, _l, _s in STEPS]
-    assert keys == ["imports", "window", "services", "home", "observations", "contributed",
-                    "collection"]
+    assert keys == ["imports", "window", "services", "home", "observations", "collection"]
     assert not set(keys) & set(LABELS)
 
 

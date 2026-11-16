@@ -2,7 +2,7 @@
 
 Round 5 (11 Oct 2026) loaded everything here (about 14.7 s on Wil's PC); Wil found that
 slower than before. Round 6 ("window early, rest behind", Wil's choice): only Home,
-Observation Data, Contributed and Insect Collection are loaded here, so the window opens at
+Observation Data and Insect Collection are loaded here, so the window opens at
 about 7-8 s; the Recording Scheme records, Stats/Reports, Mapping, Settings and the species
 search then finish in the background (MainWindow.start_background, background_loader.py).
 
@@ -56,7 +56,6 @@ class StartupPreloader:
         return [
             ("home", self._home),
             ("observations", self._observations),
-            ("contributed", self._contributed),
             ("collection", self._collection),
         ]
 
@@ -154,10 +153,6 @@ class StartupPreloader:
             obs._enable_sorting_on_first_view()
         self.w.mark_tab_ready(obs)
 
-    def _contributed(self):
-        self.w.contributed_tab.initialize()
-        self.w.mark_tab_ready(self.w.contributed_tab)
-
     def _collection(self):
         ic = self.w.insect_collection_tab
         db, uksi = self._paths()
@@ -174,7 +169,6 @@ class StartupPreloader:
 _PLAIN = {
     "home": "Home page",
     "observations": "Observation Data records",
-    "contributed": "Contributed records",
     "collection": "Insect Collection specimens",
 }
 

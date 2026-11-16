@@ -1,4 +1,4 @@
-"""R19: one setting for the main data tables' text: cells 13 px, headers 13 px semi-bold, rows 26 px."""
+"""R19: one setting for the main data tables' text: cells 14 px, headers 14 px semi-bold, rows 28 px (R20)."""
 import os
 
 import pytest
@@ -12,26 +12,26 @@ def qapp():
     return QApplication.instance() or QApplication([])
 
 
-def test_helper_uses_small_token_and_26_rows(qapp):
+def test_helper_uses_small_token_and_28_rows(qapp):
     from PySide6.QtWidgets import QTableView
     from shared.table_text import TABLE_ROW_PX, apply_table_rows, scaled_width, table_text_css
     from shared.text_sizes import font_px
     css = table_text_css()
     assert f"QTableView {{ font-size: {font_px('small')}px; }}" in css
     assert f"QHeaderView::section {{ font-size: {font_px('small')}px; font-weight: 600; }}" in css
-    assert font_px("small") == 13 and TABLE_ROW_PX == 26
+    assert font_px("small") == 14 and TABLE_ROW_PX == 28
     v = QTableView()
     apply_table_rows(v)
-    assert v.verticalHeader().defaultSectionSize() == 26
-    assert scaled_width(100) == 108 and scaled_width(85) == 92
+    assert v.verticalHeader().defaultSectionSize() == 28
+    assert scaled_width(100) == 117 and scaled_width(85) == 99
 
 
 def _check(view):
     view.ensurePolished()
-    assert view.verticalHeader().defaultSectionSize() == 26
-    assert view.fontInfo().pixelSize() == 13
+    assert view.verticalHeader().defaultSectionSize() == 28
+    assert view.fontInfo().pixelSize() == 14
     css = view.styleSheet()
-    assert "QHeaderView::section { font-size: 13px; font-weight: 600; }" in css
+    assert "QHeaderView::section { font-size: 14px; font-weight: 600; }" in css
     assert css.rstrip().endswith("}")
 
 
@@ -58,4 +58,4 @@ def test_default_column_widths_grow_with_text(qapp, tmp_path, monkeypatch):
     v.setModel(m)
     keeper = ColumnWidthKeeper(v, lambda: [("a", "A", 100), ("b", "B", 85)], "r19_test_cols")
     keeper.apply()
-    assert v.columnWidth(0) == 108
+    assert v.columnWidth(0) == 117

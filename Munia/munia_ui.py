@@ -63,7 +63,7 @@ class MuniaWindow(QMainWindow):
             f'font-family: "{HEADING_FAMILY}"; font-size: {font_css("body_large")}; '
             f"font-weight: bold; color: {TEXT_DARK};")
         self.year_spin = QSpinBox()
-        self.year_spin.setRange(2020, 2040)
+        self.year_spin.setRange(*db.year_range())
         self.year_spin.setValue(self._year)
         self.year_spin.setFixedWidth(90)
         self.year_spin.setStyleSheet(f"font-size: {font_css('body_large')}; font-weight: bold;")

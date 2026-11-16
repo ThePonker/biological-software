@@ -30,6 +30,7 @@ from pathlib import PurePath
 from typing import List, Optional, Union
 
 from shared.import_core import _ROMAN as ROMAN       # one roman-month table (import_core)
+from shared.import_core import full_year             # one two-digit-year rule (R20)
 
 LIFE = "life"
 MICROSCOPE = "microscope"
@@ -103,7 +104,7 @@ def parse_date(d: str, m: str, y: str, today: datetime.date):
             return None, [f"bad month '{m}' in '{raw}'"]
     if not 1 <= month <= 12:
         return None, [f"bad month '{m}' in '{raw}'"]
-    year = int(y) + 2000 if len(y) == 2 else int(y)
+    year = full_year(int(y), today) if len(y) == 2 else int(y)
     if year < 1900:
         return None, [f"year {year} before 1900 in '{raw}'"]
     try:
@@ -245,7 +246,7 @@ def _as_date(day: str, month: str, year: str) -> Optional[datetime.date]:
     m = int(month) if month.isdigit() else ROMAN.get(month.lower())
     if not m:
         return None
-    y = int(year) + 2000 if len(year) == 2 else int(year)
+    y = full_year(int(year)) if len(year) == 2 else int(year)
     try:
         return datetime.date(y, m, int(day))
     except ValueError:

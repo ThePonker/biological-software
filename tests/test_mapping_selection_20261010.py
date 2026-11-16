@@ -286,8 +286,8 @@ def test_quick_presets_run_to_this_year_and_safe_names():
     from src.views.mapping.filter_panel import quick_presets
     from src.views.mapping.mapping_tab import safe_filename
     p = quick_presets(dt.date(2026, 10, 10))
-    assert [x[0] for x in p] == ["2026", "2025", "2024", "2021–26", "All"]
-    assert p[3][1:] == ("2021", "2026")
+    assert [x[0] for x in p] == ["2026", "2025", "2024", "2022–26", "All"]
+    assert p[3][1:] == ("2022", "2026")        # five years, this one included (R20)
     name = safe_filename("Bombus lucorum/terrestris agg. + Rhagium")
     assert "/" not in name and "\\" not in name and name.startswith("Bombus_lucorum-terrestris")
 

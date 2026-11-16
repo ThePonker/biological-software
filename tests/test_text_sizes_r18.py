@@ -29,17 +29,17 @@ LITERAL = re.compile(r"font-size:\s*\d+(?:\.\d+)?\s*px")
 
 def test_token_table():
     assert [TEXT_PX[k] for k in ("caption", "small", "body", "body_large", "heading", "title")] == \
-        [12, 13, 14, 15, 16, 18]
+        [13, 14, 15, 16, 17, 19]
     assert {k: v for k, v in TEXT_PX.items() if k.startswith("display_")} == {
         "display_20": 20, "display_22": 22, "display_24": 24, "display_26": 26,
         "display_28": 28, "display_32": 32, "display_48": 48, "display_64": 64}
-    assert all(v >= 12 for v in TEXT_PX.values())
+    assert all(v >= 13 for v in TEXT_PX.values())
 
 
 def test_helpers():
-    assert font_px("body") == 14
-    assert font_css("body") == "14px"
-    assert f"font-size: {font_css('small')};" == "font-size: 13px;"
+    assert font_px("body") == 15
+    assert font_css("body") == "15px"
+    assert f"font-size: {font_css('small')};" == "font-size: 14px;"
     with pytest.raises(KeyError):
         font_px("nope")
 
@@ -56,7 +56,7 @@ def test_theme_publishes_the_same_numbers():
 def test_qfont_has_the_pixel_size():
     from PySide6.QtGui import QFont
     f = text_sizes.qfont("body", "Segoe UI", QFont.Weight.Bold, italic=True)
-    assert f.pixelSize() == 14 and f.italic() and f.weight() == QFont.Weight.Bold
+    assert f.pixelSize() == 15 and f.italic() and f.weight() == QFont.Weight.Bold
 
 
 def test_no_literal_pixel_sizes_in_interface_code():

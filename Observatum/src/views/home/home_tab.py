@@ -4,9 +4,10 @@ from PySide6.QtCore import Signal
 from .quick_stats import QuickStatsPanel
 from .observation_stats_card import ALL, ObservationStatsCard
 from . import home_data
-from .home_lists import NewSpeciesCard, NotableCard
+from .home_lists import NewSpeciesCard
 from .home_map_card import HomeMapCard
 from .species_info import SpeciesInfoPanel
+from .year_list_card import YearListCard
 from .species_profile_dialog import SpeciesProfileDialog
 from ...models.database import get_database
 from ...models.observation import ObservationModel
@@ -24,7 +25,7 @@ except ImportError:
     HAS_REPOSITORY = False
 
 
-LEFT_WIDTH, MAP_WIDTH, LIST_WIDTH = 316, 388, 266      # layout A (R19); widths 290/250 in the mock, a little wider for the real card titles
+LEFT_WIDTH, MAP_WIDTH, LIST_WIDTH = 316, 410, 266      # layout A (R19; widened a little in R20 for the bigger text); widths 290/250 in the mock, a little wider for the real card titles
 
 
 class HomeTab(QWidget):
@@ -33,7 +34,6 @@ class HomeTab(QWidget):
     navigate_to_observations = Signal(str)  # Emits species name for filtering observations
     navigate_to_species_lookup = Signal(str, str)  # (name, TVK): Stats > Species lookup (Q55)
     navigate_to_mapping = Signal()  # "Open in Mapping" on the map card (R19)
-    navigate_to_notable = Signal(list)  # ids of this year's notable records (R19)
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -98,8 +98,8 @@ class HomeTab(QWidget):
         self.recent_panel = NewSpeciesCard()
         self.recent_panel.setFixedWidth(LIST_WIDTH)
         lists.addWidget(self.recent_panel)
-        self.notable_card = NotableCard()
-        lists.addWidget(self.notable_card, 1)
+        self.year_list_card = YearListCard()
+        lists.addWidget(self.year_list_card, 1)
         right.addLayout(lists, 1)
         layout.addLayout(right, 1)
 
@@ -114,7 +114,6 @@ class HomeTab(QWidget):
         self.species_info.view_records_clicked.connect(self._on_view_records)
         self.species_info.lookup_clicked.connect(self.navigate_to_species_lookup.emit)
         self.map_card.open_mapping_clicked.connect(self.navigate_to_mapping.emit)
-        self.notable_card.all_clicked.connect(self.navigate_to_notable.emit)
 
     def _on_recent_species_selected(self, species_data: dict):
         """A row of the new-species list: show it in the species card."""
@@ -251,7 +250,7 @@ class HomeTab(QWidget):
         # Pass database to stats panel for querying all data sources
         self.stats_panel.set_database(db)
         self.map_card.set_database(db.main_db_path)
-        self.notable_card.set_database(db.main_db_path)
+        self.year_list_card.set_database(db.main_db_path)
 
         search_service = get_search_service()
         search_service.set_database(db)
@@ -278,9 +277,9 @@ class HomeTab(QWidget):
             
             if self._obs_repo:
                 self.recent_panel.update_species(home_data.last_new_species(self._obs_repo))
-            # The map and the notable records are read off the GUI thread
+            # The map and the year list are read off the GUI thread
             self.map_card.reload()
-            self.notable_card.reload()
+            self.year_list_card.reload()
         except Exception as e:
             print(f"Error refreshing: {e}")
 
@@ -294,7 +293,6 @@ class HomeTab(QWidget):
     def refresh_display_settings(self):
         """Refresh display settings (e.g., common name visibility)."""
         self.recent_panel.refresh_common_name_setting()
-        self.notable_card.show_data(self.notable_card._data)
         self.species_info.refresh_common_name_setting()
 
     def apply_theme(self):
@@ -302,5 +300,5 @@ class HomeTab(QWidget):
         t = theme()
         self.setStyleSheet(f"background-color: {t.get('background')};")
         for card in (*self._observation_cards(), self.stats_panel, self.map_card,
-                     self.recent_panel, self.notable_card, self.species_info):
+                     self.recent_panel, self.year_list_card, self.species_info):
             card.apply_theme()

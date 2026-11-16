@@ -112,8 +112,8 @@ def main():
     )
     timing.mark("main window built")
 
-    # Round 6 (11 Oct 2026, Wil: "window early, rest behind"): Home, Observation Data,
-    # Contributed and Insect Collection are loaded now, under the splash screen; the window
+    # Round 6 (11 Oct 2026, Wil: "window early, rest behind"): Home, Observation Data
+    # and Insect Collection are loaded now, under the splash screen; the window
     # then opens and the Recording Scheme records, Stats/Reports, Mapping, Settings and the
     # species search finish in the background (MainWindow.start_background), the window
     # usable meanwhile. Closing the splash screen stops startup cleanly.

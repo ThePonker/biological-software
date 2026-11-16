@@ -182,7 +182,7 @@ class ObservationFilterBar(QFrame, SavedFiltersMixin):
         self.only_excluded_chk = only_excluded_toggle(self)
         self.only_excluded_chk.toggled.connect(lambda _on: self._emit_filters())
         saved_row.addWidget(self.only_excluded_chk)
-        
+
         saved_row.addStretch()
         content_layout.addLayout(saved_row)
 
