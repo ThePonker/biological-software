@@ -469,11 +469,16 @@ class MonthlyActivityChart(QFrame):
 
         # We paint gridlines as thin QFrames positioned absolutely over the bars container
         from PySide6.QtCore import QTimer
-        QTimer.singleShot(50, lambda: self._position_gridlines(ticks, nice_max, grid_color))
+        # `self` as the timer's context: if the chart is closed first the call is dropped (17 Nov:
+        # "Internal C++ object already deleted" when a dashboard was rebuilt quickly)
+        QTimer.singleShot(50, self, lambda: self._position_gridlines(ticks, nice_max, grid_color))
 
     def _position_gridlines(self, ticks: list, nice_max: int, grid_color: str):
         """Position gridlines after layout is settled."""
         container = self._bars_container
+        from shiboken6 import isValid
+        if not isValid(container):
+            return
         h = container.height()
         if h <= 0:
             return

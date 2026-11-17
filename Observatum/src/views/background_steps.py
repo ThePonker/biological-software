@@ -122,12 +122,31 @@ def scheme_step(w):
 
 # ── Stats/Reports ───────────────────────────────────────────────────
 
+# Qt add-on modules the background-imported tabs use. Loading one of these for the first time
+# starts Qt C++ code (and its DLL); doing that in a worker thread while the window runs crashed
+# Observatum on opening (17 Nov 2026: "Windows fatal exception 0xc0000374", heap corruption, in
+# the Stats thread at `from PySide6.QtCharts import ...`). They are loaded here, on the GUI thread,
+# before any worker imports a tab; afterwards a tab's import only finds them already loaded.
+QT_ADDON_MODULES = ("PySide6.QtCharts", "PySide6.QtSvg", "PySide6.QtSvgWidgets")
+
+
+def load_qt_addons_on_gui_thread():
+    """Import the Qt add-on modules here, on the GUI thread (cheap after the first call)."""
+    for name in QT_ADDON_MODULES:
+        try:
+            importlib.import_module(name)
+        except ImportError:
+            pass            # not installed: the tab's own import says so, as before
+
+
 def _import(name: str):
-    """Import a module of this package (in a worker thread: importing is Python work)."""
+    """Import a module of this package (in a worker thread: importing is Python work; the Qt
+    add-on modules are loaded on the GUI thread first, load_qt_addons_on_gui_thread)."""
     return importlib.import_module(name, __package__)
 
 
 def stats_step(w):
+    load_qt_addons_on_gui_thread()
     yield InThread(lambda: _import(".stats"))
     tab = yield from w._stats_page.build_steps()
     # the Personal dashboard's figures (about a second of queries) in a thread; the service
@@ -221,6 +240,7 @@ def _size_hidden_page(page: QWidget, like: QWidget):
 
 
 def mapping_step(w):
+    load_qt_addons_on_gui_thread()
     try:
         w._map_lists = yield InThread(_read_map_data)
     except Exception as e:              # the Mapping tab reads them itself when it is built
@@ -274,6 +294,7 @@ def _label_points_ahead(mw):
 # ── Settings, species search ────────────────────────────────────────
 
 def settings_step(w):
+    load_qt_addons_on_gui_thread()
     yield InThread(lambda: _import(".settings"))
     tab = yield from w._settings_page.build_steps()
     yield

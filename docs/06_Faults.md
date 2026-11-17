@@ -4,7 +4,7 @@
 ## Open faults carry an action. Closed ones are kept in brief, because knowing
 ## what has already gone wrong is how the rules in `05` were earned. Older closed
 ## faults are in `06b_Faults_Closed.md` (split out 12 Oct). New faults take the
-## next free number (F112 next).
+## next free number (F114 next).
 
 ---
 
@@ -172,6 +172,20 @@ button is paused (Round 17); rebuild the view in Qt's built-in Chromium with thr
 ### F109. "QThreadStorage: entry destroyed before end of thread" at exit
 Not reproduced on Linux; the cause is a guess (a Qt-using thread alive at exit). Round 17 filters exactly that message
 (`shared/qt_messages.py`). **Action:** only if it matters, catch it on Windows and find the thread.
+
+### F112. Crash on opening: a Qt add-on loaded in a worker thread (fixed 17 Nov)
+Observatum closed on opening once (17 Nov 09:59, "Windows fatal exception 0xc0000374", heap corruption);
+the next start was fine. The Stats/Reports background step imported its tab in a worker thread, and that
+import was the first to load `PySide6.QtCharts` (Qt C++ code and its DLL) while the window ran.
+**Fix:** `background_steps.load_qt_addons_on_gui_thread()` loads QtCharts, QtSvg and QtSvgWidgets on
+the GUI thread before the Stats, Settings and Mapping steps start their workers
+(`tests/test_r21_qt_addons_gui_thread.py`). **Rule:** a worker thread may import Python, never a Qt
+module for the first time.
+
+### F113. Late chart gridlines after a dashboard closed (fixed 17 Nov)
+`stat_widgets` placed bar-chart gridlines 50 ms after drawing; when the chart was rebuilt or closed
+first, the timer touched a deleted widget ("Internal C++ object already deleted", logged 16 Nov, no
+crash). The timer now belongs to the chart (dropped with it) and checks the container still exists.
 
 ### F110. The main window's per-tab underline colours never showed
 `_apply_window_style` (`main_window.py`) gives each tab its own selected underline with
