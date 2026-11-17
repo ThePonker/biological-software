@@ -226,7 +226,7 @@ Current scoring and Pantheon's published scores alone; key species after the jur
 | Derby 2025 | 230 | 4 | 100 | 99 | 6 |
 | Elmley 2026 | 44 | 7 | 182 | 184 | 7 |
 | Fermyn Hall Wood Deadwood 2024 | 49 | 7 | 157 | 153 | 8 |
-| Kent Deadwood 2024 | 393 | 75 | 181 | 175 | 82 |
+| Kent Deadwood 2024 | 392 | 75 | 181 | 175 | 82 |
 | Long Hanborough 2025 | 118 | 10 | 112 | 111 | 12 |
 | Machen 2024 | 321 | 16 | 120 | 114 | 19 |
 | Slade Green 2026 | 344 | 44 | 153 | 147 | 44 |

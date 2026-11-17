@@ -254,21 +254,49 @@ def telfer_tier(entry):
     Scarce Key Species: Near Threatened (v2); Nationally Scarce / Notable (v3
     and v1). Priority Species are Key but not Rare Key.
     """
+    if _is_not_native(entry):
+        return ""
+    axis = _axis_tier(entry)
+    if axis:
+        return axis
+    if getattr(entry, "priority", None) or getattr(entry, "legal", None):
+        return "scarce"          # SPI and protected species are Key, not Rare Key
+    return "scarce" if getattr(entry, "tier", "") else ""
+
+
+def _is_not_native(entry):
+    # NA -- not an established native -- is never Key, whatever its rarity.
+    # Mirrors CodexRepository._classify; see patch_na_not_key.py.
+    return _norm(getattr(entry, "threat", "")) == "NA"
+
+
+def _axis_tier(entry):
+    """'rare' | 'scarce' | '' from the rarity and threat statuses alone."""
     r = _norm(getattr(entry, "rarity", ""))
     t = _norm(getattr(entry, "threat", ""))
     tl = _norm(getattr(entry, "threat_legacy", ""))
-
-    # NA -- not an established native -- is never Key, whatever its rarity.
-    # Mirrors CodexRepository._classify; see patch_na_not_key.py.
-    if t == "NA":
-        return ""
     if r in _RARE_V3 or t in _RARE_V2 or tl in _RARE_V1:
         return "rare"
     if r in _SCARCE_V3 or r in _SCARCE_V1 or t in _SCARCE_V2 or tl in _SCARCE_V1:
         return "scarce"
-    if getattr(entry, "priority", None) or getattr(entry, "legal", None):
-        return "scarce"          # SPI and protected species are Key, not Rare Key
-    return "scarce" if getattr(entry, "tier", "") else ""
+    return ""
+
+
+def status_only_tier(entry):
+    """telfer_tier without Species of Principal Importance or legal protection.
+
+    A species that is Key only because it is on a priority list (S41 etc.) or
+    legally protected -- Codex tier "Priority" -- is not counted. Codex gives a
+    Rare or Scarce tier only for a status (a specialist panel such as Spider
+    Amber included), so such a tier still counts when its code is not in the
+    sets above, whatever priority or legal listings the species also has.
+    """
+    if _is_not_native(entry):
+        return ""
+    axis = _axis_tier(entry)
+    if axis:
+        return axis
+    return "scarce" if getattr(entry, "tier", "") in ("Rare", "Scarce") else ""
 
 
 def status_string(entry):
@@ -689,6 +717,7 @@ def _sheet_summary(wb, result, detail, project, stamp):
 
     keys = list(result.key_species)
     rare = [k for k in keys if telfer_tier(k) == "rare"]
+    status_only = [k for k in keys if status_only_tier(k)]
     total = result.total_species or 1
 
     rows = [
@@ -701,17 +730,24 @@ def _sheet_summary(wb, result, detail, project, stamp):
         (None, None, None),
         ("Key Species", len(keys),
          "Rare, scarce, threatened or near threatened conservation status, "
-         "plus Species of Principal Importance. Telfer (2023)."),
+         "plus Species of Principal Importance."),
         ("% Key Species", f"{round(len(keys) / total * 100, 1)}%",
-         "Telfer: close to 10% suggests potential national significance. "
-         "Kirby-Lambert: 5-10% high quality, >10% exceptional."),
+         "Compare with surveys of similar effort. About 10% is commonly treated "
+         "as indicating potential national significance."),
+        ("Key Species (status only)", len(status_only),
+         "Rarity and threat statuses only. Species of Principal Importance and "
+         "protected species without such a status are left out; report them "
+         "separately."),
+        ("% Key Species (status only)", f"{round(len(status_only) / total * 100, 1)}%",
+         "Comparable between surveys whatever the priority lists."),
         ("Rare Key Species", len(rare),
          "Red Data Book, IUCN Threatened, Data Deficient, or Nationally Rare."),
         ("% Rare Key Species", f"{round(len(rare) / total * 100, 1)}%",
-         "Telfer: more than 1% suggests potential national significance."),
+         "More than 1% is commonly treated as indicating potential national "
+         "significance."),
         (None, None, None),
         ("Codex tiers — Rare", result.rare_count,
-         "Codex's own classification; not the same split as Telfer's Rare Key."),
+         "Codex's own classification; not the same split as Rare Key above."),
         ("Codex tiers — Scarce", result.scarce_count, ""),
         ("Codex tiers — Priority", result.priority_count, ""),
         (None, None, None),
@@ -775,7 +811,7 @@ def _sheet_key_species(wb, result, project, stamp):
     ws = wb.create_sheet("Key species")
     r = _title(ws, "Key Species",
                "Rare Key Species first, then Scarce Key Species; "
-               "taxonomic order within each. Telfer (2023).")
+               "taxonomic order within each.")
 
     r = _header(ws, r,
                 ["Tier", "Order", "Family", "Species", "Common name",
@@ -1261,7 +1297,6 @@ def export_workbook(result, detail, project, path,
             "Conservation designations: JNCC. Open Government Licence.",
             "Ecology and assemblage types: Pantheon (Webb et al., 2018), "
             "Natural England and CEH. Open Government Licence.",
-            "Key Species framework after Telfer (2023).",
         ],
     }
 
