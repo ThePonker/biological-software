@@ -305,6 +305,25 @@ def _full_status(st):
     return ", ".join(head + [f"Legal: {n}" for n in names if n] + ([note] if note else []))
 
 
+def short_status_for(st, jurisdiction):
+    """Codex's short label for a species-list row, for this jurisdiction.
+
+    Codex returns a bare "Priority" for any priority listing, so a species on
+    the Scottish Biodiversity List alone read as a priority species on an
+    England site (Speckled Bush-cricket, Nottingham 17 Nov 2026). Only listings
+    that apply here are shown, by name (e.g. "S41").
+    """
+    s = (getattr(st, "short_status", "") or "") if st else ""
+    if s != "Priority":
+        return s
+    from shared.repositories.codex_repository import _priority_applies, _priority_label
+    for e in getattr(st, "priority", None) or []:
+        v = getattr(e, "value", "") or ""
+        if _priority_applies(v, jurisdiction):
+            return _priority_label(v)
+    return ""
+
+
 def analysis_service():
     """A PantheonAnalysisService on fresh repositories -- what the detail view uses."""
     from shared.services.pantheon_analysis_service import PantheonAnalysisService
@@ -474,7 +493,7 @@ def _build_species_list(species_rows, mode, jurisdiction=DEFAULT_JURISDICTION,
         tx = taxonomy.get(tvk, {})
         species_list.append(SiteSpecies(
             name=name, tvk=tvk, count=count + folded.get(tvk, 0), sqs=sqs.get(tvk, 0) or 0,
-            status=(getattr(st, "short_status", "") or "") if st else "",
+            status=short_status_for(st, jurisdiction),
             status_full=_full_status(st),
             tier="" if tier_s.lower() in ("none", "") else tier_s,
             broad_biotope=", ".join(b[:2]), habitat=", ".join(h[:2]),
