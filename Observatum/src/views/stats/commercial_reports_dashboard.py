@@ -301,17 +301,24 @@ class CommercialReportsDashboard(QScrollArea):
             today = date.today().isoformat()
             nsp = species_count_sql(main_path)
 
-            # Get project breakdown (species follow the counting switches; records are all)
-            cursor = conn.execute(f"""
-                SELECT project_name, client, embargo_status, embargo_until,
-                       COUNT(*) as record_count,
-                       {nsp} as species_count
+            # One row per project and survey year (17 Nov 2026): a job surveyed
+            # in two years (Bicester Graven Hill 2023, 2025) stays two rows.
+            # Within a row, records are grouped by embargo setting and folded
+            # together, so a few un-embargoed records (e.g. app records already
+            # on iRecord) are noted beside the status instead of making a second
+            # row. Species follow the counting switches; records are all.
+            groups = conn.execute("""
+                SELECT project_name, client, substr(date, 1, 4), embargo_status, embargo_until, COUNT(*)
                 FROM observations
                 WHERE record_type = 'Commercial'
-                GROUP BY project_name, client, embargo_status, embargo_until
-                ORDER BY embargo_status DESC, project_name
-            """)
-            projects = cursor.fetchall()
+                GROUP BY project_name, client, substr(date, 1, 4), embargo_status, embargo_until
+            """).fetchall()
+            species = {(p, c, y): n for p, c, y, n in conn.execute(f"""
+                SELECT project_name, client, substr(date, 1, 4), {nsp}
+                FROM observations
+                WHERE record_type = 'Commercial'
+                GROUP BY project_name, client, substr(date, 1, 4)
+            """)}
 
             # Calculate summaries
             active_projects = 0
@@ -323,32 +330,51 @@ class CommercialReportsDashboard(QScrollArea):
             total_records = 0
             no_embargo_records = 0
 
-            table_rows = []
-            for proj, client, status, until, records, species in projects:
+            rank = {"Under Embargo": 0, "EXPIRED": 1, "Released": 2, "No Embargo": 3}
+            merged = {}      # (project, client, year): {kind: [records, latest until, raw status]}
+            for proj, client, year, status, until, records in groups:
                 total_records += records
-                proj_name = proj or "(no project)"
-                client_name = client or ""
-
                 if status == "Active" and until and until > today:
-                    display_status = "Under Embargo"
-                    active_projects += 1
+                    kind = "Under Embargo"
                     active_records += records
                 elif status == "Active" and until and until <= today:
-                    display_status = "EXPIRED"
-                    expired_projects += 1
+                    kind = "EXPIRED"
                     expired_records += records
                 elif status == "Released":
-                    display_status = "Released"
-                    released_projects += 1
+                    kind = "Released"
                     released_records += records
                 else:
-                    display_status = "No Embargo"
+                    kind = "No Embargo"
                     no_embargo_records += records
+                k = merged.setdefault((proj, client, year or ""), {}).setdefault(kind, [0, "", status or ""])
+                k[0] += records
+                k[1] = max(k[1], until or "")
 
+            years = {}
+            for proj, client, year in merged:
+                years.setdefault((proj, client), set()).add(year)
+            table_rows = []
+            for (proj, client, year), kinds in merged.items():
+                main = min(kinds, key=lambda x: rank[x])
+                if main == "Under Embargo":
+                    active_projects += 1
+                elif main == "EXPIRED":
+                    expired_projects += 1
+                elif main == "Released":
+                    released_projects += 1
+                others = [f"{kinds[x][0]:,} {x.lower() if x != 'EXPIRED' else 'expired'}"
+                          for x in sorted(kinds, key=lambda x: rank[x]) if x != main]
+                others = [o.replace("no embargo", "not embargoed") for o in others]
+                display_status = main + (f" ({', '.join(others)})" if others else "")
+                label = proj or "(no project)"
+                if len(years[(proj, client)]) > 1 and year:
+                    label += f" ({year})"          # display only; the project name stays in UserRole
                 table_rows.append((
-                    proj_name, client_name, records, species,
-                    display_status, until or "", status or ""
+                    label, client or "", sum(v[0] for v in kinds.values()),
+                    species.get((proj, client, year), 0), display_status, kinds[main][1], kinds[main][2], main,
+                    proj or "",
                 ))
+            table_rows.sort(key=lambda r: (rank[r[7]], r[0].lower()))
 
             conn.close()
 
@@ -385,11 +411,10 @@ class CommercialReportsDashboard(QScrollArea):
             self._table.setRowCount(len(table_rows))
             keep = self._selected_project
             self._table.blockSignals(True)
-            for row_idx, (proj, client, records, species, status, until, raw_status) in enumerate(table_rows):
+            for row_idx, (proj, client, records, species, status_text, until, raw_status, status, raw_proj) in enumerate(table_rows):
                 name_item = QTableWidgetItem(proj)
                 # the raw names: "(no project)" is display only
-                name_item.setData(Qt.ItemDataRole.UserRole,
-                                  (proj if proj != "(no project)" else "", client))
+                name_item.setData(Qt.ItemDataRole.UserRole, (raw_proj, client))
                 self._table.setItem(row_idx, 0, name_item)
                 self._table.setItem(row_idx, 1, QTableWidgetItem(client))
 
@@ -401,7 +426,7 @@ class CommercialReportsDashboard(QScrollArea):
                 species_item.setTextAlignment(Qt.AlignCenter)
                 self._table.setItem(row_idx, 3, species_item)
 
-                status_item = QTableWidgetItem(status)
+                status_item = QTableWidgetItem(status_text)
                 status_item.setTextAlignment(Qt.AlignCenter)
                 if status == "EXPIRED":
                     status_item.setForeground(QColor(theme().get('embargo_expired')))
@@ -432,8 +457,8 @@ class CommercialReportsDashboard(QScrollArea):
                         }}
                     """)
                     btn.clicked.connect(
-                        lambda checked, p=proj, c=client, s=raw_status:
-                        self._release_project(p if p != "(no project)" else "", c)
+                        lambda checked, p=raw_proj, c=client, s=raw_status:
+                        self._release_project(p, c)
                     )
                     self._table.setCellWidget(row_idx, 6, btn)
                 elif status == "Released":

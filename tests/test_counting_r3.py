@@ -130,25 +130,38 @@ def test_d1_commercial_reports_species_follow_switches(settings, tmp_path, monke
 @needs_data
 @needs_uksi
 def test_d1_on_the_data_copy(on_copy, monkeypatch):
-    """Every project's Species = distinct rolled-up TVKs of its counted records; Records = all."""
+    """Every project's Species = distinct rolled-up TVKs of its counted records; Records = all.
+    One row per project and survey year since 17 Nov 2026 (embargo settings folded in)."""
     from src.views.stats import commercial_reports_dashboard as mod
     monkeypatch.setattr(mod, "get_database", lambda: SimpleNamespace(get_main_path=lambda: on_copy))
     excl = sc.excluded_ids(on_copy, "observations")
     roll = sc.species_key_map(on_copy, "observations")
     want = defaultdict(lambda: [0, set()])
-    for i, p, cl, st, u, t in sqlite3.connect(on_copy).execute(
-            "SELECT id, project_name, client, embargo_status, embargo_until, species_tvk "
+    con = sqlite3.connect(on_copy)
+    hid = ("hidden_at" if "hidden_at" in {r[1] for r in con.execute("PRAGMA table_info(observations)")}
+           else "NULL")
+    for i, p, cl, h, u, t in con.execute(
+            f"SELECT id, project_name, client, {hid}, substr(date, 1, 4), species_tvk "
             "FROM observations WHERE record_type = 'Commercial'"):
-        k = (p or "(no project)", cl or "", u or "")
+        k = (p or "(no project)", cl or "", u or "")      # u: survey year
         want[k][0] += 1
-        if t and i not in excl:
+        # hidden records (deleted in iRecord, removed here) are never counted as species
+        if t and i not in excl and h is None:
             want[k][1].add(roll.get(t, t))
     d = mod.CommercialReportsDashboard()
     d.refresh()
     got = defaultdict(lambda: [0, 0])
+    years = defaultdict(set)
+    for p, cl, y in want:
+        years[(p, cl)].add(y)
     for r in _table_rows(d._table):
-        got[(r[0], r[1], r[5])][0] += int(r[2])
-        got[(r[0], r[1], r[5])][1] = int(r[3])
+        name, year = r[0], ""
+        if name.endswith(")") and " (" in name and name.rsplit(" (", 1)[1][:-1].isdigit():
+            name, year = name.rsplit(" (", 1)[0], name.rsplit(" (", 1)[1][:-1]
+        elif len(years[(name, r[1])]) == 1:
+            year = next(iter(years[(name, r[1])]))
+        got[(name, r[1], year)][0] += int(r[2])
+        got[(name, r[1], year)][1] = int(r[3])
     assert got and {k: v[0] for k, v in got.items()} == {k: v[0] for k, v in want.items()}
     assert {k: v[1] for k, v in got.items()} == {k: len(v[1]) for k, v in want.items()}
 
