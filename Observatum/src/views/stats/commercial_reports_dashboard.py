@@ -231,7 +231,8 @@ class CommercialReportsDashboard(QScrollArea):
         self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self._table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self._table.itemSelectionChanged.connect(self._on_project_selected)
-        self._layout.addWidget(self._table)
+        # stretch 1: the project list fills the free space instead of stopping half way (17 Nov 2026)
+        self._layout.addWidget(self._table, 1)
 
         # ---- the selected project: its records, and what to do with them ----
         self._detail = QFrame()
