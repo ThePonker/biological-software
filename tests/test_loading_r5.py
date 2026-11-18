@@ -533,7 +533,7 @@ out = dict(
     seen=seen, ticks=len(seen), at_show=at_show, marks=marks,
     max_pause=bg.max_pause, slowest=bg.slowest_slice,
     obs=w.observation_tab.table_model.rowCount(),
-    n_obs=con.execute("SELECT COUNT(*) FROM observations").fetchone()[0],
+    n_obs=con.execute("SELECT COUNT(*) FROM observations WHERE hidden_at IS NULL").fetchone()[0],
     ic=w.insect_collection_tab.table_model.rowCount(),
     n_spec=con.execute("SELECT COUNT(*) FROM specimens").fetchone()[0],
     rs=w.recording_scheme_tab.table_model.rowCount(),

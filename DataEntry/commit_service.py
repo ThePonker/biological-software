@@ -369,6 +369,23 @@ def taxonomy_with_synonyms(rows, uksi_path=None) -> Dict[str, dict]:
     return taxonomy
 
 
+def row_kwargs(row: Dict, job: Dict, embargo_until: Optional[str] = None,
+               taxonomy: Optional[Dict] = None):
+    """One eligible staging row as commit_job writes it: (kwargs, tax, why_not).
+
+    kwargs are the Observation kwargs (build_kwargs_from_row) with the row's taxonomy from
+    taxonomy ({tvk: ...}, taxonomy_with_synonyms): a UKSI synonym is renamed to its recommended
+    name and TVK. tax is the taxonomy entry used ({} when the row is written as staged).
+    why_not is synonym_status's answer: None, "rename", or why a synonym was not renamed
+    ("differ", "ambiguous", "qualified"). Shared by commit_job and Examen's preview of a job.
+    """
+    tax = (taxonomy or {}).get((row.get("species_tvk") or "").strip()) or {}
+    why_not = synonym_status(row, tax)
+    if why_not and why_not != "rename":
+        tax = {}
+    return build_kwargs_from_row(row, job, embargo_until, tax), tax, why_not
+
+
 def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
                observation_cls=None, taxonomy: Optional[Dict] = None, uksi_path=None) -> Dict:
     """Write eligible staging rows into observations; delete the committed ones.
@@ -440,14 +457,12 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
         if reason == "bad_vc":
             skipped_bad_vc += 1
             continue
-        tax = taxonomy.get((row.get("species_tvk") or "").strip()) or {}
-        why_not = synonym_status(row, tax)
-        if why_not and why_not != "rename":       # written exactly as staged, and said so
-            {"differ": name_tvk_differ, "ambiguous": ambiguous_names,
-             "qualified": qualified_names}[why_not].append((row.get("species_name") or "").strip())
-            tax = {}
         try:
-            kwargs = build_kwargs_from_row(row, job, embargo_until, tax)
+            kwargs, tax, why_not = row_kwargs(row, job, embargo_until, taxonomy)
+            if why_not and why_not != "rename":   # written exactly as staged, and said so
+                {"differ": name_tvk_differ, "ambiguous": ambiguous_names,
+                 "qualified": qualified_names}[why_not].append(
+                    (row.get("species_name") or "").strip())
             # the survey fields, the batch stamp and the taxonomy columns go in the same INSERT
             # (R18 B5; they used to be written by a second UPDATE)
             new_id = model.create(observation_cls(**kwargs), extra={

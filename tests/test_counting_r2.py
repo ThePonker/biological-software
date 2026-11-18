@@ -205,7 +205,9 @@ def test_home_equals_observation_data(on_copy):
     stats = ObservationRepository(get_database()).get_quick_stats()
     tab = ObservationTab()
     tab.initialize()
-    total = sqlite3.connect(on_copy).execute("SELECT COUNT(*) FROM observations").fetchone()[0]
+    # hidden records (cleaning) are not listed
+    total = sqlite3.connect(on_copy).execute(
+        "SELECT COUNT(*) FROM observations WHERE hidden_at IS NULL").fetchone()[0]
     excluded = len(sc.excluded_ids(on_copy, "observations"))
     assert tab.table_model.rowCount() == total                         # every record listed
     counted = tab._counted(tab.table_model._observations)

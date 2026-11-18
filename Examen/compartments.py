@@ -209,7 +209,14 @@ def for_detail(result, detail, project, jurisdiction="England", service=None, co
     client = getattr(project, "client", "") or getattr(site, "client", "")
     year = (getattr(project, "survey_year", "") if project is not None
             else getattr(site, "survey_year", "")) or None
-    split = split_records(load_rows(name, client, year, conn))
+    preview = getattr(detail, "preview_rows", None)
+    if preview is not None:      # a Data Entry preview: the job's staged rows
+        counts = {}
+        for r in preview:        # (name, tvk, date, site, sub_location, qty, vc)
+            counts[(r[4], r[1], r[0])] = counts.get((r[4], r[1], r[0]), 0) + 1
+        split = split_records([(sub, tvk, nm, n) for (sub, tvk, nm), n in counts.items()])
+    else:
+        split = split_records(load_rows(name, client, year, conn))
     if service is None and len(split) >= 2:
         service = _default_service()
     try:

@@ -265,6 +265,11 @@ class DataEntryWidget(QWidget):
         lab.setWordWrap(True)  # a long job / client / project name wraps (R3 fix)
         lab.setStyleSheet(f"color: {theme.INK}; font-size: {font_css('body')}; padding-left: 10px;")
         top.addWidget(lab, 1)   # takes the free width, so it wraps only when it must
+        vwb = QPushButton("Visits & weather\u2026")
+        vwb.setStyleSheet(theme.button_secondary_qss())
+        vwb.setCursor(Qt.CursorShape.PointingHandCursor)
+        vwb.clicked.connect(lambda _=False, j=job: self._visits_weather(j))
+        top.addWidget(vwb, 0, Qt.AlignmentFlag.AlignTop)
         tw = QWidget(); tw.setLayout(top)
         self._job_layout.addWidget(tw)
         self._fold_top_btn = None
@@ -287,6 +292,10 @@ class DataEntryWidget(QWidget):
         self._status.setText(f"Open: {job['name']} ({job.get('mode')}). Staged \u2014 nothing committed."
                              + ("  Previously committed records stay in Observatum; this grid holds "
                                 "only new rows." if self._has_committed(job) else ""))
+
+    def _visits_weather(self, job):
+        from DataEntry.visit_weather_dialog import VisitWeatherDialog
+        VisitWeatherDialog(self._conn, job, self).exec()
 
     def _has_committed(self, job) -> bool:
         """True when records for this job's project and client are already in Observatum."""

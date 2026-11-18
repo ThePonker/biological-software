@@ -9,7 +9,7 @@ import csv
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QSplitter, QTableWidget, QTableWidgetItem, QHeaderView,
-    QTabWidget, QFileDialog, QMessageBox, QCheckBox, QComboBox,
+    QTabWidget, QFileDialog, QMessageBox, QCheckBox, QComboBox, QApplication,
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QColor
@@ -135,6 +135,10 @@ class SiteAnalysisView(QWidget):
 
         import_btn = QPushButton("Import List..."); import_btn.setStyleSheet(BTN_ACCENT)
         import_btn.clicked.connect(self._on_import); toolbar.addWidget(import_btn)
+        entry_btn = QPushButton("Data Entry job\u2026"); entry_btn.setStyleSheet(BTN_ACCENT)
+        entry_btn.setToolTip("Preview a Data Entry job that has not been committed yet.\n"
+                             "Read-only: nothing is written.")
+        entry_btn.clicked.connect(self._on_entry_job); toolbar.addWidget(entry_btn)
         refresh_btn = QPushButton("Refresh"); refresh_btn.setStyleSheet(BTN_ACCENT)
         refresh_btn.clicked.connect(self._load_projects); toolbar.addWidget(refresh_btn)
         self.appendix_btn = QPushButton("Export Appendix"); self.appendix_btn.setStyleSheet(BTN_OUTLINE)
@@ -160,6 +164,15 @@ class SiteAnalysisView(QWidget):
             "copying into a report template.")
         self.word_btn.clicked.connect(self._on_export_word)
         self.word_btn.setEnabled(False); toolbar.addWidget(self.word_btn)
+        self.pack_btn = QPushButton("Export Report pack"); self.pack_btn.setStyleSheet(BTN_PRIMARY)
+        self.pack_btn.setToolTip(
+            "Results tables and species accounts in the report template's style, as a\n"
+            "Word document to paste into the report. Figures are the workbook's own.")
+        self.pack_btn.clicked.connect(self._on_export_pack)
+        self.pack_btn.setEnabled(False); toolbar.addWidget(self.pack_btn)
+        bench_btn = QPushButton("Benchmark\u2026"); bench_btn.setStyleSheet(BTN_OUTLINE)
+        bench_btn.setToolTip("Choose the surveys in the Key Species benchmark the report pack quotes.")
+        bench_btn.clicked.connect(self._on_benchmark); toolbar.addWidget(bench_btn)
         export_btn = QPushButton("Export CSV"); export_btn.setStyleSheet(BTN_OUTLINE)
         export_btn.clicked.connect(self._export_csv); toolbar.addWidget(export_btn)
         # The ten controls held the window at 1,270 px: on a narrower (laptop) screen the
@@ -243,6 +256,7 @@ class SiteAnalysisView(QWidget):
         if hasattr(self, 'workbook_btn'): self.workbook_btn.setEnabled(False)
         if hasattr(self, 'pdf_btn'): self.pdf_btn.setEnabled(False)
         if hasattr(self, 'word_btn'): self.word_btn.setEnabled(False)
+        if hasattr(self, 'pack_btn'): self.pack_btn.setEnabled(False)
         self._current_detail = None; self._current_result = None; self.detail_tabs.hide()
 
         def put(r, c, text, key, centre=True, colour=None, tip=None):
@@ -308,7 +322,7 @@ class SiteAnalysisView(QWidget):
         self._current_detail = None
         self._current_project = None
         self._current_site_name = ""
-        for b in (self.appendix_btn, self.workbook_btn, self.pdf_btn, self.word_btn):
+        for b in (self.appendix_btn, self.workbook_btn, self.pdf_btn, self.word_btn, self.pack_btn):
             b.setEnabled(False)
         self.detail_tabs.hide()
         self.detail_header.setText(message)
@@ -335,19 +349,68 @@ class SiteAnalysisView(QWidget):
         if errors and getattr(detail, "analysis", None) is None:
             self._clear_detail(f"{proj.display_name}: analysis error \u2014 {errors[0]}")
             return
-        self._current_detail = detail
-        self._current_project = proj
-        self._current_site_name = proj.display_name
-        # Every TVK recorded -- a species recorded as s.l. and s.s. is merged by
-        # the analysis, which needs both (EXA14).
-        tvks = list(getattr(detail, "recorded_tvks", None) or
-                    [sp.tvk for sp in detail.species_list if sp.tvk])
-        names = {sp.tvk: sp.name for sp in detail.species_list if sp.tvk}
         sites_info = f" ({proj.site_count} sites)" if proj.site_count > 1 else ""
         title = (f"{proj.display_name} \u2014 {proj.client}{sites_info}"
                  if proj.survey_year else
                  f"{proj.project_name} \u2014 {proj.client}{sites_info} (all years pooled)")
         title += f"   \u2014 assessed under {self._jurisdiction} ({how})"
+        self._present_detail(detail, proj, proj.display_name, title)
+
+    def _on_entry_job(self):
+        """Preview an uncommitted Data Entry job exactly as a project is shown (read-only)."""
+        from .examen_data import list_entry_jobs, load_entry_job_detail, resolve_entry_jurisdiction
+        from .entry_job_picker import EntryJobPicker
+        jobs = list_entry_jobs()
+        if not jobs:
+            QMessageBox.information(self, "Data Entry job",
+                                    "There are no active Data Entry jobs with records to preview.")
+            return
+        dlg = EntryJobPicker(jobs, self)
+        if not dlg.exec() or dlg.chosen_id() is None:
+            return
+        chosen = self.juris_combo.currentText()
+        take_read_errors()
+        try:
+            detail = load_entry_job_detail(dlg.chosen_id(), self._mode, jurisdiction=chosen)
+        except Exception as e:  # noqa: BLE001 -- never leave the last project exportable (EXA17)
+            self._clear_detail(f"Data Entry job: could not be loaded \u2014 {e}")
+            return
+        if not detail:
+            self._clear_detail("Data Entry job: no staged records found")
+            return
+        errors = take_read_errors()
+        if errors and getattr(detail, "analysis", None) is None:
+            self._clear_detail(f"Data Entry job: analysis error \u2014 {errors[0]}")
+            return
+        site = detail.site
+        self._jurisdiction = detail.jurisdiction
+        how = resolve_entry_jurisdiction(detail.preview_rows, chosen)[1]
+        sites = sorted({r[3] for r in detail.preview_rows if r[3]})
+        from .examen_data import ProjectRecord
+        proj = ProjectRecord(
+            project_name=site.project_name, client=site.client, site_count=len(sites),
+            site_names=sites, visit_count=site.visit_count, species_count=site.species_count,
+            record_count=site.record_count, first_date=site.first_date, last_date=site.last_date,
+            mode=site.mode, survey_year=site.survey_year, jurisdiction=detail.jurisdiction)
+        label = f"{site.project_name} \u2014 Data Entry job '{site.preview_job}'"
+        title = (f"{label} (not committed, preview)   \u2014 assessed under "
+                 f"{self._jurisdiction} ({how})")
+        self._present_detail(detail, proj, label + " (preview)", title)
+
+    def _pooled(self):
+        """Pool-years only applies to committed projects, never to a preview."""
+        site = getattr(self._current_detail, "site", None)
+        return self._pool_years and not getattr(site, "preview_job", "")
+
+    def _present_detail(self, detail, proj, site_name, title):
+        self._current_detail = detail
+        self._current_project = proj
+        self._current_site_name = site_name
+        # Every TVK recorded -- a species recorded as s.l. and s.s. is merged by
+        # the analysis, which needs both (EXA14).
+        tvks = list(getattr(detail, "recorded_tvks", None) or
+                    [sp.tvk for sp in detail.species_list if sp.tvk])
+        names = {sp.tvk: sp.name for sp in detail.species_list if sp.tvk}
         # The species list was built from this analysis: reuse it, so the list,
         # the tabs and the table row are one computation.
         self._run_analysis(tvks, names, title, detail.site.visit_count,
@@ -370,6 +433,7 @@ class SiteAnalysisView(QWidget):
         self.detail_header.setText(title)
         self.appendix_btn.setEnabled(True)
         self.workbook_btn.setEnabled(True); self.pdf_btn.setEnabled(True); self.word_btn.setEnabled(True)
+        self.pack_btn.setEnabled(True)
         self.detail_tabs.show()
         # Compartments (E6): computed once here, cached on the detail, read by the
         # Overview and the workbook/PDF/Word exports.
@@ -449,7 +513,7 @@ class SiteAnalysisView(QWidget):
         try:
             export_pdf(self._current_result, self._current_detail, self._current_project, path,
                        jurisdiction=getattr(self, "_jurisdiction", "England"),
-                       pooled_years=self._pool_years)
+                       pooled_years=self._pooled())
         except Exception as e:  # noqa: BLE001
             QMessageBox.warning(self, "Export failed", f"The PDF could not be written.\n\n{e}")
             return
@@ -480,11 +544,57 @@ class SiteAnalysisView(QWidget):
         try:
             export_word(self._current_result, self._current_detail, self._current_project, path,
                         jurisdiction=getattr(self, "_jurisdiction", "England"),
-                        pooled_years=self._pool_years)
+                        pooled_years=self._pooled())
         except Exception as e:  # noqa: BLE001
             QMessageBox.warning(self, "Export failed", f"The Word document could not be written.\n\n{e}")
             return
         QMessageBox.information(self, "Word report exported", f"Written to:\n{path}")
+
+    def _on_export_pack(self):
+        """Write the report pack: results tables and species accounts for the report template."""
+        if not self._current_result:
+            return
+        try:
+            from .report_pack import export_report_pack, HAS_DOCX
+        except ImportError:
+            HAS_DOCX = False
+        if not HAS_DOCX:
+            QMessageBox.warning(self, "Export Report pack",
+                                "The report pack needs python-docx. In a terminal:\n\n"
+                                "    py -3.14 -m pip install python-docx\n\nthen restart Examen.")
+            return
+        base = (self._current_site_name or "Assessment").replace(" \u2014 ", " ")
+        base = "".join(ch if ch.isalnum() or ch in " -_" else "_" for ch in base)
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export report pack (Word)", f"{base.strip()} report pack.docx",
+            "Word document (*.docx)")
+        if not path:
+            return
+        if not path.lower().endswith(".docx"):
+            path += ".docx"
+        try:
+            export_report_pack(self._current_result, self._current_detail, self._current_project,
+                               path, jurisdiction=getattr(self, "_jurisdiction", "England"),
+                               pooled_years=self._pooled())
+        except Exception as e:  # noqa: BLE001
+            QMessageBox.warning(self, "Export failed", f"The report pack could not be written.\n\n{e}")
+            return
+        QMessageBox.information(self, "Report pack exported", f"Written to:\n{path}")
+
+    def _on_benchmark(self):
+        """Choose which surveys make up the Key Species benchmark."""
+        from .benchmark import benchmark_rows
+        from .benchmark_dialog import BenchmarkDialog
+        mode = self._mode if isinstance(self._mode, AnalysisMode) else AnalysisMode.CODEX_FULL
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            proj = self._current_project
+            current = ((proj.project_name, proj.client, proj.survey_year)
+                       if proj is not None and not self._pooled() else None)
+            rows = benchmark_rows(mode, current=current)
+        finally:
+            QApplication.restoreOverrideCursor()
+        BenchmarkDialog(rows, self).exec()
 
     def _on_export_workbook(self):
         """Write the full assessment workbook.
@@ -512,7 +622,7 @@ class SiteAnalysisView(QWidget):
         try:
             export_workbook(self._current_result, self._current_detail, proj, path,
                             jurisdiction=getattr(self, "_jurisdiction", "England"),
-                            pooled_years=self._pool_years)
+                            pooled_years=self._pooled())
         except Exception as e:  # noqa: BLE001
             QMessageBox.warning(self, "Export failed",
                                 f"The workbook could not be written.\n\n{e}")

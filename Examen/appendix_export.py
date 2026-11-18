@@ -51,8 +51,12 @@ def export_appendix(parent_widget, site_name: str, result, detail=None,
         jurisdiction: whose designations apply; others are greyed, as in the workbook
     """
     from .examen_data import in_taxonomic_order
-    from .workbook_export import (_parts_from_string, _sqi_cell, appendix_name, status_cell,
-                                  status_parts)
+    from .workbook_export import (_parts_from_string, _sqi_cell, appendix_name, bracket_parts,
+                                  status_cell, status_codes, status_parts)
+    from .status_marks import bracket_checker
+    _site = getattr(detail, "site", None)
+    br = bracket_checker(getattr(_site, "project_name", ""), getattr(_site, "client", ""),
+                         getattr(_site, "survey_year", ""))
     if not HAS_OPENPYXL:
         QMessageBox.warning(parent_widget, "Examen",
                             "openpyxl required for Excel export.\npip install openpyxl")
@@ -130,7 +134,7 @@ def export_appendix(parent_widget, site_name: str, result, detail=None,
             name = (f"{k.species_name} ({k.recorded_note})"
                     if getattr(k, "recorded_note", "") else k.species_name)
             values = [name, tax.get("common", ""),
-                      status_cell(status_parts(k, jurisdiction), jurisdiction),
+                      status_cell(bracket_parts(status_parts(k, jurisdiction), br(k.tvk), status_codes(k)), jurisdiction),
                       sqs_cell(k.tvk, k.sqs), k.tier, k.broad_biotope, k.habitat,
                       k.family or tax.get("family", ""), tax.get("order", "")]
             for col, val in enumerate(values, 1):
@@ -152,8 +156,9 @@ def export_appendix(parent_widget, site_name: str, result, detail=None,
     # Non-key species
     for sp in non_key_sorted:
         tax = taxonomy.get(sp.tvk, {})
-        status = status_cell(_parts_from_string(
-            getattr(sp, "status_full", "") or sp.status or "", jurisdiction), jurisdiction)
+        status = status_cell(bracket_parts(_parts_from_string(
+            getattr(sp, "status_full", "") or sp.status or "", jurisdiction), br(sp.tvk)),
+            jurisdiction)
         values = [appendix_name(sp), tax.get("common", ""), status, sqs_cell(sp.tvk, sp.sqs),
                   "", sp.broad_biotope or "", sp.habitat or "",
                   tax.get("family", ""), tax.get("order", "")]

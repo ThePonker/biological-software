@@ -386,6 +386,40 @@ def _parts_from_string(s, jurisdiction):
             for t in (x.strip() for x in (s or "").split(",")) if t]
 
 
+# Rarity and threat codes: the statuses a review can downgrade, so the only ones bracketed.
+STATUS_CODES = frozenset(_norm(c) for c in (_RARE_V1 | _RARE_V2 | _SCARCE_V2 | _RARE_V3
+                                            | _SCARCE_V3 | _SCARCE_V1))
+
+
+def status_codes(entry):
+    """The entry's own rarity and threat codes (never a priority, legal or note label)."""
+    out = []
+    for v in (getattr(entry, "threat", ""), getattr(entry, "threat_legacy", ""),
+              getattr(entry, "rarity", "")):
+        if v and v not in out:
+            out.append(v)
+    return tuple(out)
+
+
+def bracket_parts(parts, bracketed, codes=None):
+    """[(text, applies)] with the rarity and threat codes in [square brackets] when the species
+    is marked as likely to be downgraded. Priority listings, legal protection and notes (such as
+    "status held at sensu lato") are not statuses that review downgrades, so they stay as they
+    are. codes: a key species' own codes (status_codes); without it, a part is bracketed when it
+    is a known rarity or threat code."""
+    if not bracketed:
+        return parts
+    own = {_norm(c) for c in codes} if codes is not None else STATUS_CODES
+    return [(f"[{t}]" if _norm(t) in own else t, a) for t, a in parts]
+
+
+def _bracket_for(stamp):
+    """tvk -> bool: is the species bracketed in the survey this stamp describes."""
+    from Examen import status_marks as sm
+    return sm.bracket_checker(stamp.get("project_name", ""), stamp.get("client", ""),
+                              stamp.get("survey_year") or "")
+
+
 def status_cell(parts, jurisdiction):
     """Cell value: plain text, with other jurisdictions' designations in grey."""
     _load_openpyxl()
@@ -525,7 +559,7 @@ def _contribution_line(contributions):
             "included in every figure")
 
 
-def _occurrences(tvks, project_name, client="", survey_year=None):
+def _occurrences(tvks, project_name, client="", survey_year=None, preview_rows=None):
     """{tvk: 'Recorded from <sites> in <months>.'} generated from the records.
 
     The reusable profile is stored; the site-specific sentence is generated,
@@ -535,17 +569,21 @@ def _occurrences(tvks, project_name, client="", survey_year=None):
     if not tvks:
         return {}
     out = {}
-    where, params = _survey_where(project_name, client, survey_year)
-    try:
-        c = sqlite3.connect(f"file:{paths.OBSERVATUM_DB}?mode=ro", uri=True)
-        rows = c.execute(
-            f"""SELECT species_tvk, site_name, sub_location, date, quantity,
-                       CASE WHEN origin='contributed' THEN COALESCE(contributor, '?') END
-                FROM assessment_records WHERE {where} AND species_tvk IS NOT NULL""",
-            params).fetchall()
-        c.close()
-    except sqlite3.Error:
-        return {}
+    if preview_rows is not None:       # a Data Entry preview: the survey's records as they will be
+        rows = [(r[1], r[3], r[4], r[2], r[5], (r[11] or None) if len(r) > 11 else None)
+                for r in preview_rows if r[1]]
+    else:
+        where, params = _survey_where(project_name, client, survey_year)
+        try:
+            c = sqlite3.connect(f"file:{paths.OBSERVATUM_DB}?mode=ro", uri=True)
+            rows = c.execute(
+                f"""SELECT species_tvk, site_name, sub_location, date, quantity,
+                           CASE WHEN origin='contributed' THEN COALESCE(contributor, '?') END
+                    FROM assessment_records WHERE {where} AND species_tvk IS NOT NULL""",
+                params).fetchall()
+            c.close()
+        except sqlite3.Error:
+            return {}
 
     MONTHS = ["January", "February", "March", "April", "May", "June", "July",
               "August", "September", "October", "November", "December"]
@@ -719,6 +757,14 @@ def _sheet_summary(wb, result, detail, project, stamp):
     rare = [k for k in keys if telfer_tier(k) == "rare"]
     status_only = [k for k in keys if status_only_tier(k)]
     total = result.total_species or 1
+    from Examen import status_marks as sm
+    br0 = _bracket_for(stamp)
+    coded = {getattr(k, "tvk", "") for k in keys if status_codes(k)}
+    br = lambda tvk: tvk in coded and br0(tvk)  # noqa: E731 -- bracketed on a code, as shown
+    any_bracketed = any(br(getattr(k, "tvk", "")) for k in keys)
+    so_rev, rare_rev = sm.revised_key_figures(keys, br)
+    revised_note = ("Leaves out species marked as likely to be downgraded on review "
+                    "(shown in [square brackets]).")
 
     rows = [
         ("Species recorded", result.total_species,
@@ -740,11 +786,15 @@ def _sheet_summary(wb, result, detail, project, stamp):
          "separately."),
         ("% Key Species (status only)", f"{round(len(status_only) / total * 100, 1)}%",
          "Comparable between surveys whatever the priority lists."),
+        *([("Key Species (status only, revised)", so_rev, revised_note),
+           ("% Key Species (status only, revised)", f"{round(so_rev / total * 100, 1)}%",
+            revised_note)] if any_bracketed else []),
         ("Rare Key Species", len(rare),
          "Red Data Book, IUCN Threatened, Data Deficient, or Nationally Rare."),
         ("% Rare Key Species", f"{round(len(rare) / total * 100, 1)}%",
          "More than 1% is commonly treated as indicating potential national "
          "significance."),
+        *([("Rare Key Species (revised)", rare_rev, revised_note)] if any_bracketed else []),
         (None, None, None),
         ("Codex tiers — Rare", result.rare_count,
          "Codex's own classification; not the same split as Rare Key above."),
@@ -824,7 +874,8 @@ def _sheet_key_species(wb, result, project, stamp):
     tvks = {k.tvk for k in keys if k.tvk}
     profiles = _profiles(tvks)
     occurrences = _occurrences(tvks, stamp["project_name"], stamp["client"],
-                               stamp["survey_year"])
+                               stamp["survey_year"], stamp.get("preview_rows"))
+    br = _bracket_for(stamp)
 
     # Taxonomic order within each tier, as the subtitle says (backlog E19).
     _tax = lambda ks: _in_taxonomic_order(ks, name=lambda k: k.species_name)  # noqa: E731
@@ -843,8 +894,8 @@ def _sheet_key_species(wb, result, project, stamp):
                     if getattr(k, "recorded_note", "") else k.species_name),
                    vernacular(getattr(k, "common_name", "") or _taxon(k).get("common", ""),
                               family, order),
-                   status_cell(status_parts(k, stamp["jurisdiction"]),
-                               stamp["jurisdiction"]),
+                   status_cell(bracket_parts(status_parts(k, stamp["jurisdiction"]),
+                                             br(k.tvk), status_codes(k)), stamp["jurisdiction"]),
                    k.sqs or "",
                    k.broad_biotope or "",
                    k.habitat or "",
@@ -884,6 +935,7 @@ def _sheet_appendix(wb, detail, result, stamp):
                 [16, 20, 28, 22, 24, 6, 22, 26, 9])
 
     key_by_tvk = {k.tvk: k for k in result.key_species if k.tvk}
+    br = _bracket_for(stamp)
     # Taxonomic order; species without a TVK last, so the exclusion shows (E19).
     species = _in_taxonomic_order(getattr(detail, "species_list", []) or [])
     no_tvk = 0
@@ -895,8 +947,10 @@ def _sheet_appendix(wb, detail, result, stamp):
             no_tvk += 1
         k = key_by_tvk.get(sp.tvk)
         juris = stamp["jurisdiction"]
-        status = status_cell(status_parts(k, juris) if k
-                             else _parts_from_string(getattr(sp, "status_full", "") or sp.status, juris), juris)
+        status = status_cell(bracket_parts(
+            status_parts(k, juris) if k
+            else _parts_from_string(getattr(sp, "status_full", "") or sp.status, juris),
+            br(sp.tvk), status_codes(k) if k else None), juris)
         if sp.sqs:
             scoring += 1
             sqs_total += sp.sqs
@@ -1268,6 +1322,12 @@ def export_workbook(result, detail, project, path,
     client = getattr(project, "client", "") or getattr(site, "client", "")
 
     title = f"{name}{f' — {year}' if year else ''}{f' — {client}' if client else ''}"
+    try:
+        from Examen.examen_data import preview_note
+    except ImportError:  # pragma: no cover
+        from examen_data import preview_note
+    preview_job = getattr(site, "preview_job", "") or ""
+    preview_rows = getattr(detail, "preview_rows", None) if preview_job else None
     contributed = _contributions(name, client, None if pooled_years else (year or None))
     stamp = {
         "title": title,
@@ -1275,7 +1335,10 @@ def export_workbook(result, detail, project, path,
         "client": client,
         "survey_year": year or None,
         "jurisdiction": jurisdiction,
-        "basis": [
+        "preview_rows": preview_rows,
+        "basis": ([("Preview", preview_note(preview_job, getattr(site, "preview_held_back", 0),
+                                            getattr(site, "preview_years", "")))]
+                  if preview_job else []) + [
             ("Assessment run", dmy(date.today().isoformat())),
             ("Survey dates", f"{dmy(getattr(site, 'first_date', ''))} to "
                              f"{dmy(getattr(site, 'last_date', ''))}"),

@@ -91,6 +91,9 @@ class SiteRecord:
     accumulation: list = field(default_factory=list)
     mode: str = "codex_full"
     survey_year: str = POOLED
+    preview_job: str = ""       # Data Entry job name when this is an uncommitted preview, else ""
+    preview_held_back: int = 0  # staged rows commit would leave in staging (not in the preview)
+    preview_years: str = ""     # "2023 (most common of 2023, 2024)" when the job spans years
 
 
 @dataclass
@@ -127,6 +130,9 @@ class SiteDetail:
     # Every TVK recorded, before a species' s.l. TVK was folded into it (EXA14).
     # Analyse THESE, not the species list's TVKs, to reproduce `analysis`.
     recorded_tvks: list = field(default_factory=list)
+    # A preview of an uncommitted Data Entry job: its staged rows (entry_row tuples), so the
+    # exports read the job and not the committed records. None for a committed project.
+    preview_rows: object = None
 
 
 @dataclass
@@ -243,8 +249,13 @@ def derive_jurisdiction(project_name, client="", survey_year=None, date_from=Non
             conn.close()
     except sqlite3.Error:
         return ""
+    return _commonest_country(rows)
+
+
+def _commonest_country(vc_counts):
+    """Commonest country from [(vice-county number, records)], or ''."""
     tally = {}
-    for vc, n in rows:
+    for vc, n in vc_counts:
         try:
             country = country_for_vc(int(vc))
         except (TypeError, ValueError):
@@ -271,6 +282,11 @@ def resolve_jurisdiction(project, chosen=AUTO_JURISDICTION):
         derived = derive_jurisdiction(getattr(project, "project_name", ""),
                                       getattr(project, "client", ""),
                                       getattr(project, "survey_year", "") or None)
+    return _jurisdiction_from_derived(derived)
+
+
+def _jurisdiction_from_derived(derived):
+    """(jurisdiction, how) from the country derived from vice-counties ('' if none)."""
     if derived in ("", "Isle of Man"):
         # No usable vice-county, or a jurisdiction with no separate priority
         # list. England is the documented default; say so rather than assert a
@@ -517,11 +533,16 @@ def _build_species_list(species_rows, mode, jurisdiction=DEFAULT_JURISDICTION,
 
 def _accumulation(conn, where, params):
     """Species-accumulation curve by date."""
+    return _accumulate(conn.execute(
+        f"""SELECT date, species_name FROM assessment_records
+            WHERE {where} AND date IS NOT NULL AND species_name IS NOT NULL
+            ORDER BY date""", params))
+
+
+def _accumulate(date_species_pairs):
+    """(dates, [(date, species seen so far)]) from (date, species) pairs in date order."""
     seen, by_date = set(), {}
-    for date, sp in conn.execute(
-            f"""SELECT date, species_name FROM assessment_records
-                WHERE {where} AND date IS NOT NULL AND species_name IS NOT NULL
-                ORDER BY date""", params):
+    for date, sp in date_species_pairs:
         seen.add(sp)
         by_date[date] = len(seen)
     dates = sorted(by_date)
@@ -583,6 +604,20 @@ def load_all_projects(mode=AnalysisMode.CODEX_FULL, date_from=None, date_to=None
     return projects
 
 
+def survey_records_where(project_name, client="", date_from=None, date_to=None, survey_year=None):
+    """(WHERE, params) on assessment_records for one committed survey's records: the
+    Commercial project, the client when one is given, and the survey year / dates. The one
+    selection load_project_detail and the preview of a Data Entry job (which adds the job's
+    staged rows to these) both use."""
+    sc, sp = _scope(date_from, date_to, survey_year)
+    where = "record_type = 'Commercial' AND project_name = ?"
+    params = [project_name]
+    if client:
+        where += " AND client = ?"
+        params.append(client)
+    return where + sc, params + sp
+
+
 def load_project_detail(project_name, client="", mode=AnalysisMode.CODEX_FULL,
                         date_from=None, date_to=None, survey_year=None,
                         jurisdiction=None):
@@ -597,14 +632,7 @@ def load_project_detail(project_name, client="", mode=AnalysisMode.CODEX_FULL,
         from types import SimpleNamespace
         jurisdiction, _how = resolve_jurisdiction(SimpleNamespace(
             project_name=project_name, client=client, survey_year=survey_year or ""))
-    sc, sp = _scope(date_from, date_to, survey_year)
-    where = "record_type = 'Commercial' AND project_name = ?"
-    params = [project_name]
-    if client:
-        where += " AND client = ?"
-        params.append(client)
-    where += sc
-    params += sp
+    where, params = survey_records_where(project_name, client, date_from, date_to, survey_year)
 
     conn = _connect()
     try:
@@ -630,7 +658,12 @@ def load_project_detail(project_name, client="", mode=AnalysisMode.CODEX_FULL,
         site.visit_dates, site.accumulation = _accumulation(conn, where, params)
     finally:
         conn.close()
+    return _assemble_detail(site, species_rows, mode, jurisdiction)
 
+
+def _assemble_detail(site, species_rows, mode, jurisdiction):
+    """The SiteDetail for a summary record and its (name, tvk, count) rows -- one path for a
+    committed project and a Data Entry preview, so their figures follow the same rules."""
     species_list, bio, hab, tvks, result = _build_species_list(species_rows, mode, jurisdiction)
     detail = SiteDetail(site=site, species_list=species_list,
                         biotope_counts=bio, habitat_counts=hab,
@@ -662,3 +695,201 @@ def _enrich_projects(projects, mode, date_from=None, date_to=None,
             _apply_metrics(proj, _analyse(tvks, mode, proj.jurisdiction, service=service))
     finally:
         conn.close()
+
+
+# ============================================================
+# Preview of an uncommitted Data Entry job (read-only)
+# ============================================================
+# Data Entry keeps a job's records in entry_staging until they are committed. The preview reads
+# them without writing anything and runs them through the same _assemble_detail as a committed
+# project. A staged row with no species name is ignored. As for committed records, a species
+# that is not an invertebrate (a plant entered by mistake) stays in the list and the species
+# count -- the analysis gives it no status or SQS and never makes it Key.
+
+# Column order of a row as the preview carries it (SiteDetail.preview_rows): the job's eligible
+# staged rows and the survey's records already in Observatum. The last column names the
+# contributor of a contributed record ('' for the rest).
+ENTRY_ROW_COLUMNS = ("species_name", "species_tvk", "date", "site_name", "sub_location",
+                     "quantity", "vc_number", "grid_ref", "method", "determiner", "visit_number",
+                     "contributor")
+
+
+def preview_note(job_name, held_back=0, years=""):
+    """The wording of the preview line in the workbook's basis block (and so the report pack)."""
+    note = (f"Preview of the uncommitted Data Entry job '{job_name}': "
+            "figures may change when the job is committed.")
+    if years:
+        note += f" Survey year {years}."
+    if held_back:
+        note += (f" {held_back} row{'s' if held_back != 1 else ''} held back (To check, undated "
+                 "or unreadable) are not included.")
+    return note
+
+
+def _connect_ro():
+    return sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
+
+
+def _job_rows(conn, job_id, with_taxonomy=True):
+    """(job dict, rows, held_back): the rows Data Entry's commit would write for the job, as
+    ENTRY_ROW_COLUMNS tuples, written as commit writes them (commit_service.row_kwargs: a UKSI
+    synonym under its recommended name and TVK, dates normalised, No. read). held_back counts
+    the staged records commit would leave in staging; a row with no species name (an empty grid
+    row) is not a record and is not counted. (None, [], 0) when the job is not there."""
+    from DataEntry import commit_service as cs
+    from DataEntry import staging_repo
+    conn.row_factory = sqlite3.Row
+    job = conn.execute("SELECT * FROM entry_jobs WHERE id = ?", (job_id,)).fetchone()
+    if job is None:
+        return None, [], 0
+    job = dict(job)
+    staged = staging_repo.fetch_rows(conn, job_id)
+    reasons = [cs._eligibility(r) for r in staged]
+    eligible = [r for r, why in zip(staged, reasons) if why is None]
+    held_back = sum(1 for why in reasons if why not in (None, "no_species"))
+    taxonomy = {}
+    if with_taxonomy and eligible:
+        try:
+            taxonomy = cs.taxonomy_with_synonyms(eligible)
+        except Exception:  # noqa: BLE001 -- as commit does: carry on without taxonomy
+            taxonomy = {}
+    rows = []
+    for r in eligible:
+        kw = cs.row_kwargs(r, job, None, taxonomy)[0]
+        rows.append((kw["species_name"], kw.get("species_tvk"), kw.get("date"), kw.get("site_name"),
+                     r.get("sub_location") or None, kw.get("quantity"), kw.get("vc_number"),
+                     kw.get("grid_ref"), kw.get("method"), kw.get("determiner"),
+                     r.get("visit_number") or None, ""))
+    return job, rows, held_back
+
+
+def _job_year(rows):
+    """(survey year, note): the year of the rows' dates, the most common when there are several
+    (the later on a tie); note is '' for one year, else says which was taken."""
+    counts = {}
+    for r in rows:
+        if r[2]:
+            counts[r[2][:4]] = counts.get(r[2][:4], 0) + 1
+    if not counts:
+        return "", ""
+    year = max(counts, key=lambda y: (counts[y], y))
+    if len(counts) == 1:
+        return year, ""
+    return year, (f"{year}, the most common of {', '.join(sorted(counts))}; the job's rows dated "
+                  "in other years belong to other surveys and are not included")
+
+
+def _survey_rows(project, client, year):
+    """The survey's records already in Observatum (assessment_records: committed observations
+    and contributed records), as ENTRY_ROW_COLUMNS tuples -- the selection of a committed
+    project's detail. [] when observatum.db cannot be read."""
+    if not project or not year:
+        return []
+    where, params = survey_records_where(project, client, survey_year=year)
+    try:
+        conn = _connect()
+        try:
+            return [(n, t, (d or "").strip() or None, s, sub, q, vc, g, m, det, vis,
+                     (c or "unnamed contributor") if o == "contributed" else "")
+                    for n, t, d, s, sub, q, vc, g, m, det, vis, o, c in conn.execute(
+                        f"""SELECT species_name, species_tvk, date, site_name, sub_location,
+                                   quantity, vc_number, grid_ref, method, determiner,
+                                   visit_number, origin, contributor
+                            FROM assessment_records
+                            WHERE {where} AND species_name IS NOT NULL
+                            ORDER BY date, id""", params)]
+        finally:
+            conn.close()
+    except sqlite3.Error:
+        return []
+
+
+def list_entry_jobs():
+    """Active Data Entry jobs with at least one row commit would write, for the preview picker:
+    [{'id', 'name', 'project', 'client', 'rows', 'species', 'first_date', 'last_date',
+    'held_back'}]. rows counts only those eligible rows; held_back the rows commit would leave
+    in staging."""
+    if not DB_PATH.exists():
+        return []
+    try:
+        conn = _connect_ro()
+        try:
+            ids = [r[0] for r in conn.execute(
+                "SELECT id FROM entry_jobs WHERE status = 'active' "
+                "ORDER BY name COLLATE NOCASE, id").fetchall()]
+            out = []
+            for jid in ids:
+                job, rows, held = _job_rows(conn, jid, with_taxonomy=False)
+                if not rows:
+                    continue
+                dates = [r[2] for r in rows if r[2]]
+                out.append({"id": jid, "name": job.get("name") or "",
+                            "project": job.get("project") or "", "client": job.get("client") or "",
+                            "rows": len(rows), "species": len({r[0] for r in rows}),
+                            "first_date": min(dates) if dates else "",
+                            "last_date": max(dates) if dates else "", "held_back": held})
+        finally:
+            conn.close()
+    except sqlite3.Error:
+        return []
+    return out
+
+
+def resolve_entry_jurisdiction(rows, chosen=AUTO_JURISDICTION):
+    """(jurisdiction, how) for a preview -- resolve_jurisdiction's rule on the rows' VCs."""
+    if chosen and chosen != AUTO_JURISDICTION:
+        return chosen, "chosen"
+    counts = {}
+    for r in rows:
+        if r[6] not in (None, ""):
+            counts[r[6]] = counts.get(r[6], 0) + 1
+    return _jurisdiction_from_derived(_commonest_country(counts.items()))
+
+
+def load_entry_job_detail(job_id, mode=AnalysisMode.CODEX_FULL, jurisdiction=None):
+    """The SiteDetail load_project_detail gives for the survey as it will be once this job is
+    committed: the job's rows commit would write plus the records already in Observatum for the
+    same project, client and survey year (the year of the job's dates; the most common when
+    there are several). Nothing is written.
+
+    Project and client are the job's as typed, as commit writes them (the job's name when it has
+    no project). Returns None if the job is not there or has no row to commit. site.preview_job
+    names the job; preview_held_back counts the rows left out; preview_rows carries the rows.
+    """
+    if not DB_PATH.exists():
+        return None
+    try:
+        conn = _connect_ro()
+        try:
+            job, staged, held_back = _job_rows(conn, job_id)
+        finally:
+            conn.close()
+    except sqlite3.Error:
+        return None
+    if not job or not staged:
+        return None
+    name = job.get("name") or ""
+    project = job.get("project") or name
+    client = job.get("client") or ""
+    year, years_note = _job_year(staged)
+    staged = [r for r in staged if r[2] and r[2][:4] == year]
+    rows = _survey_rows(project, client, year) + staged
+    if not jurisdiction or jurisdiction == AUTO_JURISDICTION:
+        jurisdiction, _how = resolve_entry_jurisdiction(rows)
+    dates = [r[2] for r in rows if r[2]]
+    site = SiteRecord(
+        site_name=project, project_name=project, client=client,
+        record_count=len(rows), species_count=len({r[0] for r in rows}),
+        visit_count=len(set(dates)), first_date=min(dates) if dates else "",
+        last_date=max(dates) if dates else "", mode=mode.value,
+        survey_year=year or POOLED, preview_job=name, preview_held_back=held_back,
+        preview_years=years_note)
+    site.visit_dates, site.accumulation = _accumulate(
+        sorted(((r[2], r[0]) for r in rows if r[2]), key=lambda x: x[0]))
+    counts = {}
+    for r in rows:
+        counts[(r[0], r[1])] = counts.get((r[0], r[1]), 0) + 1
+    species_rows = [(n, t, c) for (n, t), c in sorted(counts.items(), key=lambda x: (x[0][0], x[0][1] or ""))]
+    detail = _assemble_detail(site, species_rows, mode, jurisdiction)
+    detail.preview_rows = rows
+    return detail

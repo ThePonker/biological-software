@@ -31,6 +31,16 @@ def biotope_options(species):
     return sorted({b for s in species for b in s.get("biotopes", [])})
 
 
+_SPECIES_ROLE = int(Qt.ItemDataRole.UserRole)
+
+
+def _is_status_code(status, codes=None):
+    """Is this short status a rarity or threat code (the key species' own codes when known)?"""
+    from Examen.workbook_export import STATUS_CODES, _norm
+    own = {_norm(c) for c in codes} if codes is not None else STATUS_CODES
+    return _norm(status) in own
+
+
 class _NaturalItem(QTableWidgetItem):
     """A cell that sorts naturally by its text (SQS 2 before 11)."""
     def __lt__(self, other):
@@ -85,11 +95,30 @@ class SpeciesTab(QWidget):
             "Species Quality Score: 1 common, 4 Nationally Scarce or Notable, 8 Nationally "
             "Rare or Vulnerable, 16 Endangered, 32 Critically Endangered.\n\n" + SQI_TOOLTIP)
         layout.addWidget(self.table, 1)
+        self._job = ("", "", "")        # project, client, survey year: scope of the marks
+        self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.table.customContextMenuRequested.connect(self._on_context_menu)
+
+    def _on_context_menu(self, pos):
+        """Right-click a Key Species: mark / unmark its status as likely to be downgraded."""
+        item = self.table.itemAt(pos)
+        if item is None:
+            return
+        first = self.table.item(item.row(), 0)
+        sp = first.data(_SPECIES_ROLE) if first is not None else None
+        if not sp or not sp.get("key") or not sp.get("tvk") or not sp.get("codes"):
+            return              # only a rarity or threat code can be marked as downgradeable
+        from Examen.status_marks_ui import show_menu
+        show_menu(self, self.table.viewport().mapToGlobal(pos), sp["tvk"], sp["name"], self._job,
+                  self._apply_filters)
 
     def set_result(self, result, detail=None, taxonomy=None):
         """Populate from AnalysisResult + SiteDetail. taxonomy: {tvk: {common, family, order}}."""
         self._all_species = []
         tax = taxonomy or {}
+        site = getattr(detail, "site", None)
+        self._job = (getattr(site, "project_name", "") or "", getattr(site, "client", "") or "",
+                     getattr(site, "survey_year", "") or "")
         # Every biotope of a species, not the two-item display string (EXA11):
         # the filter lists single biotopes and a species matches any of its own.
         bios_by_tvk = getattr(result, "biotopes_by_tvk", {}) or {}
@@ -101,14 +130,16 @@ class SpeciesTab(QWidget):
         # Key species from result. The full status names each legal instrument,
         # as a non-key row's does (EXA10) -- the workbook's own string.
         try:
-            from Examen.workbook_export import status_string
+            from Examen.workbook_export import status_codes, status_string
         except ImportError:  # pragma: no cover
             status_string = lambda k: k.status_display  # noqa: E731
+            status_codes = lambda k: ()  # noqa: E731
         key_tvks = set()
         for k in result.key_species:
             t = tax.get(k.tvk, {})
             self._all_species.append({
                 "name": k.species_name, "common": t.get("common", ""),
+                "tvk": k.tvk, "key": True, "codes": status_codes(k),
                 "status": k.short_status, "status_full": status_string(k),
                 "sqs": k.sqs, "tier": k.tier,
                 "biotopes": biotopes(k.tvk, k.broad_biotope), "habitat": k.habitat,
@@ -124,6 +155,7 @@ class SpeciesTab(QWidget):
                 t = tax.get(sp.tvk, {})
                 self._all_species.append({
                     "name": sp.name, "common": t.get("common", ""),
+                    "tvk": sp.tvk, "key": False,
                     "status": sp.status, "status_full": getattr(sp, "status_full", ""),
                     "sqs": sp.sqs, "tier": sp.tier,
                     "biotopes": biotopes(sp.tvk, sp.broad_biotope), "habitat": sp.habitat,
@@ -151,10 +183,14 @@ class SpeciesTab(QWidget):
             if tier_filter != "All" and sp["tier"] != tier_filter: continue
             filtered.append(sp)
 
+        from Examen.status_marks import bracket_checker, bracket_text
+        bracketed = bracket_checker(*self._job)
         self.table.setSortingEnabled(False)
         self.table.setRowCount(len(filtered))
         for i, sp in enumerate(filtered):
-            self.table.setItem(i, 0, _NaturalItem(sp["name"]))
+            name_item = _NaturalItem(sp["name"])
+            name_item.setData(_SPECIES_ROLE, sp)
+            self.table.setItem(i, 0, name_item)
             shown = vernacular(sp["common"], sp["family"], sp["order"])
             ci = _NaturalItem(shown)
             if is_description(sp["common"], shown):
@@ -162,8 +198,15 @@ class SpeciesTab(QWidget):
                 ci.setForeground(QColor(TEXT_MUTED))
                 ci.setToolTip("No common name in UKSI; the group is described instead.")
             self.table.setItem(i, 1, ci)
-            si = _NaturalItem(status_name(sp["status"]))
-            if sp["status"]:
+            # brackets go on a rarity or threat code only, never on "Priority" or "S41"
+            marked = (bool(sp["tvk"]) and bracketed(sp["tvk"])
+                      and _is_status_code(sp["status"], sp.get("codes")))
+            shown_status = status_name(sp["status"])
+            si = _NaturalItem(bracket_text(shown_status) if marked else shown_status)
+            if marked:
+                si.setToolTip("Status likely to be downgraded on review (marked); "
+                              "left out of the revised Key Species figures.")
+            elif sp["status"]:
                 si.setToolTip(f"{sp['status']}" + (f" \u2014 full status: {sp['status_full']}"
                                                    if sp.get("status_full") else ""))
             if sp["tier"] == "Rare": si.setForeground(QColor(RED_STATUS))

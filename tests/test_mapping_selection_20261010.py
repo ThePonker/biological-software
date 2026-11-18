@@ -86,11 +86,11 @@ def chip(taxa, text, rank="species"):
 @needs_data
 def test_source_split_matches_sql(ms):
     assert len(fetch(ms, [], "personal").records) == sql1(
-        f"SELECT COUNT(*) FROM observations WHERE {GRID} AND {PERSONAL} AND NOT {EMB}")
+        f"SELECT COUNT(*) FROM observations WHERE hidden_at IS NULL AND {GRID} AND {PERSONAL} AND NOT {EMB}")
     com = fetch(ms, [], "commercial")
     assert len(com.records) == sql1(
-        f"SELECT COUNT(*) FROM observations WHERE {GRID} AND NOT {PERSONAL} AND NOT {EMB}")
-    assert com.embargoed == sql1(f"SELECT COUNT(*) FROM observations WHERE {GRID} AND {EMB}")
+        f"SELECT COUNT(*) FROM observations WHERE hidden_at IS NULL AND {GRID} AND NOT {PERSONAL} AND NOT {EMB}")
+    assert com.embargoed == sql1(f"SELECT COUNT(*) FROM observations WHERE hidden_at IS NULL AND {GRID} AND {EMB}")
     assert len(fetch(ms, [], "scheme").records) == sql1(
         f"SELECT COUNT(*) FROM recording_scheme WHERE {GRID}{rs_live()}")
     assert len(fetch(ms, [], "contributed").records) == sql1(
@@ -136,7 +136,7 @@ def test_all_shows_each_record_once(ms):
     # the marked NBN copies of iRecord records are never mapped either (Q59)
     assert by_table["recording_scheme"] == sql1(
         f"SELECT COUNT(*) FROM recording_scheme WHERE {GRID}{rs_live()}") - dup_rs
-    assert by_table["observations"] == sql1(f"SELECT COUNT(*) FROM observations WHERE {GRID} AND NOT {EMB}")
+    assert by_table["observations"] == sql1(f"SELECT COUNT(*) FROM observations WHERE hidden_at IS NULL AND {GRID} AND NOT {EMB}")
     keys = [(r["table"], r["id"]) for r in res.records]
     assert len(keys) == len(set(keys))
 
@@ -147,16 +147,16 @@ def test_all_shows_each_record_once(ms):
 def test_species_genus_family_order_against_sql(ms, taxa):
     rut = chip(taxa, "Rutpela maculata")
     assert len(fetch(ms, [rut], "personal").records) == sql1(
-        f"SELECT COUNT(*) FROM observations WHERE {GRID} AND {PERSONAL} AND NOT {EMB} "
+        f"SELECT COUNT(*) FROM observations WHERE hidden_at IS NULL AND {GRID} AND {PERSONAL} AND NOT {EMB} "
         f"AND species_tvk = '{rut['tvk']}'")
     rh = chip(taxa, "Rhagium", "genus")
     assert rh["rank"] == "Genus"
     assert len(fetch(ms, [rh], "personal").records) == sql1(
-        f"SELECT COUNT(*) FROM observations WHERE {GRID} AND {PERSONAL} AND NOT {EMB} "
+        f"SELECT COUNT(*) FROM observations WHERE hidden_at IS NULL AND {GRID} AND {PERSONAL} AND NOT {EMB} "
         f"AND species_name LIKE 'Rhagium %'")
     col = chip(taxa, "Coleoptera", "order")
     assert len(fetch(ms, [col], "personal").records) == sql1(
-        f"SELECT COUNT(*) FROM observations WHERE {GRID} AND {PERSONAL} AND NOT {EMB} "
+        f"SELECT COUNT(*) FROM observations WHERE hidden_at IS NULL AND {GRID} AND {PERSONAL} AND NOT {EMB} "
         f"AND order_name = 'Coleoptera'")
     cer = chip(taxa, "Cerambycidae", "family")
     assert len(fetch(ms, [cer], "scheme").records) == sql1(
@@ -191,7 +191,7 @@ def test_taxon_group_chip(ms, taxa):
     assert g["kind"] == "group" and g["label"] == "Beetles (Coleoptera)"
     sql, params = group_filter_sql([g["label"]], known=[g["label"]])
     conn = sqlite3.connect(f"file:{paths.OBSERVATUM_DB}?mode=ro", uri=True)
-    want = conn.execute(f"SELECT COUNT(*) FROM observations WHERE {GRID} AND {PERSONAL} AND NOT {EMB} "
+    want = conn.execute(f"SELECT COUNT(*) FROM observations WHERE hidden_at IS NULL AND {GRID} AND {PERSONAL} AND NOT {EMB} "
                         f"AND {sql}", params).fetchone()[0]
     conn.close()
     res = fetch(ms, [g], "personal")
@@ -203,18 +203,18 @@ def test_taxon_group_chip(ms, taxa):
 @needs_data
 def test_vc_recorder_site_and_dates(ms):
     assert len(fetch(ms, [], "personal", vc=23).records) == sql1(
-        f"SELECT COUNT(*) FROM observations WHERE {GRID} AND {PERSONAL} AND NOT {EMB} AND vc_number = 23")
+        f"SELECT COUNT(*) FROM observations WHERE hidden_at IS NULL AND {GRID} AND {PERSONAL} AND NOT {EMB} AND vc_number = 23")
     assert len(fetch(ms, [], "scheme", recorder="heeney").records) == sql1(
         f"SELECT COUNT(*) FROM recording_scheme WHERE {GRID} AND recorder LIKE '%heeney%'{rs_live()}")
     assert len(fetch(ms, [], "collection", recorder="heeney").records) <= sql1(
         f"SELECT COUNT(*) FROM specimens WHERE {GRID} AND collector LIKE '%heeney%'")
     assert len(fetch(ms, [], "personal", site="Bicester").records) == sql1(
-        f"SELECT COUNT(*) FROM observations WHERE {GRID} AND {PERSONAL} AND NOT {EMB} "
+        f"SELECT COUNT(*) FROM observations WHERE hidden_at IS NULL AND {GRID} AND {PERSONAL} AND NOT {EMB} "
         f"AND site_name LIKE '%Bicester%'")
     f, t = date_bounds("01/01/2020")[0], date_bounds("31/12/2020")[1]
     y2020 = fetch(ms, [], "personal", date_from=f, date_to=t)
     assert len(y2020.records) == sql1(
-        f"SELECT COUNT(*) FROM observations WHERE {GRID} AND {PERSONAL} AND NOT {EMB} "
+        f"SELECT COUNT(*) FROM observations WHERE hidden_at IS NULL AND {GRID} AND {PERSONAL} AND NOT {EMB} "
         f"AND date BETWEEN '2020-01-01' AND '2020-12-31'")
     assert {r["year"] for r in y2020.records} == {2020}
 
