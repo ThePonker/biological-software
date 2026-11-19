@@ -157,7 +157,8 @@ def export_appendix(parent_widget, site_name: str, result, detail=None,
     for sp in non_key_sorted:
         tax = taxonomy.get(sp.tvk, {})
         status = status_cell(bracket_parts(_parts_from_string(
-            getattr(sp, "status_full", "") or sp.status or "", jurisdiction), br(sp.tvk)),
+            getattr(sp, "status_full", "") or sp.status or "", jurisdiction),
+            br(sp.tvk)),
             jurisdiction)
         values = [appendix_name(sp), tax.get("common", ""), status, sqs_cell(sp.tvk, sp.sqs),
                   "", sp.broad_biotope or "", sp.habitat or "",
@@ -193,6 +194,10 @@ def export_appendix(parent_widget, site_name: str, result, detail=None,
         ws.cell(row=row, column=1, value=f"Statuses as they apply in {jurisdiction}; "
                                          "other jurisdictions' designations in grey.").font = Font(
             name="Arial", size=9, italic=True)
+    from Examen.workbook_export import _not_counted_line
+    for _, sentence in _not_counted_line(result):      # non-invertebrates left out, named
+        row += 1
+        ws.cell(row=row, column=1, value=sentence).font = Font(name="Arial", size=9, italic=True)
 
     ws.freeze_panes = "A4"
 

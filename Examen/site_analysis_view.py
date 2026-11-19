@@ -9,7 +9,7 @@ import csv
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QSplitter, QTableWidget, QTableWidgetItem, QHeaderView,
-    QTabWidget, QFileDialog, QMessageBox, QCheckBox, QComboBox, QApplication,
+    QTabWidget, QFileDialog, QMessageBox, QCheckBox, QComboBox, QApplication, QMenu,
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QColor
@@ -135,46 +135,56 @@ class SiteAnalysisView(QWidget):
 
         import_btn = QPushButton("Import List..."); import_btn.setStyleSheet(BTN_ACCENT)
         import_btn.clicked.connect(self._on_import); toolbar.addWidget(import_btn)
-        entry_btn = QPushButton("Data Entry job\u2026"); entry_btn.setStyleSheet(BTN_ACCENT)
-        entry_btn.setToolTip("Preview a Data Entry job that has not been committed yet.\n"
-                             "Read-only: nothing is written.")
-        entry_btn.clicked.connect(self._on_entry_job); toolbar.addWidget(entry_btn)
+        # The "Data Entry job..." button is not shown (18 Nov 2026); _on_entry_job and the
+        # preview it opens stay, tested, for when it comes back.
         refresh_btn = QPushButton("Refresh"); refresh_btn.setStyleSheet(BTN_ACCENT)
         refresh_btn.clicked.connect(self._load_projects); toolbar.addWidget(refresh_btn)
-        self.appendix_btn = QPushButton("Export Appendix"); self.appendix_btn.setStyleSheet(BTN_OUTLINE)
-        self.appendix_btn.setToolTip("One sheet: the species list, for checking.")
-        self.appendix_btn.clicked.connect(self._on_export_appendix); self.appendix_btn.setEnabled(False); toolbar.addWidget(self.appendix_btn)
-        self.workbook_btn = QPushButton("Export Workbook"); self.workbook_btn.setStyleSheet(BTN_PRIMARY)
-        self.workbook_btn.setToolTip(
+        # One Export menu in place of six buttons. The actions keep each old button's handler and
+        # its enabled rule: all but the projects list need an analysed project (EXA17).
+        self.export_btn = QPushButton("Export \u25be")
+        self.export_btn.setStyleSheet(BTN_PRIMARY + " QPushButton::menu-indicator { image: none; width: 0px; }")
+        menu = QMenu(self.export_btn); menu.setToolTipsVisible(True)
+
+        def _action(text, tip, handler, needs_project=True):
+            act = menu.addAction(text); act.setToolTip(tip); act.triggered.connect(handler)
+            act.setEnabled(not needs_project)
+            return act
+        self.pack_action = _action(
+            "Report pack\u2026",
+            "Results tables and species accounts in the report template's style, as a\n"
+            "Word document to paste into the report. Figures are the workbook's own.",
+            self._on_export_pack)
+        self.workbook_action = _action(
+            "Workbook\u2026",
             "Seven sheets: summary, key species, full appendix, habitats,\n"
-            "assemblages, guilds and status definitions — with the stamp\n"
-            "recording what the figures were computed against.")
-        self.workbook_btn.clicked.connect(self._on_export_workbook)
-        self.workbook_btn.setEnabled(False); toolbar.addWidget(self.workbook_btn)
-        self.pdf_btn = QPushButton("Export PDF"); self.pdf_btn.setStyleSheet(BTN_PRIMARY)
-        self.pdf_btn.setToolTip(
+            "assemblages, guilds and status definitions \u2014 with the stamp\n"
+            "recording what the figures were computed against.",
+            self._on_export_workbook)
+        self.appendix_action = _action(
+            "Appendix\u2026", "One sheet: the species list, for checking.", self._on_export_appendix)
+        self.csv_action = _action("Projects list (CSV)\u2026", "The project table as a CSV.",
+                                  self._export_csv, needs_project=False)
+        menu.addSeparator()
+        self.word_action = _action(
+            "Assessment report (Word)\u2026",
+            "The same report as the PDF, as an editable Word document for\n"
+            "copying into a report template.", self._on_export_word)
+        self.pdf_action = _action(
+            "Assessment report (PDF)\u2026",
             "The assessment as a report: basis, figures, key species with\n"
             "accounts, habitats, assemblages, guilds, appendices. Laid out from\n"
-            "the workbook, so every figure is the workbook's own.")
-        self.pdf_btn.clicked.connect(self._on_export_pdf)
-        self.pdf_btn.setEnabled(False); toolbar.addWidget(self.pdf_btn)
-        self.word_btn = QPushButton("Export Word"); self.word_btn.setStyleSheet(BTN_PRIMARY)
-        self.word_btn.setToolTip(
-            "The same report as the PDF, as an editable Word document for\n"
-            "copying into a report template.")
-        self.word_btn.clicked.connect(self._on_export_word)
-        self.word_btn.setEnabled(False); toolbar.addWidget(self.word_btn)
-        self.pack_btn = QPushButton("Export Report pack"); self.pack_btn.setStyleSheet(BTN_PRIMARY)
-        self.pack_btn.setToolTip(
-            "Results tables and species accounts in the report template's style, as a\n"
-            "Word document to paste into the report. Figures are the workbook's own.")
-        self.pack_btn.clicked.connect(self._on_export_pack)
-        self.pack_btn.setEnabled(False); toolbar.addWidget(self.pack_btn)
+            "the workbook, so every figure is the workbook's own.", self._on_export_pdf)
+        self.export_btn.setMenu(menu)
+        self._export_actions = (self.pack_action, self.workbook_action, self.appendix_action,
+                                self.word_action, self.pdf_action)    # those that need a project
+        toolbar.addWidget(self.export_btn)
         bench_btn = QPushButton("Benchmark\u2026"); bench_btn.setStyleSheet(BTN_OUTLINE)
         bench_btn.setToolTip("Choose the surveys in the Key Species benchmark the report pack quotes.")
         bench_btn.clicked.connect(self._on_benchmark); toolbar.addWidget(bench_btn)
-        export_btn = QPushButton("Export CSV"); export_btn.setStyleSheet(BTN_OUTLINE)
-        export_btn.clicked.connect(self._export_csv); toolbar.addWidget(export_btn)
+        marks_btn = QPushButton("Status marks\u2026"); marks_btn.setStyleSheet(BTN_OUTLINE)
+        marks_btn.setToolTip("List the species marked as likely to be downgraded, and whether\n"
+                             "each mark still applies to the species' current status.")
+        marks_btn.clicked.connect(self._on_status_marks); toolbar.addWidget(marks_btn)
         # The ten controls held the window at 1,270 px: on a narrower (laptop) screen the
         # row scrolls sideways instead (R5)
         from src.views.components.hscroll_strip import HScrollStrip
@@ -252,11 +262,7 @@ class SiteAnalysisView(QWidget):
         # Sorting off while filling: with it on, setItem can re-sort mid-fill.
         self.table.setSortingEnabled(False)
         self.table.setRowCount(len(self._projects))
-        self.appendix_btn.setEnabled(False)
-        if hasattr(self, 'workbook_btn'): self.workbook_btn.setEnabled(False)
-        if hasattr(self, 'pdf_btn'): self.pdf_btn.setEnabled(False)
-        if hasattr(self, 'word_btn'): self.word_btn.setEnabled(False)
-        if hasattr(self, 'pack_btn'): self.pack_btn.setEnabled(False)
+        self._set_exports_enabled(False)
         self._current_detail = None; self._current_result = None; self.detail_tabs.hide()
 
         def put(r, c, text, key, centre=True, colour=None, tip=None):
@@ -315,6 +321,11 @@ class SiteAnalysisView(QWidget):
             self.summary_label.setToolTip("")
         self.summary_label.setText(text)
 
+    def _set_exports_enabled(self, on):
+        """The Export menu's actions that act on the analysed project (the CSV does not)."""
+        for act in getattr(self, "_export_actions", ()):
+            act.setEnabled(on)
+
     def _clear_detail(self, message):
         """No current analysis: the export buttons cannot act on a previous
         project's result (EXA17)."""
@@ -322,8 +333,7 @@ class SiteAnalysisView(QWidget):
         self._current_detail = None
         self._current_project = None
         self._current_site_name = ""
-        for b in (self.appendix_btn, self.workbook_btn, self.pdf_btn, self.word_btn, self.pack_btn):
-            b.setEnabled(False)
+        self._set_exports_enabled(False)
         self.detail_tabs.hide()
         self.detail_header.setText(message)
 
@@ -431,9 +441,7 @@ class SiteAnalysisView(QWidget):
             self._clear_detail(f"Analysis error: {e}")
             return
         self.detail_header.setText(title)
-        self.appendix_btn.setEnabled(True)
-        self.workbook_btn.setEnabled(True); self.pdf_btn.setEnabled(True); self.word_btn.setEnabled(True)
-        self.pack_btn.setEnabled(True)
+        self._set_exports_enabled(True)
         self.detail_tabs.show()
         # Compartments (E6): computed once here, cached on the detail, read by the
         # Overview and the workbook/PDF/Word exports.
@@ -580,6 +588,12 @@ class SiteAnalysisView(QWidget):
             QMessageBox.warning(self, "Export failed", f"The report pack could not be written.\n\n{e}")
             return
         QMessageBox.information(self, "Report pack exported", f"Written to:\n{path}")
+
+    def _on_status_marks(self):
+        """List the status marks; a removal changes the Species tab, so redraw it."""
+        from .status_marks_dialog import StatusMarksDialog
+        StatusMarksDialog(self).exec()
+        self.species_tab._apply_filters()
 
     def _on_benchmark(self):
         """Choose which surveys make up the Key Species benchmark."""

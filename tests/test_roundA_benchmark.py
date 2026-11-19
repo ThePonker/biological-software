@@ -159,3 +159,28 @@ def test_dialog_shows_this_survey_without_a_tick_box(world):
     assert not dlg.table.item(i, 0).flags() & Qt.ItemFlag.ItemIsUserCheckable
     assert rows[i]["included"] is False
     assert dlg.summary.text().startswith("n = 0")
+
+
+def test_dialog_tick_all_and_untick_all(world):
+    pytest.importorskip("PySide6")
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
+    QApplication.instance() or QApplication([])
+    from Examen.benchmark_dialog import BenchmarkDialog
+
+    def row(name, pct, included, this=False):
+        return {"project": name, "client": "Acme", "survey_year": "2026", "country": "England",
+                "visits": 3, "type": "", "pct": pct, "included": included, "this_survey": this}
+    rows = [row("A", 4.0, False), row("B", 6.0, True), row("C", None, False),    # no analysis
+            row("D", 8.0, False, this=True)]                                      # this survey
+    dlg = BenchmarkDialog(rows)
+    ticks = lambda: [dlg.table.item(i, 0).checkState() == Qt.CheckState.Checked for i in range(4)]  # noqa: E731
+    assert dlg.summary.text().startswith("n = 1")
+    dlg.tick_all.click()
+    assert ticks() == [True, True, False, False]                  # only the selectable rows change
+    assert [r["included"] for r in rows] == [True, True, False, False]
+    assert dlg.summary.text().startswith("n = 2")                 # live, from the ticks
+    dlg.untick_all.click()
+    assert ticks() == [False] * 4 and dlg.summary.text().startswith("n = 0")
+    assert not any(r["included"] for r in rows)
+    assert bm.load_choices() == {}                                # nothing saved without Save

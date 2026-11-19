@@ -159,7 +159,7 @@ def _tables_section(doc, title, caption, heads, rows, widths, none_text, **kw):
     _table(doc, heads, rows, _fit(widths), **kw)
 
 
-def _account(doc, acc, records):
+def _account(doc, acc, records):   # records: the species' one sentence ('' when none)
     h = doc.add_heading("", level=3)
     _runs(h, acc["species"], italic=True)
     if acc["common"]:
@@ -168,8 +168,7 @@ def _account(doc, acc, records):
     _runs(p, "Status: ", bold=True)
     _runs(p, acc["status"] if acc["status"] not in (None, "") else "none held")
     p = doc.add_paragraph()
-    _runs(p, "Records: ", bold=True)
-    _runs(p, "; ".join(records) if records else "none held")
+    _runs(p, records or "No records held.")
     own = acc["account"] if acc["account"] and not acc["source"] else ""
     if own:          # the author's account (the workbook's "Your account"), paragraph by paragraph
         for para in (t.strip() for t in own.splitlines()):
@@ -235,6 +234,8 @@ def export_report_pack(result, detail, project, path, jurisdiction="England",
                     "Table 5.1 Species recorded by group (Key Species in brackets)",
                     ["Group", "Species (Key Species)"], T.group_table(rep), [10, 6],
                     "No species recorded.", bold_last=True)
+    if basis.get("Not counted"):            # non-invertebrates left out of the counts, named
+        _note(doc, plain(basis["Not counted"]))
 
     key = rep.get("key") or {"rows": [], "accounts": []}
     _heading(doc, "Key Species")
@@ -254,7 +255,7 @@ def export_report_pack(result, detail, project, path, jurisdiction="England",
     tvk_of = _key_tvks(result)
     recs = T.records_by_tvk({tvk_of.get(a["species"]) for a in key["accounts"]}, scope)
     for acc in key["accounts"]:
-        _account(doc, acc, recs.get(tvk_of.get(acc["species"]), []))
+        _account(doc, acc, recs.get(tvk_of.get(acc["species"]), ""))
 
     _tables_section(doc, "Broad biotopes", "Table 5.3 Broad biotopes",
                     ["Broad biotope", "Species", "Scoring species", "SQI", "% national pool"],

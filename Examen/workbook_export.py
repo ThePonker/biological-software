@@ -391,14 +391,34 @@ STATUS_CODES = frozenset(_norm(c) for c in (_RARE_V1 | _RARE_V2 | _SCARCE_V2 | _
                                             | _SCARCE_V3 | _SCARCE_V1))
 
 
+# Never bracketed: the IUCN threat categories that are not a status -- least concern, not
+# applicable, not evaluated, waiting list (as codex_repository treats them). Matched by exact
+# spelling: Codex writes the threat category "NA" but the rarity Notable A "Na", which is a
+# status and is bracketed. DD (data deficient) counts towards Rare Key Species, so it can be.
+NEVER_BRACKET = frozenset({"LC", "NA", "NE", "WL"})
+
+
+def never_bracket(code) -> bool:
+    """True for a threat category that is not a status (exact spelling; see NEVER_BRACKET)."""
+    return (code or "").strip() in NEVER_BRACKET
+
+
 def status_codes(entry):
-    """The entry's own rarity and threat codes (never a priority, legal or note label)."""
+    """The entry's own rarity and threat codes that can be bracketed (never a priority, legal or
+    note label, and never the threat categories LC / NA / NE / WL)."""
     out = []
     for v in (getattr(entry, "threat", ""), getattr(entry, "threat_legacy", ""),
               getattr(entry, "rarity", "")):
-        if v and v not in out:
+        if v and v not in out and not never_bracket(v):
             out.append(v)
     return tuple(out)
+
+
+def string_codes(text):
+    """The rarity and threat codes in a non-key species' Codex display string (the same parts
+    bracket_parts brackets when it is given no codes)."""
+    return tuple(t for t, _ in _parts_from_string(text, "England")
+                 if _norm(t) in STATUS_CODES and not never_bracket(t))
 
 
 def bracket_parts(parts, bracketed, codes=None):
@@ -409,8 +429,12 @@ def bracket_parts(parts, bracketed, codes=None):
     is a known rarity or threat code."""
     if not bracketed:
         return parts
-    own = {_norm(c) for c in codes} if codes is not None else STATUS_CODES
-    return [(f"[{t}]" if _norm(t) in own else t, a) for t, a in parts]
+    own = ({_norm(c) for c in codes if not never_bracket(c)} if codes is not None
+           else STATUS_CODES)
+    return [(f"[{t}]" if _norm(t) in own and not never_bracket(t) else t, a) for t, a in parts]
+
+
+UNCHECKED_NOTE = ("Status marks could not be checked against Codex; they are applied as saved.")
 
 
 def _bracket_for(stamp):
@@ -760,7 +784,8 @@ def _sheet_summary(wb, result, detail, project, stamp):
     from Examen import status_marks as sm
     br0 = _bracket_for(stamp)
     coded = {getattr(k, "tvk", "") for k in keys if status_codes(k)}
-    br = lambda tvk: tvk in coded and br0(tvk)  # noqa: E731 -- bracketed on a code, as shown
+    # bracketed on a code, as shown, and only while the status marked still stands (Codex's)
+    br = lambda tvk: tvk in coded and br0(tvk)  # noqa: E731
     any_bracketed = any(br(getattr(k, "tvk", "")) for k in keys)
     so_rev, rare_rev = sm.revised_key_figures(keys, br)
     revised_note = ("Leaves out species marked as likely to be downgraded on review "
@@ -846,6 +871,9 @@ def _sheet_summary(wb, result, detail, project, stamp):
             value = f"Pantheon published, plus {len(_der)} derived (both SQIs above)"
         ws.cell(row=r, column=1, value=label).font = BOLD
         ws.cell(row=r, column=2, value=value)
+        r += 1
+    if getattr(br0, "unchecked", False):
+        ws.cell(row=r, column=1, value=UNCHECKED_NOTE).font = NOTE_FONT
         r += 1
 
     r += 1
@@ -950,7 +978,8 @@ def _sheet_appendix(wb, detail, result, stamp):
         status = status_cell(bracket_parts(
             status_parts(k, juris) if k
             else _parts_from_string(getattr(sp, "status_full", "") or sp.status, juris),
-            br(sp.tvk), status_codes(k) if k else None), juris)
+            br(sp.tvk),
+            status_codes(k) if k else None), juris)
         if sp.sqs:
             scoring += 1
             sqs_total += sp.sqs
@@ -1311,6 +1340,19 @@ def _mark_derived(wb, result, detail):
                 ws.cell(r, c_bio).value = "no Pantheon data"
 
 
+def _not_counted_line(result):
+    """[("Not counted", sentence)] when taxa that are not invertebrates were left out of the
+    species figures (shared.invertebrate_filter), else []."""
+    left = getattr(result, "non_invertebrates", None) or {}
+    if not left:
+        return []
+    n = len(left)
+    names = ", ".join(sorted({str(v) for v in left.values()}, key=str.lower))
+    return [("Not counted", f"{n} non-invertebrate taxa recorded incidentally are not counted: {names}."
+             if n != 1 else
+             f"1 non-invertebrate taxon recorded incidentally is not counted: {names}.")]
+
+
 def export_workbook(result, detail, project, path,
                     jurisdiction="England", sqs_basis="Pantheon published",
                     pooled_years=False):
@@ -1349,6 +1391,7 @@ def export_workbook(result, detail, project, path,
              if contributed else []) + [
             ("Survey scope", "all years pooled" if pooled_years
                              else f"survey year {year}" if year else "all records"),
+        ] + _not_counted_line(result) + [
             ("Analysis mode", mode_label(getattr(result, "mode", ""))),
             ("SQS basis", sqs_basis),
             ("Jurisdiction", jurisdiction),

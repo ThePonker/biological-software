@@ -41,6 +41,12 @@ def _is_status_code(status, codes=None):
     return _norm(status) in own
 
 
+def stale_note(mark):
+    """Tooltip for a status cell whose mark was made against a status that has since changed."""
+    return (f"Status changed since you marked it ({mark['status_marked']} \u2192 "
+            f"{mark['current'] or 'none'}); mark not applied")
+
+
 class _NaturalItem(QTableWidgetItem):
     """A cell that sorts naturally by its text (SQS 2 before 11)."""
     def __lt__(self, other):
@@ -95,6 +101,7 @@ class SpeciesTab(QWidget):
             "Species Quality Score: 1 common, 4 Nationally Scarce or Notable, 8 Nationally "
             "Rare or Vulnerable, 16 Endangered, 32 Critically Endangered.\n\n" + SQI_TOOLTIP)
         layout.addWidget(self.table, 1)
+        self._key_cache = {}
         self._job = ("", "", "")        # project, client, survey year: scope of the marks
         self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.table.customContextMenuRequested.connect(self._on_context_menu)
@@ -115,6 +122,7 @@ class SpeciesTab(QWidget):
     def set_result(self, result, detail=None, taxonomy=None):
         """Populate from AnalysisResult + SiteDetail. taxonomy: {tvk: {common, family, order}}."""
         self._all_species = []
+        self._key_cache = {}            # Codex status keys of marked species, one lookup per load
         tax = taxonomy or {}
         site = getattr(detail, "site", None)
         self._job = (getattr(site, "project_name", "") or "", getattr(site, "client", "") or "",
@@ -184,7 +192,7 @@ class SpeciesTab(QWidget):
             filtered.append(sp)
 
         from Examen.status_marks import bracket_checker, bracket_text
-        bracketed = bracket_checker(*self._job)
+        bracketed = bracket_checker(*self._job, cache=self._key_cache)
         self.table.setSortingEnabled(False)
         self.table.setRowCount(len(filtered))
         for i, sp in enumerate(filtered):
@@ -199,13 +207,17 @@ class SpeciesTab(QWidget):
                 ci.setToolTip("No common name in UKSI; the group is described instead.")
             self.table.setItem(i, 1, ci)
             # brackets go on a rarity or threat code only, never on "Priority" or "S41"
-            marked = (bool(sp["tvk"]) and bracketed(sp["tvk"])
-                      and _is_status_code(sp["status"], sp.get("codes")))
+            # (a mark applies only while the status it was made against stands)
+            mark = (bracketed.detail(sp["tvk"]) if sp["tvk"] else {})
+            coded = _is_status_code(sp["status"], sp.get("codes"))
+            marked = bool(mark.get("bracketed")) and coded
             shown_status = status_name(sp["status"])
             si = _NaturalItem(bracket_text(shown_status) if marked else shown_status)
             if marked:
                 si.setToolTip("Status likely to be downgraded on review (marked); "
                               "left out of the revised Key Species figures.")
+            elif mark.get("state") == "stale" and coded:
+                si.setToolTip(stale_note(mark))
             elif sp["status"]:
                 si.setToolTip(f"{sp['status']}" + (f" \u2014 full status: {sp['status_full']}"
                                                    if sp.get("status_full") else ""))

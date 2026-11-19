@@ -64,7 +64,8 @@ def test_list_marks_and_overrides_and_reason(world):
     sm.set_mark(T_RARE, "Rarus beetle", "first")
     sm.set_mark(T_RARE, "Rarus beetle", "second")                    # replaces, one row
     sm.set_override(*JOB, T_VU, "Vulnus bug", True)
-    assert sm.list_marks() == [{"tvk": T_RARE, "species_name": "Rarus beetle", "reason": "second"}]
+    assert [(m["tvk"], m["species_name"], m["reason"]) for m in sm.list_marks()] == [
+        (T_RARE, "Rarus beetle", "second")]
     assert [(o["tvk"], o["bracket"]) for o in sm.list_overrides(*JOB)] == [(T_VU, 1)]
     assert sm.list_overrides("Elsewhere") == []
     assert sm.is_globally_marked(T_RARE) and not sm.is_globally_marked(T_VU)
@@ -122,7 +123,7 @@ def test_summary_rows_added_only_when_a_key_species_is_bracketed(world):
     by = {r[0]: r for r in rows}
     assert by["Key Species"][1] == 3 and by["Key Species (status only)"][1] == 3
     assert by["Key Species (status only, revised)"][1] == 2
-    assert by["% Key Species (status only, revised)"][1] == "40.0%"      # 2 / 5 species
+    assert by["% Key Species (status only, revised)"][1] == "50.0%"      # 2 / 4 species (the plant is not counted)
     assert by["Rare Key Species"][1] == 2 and by["Rare Key Species (revised)"][1] == 1
     assert "square brackets" in by["Rare Key Species (revised)"][2]
     labels = [r[0] for r in rows]
@@ -195,7 +196,10 @@ def test_mark_menu_only_for_a_species_with_a_code(world, monkeypatch):
     tab = SpeciesTab()
     tab.set_result(d.analysis, d, {})
     asked = []
-    monkeypatch.setattr(status_marks_ui, "show_menu", lambda *a, **k: asked.append(a[2]))
+    import inspect
+    real = inspect.signature(status_marks_ui.show_menu)     # the tab must call it as it is defined
+    monkeypatch.setattr(status_marks_ui, "show_menu",
+                        lambda *a, **k: (real.bind(*a, **k), asked.append(a[2])))
     # offer for a coded key species, not for a key species without a code or a non-key one
     tab._all_species[0]["codes"] = ()
     tab._apply_filters()

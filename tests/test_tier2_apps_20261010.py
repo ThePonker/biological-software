@@ -131,27 +131,27 @@ def test_exa17_failed_load_or_analysis_disables_exports(qapp, monkeypatch, live_
     from Examen import site_analysis_view as sav
     view = sav.SiteAnalysisView(ed.analysis_service())
     view._on_project_clicked(0, 0)
-    assert view.workbook_btn.isEnabled() and view._current_result is not None
+    assert view.workbook_action.isEnabled() and view._current_result is not None
 
     def boom(*a, **k):
         raise RuntimeError("pantheon.db is locked")
     monkeypatch.setattr(sav, "load_project_detail", boom)
     view._on_project_clicked(1, 0)
     assert view._current_result is None and view._current_detail is None
-    assert not any(b.isEnabled() for b in (view.appendix_btn, view.workbook_btn,
-                                           view.pdf_btn, view.word_btn))
+    assert not any(b.isEnabled() for b in (view.appendix_action, view.workbook_action,
+                                           view.pdf_action, view.word_action, view.pack_action))
     assert "pantheon.db is locked" in view.detail_header.text()
 
     # An analysis that fails inside the detail (Codex unreadable)
     monkeypatch.undo()
     monkeypatch.setattr(ed, "DB_PATH", live_copy)               # undo() also undid the copy
     view._on_project_clicked(0, 0)
-    assert view.pdf_btn.isEnabled()
+    assert view.pdf_action.isEnabled()
     from shared.services import pantheon_analysis_service as pas
     monkeypatch.setattr(pas.PantheonAnalysisService, "analyse",
                         lambda *a, **k: (_ for _ in ()).throw(RuntimeError("codex.db unreadable")))
     view._on_project_clicked(1, 0)
-    assert view._current_result is None and not view.pdf_btn.isEnabled()
+    assert view._current_result is None and not view.pdf_action.isEnabled()
     assert "codex.db unreadable" in view.detail_header.text()
     # ... and the project table says so (EXA19)
     view._load_projects()

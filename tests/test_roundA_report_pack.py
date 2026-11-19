@@ -92,8 +92,9 @@ def test_species_account_blocks(world):
     doc, _ = _pack(world)
     text = _text(doc)
     assert text.count(report_pack.PLACEHOLDER) == 3
-    assert "Records: 10 May 2026, SK 123 456, pitfall, n=1, det. A. Smith; " \
-           "11 June 2026, SK 124 457, sweep, n=1" in text
+    assert ("Recorded on 10 May 2026 at SK 123 456 (one, pitfall; det. A. Smith); "
+            "and on 11 June 2026 at SK 124 457 (one, sweep).") in text
+    assert "Records:" not in text
     hl = [r for p in doc.paragraphs for r in p.runs if r.text == report_pack.PLACEHOLDER]
     assert hl and all(r.font.highlight_color is not None for r in hl)
     sci = [r for p in doc.paragraphs if p.style.name == "Heading 3" for r in p.runs if r.italic]
@@ -137,7 +138,7 @@ def test_preview_note_and_visits_from_staged_rows(world):
     note = [p for p in doc.paragraphs if p.text.startswith("Preview of the uncommitted")]
     assert note and "'Notts job'" in note[0].text and note[0].runs[0].italic
     assert [r.cells[0].text for r in doc.tables[0].rows[1:]] == ["10 May 2026", "11 June 2026"]
-    assert "net, n=1, det. B. Jones" in _text(doc)
+    assert "SK 9 9 (one, net; det. B. Jones)" in _text(doc)
     plain_doc, _ = _pack(world, "np.docx")
     assert "Preview of the uncommitted" not in _text(plain_doc)
 
@@ -206,3 +207,13 @@ def test_own_account_replaces_placeholder(world, monkeypatch):
     assert "First paragraph of my account." in paras and "Second paragraph." in paras
     assert "Review text." not in _text(doc)
     assert _text(doc).count(report_pack.PLACEHOLDER) == 2
+
+
+def test_non_invertebrates_named_under_table_5_1(world):
+    """A taxon left out of the counts (the fixture's plant) is named in the pack, so nothing
+    recorded disappears from the report without a word."""
+    doc, d = _pack(world)
+    left = getattr(d.analysis, "non_invertebrates", {})
+    assert left
+    text = _text(doc)
+    assert "recorded incidentally" in text and all(str(n) in text for n in left.values())

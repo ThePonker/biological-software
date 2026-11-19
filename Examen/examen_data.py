@@ -52,6 +52,8 @@ import sys; sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve(
 import paths
 from dataclasses import dataclass, field
 
+from shared.invertebrate_filter import non_invertebrate_tvks
+
 try:
     from shared.repositories.codex_repository import CodexRepository, AnalysisMode
     from shared.repositories.pantheon_repository import PantheonRepository
@@ -491,7 +493,10 @@ def _build_species_list(species_rows, mode, jurisdiction=DEFAULT_JURISDICTION,
     folded = {}
     for broad, sp in merged.items():
         folded[sp] = folded.get(sp, 0) + tvk_map[broad][1]
-    tvks = [t for t in all_tvks if t not in merged]
+    # Invertebrates only (shared.invertebrate_filter): a plant or vertebrate recorded by
+    # mistake stays in Observatum but is not a species of the assessment.
+    left_out = set(result.non_invertebrates) if result else non_invertebrate_tvks(all_tvks)
+    tvks = [t for t in all_tvks if t not in merged and t not in left_out]
     taxonomy = load_taxonomy(tvks)
 
     statuses = getattr(result, "statuses", {}) if result else {}
@@ -532,18 +537,22 @@ def _build_species_list(species_rows, mode, jurisdiction=DEFAULT_JURISDICTION,
 
 
 def _accumulation(conn, where, params):
-    """Species-accumulation curve by date."""
-    return _accumulate(conn.execute(
-        f"""SELECT date, species_name FROM assessment_records
+    """Species-accumulation curve by date (invertebrates only, as the species count)."""
+    rows = conn.execute(
+        f"""SELECT date, species_name, species_tvk FROM assessment_records
             WHERE {where} AND date IS NOT NULL AND species_name IS NOT NULL
-            ORDER BY date""", params))
+            ORDER BY date""", params).fetchall()
+    return _accumulate(rows, non_invertebrate_tvks({r[2] for r in rows}))
 
 
-def _accumulate(date_species_pairs):
-    """(dates, [(date, species seen so far)]) from (date, species) pairs in date order."""
+def _accumulate(date_species_pairs, left_out=()):
+    """(dates, [(date, species seen so far)]) from (date, species[, tvk]) rows in date order.
+    A row whose TVK is in left_out (the non-invertebrates, shared.invertebrate_filter) keeps
+    its date as a visit but is not counted as a species."""
     seen, by_date = set(), {}
-    for date, sp in date_species_pairs:
-        seen.add(sp)
+    for date, sp, *tvk in date_species_pairs:
+        if not (tvk and tvk[0] in left_out):
+            seen.add(sp)
         by_date[date] = len(seen)
     dates = sorted(by_date)
     return dates, [(d, by_date[d]) for d in dates]
@@ -702,9 +711,9 @@ def _enrich_projects(projects, mode, date_from=None, date_to=None,
 # ============================================================
 # Data Entry keeps a job's records in entry_staging until they are committed. The preview reads
 # them without writing anything and runs them through the same _assemble_detail as a committed
-# project. A staged row with no species name is ignored. As for committed records, a species
-# that is not an invertebrate (a plant entered by mistake) stays in the list and the species
-# count -- the analysis gives it no status or SQS and never makes it Key.
+# project. A staged row with no species name is ignored. As for committed records, a taxon
+# that is not an invertebrate (a plant entered by mistake) is left out of the species list and
+# count (shared.invertebrate_filter).
 
 # Column order of a row as the preview carries it (SiteDetail.preview_rows): the job's eligible
 # staged rows and the survey's records already in Observatum. The last column names the
@@ -885,7 +894,8 @@ def load_entry_job_detail(job_id, mode=AnalysisMode.CODEX_FULL, jurisdiction=Non
         survey_year=year or POOLED, preview_job=name, preview_held_back=held_back,
         preview_years=years_note)
     site.visit_dates, site.accumulation = _accumulate(
-        sorted(((r[2], r[0]) for r in rows if r[2]), key=lambda x: x[0]))
+        sorted(((r[2], r[0], r[1]) for r in rows if r[2]), key=lambda x: x[0]),
+        non_invertebrate_tvks({r[1] for r in rows}))
     counts = {}
     for r in rows:
         counts[(r[0], r[1])] = counts.get((r[0], r[1]), 0) + 1

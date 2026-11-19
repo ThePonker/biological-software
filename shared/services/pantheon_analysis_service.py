@@ -15,6 +15,8 @@ Usage:
 from dataclasses import dataclass, field
 from collections import Counter
 
+from shared.invertebrate_filter import non_invertebrate_tvks
+
 try:
     from shared.repositories.codex_repository import AnalysisMode
 except ImportError:
@@ -166,6 +168,9 @@ class AnalysisResult:
     biotopes_by_tvk: dict = field(default_factory=dict)
     habitats_by_tvk: dict = field(default_factory=dict)
     sats_by_tvk: dict = field(default_factory=dict)
+    # {tvk: name} of taxa left out because they are not invertebrates (plants, fungi,
+    # vertebrates entered by mistake or noted incidentally): not counted anywhere.
+    non_invertebrates: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -204,8 +209,14 @@ class PantheonAnalysisService:
         if not tvks:
             return AnalysisResult(jurisdiction=jurisdiction)
 
-        all_tvks = list(dict.fromkeys(t for t in tvks if t))
         names = species_names or {}
+        all_tvks = list(dict.fromkeys(t for t in tvks if t))
+        # Invertebrates only: the one rule is shared.invertebrate_filter.
+        left_out = non_invertebrate_tvks(all_tvks)
+        all_tvks = [t for t in all_tvks if t not in left_out]
+        if not all_tvks:
+            return AnalysisResult(jurisdiction=jurisdiction,
+                                  non_invertebrates={t: names.get(t, t) for t in left_out})
         merged = {}
         if self._codex is not None and hasattr(self._codex, "sensu_lato_pairs"):
             merged = self._codex.sensu_lato_pairs(all_tvks)
@@ -213,6 +224,7 @@ class PantheonAnalysisService:
         result = AnalysisResult(total_species=len(unique_tvks), mode=mode.value,
                                 jurisdiction=jurisdiction)
         result.merged_tvks = dict(merged)
+        result.non_invertebrates = {t: names.get(t, t) for t in left_out}
 
         # Conservation + SQS (mode-dependent)
         if self._codex:

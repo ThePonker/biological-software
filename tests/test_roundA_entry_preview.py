@@ -52,7 +52,7 @@ def test_preview_takes_the_same_project_client_and_year_only(world):
     add_committed(world, project="Elsewhere", records=RECORDS[4:5])      # another project
     add_committed(world, records=[("Old", T_COMMON, "2025-05-01", "North", 74)])  # another year
     d = ed.load_entry_job_detail(add_job(world, records=RECORDS[5:]))
-    assert d.site.record_count == 3 and d.site.species_count == 2
+    assert d.site.record_count == 3 and d.site.species_count == 1   # the plant is not counted
 
 
 def test_preview_includes_contributed_records(world):
@@ -157,15 +157,16 @@ def test_job_name_stands_in_for_a_missing_project(world):
     assert d.site.project_name == "Hook" and d.site.client == ""
 
 
-def test_non_invertebrates_are_kept_like_committed_records(world):
-    """A plant stays in the species list and the species count, with no status, never Key."""
+def test_non_invertebrates_are_left_out_of_the_species_count(world):
+    """A plant entered by mistake is not a species of the assessment: not listed, not counted,
+    never Key -- and the analysis names it so the workbook can say so."""
     add_committed(world)
     jid = add_job(world)
     for d in (ed.load_project_detail("Notts Park", "Acme", survey_year="2026"),
               ed.load_entry_job_detail(jid)):
-        plant = next(x for x in d.species_list if x.tvk == T_PLANT)
-        assert plant.name == NAMES[T_PLANT] and plant.status == "" and plant.tier == ""
-        assert d.site.species_count == 5
+        assert T_PLANT not in {x.tvk for x in d.species_list}
+        assert d.site.species_count == 4 and d.analysis.total_species == 4
+        assert d.analysis.non_invertebrates == {T_PLANT: NAMES[T_PLANT]}
         assert T_PLANT not in {k.tvk for k in d.analysis.key_species}
 
 
@@ -197,8 +198,10 @@ def test_load_project_detail_is_unchanged_by_the_refactor(world):
     d = ed.load_project_detail("Notts Park", "Acme", survey_year="2026")
     s = d.site
     assert (s.record_count, s.species_count, s.visit_count, s.key_species_count,
-            s.rare_count, s.scarce_count) == (6, 5, 2, 3, 2, 1)
-    assert s.accumulation == [("2026-05-10", 2), ("2026-06-11", 5)]
+            s.rare_count, s.scarce_count) == (6, 4, 2, 3, 2, 1)
+    assert s.accumulation == [("2026-05-10", 2), ("2026-06-11", 4)]
+    assert s.accumulation[-1][1] == s.species_count            # the curve ends at the species count
+    assert ed.load_entry_job_detail(add_job(world)).site.accumulation[-1][1] == 4
 
 
 def test_view_shows_the_preview_like_a_project(world, monkeypatch):
@@ -214,7 +217,7 @@ def test_view_shows_the_preview_like_a_project(world, monkeypatch):
     view._on_entry_job()
     assert view.detail_header.text().startswith(
         "Notts Park — Data Entry job 'Notts' (not committed, preview)")
-    assert view.workbook_btn.isEnabled() and view.pdf_btn.isEnabled() and view.word_btn.isEnabled()
+    assert view.workbook_action.isEnabled() and view.pdf_action.isEnabled() and view.word_action.isEnabled()
     assert view._current_detail.site.preview_job == "Notts"
     view._pool_years = True
     assert view._pooled() is False          # pooling never applies to a preview

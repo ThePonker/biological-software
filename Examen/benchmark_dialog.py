@@ -32,6 +32,15 @@ class BenchmarkDialog(QDialog):
         note.setWordWrap(True)
         note.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: {font_css('caption')};")
         lay.addWidget(note)
+        ticks = QHBoxLayout()
+        self.tick_all = QPushButton("Tick all")
+        self.untick_all = QPushButton("Untick all")
+        for b, on in ((self.tick_all, True), (self.untick_all, False)):
+            b.setStyleSheet(BTN_OUTLINE)
+            b.clicked.connect(lambda _=False, on=on: self._tick_all(on))
+            ticks.addWidget(b)
+        ticks.addStretch(1)
+        lay.addLayout(ticks)
         self.table = QTableWidget(len(rows), len(HEADS))
         self.table.setHorizontalHeaderLabels(HEADS)
         self.table.setStyleSheet(TABLE_STYLE)
@@ -67,6 +76,20 @@ class BenchmarkDialog(QDialog):
         btns.addWidget(save)
         btns.addWidget(close)
         lay.addLayout(btns)
+        self._changed()
+
+    def _tick_all(self, on):
+        """Tick (or untick) every row that can be ticked -- not a survey with no analysis, nor
+        'this survey'. Nothing is saved until Save."""
+        state = Qt.CheckState.Checked if on else Qt.CheckState.Unchecked
+        self.table.blockSignals(True)
+        try:
+            for i in range(self.table.rowCount()):
+                item = self.table.item(i, 0)
+                if item is not None and item.flags() & Qt.ItemFlag.ItemIsUserCheckable:
+                    item.setCheckState(state)
+        finally:
+            self.table.blockSignals(False)
         self._changed()
 
     def _changed(self, *_):

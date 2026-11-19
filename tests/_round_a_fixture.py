@@ -51,7 +51,7 @@ def _run(path, ddl, rows=()):
     return Path(path)
 
 
-def build(tmp_path, monkeypatch, with_mark_tables=True):
+def build(tmp_path, monkeypatch, with_mark_tables=True, old_marks_schema=False):
     """Create the databases and point paths / examen_data at them. Returns the folder."""
     taxa = [(t, NAMES[t], "Species", "G", "Plantae" if t == T_PLANT else "Animalia",
              "Tracheophyta" if t == T_PLANT else "Arthropoda") for t in NAMES]
@@ -86,12 +86,19 @@ def build(tmp_path, monkeypatch, with_mark_tables=True):
     obs = _run(tmp_path / "observatum.db", OBS_DDL)
     examen = _run(tmp_path / "examen.db", """
         CREATE TABLE status_downgrades (tvk TEXT PRIMARY KEY, species_name TEXT NOT NULL,
-            reason TEXT NOT NULL DEFAULT '', created_at TEXT, updated_at TEXT);
+            reason TEXT NOT NULL DEFAULT '',
+            status_marked TEXT NOT NULL DEFAULT '', created_at TEXT, updated_at TEXT);
         CREATE TABLE status_downgrade_overrides (project_name TEXT NOT NULL,
             client TEXT NOT NULL DEFAULT '', survey_year TEXT NOT NULL DEFAULT '',
             tvk TEXT NOT NULL, species_name TEXT NOT NULL DEFAULT '', bracket INTEGER NOT NULL,
-            updated_at TEXT, PRIMARY KEY(project_name, client, survey_year, tvk));"""
+            status_marked TEXT NOT NULL DEFAULT '', updated_at TEXT, PRIMARY KEY(project_name, client, survey_year, tvk));"""
                  if with_mark_tables else "CREATE TABLE unrelated (x INTEGER);")
+    if old_marks_schema:        # as scripts/add_report_tables.py made them before status_marked
+        c = sqlite3.connect(str(examen))
+        for t in ("status_downgrades", "status_downgrade_overrides"):
+            c.execute(f"ALTER TABLE {t} DROP COLUMN status_marked")
+        c.commit()
+        c.close()
     for attr, p in (("UKSI_DB", uksi), ("CODEX_DB", codex), ("PANTHEON_DB", pantheon),
                     ("OBSERVATUM_DB", obs), ("EXAMEN_DB", examen)):
         monkeypatch.setattr(paths, attr, p)
