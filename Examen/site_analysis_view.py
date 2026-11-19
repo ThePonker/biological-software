@@ -185,6 +185,11 @@ class SiteAnalysisView(QWidget):
         marks_btn.setToolTip("List the species marked as likely to be downgraded, and whether\n"
                              "each mark still applies to the species' current status.")
         marks_btn.clicked.connect(self._on_status_marks); toolbar.addWidget(marks_btn)
+        self.missing_btn = QPushButton("Missing profiles\u2026"); self.missing_btn.setStyleSheet(BTN_OUTLINE)
+        self.missing_btn.setToolTip("List the species of this survey that have no account of yours,\n"
+                                    "and write them.")
+        self.missing_btn.setEnabled(False)
+        self.missing_btn.clicked.connect(self._on_missing_profiles); toolbar.addWidget(self.missing_btn)
         # The ten controls held the window at 1,270 px: on a narrower (laptop) screen the
         # row scrolls sideways instead (R5)
         from src.views.components.hscroll_strip import HScrollStrip
@@ -325,6 +330,8 @@ class SiteAnalysisView(QWidget):
         """The Export menu's actions that act on the analysed project (the CSV does not)."""
         for act in getattr(self, "_export_actions", ()):
             act.setEnabled(on)
+        if hasattr(self, "missing_btn"):
+            self.missing_btn.setEnabled(on)
 
     def _clear_detail(self, message):
         """No current analysis: the export buttons cannot act on a previous
@@ -594,6 +601,12 @@ class SiteAnalysisView(QWidget):
         from .status_marks_dialog import StatusMarksDialog
         StatusMarksDialog(self).exec()
         self.species_tab._apply_filters()
+
+    def _on_missing_profiles(self):
+        """List the species with no account of yours; write one in Observatum's editor."""
+        from .missing_profiles_dialog import MissingProfilesDialog
+        if self._current_detail is not None:
+            MissingProfilesDialog(self._current_detail, self).exec()
 
     def _on_benchmark(self):
         """Choose which surveys make up the Key Species benchmark."""

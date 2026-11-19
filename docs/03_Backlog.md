@@ -1,6 +1,6 @@
 # Backlog
 
-## Updated 16 November 2026 (Rounds 18–20 committed, Round 21 being built; see "Next (16 Nov)"); older sections below
+## Updated 19 November 2026 (report tools: Round A and follow-ups committed; see "Next (19 Nov)"); older sections below
 ## Check this before starting a session.
 
 This file is the working list: how we work, what is next, what is decided but not built,
@@ -27,6 +27,33 @@ comes first either way. *(Update 24 Oct: Q1 was settled by the order of work of 
 24 Oct plan below; Rounds 5–11 are built, see "Next (24 Oct)".)*
 
 ---
+
+## Next (19 Nov): report tools done -- stop adding to them until a real report shows a gap
+
+**Committed and pushed (`d9d30d5`, `dc82d40`), Wil's tests passed, full suite 2,515 passed:**
+Round A and its follow-ups, after the Nottingham Business Park report (submitted 18 Nov). Data
+Entry *Visits & weather*; Examen *Export ▾* menu with the **Report pack**; status marks
+([brackets], revised figures, remembered status, *Status marks…* list); *Benchmark…*; species
+counts invertebrates only; record lines as sentences; Wil's own accounts in the pack. Report
+template (`.dotx`), paragraph library and Key Species research are in `FLAUNA\Templates\Reports\`
+(not in git). Data fixes run 18 Nov: Notts Pitfall 1 re-dated, *P. madidus* sexes, earwig agg →
+*F. auricularia* (32 records on one TVK).
+
+**Being built (19 Nov):** Examen *Missing profiles…* -- the Key Species of a survey with no account
+of Wil's, opening Observatum's profile editor. The last report-tools item agreed (Wil, 18 Nov 22:14).
+
+**Agreed not to do (18 Nov):** Round B (Examen assembling a whole report draft); a profile editor
+inside Examen (Observatum's is opened instead). The Word / PDF assessment reports stay at the
+bottom of the Export menu (Wil no longer uses them).
+
+**Small, when convenient:**
+- Data Entry: a commit that leaves only completely empty grid rows should clear them and close the
+  job; rows with something typed but no species stay flagged (agreed design, 18 Nov; not built).
+- Examen: the accumulation curve counts names, not TVKs (case differences count twice, e.g.
+  "Harpalus rufipes" / "harpalus rufipes" in Data Entry job 4); the hidden Data Entry job picker's
+  species column counts raw names.
+- Nottingham Business Park into `reference_figures.json` (141 / 2 / SQI 108; Pantheon Only 97;
+  the `sqi_pantheon` figure to be measured on the PC).
 
 ## Next (16 Nov): Rounds 18–20 committed and pushed; Round 21 (1940s theme) being built
 

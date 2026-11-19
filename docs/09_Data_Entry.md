@@ -1,7 +1,7 @@
 # Data Entry
 
 ## The recording grid
-## Updated 24 October 2026 (§7b personal jobs, §8a Rounds 7–8, §9 constraints)
+## Updated 18 November 2026 (§8b Visits & weather); §7b, §8a, §9 on 24 October
 ## Consolidates `26_Data_Entry_Design.md` (the design) and
 ## `27_Data_Entry_State.md` (what was built). The research behind it is in
 ## `25_Data_Entry_Research.md`, which remains worth reading.
@@ -282,6 +282,14 @@ staged); otherwise the missing rows are listed. Commercial jobs commit as before
 - Also Round 7: green ticks (`shared/tick_style.py`) and dd/mm/yyyy display (`shared/display_format.dmy`).
   `parse_display_date` still accepts US mm/dd/yyyy (`06` F97).
 - **Away mode** (Round 9): Data Entry refuses to open on an away machine (`01` §4f).
+
+## 8b. Visits & weather (18 November 2026)
+
+The job's top bar has **Visits & weather…** (`DataEntry/visit_weather_dialog.py`): one row per
+survey date of the job, with temperature, wind and cloud as short text. Tabbing out of a cell adds
+the unit ("30 - 32" → "30–32 °C", "Beaufort 1–2", "1–3 oktas"; ranges take an en dash). Saved to
+observatum.db `visit_weather`, keyed by project and client exactly as commit writes them, so the
+committed survey's report pack (Examen, Table 4.1) finds it. Refuses on an away machine.
 
 ## 9. Known constraints
 

@@ -5,6 +5,26 @@
 
 ---
 
+### Session 54 — 17–19 November 2026
+
+**Nottingham report, then the report tools.** 17–18 Nov: the Flauna report template (`.dotx`,
+Violet Ground Beetle palette, Georgia / Calibri), the paragraph library for impacts and
+recommendations, the Key Species research (no consultants named in reports or exports), and the
+Nottingham Business Park report (Nicholsons), submitted 18 Nov from the uncommitted Data Entry
+job by hand. 18–19 Nov, **Round A** and follow-ups (`d9d30d5`, `dc82d40`): Data Entry *Visits &
+weather*; Examen *Report pack*, status marks with [brackets] and revised figures (then remembering
+the status marked, after an independent review found a mode mismatch), *Benchmark…*, the Data
+Entry job preview (built, then its button hidden: Wil commits before analysing), one *Export ▾*
+menu, record lines as sentences, Wil's own accounts in the pack, species counts invertebrates
+only (Kent 392 → 376, Elmley 44 → 40, Bicester 2025 254 → 253, Slade Green 344 → 343). Three
+independent reviews caught: the preview counting rows commit holds back, marks checked against
+Pantheon's codes in Pantheon Only mode, a broken right-click menu and Notable A read as "NA"
+(F115) -- all fixed before delivery. Data fixes on the PC: Notts Pitfall 1 first sample re-dated
+to 14 June, two *P. madidus* lines sexed, earwig agg → *F. auricularia* (32 records, one TVK).
+Nottingham committed (141 species, 2 Key, SQI 108). Full suite on the PC 2,515 passed, none
+failed; reference check ALL MATCH. Agreed to stop adding report tools after *Missing profiles…*
+until a real report shows a gap.
+
 ### Session 53 — 11–16 November 2026
 
 **Rounds 18–20, the 1940s theme chosen.** **Round 18**: named text sizes (12 px minimum), map zoom to

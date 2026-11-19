@@ -1,10 +1,10 @@
 # Faults
 
-## Updated 16 November 2026
+## Updated 19 November 2026
 ## Open faults carry an action. Closed ones are kept in brief, because knowing
 ## what has already gone wrong is how the rules in `05` were earned. Older closed
 ## faults are in `06b_Faults_Closed.md` (split out 12 Oct). New faults take the
-## next free number (F114 next).
+## next free number (F118 next).
 
 ---
 
@@ -195,6 +195,14 @@ crash). The timer now belongs to the chart (dropped with it) and checks the cont
 the first unsupported selector in that sheet (not checked separately); the 1940s header rules sit before it. **Action:** if per-tab colours are wanted, set them in code on tab
 change (with the theme work, Round 21 or later); otherwise remove the dead rules.
 
+### F116. A Data Entry commit leaves the empty grid rows, so the job stays open
+Commit writes the rows with a species and leaves every row without one in staging, in case it is
+unfinished. Spare empty grid rows are left too, so a fully committed job stays "active" with
+"N staged rows" until it is discarded by hand (Nottingham, 18 Nov: 46 empty rows). **Action**
+(design agreed 18 Nov, not built): a commit clears rows with every cell blank and closes the job
+when nothing else is left; rows with something typed but no species stay, flagged with their grid
+row numbers.
+
 ### F111. A pytest-xdist worker crash ("node down") in Claude's workspace
 Seen twice (Round 19 and Round 20 full runs, Linux offscreen, `-n 3`), not reproduced on Wil's PC (2,321
 and 2,340 passed). **Watch:** if it appears on the PC, run that file alone with `-p no:randomly -x`.
@@ -202,6 +210,24 @@ and 2,340 passed). **Watch:** if it appears on the PC, run that file alone with 
 ---
 
 ## Closed since 10 October
+
+### F114. Examen counted plants and vertebrates as species -- CLOSED 18 Nov
+Records of non-invertebrates (birds at Kent Deadwood, the pool frog at Slade Green, the bee orchid
+at Nottingham) counted in the species total and % Key Species; they never scored (no SQS) and were
+never Key. Now one rule, `shared/invertebrate_filter.py`, used by the analysis service and the
+species list; figures moved on purpose (`02` §3, `reference_figures.json`). The pack and workbook
+name what was left out, so a protected vertebrate is not lost from a report without a word.
+
+### F115. Status codes compared after upper-casing: Notable A "Na" read as threat "NA" -- CLOSED 19 Nov
+Caught by review before delivery. Codex writes the IUCN category Not Applicable "NA" and the
+rarity Notable A "Na"; a rule that upper-cased first dropped Notable A (18 Key Species have only
+Na). Exclusions now match the exact spelling (`workbook_export.never_bracket`). **Rule:** never
+compare status codes after `.upper()` when the case carries meaning.
+
+### F117. Live-data tests counted hidden records -- CLOSED 18 Nov
+Four tests (`test_counting_r2`, `test_loading_r5`, two in `test_mapping_selection_20261010`)
+compared the list and map with `COUNT(*)`; when Wil hid record 1721 (an iRecord app Blackburnian
+Warbler at Kent) they went one out. They now count `hidden_at IS NULL`, as the app does.
 
 ### F53. Scheme records held twice (iRecord and NBN copies) -- CLOSED 14 Oct
 34,121 pairs shared an iRecord ID (NBN's "Longhorn beetle data from iRecord" is iRecord again).

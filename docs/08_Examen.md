@@ -1,7 +1,7 @@
 # Examen
 
 ## Invertebrate assemblage assessment
-## Updated 12 October 2026 (§9 remaining work; §12 Sundon)
+## Updated 19 November 2026 (§13 report tools); §9 remaining work and §12 Sundon 12 October
 ## Supersedes `29_Examen_Revival_Assessment.md`, whose central finding was wrong,
 ## and the desktop portion of `08_Examen_Web_Design_Spec.md`.
 
@@ -372,3 +372,39 @@ accepted the identifications as recorded (Q66); the reference figures were updat
 records. In Pantheon Only mode *Sympetrum nigrescens* was linked to *S. striolatum* (fault
 F54); since 12 Oct a local correction (`shared/pantheon_bridge_corrections.csv`, read by
 `load_bridge`) drops the link and the species is flagged "local correction" (Q67).
+
+## 13. Report tools (18–19 November 2026)
+
+Built after the Nottingham Business Park report, to produce its results sections from Examen.
+Every figure comes from the assessment workbook (`report_model.build_report`), never a recount.
+
+- **Export ▾** (`site_analysis_view.py`): Report pack…, Workbook…, Appendix…, Projects list
+  (CSV)…, then the Word and PDF assessment reports (kept, no longer used by Wil).
+- **Report pack** (`report_pack.py`, `report_pack_tables.py`): a Word file in the report
+  template's style, to paste into Sections 4–5 and Appendix C. Table 4.1 visits with weather
+  (`shared/visit_weather.py`, typed in Data Entry); Table 5.1 species by group with Key Species in
+  brackets; Table 5.2 Key Species; species accounts (Wil's own account where written, else a yellow
+  "[write account]"; the records as one sentence, determiner initials first); Table 5.3 broad
+  biotopes; Table 5.4 SATs; Appendix C; the benchmark sentence. Non-invertebrates left out of the
+  counts are named under Table 5.1. No consultant or index author is named anywhere.
+- **Status marks** (`status_marks.py`, `status_marks_ui.py`, `status_marks_dialog.py`; examen.db
+  `status_downgrades`, `status_downgrade_overrides`): right-click a Key Species on the Species tab
+  to mark its published status as likely to be downgraded. Global by TVK (applies to every job,
+  later ones too); a job can opt out or bracket for itself only. Only rarity and threat codes are
+  bracketed; the threat categories LC / NA / NE / WL never (exact spelling: Notable A "Na" is
+  bracketed). The workbook adds "Key Species (status only, revised)", its %, and "Rare Key Species
+  (revised)" only when something is bracketed. Each mark stores the Codex status it was made
+  against (`status_marked`); when Codex changes, the mark stops applying everywhere and the Species
+  tab and *Status marks…* list say so. The check uses Codex by TVK in both analysis modes.
+- **Benchmark…** (`benchmark.py`, `benchmark_dialog.py`; examen.db `benchmark_choices`): the
+  status-only Key Species % of comparable surveys (default England, 3+ visit dates; no survey-type
+  field exists, so deadwood and targeted surveys are unticked by hand), median / IQR (inclusive
+  quartiles) / range; the survey being reported never counts in its own benchmark.
+- **Invertebrates only** (`shared/invertebrate_filter.py`): one rule for every species figure.
+- **Data Entry job preview** (`examen_data.load_entry_job_detail`, `entry_job_picker.py`): the
+  rows a commit would write (commit_service's own eligibility and `row_kwargs`) plus the survey's
+  committed records. Built and tested; its button is hidden (Wil commits before analysing).
+- **Missing profiles…**: being built 19 Nov (`03` "Next (19 Nov)").
+
+Tables are added by `scripts/add_report_tables.py` (dry run, `--apply` backs up; adds missing
+tables and columns, safe to run twice).

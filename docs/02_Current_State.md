@@ -1,6 +1,6 @@
 # Current State
 
-## 16 November 2026 (Rounds 12–20 committed, `a5d22fe`); component text last refreshed 24 Oct. Figures marked "as of" were not re-measured
+## 19 November 2026 (Round A and the report tools committed, `dc82d40`); component text last refreshed 24 Oct, Examen and Data Entry rows 19 Nov. Figures marked "as of" were not re-measured
 ## The only home for these figures. If a number appears elsewhere, it is a copy
 ## and it will drift. Session history is in `02b_History.md` (split out 12 Oct).
 
@@ -11,8 +11,8 @@
 | Component | State |
 |---|---|
 | **Observatum** | Active. **16 Nov:** Rounds 12–20 tested and committed (`03` "Next (16 Nov)"; Round 20: text one step bigger, Home year list, Contributed as a window); Quick Entry removed from Home (Round 19); the PC runs Python 3.14.10 and PySide6 6.12.0; map layers load from binaries; the 3D view is paused (F107). Since 10 Oct: species-counting switches everywhere (Settings › Species counting; excluded rows dimmed, "Show only excluded"); Cleaning Report (Stats/Reports); Recording Scheme records read-only; Home cards Personal, Commercial, All, Scheme & Collection (Achievements card gone); Open in iRecord in record details and the Mapping square list; Species lookup "View N scheme records"; Edit Specimen "Field record" box; laptop sizes (dialogs fit 1280×720 and scroll with their buttons kept on screen; the window narrows to about 1,100 px). **Startup "window early, rest behind"** (§1a). Mapping: VC labels, VC boundaries (each border once), Local authority districts switch (OS Boundary-Line layer files since Round 8), Square opacity slider, County view, Current-view atlas PNG. **Map background layers (Rounds 8–11, built, Wil's checks and commit still to do):** land and districts from layer files, `Layers ▾` with remembered colours, panning by a saved picture, 40× zoom, and context layers off by default (place names, railways, national parks, foreshore, parks and green space, relief from OS Terrain 50). **Away mode (Round 9, built, not yet tested by Wil):** a read-only copy of the databases for his laptop (`01`). Dates show dd/mm/yyyy everywhere; green ticks come from one place (`shared/tick_style.py`). |
-| **Data Entry** | In production. Commits 2 Oct (Birmingham 172) and 8 Oct (1,136 records, five jobs). Count mode (F9) and repeat key (Ctrl+R) built 9 Oct. **Check before commit (B8) passed Wil's test 12 Oct.** A count of 0 is pink and blocks that row's commit; conservation chips read S.41 / SBL / S7 / Protected; "Showing: entry order" / "sorted by … (view only)" with Back to entry order; the banner cards narrow to fit the window. At 1280×720 the grid shows about 7 rows (compact banner agreed, Q54). **Rounds 7–8 (16–17 Oct, built; Wil's tests pending):** Check mark ("to check", Ctrl+T), "To check only", Export for checking, Read back checking, Last entered row, Test copy of a job (`09`). |
-| **Examen** | Reproduces an issued report's SQI exactly (Glory Park, 117). Reads `assessment_records`, so contributed records count. Excel, PDF and Word reports; compartments (E6), saproxylic SQI + IEC (E7), taxonomic summary (E8b). **PDF passed Wil's review 12 Oct (E3)**; style changes wait for the report-contents work. "1 sp." singular. Fits a laptop screen (minimum 1000×560, toolbar scrolls sideways). |
+| **Data Entry** | In production. **Visits & weather…** (18 Nov): temperature, wind and cloud per survey date, units added on leaving a cell; read by the report pack's Table 4.1 (`visit_weather` in observatum.db). Commits 2 Oct (Birmingham 172) and 8 Oct (1,136 records, five jobs). Count mode (F9) and repeat key (Ctrl+R) built 9 Oct. **Check before commit (B8) passed Wil's test 12 Oct.** A count of 0 is pink and blocks that row's commit; conservation chips read S.41 / SBL / S7 / Protected; "Showing: entry order" / "sorted by … (view only)" with Back to entry order; the banner cards narrow to fit the window. At 1280×720 the grid shows about 7 rows (compact banner agreed, Q54). **Rounds 7–8 (16–17 Oct, built; Wil's tests pending):** Check mark ("to check", Ctrl+T), "To check only", Export for checking, Read back checking, Last entered row, Test copy of a job (`09`). |
+| **Examen** | **Report tools (Round A, 18–19 Nov, `d9d30d5`, `dc82d40`):** one **Export ▾** menu (Report pack first; the Word and PDF assessment reports at the bottom, no longer used by Wil); the **Report pack** (Word, template house style: Table 4.1 visits with weather, 5.1 groups, 5.2 Key Species, species accounts with Wil's own account and the records as a sentence, 5.3 biotopes, 5.4 SATs, Appendix C, benchmark sentence); **status marks** (a published status likely to be downgraded shown in [brackets], with "(revised)" Key Species rows only when something is bracketed; every job, a job can opt out; the status marked is remembered and a mark stops applying when Codex changes it; **Status marks…** list); **Benchmark…** (tick list of comparable surveys, default England, 3+ visit dates; Tick all / Untick all); species counts are **invertebrates only** (§3). The Data Entry job preview is built and tested but its button is hidden (Wil commits before analysing). Reproduces an issued report's SQI exactly (Glory Park, 117). Reads `assessment_records`, so contributed records count. Excel, PDF and Word reports; compartments (E6), saproxylic SQI + IEC (E7), taxonomic summary (E8b). **PDF passed Wil's review 12 Oct (E3)**; style changes wait for the report-contents work. "1 sp." singular. Fits a laptop screen (minimum 1000×560, toolbar scrolls sideways). |
 | **Codex** | Rebuilt 9 October (D5) on **JNCC June 2026** and **UKSI July 2025**. **63 reviews** (35 status reviews + 28 atlases, accounts only), 6,566 review accounts. Known stale status: *Philanthus triangulum* still carries RDB2 (12 Oct). |
 | **UKSI** | NHM July 2025 release since 6 Oct; the December 2023 file kept as `uksi_2023.db`. Synonym fix applied 9 Oct (98,415 → 98,013); synonym count in §2 below. |
 | **Contributed records** | `contributed_observations`, **917 records** from J. Moore: Birmingham 162, Slade Green 339, Sundon 256 (11 Oct), **Bristol 160** (15 Oct). Read-only; a window from Observation Data › "Contributed records…" (the tab was removed in Round 20). On Mapping only when chosen. |
@@ -220,18 +220,28 @@ Current scoring and Pantheon's published scores alone; key species after the jur
 | BAM Glory Park 2024 | 128 | 8 | 117 | 117 | 9 |
 | Badshot Lea 2023 | 167 | 8 | 111 | 111 | 9 |
 | Bicester Graven Hill 2023 | 367 | 18 | 107 | 107 | 19 |
-| Bicester Graven Hill 2025 | 254 | 19 | 126 | 125 | 21 |
+| Bicester Graven Hill 2025 | 253 | 19 | 126 | 125 | 21 |
 | Birmingham - Wheels Park 2026 | 195 | 7 | 116 | 105 | 8 |
 | Bristol 2026 (with Jon Moore's records, 15 Oct) | 196 | 5 | 105 | 105 | 6 |
 | Derby 2025 | 230 | 4 | 100 | 99 | 6 |
-| Elmley 2026 | 44 | 7 | 182 | 184 | 7 |
+| Elmley 2026 | 40 | 7 | 182 | 184 | 7 |
 | Fermyn Hall Wood Deadwood 2024 | 49 | 7 | 157 | 153 | 8 |
-| Kent Deadwood 2024 | 392 | 75 | 181 | 175 | 82 |
+| Kent Deadwood 2024 | 376 | 75 | 181 | 175 | 82 |
 | Long Hanborough 2025 | 118 | 10 | 112 | 111 | 12 |
 | Machen 2024 | 321 | 16 | 120 | 114 | 19 |
-| Slade Green 2026 | 344 | 44 | 153 | 147 | 44 |
+| Slade Green 2026 | 343 | 44 | 153 | 147 | 44 |
 | Sundon 2026 (with Jon Moore's records; see below) | 231 | 19 | 125 | 114 | 19 |
 | Tilbury 2025 | 238 | 4 | 100 | 99 | 5 |
+
+**Invertebrates only (18 Nov, `dc82d40`).** Plants, fungi and vertebrates entered by mistake or
+noted incidentally are no longer counted as species (`shared/invertebrate_filter.py`: a record's
+kingdom or a vertebrate taxon group, else UKSI; an invertebrate aggregate UKSI's list misses still
+counts). Kent Deadwood 392 → 376 (13 birds, slow-worm, bluebell, *Scutellinia*), Elmley 44 → 40,
+Bicester 2025 254 → 253 (cuckoo), Slade Green 344 → 343 (pool frog). Key species and SQI unchanged
+everywhere (none has an SQS). The workbook basis and the report pack name what was left out.
+Same day: the 18 *Forficula auricularia/dentata* agg. records (Badshot Lea 2023, Bicester 2023 and
+personal) became *F. auricularia*, and all 32 *F. auricularia* records now carry UKSI's TVK
+NHMSYS0001387317 (13 personal ones had a TVK UKSI no longer holds); no survey figure moved.
 
 **Sundon with Jon Moore's records (11 Oct).** 256 contributed records (150 species) joined
 Wil's 198: Examen gives **231 species (54 shared), 19 key species, SQI 125** over 5 visits
@@ -266,6 +276,17 @@ temula* (Tilbury). `scripts/list_missing_accounts.py`.
 website and are unaffected. Any SQI taken from **Examen** between April and
 2 October was inflated by 3–66 points. Badshot Lea's key species have moved from
 the issued 10 to 8 (jurisdiction, then research-only).
+
+### Nottingham Business Park 2026 (Nicholsons) — reported 18 Nov, committed 18 Nov, not yet in the reference file
+
+179 records (Data Entry job 9), three visits (26 May, 14 June, 14 July). Codex Full, England:
+**141 species** (invertebrates; the bee orchid noted is not counted), **2 Key Species**
+(*Cistogaster globosa* RDB1, *Hippodamia variegata* Nb; both shown as likely to be downgraded in
+the report), **SQI 108**; Pantheon Only SQI 97. Measured 19 Nov on a copy, from the same records.
+Before commit, Pitfall 1's first sample was re-dated 14 July → 14 June (17 rows, vial labels) and
+two *Pterostichus madidus* lines given Male / Female; neither changed a figure. The submitted
+report's paragraph 14 still says Pitfall 1 gave no first-period sample (Wil will correct it if
+Nicholsons ask for edits).
 
 ### Coedely Park 2026 (RWE Wales, for Richard Wilson) — committed 10 Nov, not yet in the reference file
 
