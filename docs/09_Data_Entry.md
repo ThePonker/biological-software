@@ -291,6 +291,11 @@ the unit ("30 - 32" → "30–32 °C", "Beaufort 1–2", "1–3 oktas"; ranges t
 observatum.db `visit_weather`, keyed by project and client exactly as commit writes them, so the
 committed survey's report pack (Examen, Table 4.1) finds it. Refuses on an away machine.
 
+**Commit and empty grid rows (19 Nov, F116).** A clean commit clears the spare grid lines (nothing
+typed in any column; a line with a photo or specimen attached is kept) and closes the job when
+nothing else is left. A row with something typed but no species stays in Data Entry and is listed
+by grid row number in *Check before commit* and in the commit summary.
+
 ## 9. Known constraints
 
 **Pasted names that can't be matched** stay as text with no TVK; Check before commit lists

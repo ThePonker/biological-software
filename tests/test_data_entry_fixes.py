@@ -74,9 +74,10 @@ def test_precommit_flags_dates_recorder_and_vc():
     future = (TODAY + dt.timedelta(days=3)).isoformat()
     rows = [_row(), _row(date="31/02/2026", sex="m"), _row(date=future, sex="f"),
             _row(recorder="", sex="x"), _row(vc_number=None, vice_county=None, sex="y"),
-            _row(species_name="", date="rubbish")]                  # no species: not checked
+            _row(species_name="", date="rubbish")]                  # no species: only that is said
     assert precommit_issues(rows) == {"unreadable date": [2], "future date": [3],
-                                      "no recorder": [4], "no VC": [5]}
+                                      "no recorder": [4], "no VC": [5],
+                                      "no species (stays in Data Entry)": [6]}
 
 
 def test_kwargs_take_date_type_and_uksi_taxonomy():
@@ -293,3 +294,68 @@ def test_unreadable_date_is_flagged_in_the_cell(model):
     assert model.data(idx, Qt.ItemDataRole.BackgroundRole) is not None
     model.setData(idx, "05/06/2026", Qt.ItemDataRole.EditRole)
     assert model.data(idx, Qt.ItemDataRole.BackgroundRole) is None
+
+
+# ---------------------------------------------------------------- F116: spare grid lines
+def test_commit_clears_empty_grid_rows_and_closes_the_job(staging):
+    job = _job(staging, n=2)
+    for _ in range(3):
+        repo.insert_row(staging, job["id"], {})                  # spare grid lines
+    s = commit_job(_Db(), _Model(), staging, job, observation_cls=_Obs, taxonomy={})
+    assert (s["committed"], s["skipped_species"], s["cleared_blank"], s["remaining"]) == (2, 0, 3, 0)
+    assert repo.get_job(staging, job["id"])["status"] == "committed"
+
+
+def test_commit_keeps_rows_with_something_typed_but_no_species(staging):
+    job = _job(staging, n=1)
+    repo.insert_row(staging, job["id"], {})                      # grid row 2: blank, cleared
+    repo.insert_row(staging, job["id"], {"grid_ref": "SK5143"})  # grid row 3: kept, said
+    s = commit_job(_Db(), _Model(), staging, job, observation_cls=_Obs, taxonomy={})
+    # grid row numbers as the grid shows them after the commit: the typed row is now row 1
+    assert (s["committed"], s["cleared_blank"], s["skipped_species"], s["no_species_rows"]) == (1, 1, 1, [1])
+    assert s["remaining"] == 1 and repo.get_job(staging, job["id"])["status"] == "active"
+    left = repo.fetch_rows(staging, job["id"])
+    assert [r["grid_ref"] for r in left] == ["SK5143"]
+
+
+def test_commit_stopped_part_way_clears_nothing(staging):
+    job = _job(staging, n=2)
+    repo.insert_row(staging, job["id"], {})
+    s = commit_job(_Db(), _Model(fail_at=2), staging, job, observation_cls=_Obs, taxonomy={})
+    assert s["error"] and s["cleared_blank"] == 0 and s["remaining"] == 2
+
+
+def test_empty_row_with_a_photo_or_specimen_is_kept(staging, monkeypatch):
+    from shared import bench_photos
+    job = _job(staging, n=1)
+    rid = repo.insert_row(staging, job["id"], {})
+    monkeypatch.setattr(bench_photos, "count_for_rows", lambda conn, ids: 1 if rid in list(ids) else 0)
+    s = commit_job(_Db(), _Model(), staging, job, observation_cls=_Obs, taxonomy={})
+    assert s["cleared_blank"] == 0 and s["remaining"] == 1
+    assert any("photo or specimen" in p for p in s["photo_problems"])
+
+
+def test_precommit_flags_typed_rows_without_species_not_blank_ones(staging):
+    from DataEntry.commit_service import is_blank_row
+    rows = [_row(), {"id": 9, "job_id": 1, "row_order": 2, "species_name": "", "created_at": "x"},
+            {"id": 10, "job_id": 1, "species_name": " ", "grid_ref": "SK5143"}]
+    assert is_blank_row(rows[1]) and not is_blank_row(rows[2]) and not is_blank_row(rows[0])
+    assert is_blank_row({"id": 1, "check_flag": 0}) and not is_blank_row({"id": 1, "check_flag": 1})
+    assert precommit_issues(rows).get("no species (stays in Data Entry)") == [3]
+
+
+def test_a_failed_clear_keeps_the_row_and_does_not_raise(staging, monkeypatch):
+    """Records are written before the clear: a delete that fails must not turn into
+    'Nothing was committed' (DE4)."""
+    job = _job(staging, n=1)
+    repo.insert_row(staging, job["id"], {})
+    real = repo.delete_row
+
+    def locked(conn, rid, *a, **k):
+        if conn.execute("SELECT species_name FROM entry_staging WHERE id=?", (rid,)).fetchone()[0]:
+            return real(conn, rid, *a, **k)          # the committed row leaves as before
+        raise sqlite3.OperationalError("database is locked")
+    monkeypatch.setattr(repo, "delete_row", locked)
+    s = commit_job(_Db(), _Model(), staging, job, observation_cls=_Obs, taxonomy={})
+    assert s["committed"] == 1 and s["error"] is None and s["cleared_blank"] == 0
+    assert s["remaining"] == 1 and any("could not be cleared" in p for p in s["photo_problems"])

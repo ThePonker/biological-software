@@ -231,6 +231,17 @@ def _eligibility(row: Dict) -> Optional[str]:
     return None
 
 
+# Columns the grid fills itself; every other column empty means a spare grid line (F116).
+SYSTEM_COLUMNS = frozenset({"id", "job_id", "row_order", "created_at", "updated_at"})
+
+
+def is_blank_row(row: Dict) -> bool:
+    """True for a spare grid line: nothing typed in any column (F116). Such a row is not a
+    record; commit clears it. A row with anything typed but no species is not blank."""
+    return all(not str(v).strip() or (k == "check_flag" and not v)   # an unset mark is 0
+               for k, v in row.items() if k not in SYSTEM_COLUMNS and v is not None)
+
+
 # What makes two records "the same entry twice": every field below equal. Usually a
 # sex split typed with the sex left "Not recorded", or a block of sheet re-entered.
 # One definition, used here before commit and by scripts/check_data_entry_batches.py
@@ -272,7 +283,7 @@ def precommit_issues(rows, uksi_names: Optional[Dict[str, set]] = None) -> Dict[
     issues = {"unreadable date": [], "count of 0": [], "unreadable No.": [], "unreadable VC No.": [],
               "future date": [], "no site": [], "no grid ref": [],
               "no VC": [], "no recorder": [], "no TVK": [], "name and TVK differ": [], "double": [],
-              "to check (held back)": []}
+              "to check (held back)": [], "no species (stays in Data Entry)": []}
     seen = {}
     for n, row in enumerate(rows, start=1):
         why = _eligibility(row)
@@ -285,6 +296,8 @@ def precommit_issues(rows, uksi_names: Optional[Dict[str, set]] = None) -> Dict[
             issues["count of 0" if is_zero_qty(row.get("quantity")) else "unreadable No."].append(n)
         if why == "bad_vc":
             issues["unreadable VC No."].append(n)
+        if why == "no_species" and not is_blank_row(row):
+            issues["no species (stays in Data Entry)"].append(n)  # something typed: unfinished?
         if why is not None:
             continue
         blank = lambda k: not str(row.get(k) or "").strip()  # noqa: E731
@@ -427,6 +440,8 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
     from datetime import datetime
     batch = 'DataEntry batch ' + datetime.now().isoformat(timespec='seconds')
     rows = repo.fetch_rows(conn, job["id"])
+    blank_ids = []                 # spare grid lines (nothing typed): cleared after the commit
+    no_species_rows = []           # grid row numbers with something typed but no species
     committed_rows = []            # (staging row, new observation id) -- A3's iRecord file
     photo_problems = []            # bench photos whose link could not follow (row -> record)
     if taxonomy is None:
@@ -434,13 +449,17 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
             taxonomy = taxonomy_with_synonyms(rows, uksi_path)
         except Exception as e:          # commit without; say so (the backfill script fills later)
             taxonomy, taxonomy_error = {}, str(e)
-    for row in rows:
+    for n, row in enumerate(rows, start=1):
         reason = _eligibility(row)
         if reason == "to_check":
             skipped_check += 1
             continue
         if reason == "no_species":
-            skipped_species += 1
+            if is_blank_row(row):
+                blank_ids.append(row["id"])
+            else:
+                skipped_species += 1
+                no_species_rows.append(row["id"])     # turned into grid row numbers below
             continue
         if reason == "no_date":
             skipped_date += 1
@@ -499,12 +518,25 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
             error = gone
             break
 
+    cleared_blank = 0
+    kept_blank = []
+    if error is None:              # a clean commit: clear the spare grid lines (F116)
+        cleared_blank, kept_blank = _clear_blank_rows(conn, blank_ids, photo_problems)
+    # grid row numbers as the grid will show them now, the committed rows gone
+    position = {r["id"]: n for n, r in enumerate(repo.fetch_rows(conn, job["id"]), start=1)}
+    no_species_rows = [position[i] for i in no_species_rows if i in position]
+    if kept_blank:
+        photo_problems.append("empty grid row(s) kept, a photo or specimen attached or not "
+                              "removable: grid row(s) " + ", ".join(
+                                  str(position[i]) for i in kept_blank if i in position))
     remaining = repo.row_count(conn, job["id"])
     if remaining == 0 and not repo.is_personal(job):
         repo.update_job(conn, job["id"], status="committed")
     return {
         "committed": committed,
         "skipped_species": skipped_species,
+        "no_species_rows": no_species_rows,
+        "cleared_blank": cleared_blank,
         "skipped_date": skipped_date,
         "skipped_bad_date": skipped_bad_date,
         "skipped_bad_qty": skipped_bad_qty,
@@ -524,6 +556,27 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
         "committed_rows": committed_rows,
         "photo_problems": photo_problems,
     }
+
+
+def _clear_blank_rows(conn, row_ids, problems: list):
+    """Delete spare grid lines (is_blank_row) left after a commit: (cleared, kept ids). A line
+    with a bench photo or a specimen attached is kept, never cleared. Never raises: records are
+    already written (DE4), so a failure keeps the row and is said."""
+    from shared import bench_photos, specimen_staging
+    cleared, kept = 0, []
+    for rid in row_ids:
+        try:
+            linked = bench_photos.count_for_rows(conn, [rid]) or (
+                specimen_staging.has_table(conn) and specimen_staging.for_row(conn, rid))
+            if linked:
+                kept.append(rid)
+                continue
+            repo.delete_row(conn, rid)
+            cleared += 1
+        except Exception as e:          # cannot tell or cannot delete: keep the row, say why
+            kept.append(rid)
+            problems.append(f"an empty grid row could not be cleared ({e})")
+    return cleared, kept
 
 
 def export_job(conn, job: Dict, filepath: str, columns) -> int:

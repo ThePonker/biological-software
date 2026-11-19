@@ -547,12 +547,33 @@ def _accumulation(conn, where, params):
 
 def _accumulate(date_species_pairs, left_out=()):
     """(dates, [(date, species seen so far)]) from (date, species[, tvk]) rows in date order.
-    A row whose TVK is in left_out (the non-invertebrates, shared.invertebrate_filter) keeps
-    its date as a visit but is not counted as a species."""
-    seen, by_date = set(), {}
+    A species is a TVK, as the species count counts it (rows without a TVK are not species,
+    as there). TVKs recorded under one name (case and spacing aside) are one species -- a species
+    recorded as s.l. and s.s., which the species count merges. The grouping is made over all the
+    rows first, so the curve never goes down. A row whose TVK is in left_out (the
+    non-invertebrates, shared.invertebrate_filter) keeps its date as a visit, no species."""
+    parent = {}
+
+    def find(x):
+        while parent.setdefault(x, x) != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    rows = []
     for date, sp, *tvk in date_species_pairs:
-        if not (tvk and tvk[0] in left_out):
-            seen.add(sp)
+        t = (tvk[0] or "").strip() if tvk else ""
+        if not t or t in left_out:
+            rows.append((date, None))
+            continue
+        name = " ".join(str(sp or "").lower().split())
+        if name:
+            parent[find(("n", name))] = find(("t", t))
+        rows.append((date, ("t", t)))
+    seen, by_date = set(), {}
+    for date, key in rows:
+        if key:
+            seen.add(find(key))
         by_date[date] = len(seen)
     dates = sorted(by_date)
     return dates, [(d, by_date[d]) for d in dates]
@@ -755,7 +776,8 @@ def _job_rows(conn, job_id, with_taxonomy=True):
     staged = staging_repo.fetch_rows(conn, job_id)
     reasons = [cs._eligibility(r) for r in staged]
     eligible = [r for r, why in zip(staged, reasons) if why is None]
-    held_back = sum(1 for why in reasons if why not in (None, "no_species"))
+    held_back = sum(1 for r, why in zip(staged, reasons)       # spare grid lines are not records
+                    if why is not None and not (why == "no_species" and cs.is_blank_row(r)))
     taxonomy = {}
     if with_taxonomy and eligible:
         try:

@@ -195,14 +195,6 @@ crash). The timer now belongs to the chart (dropped with it) and checks the cont
 the first unsupported selector in that sheet (not checked separately); the 1940s header rules sit before it. **Action:** if per-tab colours are wanted, set them in code on tab
 change (with the theme work, Round 21 or later); otherwise remove the dead rules.
 
-### F116. A Data Entry commit leaves the empty grid rows, so the job stays open
-Commit writes the rows with a species and leaves every row without one in staging, in case it is
-unfinished. Spare empty grid rows are left too, so a fully committed job stays "active" with
-"N staged rows" until it is discarded by hand (Nottingham, 18 Nov: 46 empty rows). **Action**
-(design agreed 18 Nov, not built): a commit clears rows with every cell blank and closes the job
-when nothing else is left; rows with something typed but no species stay, flagged with their grid
-row numbers.
-
 ### F111. A pytest-xdist worker crash ("node down") in Claude's workspace
 Seen twice (Round 19 and Round 20 full runs, Linux offscreen, `-n 3`), not reproduced on Wil's PC (2,321
 and 2,340 passed). **Watch:** if it appears on the PC, run that file alone with `-p no:randomly -x`.
@@ -210,6 +202,13 @@ and 2,340 passed). **Watch:** if it appears on the PC, run that file alone with 
 ---
 
 ## Closed since 10 October
+
+### F116. A Data Entry commit left the empty grid rows, so the job stayed open -- CLOSED 19 Nov
+Spare grid lines kept a fully committed job "active" until discarded by hand (Nottingham, 18 Nov:
+46 empty rows). A clean commit now clears rows with nothing typed
+(`commit_service.is_blank_row`; a line with a photo or specimen attached is kept) and closes the
+job; rows with something typed but no species stay, listed by grid row in *Check before commit*
+and the commit summary. On the 18 Nov copy: 383 empty lines across six jobs, 6 typed rows flagged.
 
 ### F114. Examen counted plants and vertebrates as species -- CLOSED 18 Nov
 Records of non-invertebrates (birds at Kent Deadwood, the pool frog at Slade Green, the bee orchid

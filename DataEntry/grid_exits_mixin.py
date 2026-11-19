@@ -80,7 +80,10 @@ class GridExitsMixin:
         bits = [f"Committed {summary['committed']} record(s)."]
         detail = []
         if summary.get("skipped_species"):
-            detail.append(f"{summary['skipped_species']} skipped (no species)")
+            rows = summary.get("no_species_rows") or []
+            at = (f": grid row{'s' if len(rows) > 1 else ''} " + ", ".join(map(str, rows[:15]))
+                  + (" \u2026" if len(rows) > 15 else "")) if rows else ""
+            detail.append(f"{summary['skipped_species']} skipped (something typed but no species{at})")
         if summary.get("skipped_date"):
             detail.append(f"{summary['skipped_date']} skipped (no date)")
         if summary.get("skipped_bad_date"):
@@ -158,11 +161,13 @@ class GridExitsMixin:
                   "no VC": "no vice-county", "no recorder": "no recorder",
                   "no TVK": "species not matched (no TVK)",
                   "name and TVK differ": "a species name that is not the name of its TVK "
-                                         "(the species was changed and the old TVK left)"}
+                                         "(the species was changed and the old TVK left)",
+                  "no species (stays in Data Entry)": "something typed but no species "
+                                                      "(left in Data Entry; empty grid rows are cleared)"}
         lines = []
         for key in ("unreadable date", "count of 0", "unreadable No.", "unreadable VC No.", "future date", "no site",
                     "no grid ref", "no VC",
-                    "no recorder", "no TVK", "name and TVK differ"):
+                    "no recorder", "no TVK", "name and TVK differ", "no species (stays in Data Entry)"):
             if key in found:
                 v = found[key]
                 lines.append(f"\u2022 {len(v)} with {labels[key]}: rows {rows_text(v)}")
@@ -176,7 +181,7 @@ class GridExitsMixin:
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.Warning)
         box.setWindowTitle("Check before commit")
-        box.setText("Some rows would be committed with gaps or as doubles:")
+        box.setText("Check these rows before committing:")
         box.setInformativeText("\n".join(lines) + "\n\nRow numbers are the grid's. Doubles can be genuine "
                                "(separate lines on the sheet); gaps are easier to fix now than after commit.")
         back = box.addButton("Go back and fix", QMessageBox.ButtonRole.RejectRole)

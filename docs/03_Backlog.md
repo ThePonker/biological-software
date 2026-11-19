@@ -47,13 +47,12 @@ inside Examen (Observatum's is opened instead). The Word / PDF assessment report
 bottom of the Export menu (Wil no longer uses them).
 
 **Small, when convenient:**
-- Data Entry: a commit that leaves only completely empty grid rows should clear them and close the
-  job; rows with something typed but no species stay flagged (agreed design, 18 Nov; not built).
-- Examen: the accumulation curve counts names, not TVKs (case differences count twice, e.g.
-  "Harpalus rufipes" / "harpalus rufipes" in Data Entry job 4); the hidden Data Entry job picker's
-  species column counts raw names.
-- Nottingham Business Park into `reference_figures.json` (141 / 2 / SQI 108; Pantheon Only 97;
-  the `sqi_pantheon` figure to be measured on the PC).
+- Examen: the hidden Data Entry job picker's species column counts raw names (out of sight while
+  the button is hidden).
+
+**Done 19 Nov (delivered, Wil's tests next):** a commit clears completely empty grid rows and
+closes the job (F116); the accumulation curve counts a species once by TVK or name, so its end
+equals the species count on every survey; Nottingham Business Park in `reference_figures.json`.
 
 ## Next (16 Nov): Rounds 18–20 committed and pushed; Round 21 (1940s theme) being built
 

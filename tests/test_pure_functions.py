@@ -200,7 +200,7 @@ def test_precommit_issues_reports_grid_row_numbers():
         _row(),                                   # 1
         _row(site_name=" "),                      # 2  no site
         _row(grid_ref=None, species_tvk=""),      # 3  no grid ref, no TVK, not a double of 1
-        _row(species_name=""),                    # 4  not committable: ignored
+        _row(species_name=""),                    # 4  not committable: only "no species" said (F116)
         _row(date=""),                            # 5  not committable: ignored
         _row(sex=""),                             # 6  double of 1
         _row(sex="Female"),                       # 7  a sex split is not a double
@@ -211,6 +211,7 @@ def test_precommit_issues_reports_grid_row_numbers():
         "no grid ref": [3],
         "no TVK": [3],
         "double": [(2, 1), (6, 1), (8, 1)],
+        "no species (stays in Data Entry)": [4],
     }
 
 

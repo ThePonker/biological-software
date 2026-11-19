@@ -229,6 +229,7 @@ Current scoring and Pantheon's published scores alone; key species after the jur
 | Kent Deadwood 2024 | 376 | 75 | 181 | 175 | 82 |
 | Long Hanborough 2025 | 118 | 10 | 112 | 111 | 12 |
 | Machen 2024 | 321 | 16 | 120 | 114 | 19 |
+| Nottingham Business Park 2026 (added 19 Nov) | 141 | 2 | 108 | 97 | 2 |
 | Slade Green 2026 | 343 | 44 | 153 | 147 | 44 |
 | Sundon 2026 (with Jon Moore's records; see below) | 231 | 19 | 125 | 114 | 19 |
 | Tilbury 2025 | 238 | 4 | 100 | 99 | 5 |
@@ -277,12 +278,13 @@ website and are unaffected. Any SQI taken from **Examen** between April and
 2 October was inflated by 3–66 points. Badshot Lea's key species have moved from
 the issued 10 to 8 (jurisdiction, then research-only).
 
-### Nottingham Business Park 2026 (Nicholsons) — reported 18 Nov, committed 18 Nov, not yet in the reference file
+### Nottingham Business Park 2026 (Nicholsons) — reported 18 Nov, committed 18 Nov, in the reference file 19 Nov
 
 179 records (Data Entry job 9), three visits (26 May, 14 June, 14 July). Codex Full, England:
 **141 species** (invertebrates; the bee orchid noted is not counted), **2 Key Species**
 (*Cistogaster globosa* RDB1, *Hippodamia variegata* Nb; both shown as likely to be downgraded in
-the report), **SQI 108**; Pantheon Only SQI 97. Measured 19 Nov on a copy, from the same records.
+the report), **SQI 108**; on Pantheon's scores 97; Pantheon Only SQI 97, key 2. Measured 19 Nov on a copy, from
+the same records; frozen in `scripts/reference_figures.json` the same day.
 Before commit, Pitfall 1's first sample was re-dated 14 July → 14 June (17 rows, vial labels) and
 two *Pterostichus madidus* lines given Male / Female; neither changed a figure. The submitted
 report's paragraph 14 still says Pitfall 1 gave no first-period sample (Wil will correct it if

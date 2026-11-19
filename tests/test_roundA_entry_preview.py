@@ -221,3 +221,19 @@ def test_view_shows_the_preview_like_a_project(world, monkeypatch):
     assert view._current_detail.site.preview_job == "Notts"
     view._pool_years = True
     assert view._pooled() is False          # pooling never applies to a preview
+
+
+def test_accumulation_counts_a_species_once():
+    """Same TVK or same name (case, spacing aside) is one species; s.l. and s.s. under two TVKs
+    with one name are one, as the species count merges them; a left-out TVK adds a visit only."""
+    rows = [("2026-05-01", "Harpalus rufipes", "T1"),
+            ("2026-05-01", "harpalus  rufipes ", ""),             # no TVK: not a species
+            ("2026-06-01", "Araniella cucurbitina", "T_SL"),
+            ("2026-06-01", "araniella cucurbitina", "T_SS"),      # same name, other TVK
+            ("2026-06-01", "Harpalus rufipes", "T1"),
+            ("2026-07-01", "Ophrys apifera", "T_PLANT")]          # left out: a visit, no species
+    dates, curve = ed._accumulate(rows, {"T_PLANT"})
+    assert curve == [("2026-05-01", 1), ("2026-06-01", 2), ("2026-07-01", 2)]
+    # a later row that joins two groups never makes the curve go down
+    _, c2 = ed._accumulate([("d1", "Alpha", "tA"), ("d1", "Beta", "tB"), ("d2", "alpha", "tB")])
+    assert [n for _, n in c2] == sorted(n for _, n in c2)
