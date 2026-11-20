@@ -30,6 +30,7 @@ _dump/
 
 # Check outputs and exports written to the project root
 /*.txt
+!/requirements.txt
 /*.xlsx
 /*.csv
 

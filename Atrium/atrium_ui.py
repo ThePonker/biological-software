@@ -74,6 +74,7 @@ MOSS_LIGHT = theme_value("primary_bg", "#e8f0eb")
 HEATHER = theme_value("accent_scheme", "#7c6c9f")
 HEATHER_LIGHT = theme_value("accent_scheme_light", "#eeeaf3")
 WARM_GRAY = theme_value("secondary", "#8b8178")
+DANGER = theme_value("danger", "#a63d40")
 GOLD = theme_value("accent_collection", "#b8860b")
 GOLD_LIGHT = theme_value("accent_collection_light", "#faf6eb")
 CODEX_GREEN = MOSS                       # Codex now uses the shared palette's Moss Green
@@ -387,6 +388,10 @@ class AtriumPanel(QWidget):
         fl.addWidget(self.running_label)
         fl.addStretch()
 
+        self.backup_label = QLabel("")
+        self.backup_label.setStyleSheet(f"color: {TEXT_MUTED}; font-size: {font_css('caption')};")
+        fl.addWidget(self.backup_label)
+
         version = QLabel("v2.0")
         version.setStyleSheet(f"color: {BORDER}; font-size: {font_css('caption')};")
         fl.addWidget(version)
@@ -443,6 +448,27 @@ class AtriumPanel(QWidget):
             self.running_label.setText(f"{count} running")
         else:
             self.running_label.setText("")
+        self._refresh_backup_label()
+
+    def _refresh_backup_label(self):
+        """The backup line (shared/nightly_backup.status_text). Never raises."""
+        try:
+            import time
+            now = time.monotonic()
+            last = getattr(self, "_backup_checked", None)
+            if last is not None and now - last < 60:
+                return                      # at most once a minute, not every 3 s
+            self._backup_checked = now
+            from shared.nightly_backup import status_text
+            text, level = status_text()
+            colour = DANGER if level == "red" else TEXT_MUTED
+            self.backup_label.setStyleSheet(f"color: {colour}; font-size: {font_css('caption')};")
+            self.backup_label.setText(text)
+        except Exception:
+            try:
+                self.backup_label.setText("")
+            except Exception:
+                pass
 
     def show_near_tray(self, tray_geometry):
         self.refresh_status()

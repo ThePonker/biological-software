@@ -1,0 +1,16 @@
+# Third-party packages the suite imports (install with: py -3.14 -m pip install -r requirements.txt)
+PySide6
+numpy
+shapely
+openpyxl
+python-docx
+Pillow
+pyzipper
+keyring
+# Optional (imported only by one feature or script each)
+pyshp
+xlrd
+h5py
+zarr
+fpdf2
+docx2pdf
