@@ -467,9 +467,9 @@ class GeneralSettingsPanel(QScrollArea):
 
             # CSV backup settings
             self.csv_backup_enabled.setChecked(settings.value(Settings.CSV_BACKUP_ON_CLOSE, False, type=bool))
-            import os
-            default_path = os.path.join(os.path.dirname(os.path.abspath(".")), "data", "csv_backups")
-            self.csv_backup_path.setText(settings.value(Settings.CSV_BACKUP_PATH, default_path))
+            from ...core.config import default_csv_backup_dir
+            self.csv_backup_path.setText(
+                settings.value(Settings.CSV_BACKUP_PATH, default_csv_backup_dir()))
 
             
         finally:

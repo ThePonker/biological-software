@@ -508,24 +508,40 @@ def _ROOT_DIR():
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-def _profiles(tvks):
+def _profiles(tvks, problems=None):
     """{tvk: (account_text, source_label)} -- your account, else an open-licence
     review account quoted and cited, else a pointer to the review. Read through
-    shared/species_accounts.py, the reader the panel and editor use."""
+    shared/species_accounts.py, the reader the panel and editor use.
+
+    `problems`, if given, is a list that receives (tvk, reason) for every
+    species whose account could not be READ (as opposed to having none), so the
+    workbook can say so instead of leaving the cell blank."""
     out = {}
     if not tvks:
         return out
+    if problems is None:
+        problems = []
     try:
         from shared.species_accounts import get_species_accounts
-    except Exception:
+    except Exception as e:  # noqa: BLE001
+        reason = f"the account reader could not be loaded: {e}"
+        problems.extend((tvk, reason) for tvk in tvks)
         return out
     for tvk in tvks:
         try:
             acc = get_species_accounts(tvk)
-        except Exception:
+        except Exception as e:  # noqa: BLE001
+            problems.append((tvk, str(e) or e.__class__.__name__))
             continue
         if acc.own:
             out[tvk] = (acc.own, "Your account")
+            continue
+        if getattr(acc, "own_read_error", None):
+            # Yours could not be read: do not quietly put a review's text in its place.
+            problems.append((tvk, "your account could not be read"))
+            continue
+        if getattr(acc, "read_error", None):
+            problems.append((tvk, acc.read_error))
             continue
         r = acc.current_review
         if not (r and r.text):
@@ -540,6 +556,31 @@ def _profiles(tvks):
         else:
             out[tvk] = (f"See {cite}.", f"Not quoted (licence) - see {cite}")
     return out
+
+
+# Warnings from the most recent export_workbook call, for the UI to show.
+LAST_EXPORT_WARNINGS = []
+
+
+def _accounts_problem_line(problems, names):
+    """One clear line for the species whose accounts could not be read, or ''.
+    `names` maps tvk -> species name."""
+    if not problems:
+        return ""
+    reasons = []
+    for _tvk, why in problems:
+        if why not in reasons:
+            reasons.append(why)
+    listed = ", ".join(sorted({names.get(t) or t for t, _ in problems}))
+    reason = reasons[0] if len(reasons) == 1 else "; ".join(reasons)
+    total = len({t for t, _ in problems})
+    if len(reasons) == 1 and "unable to open" in reason:
+        return (f"Codex could not be opened ({reason}), so no published account could be "
+                f"read for {total} species: {listed}. Their account cells are blank because "
+                "the read failed, not because there is no account. Re-export when Codex is "
+                "not in use.")
+    return (f"Accounts could not be read for {total} species: {listed} ({reason}). "
+            "Re-export when Codex is not in use.")
 
 
 def _survey_where(project_name, client="", survey_year=None):
@@ -900,7 +941,8 @@ def _sheet_key_species(wb, result, project, stamp):
 
     keys = list(result.key_species)
     tvks = {k.tvk for k in keys if k.tvk}
-    profiles = _profiles(tvks)
+    account_problems = []
+    profiles = _profiles(tvks, account_problems)
     occurrences = _occurrences(tvks, stamp["project_name"], stamp["client"],
                                stamp["survey_year"], stamp.get("preview_rows"))
     br = _bracket_for(stamp)
@@ -945,6 +987,12 @@ def _sheet_key_species(wb, result, project, stamp):
                   "column gives the evidence from this survey — count, places "
                   "and months — after the marker. Blank account cells have no "
                   "account yet.").font = NOTE_FONT
+    line = _accounts_problem_line(
+        account_problems, {k.tvk: k.species_name for k in keys if k.tvk})
+    if line:
+        c = ws.cell(row=r + 1, column=1, value=line)
+        c.font = BOLD
+        LAST_EXPORT_WARNINGS.append(line)
     return ws
 
 
@@ -1409,6 +1457,7 @@ def export_workbook(result, detail, project, path,
     refs = _reference_counts()
     thresholds = _sat_thresholds()
 
+    del LAST_EXPORT_WARNINGS[:]
     wb = Workbook()
     wb.remove(wb.active)
     _sheet_summary(wb, result, detail, project, stamp)

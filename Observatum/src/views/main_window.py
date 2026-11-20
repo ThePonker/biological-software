@@ -982,8 +982,10 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
         if w is not None and w is self.stats_reports_tab and index in self._initialized_tabs:
             try:
                 self.stats_reports_tab.refresh()
-            except Exception:
-                pass
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).exception("Stats tab refresh failed")
+                self.statusbar.showMessage(f"Stats could not be refreshed: {e}", 10000)
             return
 
         if index in self._initialized_tabs:
@@ -1202,7 +1204,8 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
         from src.core.config import Settings
         settings = QSettings()
         backup_enabled = settings.value(Settings.CSV_BACKUP_ON_CLOSE, False, type=bool)
-        backup_path = settings.value(Settings.CSV_BACKUP_PATH, "")
+        from src.core.config import default_csv_backup_dir
+        backup_path = settings.value(Settings.CSV_BACKUP_PATH, default_csv_backup_dir())
 
         if backup_enabled and backup_path:
             from PySide6.QtWidgets import QMessageBox
@@ -1254,8 +1257,12 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
         import csv
         import sqlite3
 
+        import logging
+        from shared.db_open import connect_ro
+        log = logging.getLogger(__name__)
         os.makedirs(backup_path, exist_ok=True)
         db_path = self._main_db_path
+        failed = []          # what could not be backed up: said at the end, never silent
 
         # File-level backups of small user databases (frozen assessments, Munia)
         try:
@@ -1263,15 +1270,25 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
             _aux = [("examen.db", _paths.EXAMEN_DB)]
             if hasattr(_paths, "MUNIA_DB"):
                 _aux.append(("munia.db", _paths.MUNIA_DB))
-            for _name, _srcdb in _aux:
-                if os.path.exists(str(_srcdb)):
-                    _src_conn = sqlite3.connect(str(_srcdb))
-                    _dst_conn = sqlite3.connect(os.path.join(backup_path, _name))
-                    _src_conn.backup(_dst_conn)
-                    _src_conn.close()
-                    _dst_conn.close()
-        except Exception:
-            pass
+        except Exception as e:
+            log.exception("CSV backup: could not list the other databases")
+            _aux = []
+            failed.append(f"examen.db and munia.db ({e})")
+        for _name, _srcdb in _aux:
+            if not os.path.exists(str(_srcdb)):
+                continue
+            _src_conn = _dst_conn = None
+            try:
+                _src_conn = connect_ro(_srcdb)
+                _dst_conn = sqlite3.connect(os.path.join(backup_path, _name))
+                _src_conn.backup(_dst_conn)
+            except Exception as e:
+                log.exception("CSV backup: copy of %s failed", _name)
+                failed.append(f"{_name} ({e})")
+            finally:
+                for _c in (_src_conn, _dst_conn):
+                    if _c is not None:
+                        _c.close()
 
         tables = {
             "observations": "observations.csv",
@@ -1281,7 +1298,7 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
 
         exported = []
         try:
-            conn = sqlite3.connect(db_path)
+            conn = connect_ro(db_path)
             for table_name, filename in tables.items():
                 try:
                     cursor = conn.execute(f"SELECT * FROM {table_name}")
@@ -1296,7 +1313,8 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
                         writer.writerows(rows)
                     exported.append(f"{table_name} ({len(rows)} rows)")
                 except Exception as e:
-                    print(f"CSV backup error for {table_name}: {e}")
+                    log.exception("CSV backup error for %s", table_name)
+                    failed.append(f"{table_name} ({e})")
             conn.close()
 
             if exported:
@@ -1304,7 +1322,15 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
                 self.statusbar.showMessage(f'CSV backup: {summary}')
             conn.close()
         except Exception as e:
-            print(f"CSV backup error: {e}")
+            log.exception("CSV backup error")
+            failed.append(f"the CSV export ({e})")
+        if failed:
+            from PySide6.QtWidgets import QMessageBox
+            self.statusbar.showMessage("CSV backup: some parts failed", 10000)
+            QMessageBox.warning(
+                self, "CSV Safety Backup",
+                "The CSV backup did not complete. These could not be backed up:\n\n  "
+                + "\n  ".join(failed))
 
 
 class _NotBuilt(Exception):
@@ -1339,5 +1365,11 @@ def _claude_wire_obs_refresh(mw):
             de.committed.connect(getattr(mw, "_refresh_observations_if_loaded", obs.refresh))
         if hasattr(mw, "_mark_data_changed"):
             de.committed.connect(mw._mark_data_changed)   # Home / Stats follow a commit (OBS-10)
-    except Exception:
-        pass
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).exception("Data Entry commit signal could not be wired")
+        try:
+            mw.statusbar.showMessage(
+                f"Data Entry changes may not refresh the other tabs until restart: {e}", 15000)
+        except Exception:  # noqa: BLE001 -- no status bar yet
+            pass

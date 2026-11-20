@@ -23,6 +23,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QFont
 
 from shared.display_format import dmy
+from shared.db_open import connect_ro
 
 from ...themes import theme
 from ...core.config import TabColors, ButtonColors
@@ -39,6 +40,47 @@ def species_count_sql(path: str, prefix: str = "") -> str:
     keep = counted_clause("observations", prefix, db=path)
     sk = species_key_expr("observations", prefix, db=path)
     return f"COUNT(DISTINCT CASE WHEN {prefix}species_tvk IS NOT NULL{keep} THEN {sk} END)"
+
+
+def release_scope(project, client, year):
+    """WHERE clause and params for ONE table row's embargoed records: project, client and
+    survey year exactly as the row groups them (NULL stays NULL), and only records whose
+    status is Active or Expired. Records with no status (NULL or '') are never touched."""
+    where = ["record_type = 'Commercial'", "substr(date, 1, 4) = ?",
+             "embargo_status IN ('Active', 'Expired')"]
+    params = [str(year)]
+    for col, val in (("project_name", project), ("client", client)):
+        if val is None:
+            where.append(f"{col} IS NULL")
+        else:
+            where.append(f"{col} = ?")
+            params.append(val)
+    return " AND ".join(where), params
+
+
+def count_embargoed(conn, project, client, year):
+    """How many records Release would change for this row."""
+    where, params = release_scope(project, client, year)
+    return conn.execute(f"SELECT COUNT(*) FROM observations WHERE {where}", params).fetchone()[0]
+
+
+def live_embargo(conn, project, client, year, today):
+    """(M, latest end date): how many of this row's releasable records are still under an
+    embargo that has not ended (Active, embargo_until after `today`), and the latest end date."""
+    where, params = release_scope(project, client, year)
+    m, latest = conn.execute(
+        f"SELECT COUNT(*), MAX(embargo_until) FROM observations WHERE {where} "
+        "AND embargo_status = 'Active' AND embargo_until > ?", (*params, today)).fetchone()
+    return m, latest
+
+
+def release_embargoed(conn, project, client, year):
+    """Mark this row's embargoed records Released. Returns the number changed
+    (cursor.rowcount); the caller commits."""
+    where, params = release_scope(project, client, year)
+    cur = conn.execute(
+        f"UPDATE observations SET embargo_status = 'Released' WHERE {where}", params)
+    return cur.rowcount
 
 
 class EditProjectDialog(QDialog):
@@ -294,10 +336,11 @@ class CommercialReportsDashboard(QScrollArea):
         if not db:
             return
 
+        conn = None
         try:
             main_path = (db.get_main_path() if hasattr(db, 'get_main_path')
                          else str(db._main_db_path))
-            conn = sqlite3.connect(main_path)
+            conn = connect_ro(main_path)
             today = date.today().isoformat()
             nsp = species_count_sql(main_path)
 
@@ -372,11 +415,12 @@ class CommercialReportsDashboard(QScrollArea):
                 table_rows.append((
                     label, client or "", sum(v[0] for v in kinds.values()),
                     species.get((proj, client, year), 0), display_status, kinds[main][1], kinds[main][2], main,
-                    proj or "",
+                    proj, year, client,       # raw (None stays None): Release matches IS NULL
                 ))
             table_rows.sort(key=lambda r: (rank[r[7]], r[0].lower()))
 
             conn.close()
+            conn = None
 
             # Update cards
             self._active_card.set_value(
@@ -411,10 +455,10 @@ class CommercialReportsDashboard(QScrollArea):
             self._table.setRowCount(len(table_rows))
             keep = self._selected_project
             self._table.blockSignals(True)
-            for row_idx, (proj, client, records, species, status_text, until, raw_status, status, raw_proj) in enumerate(table_rows):
+            for row_idx, (proj, client, records, species, status_text, until, raw_status, status, raw_proj, row_year, raw_client) in enumerate(table_rows):
                 name_item = QTableWidgetItem(proj)
                 # the raw names: "(no project)" is display only
-                name_item.setData(Qt.ItemDataRole.UserRole, (raw_proj, client))
+                name_item.setData(Qt.ItemDataRole.UserRole, (raw_proj, raw_client))
                 self._table.setItem(row_idx, 0, name_item)
                 self._table.setItem(row_idx, 1, QTableWidgetItem(client))
 
@@ -457,8 +501,8 @@ class CommercialReportsDashboard(QScrollArea):
                         }}
                     """)
                     btn.clicked.connect(
-                        lambda checked, p=raw_proj, c=client, s=raw_status:
-                        self._release_project(p, c)
+                        lambda checked, p=raw_proj, c=raw_client, y=row_year:
+                        self._release_project(p, c, y)
                     )
                     self._table.setCellWidget(row_idx, 6, btn)
                 elif status == "Released":
@@ -476,6 +520,9 @@ class CommercialReportsDashboard(QScrollArea):
             print(f"[CommercialReports] Error refreshing: {e}")
             import traceback
             traceback.print_exc()
+        finally:
+            if conn is not None:
+                conn.close()
 
     # ---- project detail -------------------------------------------------
     def _main_path(self):
@@ -515,13 +562,14 @@ class CommercialReportsDashboard(QScrollArea):
                 params).fetchone()
             emb = conn.execute(
                 f"SELECT MAX(embargo_until) FROM observations WHERE {where} "
-                "AND embargo_status='Active' AND embargo_until > date('now')", params).fetchone()[0]
+                "AND embargo_status='Active' AND embargo_until > ?",
+                (*params, date.today().isoformat())).fetchone()[0]
             conn.close()
         except sqlite3.Error as e:
             print(f"[CommercialReports] project detail failed: {e}")
             return
 
-        self._selected_project = (project, client, emb or "")
+        self._selected_project = (project or "", client or "", emb or "")
         self._detail_title.setText((project or "(no project)") + (f"  \u2014  {client}" if client else ""))
         years = sorted({r[0] for r in rows if r[0]}, reverse=True)
         self._detail_summary.setText(
@@ -630,14 +678,42 @@ class CommercialReportsDashboard(QScrollArea):
         arrow = "▼" if self._table_expanded else "▶"
         self._table_toggle.setText(f"{arrow}  Project Embargo Status")
 
-    def _release_project(self, project_name: str, client: str):
-        """Mark all records for a project as Released."""
+    def _release_project(self, project_name, client, year):
+        """Mark the embargoed records of ONE table row (project, client, survey year) as Released."""
+        year = (str(year).strip() if year else "")
+        if not year:
+            QMessageBox.warning(self, "Release Embargo",
+                                "This row has no survey year, so nothing was released.")
+            return
+        label = project_name or "(no project)"
+        try:
+            main_path = self._main_path()
+            if not main_path:
+                return
+            ro = connect_ro(main_path)
+            try:
+                n = count_embargoed(ro, project_name, client, year)
+                live_n, live_until = live_embargo(ro, project_name, client, year,
+                                                  date.today().isoformat())
+            finally:
+                ro.close()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Could not read the records: {e}")
+            return
+        if n == 0:
+            QMessageBox.information(
+                self, "Release Embargo",
+                f"There are no embargoed records of '{label}' ({client or 'no client'}, {year}) "
+                "to release.")
+            return
+
         reply = QMessageBox.question(
             self,
             "Release Embargo",
-            f"Mark all records for '{project_name or '(no project)'}' "
-            f"as Released?\n\nThis confirms the data has been uploaded "
-            f"to iRecord and removes the embargo.",
+            f"Mark the {n:,} embargoed records of '{label}' ({client or 'no client'}, {year}) "
+            f"as Released \u2014 cleared for upload to iRecord?"
+            + (f"\n\n({live_n:,} of them are still under embargo until {dmy(live_until)}.)"
+               if live_n else ""),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No
         )
@@ -646,9 +722,6 @@ class CommercialReportsDashboard(QScrollArea):
             return
 
         try:
-            db = get_database()
-            main_path = (db.get_main_path() if hasattr(db, 'get_main_path')
-                         else str(db._main_db_path))
             from shared.backup_service import backup_main_only
             if not backup_main_only("pre-embargo-release"):
                 QMessageBox.warning(self, "Release Embargo",
@@ -656,32 +729,19 @@ class CommercialReportsDashboard(QScrollArea):
                 return
             from shared.db_open import connect_rw
             conn = connect_rw(main_path)         # refused in away mode (the message below)
-
-            if project_name:
-                conn.execute("""
-                    UPDATE observations
-                    SET embargo_status = 'Released'
-                    WHERE record_type = 'Commercial'
-                    AND project_name = ?
-                    AND (client = ? OR (client IS NULL AND ? = ''))
-                """, (project_name, client, client))
-            else:
-                conn.execute("""
-                    UPDATE observations
-                    SET embargo_status = 'Released'
-                    WHERE record_type = 'Commercial'
-                    AND (project_name IS NULL OR project_name = '')
-                    AND (client = ? OR (client IS NULL AND ? = ''))
-                """, (client, client))
-
-            conn.commit()
-            updated = conn.total_changes
-            conn.close()
+            try:
+                updated = release_embargoed(conn, project_name, client, year)
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                conn.close()
 
             QMessageBox.information(
                 self, "Embargo Released",
-                f"Updated records for '{project_name or '(no project)'}' "
-                f"to Released status."
+                f"{updated:,} records of '{label}' ({client or 'no client'}, {year}) "
+                f"are now Released."
             )
 
             self.refresh()

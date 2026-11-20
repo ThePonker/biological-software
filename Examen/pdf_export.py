@@ -228,6 +228,12 @@ def workbook_to_pdf(xlsx_path, pdf_path):
 
 
 def export_pdf(result, detail, project, path, jurisdiction="England",
-               sqs_basis="Pantheon published", pooled_years=False):
-    return report_to_pdf(build_report(result, detail, project, jurisdiction=jurisdiction,
-                                      sqs_basis=sqs_basis, pooled_years=pooled_years), path)
+               sqs_basis="Pantheon published", pooled_years=False, confirm=None):
+    """Write the report. `confirm(warnings) -> bool`, if given, is asked before anything is
+    written when the workbook reported problems (e.g. unreadable species accounts); False
+    returns None and writes nothing."""
+    rep = build_report(result, detail, project, jurisdiction=jurisdiction,
+                       sqs_basis=sqs_basis, pooled_years=pooled_years)
+    if rep.get("warnings") and confirm is not None and not confirm(rep["warnings"]):
+        return None
+    return report_to_pdf(rep, path)

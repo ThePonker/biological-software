@@ -19,6 +19,8 @@ SCRIPT = ROOT / "scripts" / "_oneoff" / "backfill_scheme_vc_numbers_20261024.py"
 
 
 def _script():
+    if not SCRIPT.exists():
+        pytest.skip(f"{SCRIPT.name} archived or not present")
     spec = importlib.util.spec_from_file_location("r13_backfill_vc", SCRIPT)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)

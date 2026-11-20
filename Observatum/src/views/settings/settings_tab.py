@@ -155,7 +155,6 @@ class SettingsTab(QWidget):
         t = theme()
 
         # Reapply the full stylesheet
-        self._setup_ui  # stylesheet is set in __init__, just re-call setStyleSheet
         self.setStyleSheet(f"""
             QWidget {{
                 background-color: {t.get('background')};

@@ -132,6 +132,8 @@ def test_photo_moves_and_connect_rw_refuse_when_away(tmp_path, lib, monkeypatch)
 
 # --- the bracket-number rename script ----------------------------------------------------
 def _script(name, rel):
+    if not (ROOT / rel).exists():
+        pytest.skip(f"{rel} archived or not present")
     spec = importlib.util.spec_from_file_location(name, ROOT / rel)
     m = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(m)

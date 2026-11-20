@@ -559,8 +559,11 @@ class ObservationTab(
             if result:
                 self.refresh()
         except Exception as e:
-            import traceback
-            traceback.print_exc()
+            import logging
+            from PySide6.QtWidgets import QMessageBox
+            logging.getLogger(__name__).exception("Import wizard could not be opened")
+            QMessageBox.warning(self, "Import",
+                                f"The import wizard could not be opened or did not finish:\n\n{e}")
 
     def _on_import_completed(self, count: int):
         """Handle import completion - refresh this tab and notify others."""

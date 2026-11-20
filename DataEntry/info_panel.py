@@ -914,6 +914,8 @@ class InfoPanel(QWidget):
             records, species, breakdown = got[0], got[1], got[2]
             individuals = got[3] if len(got) > 3 else None
         except Exception:
+            self._wb_title.setText("This workbook\u2019s figures could not be read")
+            self._clear_wb_grid()
             return
         if not records:
             self._wb_title.setText("No records yet")

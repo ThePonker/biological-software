@@ -246,6 +246,26 @@ def run(now: Optional[datetime] = None, force: bool = False) -> int:
         release_lock(computer_dir)
 
 
+SAFETY_COPY_MARKS = ("_pre_", "_prelive_")      # a database set aside before a change, not live data
+
+
+def _monthly_dbs(data_dir: Path, log) -> list:
+    """The *.db files in the data folder that the monthly set includes: safety copies
+    (names with _pre_ or _prelive_, any case) are left out and logged by name. The glob
+    matches names ending exactly in .db, so -shm / -wal side files are never included."""
+    keep, skipped = [], []
+    for p in sorted(data_dir.glob("*.db")):
+        if not p.is_file():
+            continue
+        if any(m in p.name.lower() for m in SAFETY_COPY_MARKS):
+            skipped.append(p.name)
+        else:
+            keep.append(p)
+    if skipped:
+        log("monthly set: safety copies not included: " + ", ".join(skipped))
+    return keep
+
+
 def _run_locked(now, settings, root, password, computer, computer_dir, log) -> int:
     data_dir = Path(paths.DATA_DIR)
     day, month = now.strftime("%Y-%m-%d"), now.strftime("%Y-%m")
@@ -265,7 +285,7 @@ def _run_locked(now, settings, root, password, computer, computer_dir, log) -> i
     nightly_files = [data_dir / f"{n}.db" for n in NIGHTLY_DBS if (data_dir / f"{n}.db").is_file()]
     monthly_files = []
     if want_monthly:
-        monthly_files = sorted(p for p in data_dir.glob("*.db") if p.is_file())
+        monthly_files = _monthly_dbs(data_dir, log)
         if (data_dir / "saved_filters.json").is_file():
             monthly_files.append(data_dir / "saved_filters.json")
 

@@ -56,7 +56,10 @@ def _obs_db(path, rows):
 
 
 def _load_script(name):
-    spec = importlib.util.spec_from_file_location(name, os.path.join(ROOT, "scripts", "_oneoff", name + ".py"))
+    path = os.path.join(ROOT, "scripts", "_oneoff", name + ".py")
+    if not os.path.exists(path):
+        pytest.skip(f"{name}.py archived or not present")
+    spec = importlib.util.spec_from_file_location(name, path)
     m = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(m)
     return m

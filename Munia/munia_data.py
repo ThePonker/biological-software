@@ -279,10 +279,16 @@ def update_project(conn, project_id: int, data: dict):
     conn.commit()
 
 def delete_project(conn, project_id: int):
-    conn.execute("DELETE FROM project_field_months WHERE project_id = ?", (project_id,))
-    conn.execute("DELETE FROM project_annual_days WHERE project_id = ?", (project_id,))
-    conn.execute("DELETE FROM projects WHERE id = ?", (project_id,))
-    conn.commit()
+    """Delete a project and its planned days in ONE transaction: all or nothing. On any
+    failure the transaction is rolled back and the error is raised (the caller says so)."""
+    try:
+        conn.execute("DELETE FROM project_field_months WHERE project_id = ?", (project_id,))
+        conn.execute("DELETE FROM project_annual_days WHERE project_id = ?", (project_id,))
+        conn.execute("DELETE FROM projects WHERE id = ?", (project_id,))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
 
 def get_project_field_months(conn, project_id: int, year: int) -> list[dict]:
     rows = conn.execute(
@@ -290,7 +296,8 @@ def get_project_field_months(conn, project_id: int, year: int) -> list[dict]:
         "ORDER BY month", (project_id, year)).fetchall()
     return [dict(r) for r in rows]
 
-def set_project_field_months(conn, project_id: int, year: int, months: list[dict]):
+def set_project_field_months(conn, project_id: int, year: int, months: list[dict],
+                             commit: bool = True):
     conn.execute("DELETE FROM project_field_months WHERE project_id = ? AND year = ?",
                  (project_id, year))
     for m in months:
@@ -298,7 +305,8 @@ def set_project_field_months(conn, project_id: int, year: int, months: list[dict
             conn.execute("INSERT INTO project_field_months "
                          "(project_id, year, month, field_days) VALUES (?, ?, ?, ?)",
                          (project_id, year, m["month"], m["field_days"]))
-    conn.commit()
+    if commit:
+        conn.commit()
 
 def get_project_annual_days(conn, project_id: int, year: int) -> dict:
     row = conn.execute(
@@ -309,7 +317,8 @@ def get_project_annual_days(conn, project_id: int, year: int) -> dict:
     return {"micro_days": 0, "report_days": 0,
             "id_deadline": "", "report_deadline": "", "notes": ""}
 
-def set_project_annual_days(conn, project_id: int, year: int, data: dict):
+def set_project_annual_days(conn, project_id: int, year: int, data: dict,
+                            commit: bool = True):
     conn.execute(
         "INSERT OR REPLACE INTO project_annual_days "
         "(project_id, year, micro_days, report_days, "
@@ -317,7 +326,8 @@ def set_project_annual_days(conn, project_id: int, year: int, data: dict):
         (project_id, year, data.get("micro_days", 0), data.get("report_days", 0),
          data.get("id_deadline", ""), data.get("report_deadline", ""),
          data.get("notes", "")))
-    conn.commit()
+    if commit:
+        conn.commit()
 
 def _year_clause(year):
     return (" AND year = ?", (year,)) if year is not None else ("", ())

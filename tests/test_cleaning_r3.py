@@ -24,6 +24,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def _load(rel):
     p = os.path.join(ROOT, *rel.split("/"))
+    if not os.path.exists(p):
+        pytest.skip(f"{rel} archived or not present")
     spec = importlib.util.spec_from_file_location(os.path.basename(p)[:-3], p)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)

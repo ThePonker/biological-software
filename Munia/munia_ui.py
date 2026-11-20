@@ -260,9 +260,26 @@ class MuniaWindow(QMainWindow):
         reply = QMessageBox.question(
             self, "Munia", "Delete this project?",
             QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-        if reply == QMessageBox.Yes:
+        if reply != QMessageBox.Yes:
+            return
+        # A kept backup first; if it cannot be made, nothing is deleted.
+        try:
+            from shared.backup_service import backup_file_written
+            backed_up = backup_file_written(db.DB_PATH, "pre-munia-delete")
+        except Exception as e:  # noqa: BLE001
+            QMessageBox.warning(self, "Munia", f"Backup unavailable, so nothing was deleted.\n{e}")
+            return
+        if not backed_up:
+            QMessageBox.warning(self, "Munia",
+                                "The backup failed, so the project was not deleted.")
+            return
+        try:
             db.delete_project(self._conn, project_id)
-            self._refresh()
+        except Exception as e:  # noqa: BLE001 -- rolled back inside delete_project
+            QMessageBox.warning(self, "Munia",
+                                f"The project could not be deleted; nothing was changed.\n{e}")
+            return
+        self._refresh()
 
     def closeEvent(self, event):
         if self._conn:

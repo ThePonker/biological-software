@@ -38,7 +38,10 @@ def make(clock=None, held=False, visible=False):
     return s, clock
 
 
-def test_tick_levels(qapp, restore_gc):
+def test_tick_levels(qapp, restore_gc, monkeypatch):
+    # The real gen-2 count depends on what ran earlier in this worker (it can already be
+    # >= FULL_AT_GEN2_COUNT), so the test fixes it: only the clock decides the level here.
+    monkeypatch.setattr(gc, "get_count", lambda: (0, 0, 0))
     s, clock = make()
     assert s.tick() == 0
     clock.t += 10.5
@@ -206,3 +209,16 @@ def test_filter_drops_only_that_message(tmp_path, mode, expect_noise):
     out = r.stdout + r.stderr
     assert ("destroyed before end of thread" in out) is expect_noise, out
     assert "some other warning stays" in out
+
+
+def test_count_triggered_full_collection_resets_the_clock_levels(qapp, restore_gc, monkeypatch):
+    """A high gen-2 count forces a full collection at once; that also restarts the gen-1 timer,
+    so afterwards the level follows the clock again (0 now, 1 after GEN1_EVERY_S)."""
+    count = [gc_schedule.FULL_AT_GEN2_COUNT + 5]
+    monkeypatch.setattr(gc, "get_count", lambda: (0, 0, count[0]))
+    s, clock = make()
+    assert s.tick() == 2
+    count[0] = 0
+    assert s.tick() == 0
+    clock.t += gc_schedule.GEN1_EVERY_S + 0.5
+    assert s.tick() == 1

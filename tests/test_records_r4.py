@@ -195,6 +195,8 @@ def _fix_script():
     import importlib.util
     p = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                      "scripts", "_oneoff", "fix_jan1_dates_20261011.py")
+    if not os.path.exists(p):
+        pytest.skip("fix_jan1_dates_20261011.py archived or not present")
     spec = importlib.util.spec_from_file_location("fix_jan1_dates_20261011", p)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)

@@ -62,6 +62,13 @@ class SpeciesAccounts:
     own: Optional[str] = None
     own_updated: Optional[str] = None
     reviews: List[ReviewAccount] = field(default_factory=list)
+    # Set when the published (Codex) accounts could not be read -- locked,
+    # missing or damaged database. An empty `reviews` then does NOT mean "no
+    # account"; a caller that writes a report must say so.
+    read_error: Optional[str] = None
+    # The same for YOUR account (observatum.db): locked, missing or damaged. `own` None then
+    # does NOT mean "no account of yours"; nobody should be told to write one.
+    own_read_error: Optional[str] = None
 
     @property
     def current_review(self) -> Optional[ReviewAccount]:
@@ -93,11 +100,16 @@ def _ro(path):
     return sqlite3.connect(f"file:{path}?mode=ro", uri=True)
 
 
+def _is_schema_gap(exc):
+    """True only for an older codex.db lacking a column or table."""
+    return isinstance(exc, sqlite3.OperationalError) and "no such" in str(exc).lower()
+
+
 def _review_accounts(tvk, species_name, codex_db):
-    try:
-        c = _ro(codex_db)
-    except sqlite3.Error:
-        return []
+    """Published accounts for one species. Raises sqlite3.Error if codex.db
+    cannot be opened or read (locked, missing, damaged); the old-schema
+    fallback is used only for "no such column / table"."""
+    c = _ro(codex_db)
     try:
         where, arg = ("p.tvk = ?", tvk) if tvk else ("p.species_name = ?", species_name)
         rows = c.execute(f"""
@@ -110,14 +122,13 @@ def _review_accounts(tvk, species_name, codex_db):
             WHERE {where}
             ORDER BY superseded, COALESCE(r.date_published, '') DESC""",
             (arg,)).fetchall()
-    except sqlite3.Error:
+    except sqlite3.Error as exc:
+        if not _is_schema_gap(exc):
+            raise
         # An older codex.db without review_id: one account per TVK, unlinked
-        try:
-            rows = [(t, s, 0, None, None, None, None, 0) for t, s in c.execute(
-                "SELECT profile_text, source FROM species_profiles WHERE tvk = ?",
-                (tvk,))] if tvk else []
-        except sqlite3.Error:
-            rows = []
+        rows = [(t, s, 0, None, None, None, None, 0) for t, s in c.execute(
+            "SELECT profile_text, source FROM species_profiles WHERE tvk = ?",
+            (tvk,))] if tvk else []
     finally:
         c.close()
     return [ReviewAccount(text=t or "", source=s or "", review_id=rid or 0,
@@ -128,10 +139,10 @@ def _review_accounts(tvk, species_name, codex_db):
 
 
 def _own_account(tvk, species_name, observatum_db):
-    try:
-        c = _ro(observatum_db)
-    except sqlite3.Error:
-        return None, None
+    """Your account for one species: (text or None, updated_at). Raises sqlite3.Error if
+    observatum.db cannot be opened or read; a database with no species_profiles table (or
+    column) simply has no account of yours."""
+    c = _ro(observatum_db)
     try:
         row = None
         if tvk:
@@ -141,7 +152,9 @@ def _own_account(tvk, species_name, observatum_db):
             row = c.execute("SELECT profile_text, updated_at FROM species_profiles "
                             "WHERE species_name = ?", (species_name,)).fetchone()
         return (row[0] or None, row[1]) if row else (None, None)
-    except sqlite3.Error:
+    except sqlite3.Error as exc:
+        if not _is_schema_gap(exc):
+            raise
         return None, None
     finally:
         c.close()
@@ -158,10 +171,16 @@ def get_species_accounts(tvk=None, species_name=None,
     acc = SpeciesAccounts(tvk=tvk, species_name=species_name)
     if not (tvk or species_name):
         return acc
-    acc.reviews = _review_accounts(tvk, species_name, codex_db)
-    if not acc.reviews and tvk and species_name:
-        acc.reviews = _review_accounts(None, species_name, codex_db)
-    acc.own, acc.own_updated = _own_account(tvk, species_name, observatum_db)
+    try:
+        acc.reviews = _review_accounts(tvk, species_name, codex_db)
+        if not acc.reviews and tvk and species_name:
+            acc.reviews = _review_accounts(None, species_name, codex_db)
+    except sqlite3.Error as exc:
+        acc.read_error = str(exc) or exc.__class__.__name__
+    try:
+        acc.own, acc.own_updated = _own_account(tvk, species_name, observatum_db)
+    except sqlite3.Error as exc:
+        acc.own_read_error = str(exc) or exc.__class__.__name__
     return acc
 
 

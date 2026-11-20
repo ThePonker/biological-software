@@ -28,7 +28,9 @@ import traceback
 from datetime import datetime
 from typing import Optional
 
-BACKUP_DIR = r"C:\BiologicalSoftware_Backups"
+from shared.backup_service import BACKUP_ROOT  # honours BIOSOFT_BACKUP_ROOT
+
+BACKUP_DIR = BACKUP_ROOT
 
 STAGING_FILE = "staging_backup.csv"
 OBSERVATIONS_FILE = "observations_backup.csv"

@@ -504,6 +504,17 @@ class SiteAnalysisView(QWidget):
         export_appendix(self, self._current_site_name or "Site", self._current_result, self._current_detail,
                         jurisdiction=getattr(self, "_jurisdiction", "England"))
 
+    def _confirm_report_warnings(self, warnings):
+        """Asked before a report is written when the workbook it is built from reported
+        problems (e.g. species accounts that could not be read). True = write it anyway."""
+        reply = QMessageBox.question(
+            self, "Write the report?",
+            "Some species accounts could not be read:\n\n" + "\n\n".join(warnings)
+            + "\n\nWrite the report anyway?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No)
+        return reply == QMessageBox.StandardButton.Yes
+
     def _on_export_pdf(self):
         """Write the PDF assessment report (backlog E3) -- the workbook, laid out."""
         if not self._current_result:
@@ -526,11 +537,15 @@ class SiteAnalysisView(QWidget):
         if not path.lower().endswith(".pdf"):
             path += ".pdf"
         try:
-            export_pdf(self._current_result, self._current_detail, self._current_project, path,
-                       jurisdiction=getattr(self, "_jurisdiction", "England"),
-                       pooled_years=self._pooled())
+            written = export_pdf(self._current_result, self._current_detail,
+                                 self._current_project, path,
+                                 jurisdiction=getattr(self, "_jurisdiction", "England"),
+                                 pooled_years=self._pooled(),
+                                 confirm=self._confirm_report_warnings)
         except Exception as e:  # noqa: BLE001
             QMessageBox.warning(self, "Export failed", f"The PDF could not be written.\n\n{e}")
+            return
+        if written is None:          # declined at the account warning: nothing was written
             return
         QMessageBox.information(self, "PDF exported", f"Written to:\n{path}")
 
@@ -557,11 +572,15 @@ class SiteAnalysisView(QWidget):
         if not path.lower().endswith(".docx"):
             path += ".docx"
         try:
-            export_word(self._current_result, self._current_detail, self._current_project, path,
-                        jurisdiction=getattr(self, "_jurisdiction", "England"),
-                        pooled_years=self._pooled())
+            written = export_word(self._current_result, self._current_detail,
+                                  self._current_project, path,
+                                  jurisdiction=getattr(self, "_jurisdiction", "England"),
+                                  pooled_years=self._pooled(),
+                                  confirm=self._confirm_report_warnings)
         except Exception as e:  # noqa: BLE001
             QMessageBox.warning(self, "Export failed", f"The Word document could not be written.\n\n{e}")
+            return
+        if written is None:
             return
         QMessageBox.information(self, "Word report exported", f"Written to:\n{path}")
 
@@ -588,11 +607,14 @@ class SiteAnalysisView(QWidget):
         if not path.lower().endswith(".docx"):
             path += ".docx"
         try:
-            export_report_pack(self._current_result, self._current_detail, self._current_project,
-                               path, jurisdiction=getattr(self, "_jurisdiction", "England"),
-                               pooled_years=self._pooled())
+            written = export_report_pack(
+                self._current_result, self._current_detail, self._current_project,
+                path, jurisdiction=getattr(self, "_jurisdiction", "England"),
+                pooled_years=self._pooled(), confirm=self._confirm_report_warnings)
         except Exception as e:  # noqa: BLE001
             QMessageBox.warning(self, "Export failed", f"The report pack could not be written.\n\n{e}")
+            return
+        if written is None:
             return
         QMessageBox.information(self, "Report pack exported", f"Written to:\n{path}")
 
@@ -633,6 +655,7 @@ class SiteAnalysisView(QWidget):
         if not self._current_result:
             return
         from .workbook_export import export_workbook
+        from . import workbook_export as _wbx
 
         proj = self._current_project
         base = (self._current_site_name or "Assessment").replace(" \u2014 ", " ")
@@ -653,6 +676,12 @@ class SiteAnalysisView(QWidget):
         except Exception as e:  # noqa: BLE001
             QMessageBox.warning(self, "Export failed",
                                 f"The workbook could not be written.\n\n{e}")
+            return
+        warnings = list(getattr(_wbx, "LAST_EXPORT_WARNINGS", []))
+        if warnings:
+            QMessageBox.warning(
+                self, "Workbook exported with a problem",
+                f"Written to:\n{path}\n\n" + "\n\n".join(warnings))
             return
         QMessageBox.information(
             self, "Workbook exported",

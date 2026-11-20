@@ -60,6 +60,7 @@ class MissingProfilesDialog(QDialog):
         self.resize(860, 520)
         self._species = sorted(getattr(detail, "species_list", None) or [], key=_rank)
         self._missing = []            # [(SiteSpecies, has_review)] without an account of yours
+        self._unreadable = []         # SiteSpecies whose account of yours could not be READ
         self._shown = []              # the SiteSpecies behind each table row
         self._key_total = self._key_missing = self._all_total = 0
         lay = QVBoxLayout(self)
@@ -98,11 +99,15 @@ class MissingProfilesDialog(QDialog):
     def refresh(self):
         """Read the accounts again (the editor may have saved one) and redraw."""
         self._missing = []
+        self._unreadable = []
         self._key_total = self._key_missing = 0
         for sp in self._species:
             acc = get_species_accounts(sp.tvk or None, sp.name)
             key = bool(getattr(sp, "tier", ""))
             self._key_total += key
+            if not acc.own and acc.own_read_error:
+                self._unreadable.append(sp)       # not "no account": we could not look
+                continue
             if not acc.own:
                 self._missing.append((sp, acc.current_review is not None))
                 self._key_missing += key
@@ -118,6 +123,12 @@ class MissingProfilesDialog(QDialog):
         if self.show_all.isChecked():
             text += (f" {len(self._missing)} of {self._all_total} species in all "
                      "have no account of yours.")
+        if self._unreadable:
+            names = ", ".join(sp.name or "" for sp in self._unreadable[:8])
+            more = len(self._unreadable) - 8
+            text = (f"\u26a0 Your accounts could not be read for {len(self._unreadable)} species "
+                    f"({names}{f' and {more} more' if more > 0 else ''}), so they are not "
+                    "listed or counted below. Close Observatum and try again.\n" + text)
         return text
 
     def _fill(self, _checked=None):

@@ -34,7 +34,7 @@ STATIC_DBS = ("codex.db", "uksi.db", "pantheon.db", "vc_lookup.db", "vc_splits.d
 ALL_DBS = CHANGING_DBS + STATIC_DBS
 # Plain files read from ROOT\data on the laptop (OneDrive keeps them current).
 STATIC_FILES = ("saved_filters.json",)
-STATIC_DIRS = ("maps", "conservation-designations-20260609")
+STATIC_DIRS = ("maps", paths.JNCC_DIR.name)      # the JNCC folder keeps its dated name in paths.py
 MANIFEST = "manifest.json"
 STATE_FILE = "_static_state.json"
 _SKIP_NAMES = ("_backups", "_expired")

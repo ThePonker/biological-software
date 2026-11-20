@@ -196,8 +196,8 @@ def test_own_account_replaces_placeholder(world, monkeypatch):
     from Examen import workbook_export as we
     real = we._profiles
 
-    def profiles(tvks):
-        out = real(tvks)
+    def profiles(tvks, *args):
+        out = real(tvks, *args)
         out[T_RARE] = ("First paragraph of my account.\nSecond paragraph.", "Your account")
         out[T_SCARCE] = ("[Quoted from A Review 2020] Review text.", "Quoted - A Review 2020")
         return out

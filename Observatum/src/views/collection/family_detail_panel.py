@@ -157,7 +157,7 @@ class FamilyDetailPanel(QWidget):
 
         british = self._count_british("order", order_name)
         self.stats_label.setText(
-            f"British species: {british}  |  "
+            f"British species: {self._british_text(british)}  |  "
             f"Your specimens: {self._specimens_text(specimen_count, sexes)}"
             f"  |  Your species: {species_count}")
 
@@ -184,7 +184,7 @@ class FamilyDetailPanel(QWidget):
 
         british = self._count_british("superfamily", superfamily)
         self.stats_label.setText(
-            f"British species: {british}  |  "
+            f"British species: {self._british_text(british)}  |  "
             f"Your specimens: {self._specimens_text(specimen_count, sexes)}"
             f"  |  Your species: {species_count}")
 
@@ -214,7 +214,7 @@ class FamilyDetailPanel(QWidget):
 
         british = self._count_british("family", family)
         self.stats_label.setText(
-            f"British species: {british}  |  "
+            f"British species: {self._british_text(british)}  |  "
             f"Your specimens: {self._specimens_text(specimen_count, sexes)}"
             f"  |  Your species: {species_count}")
 
@@ -309,7 +309,13 @@ class FamilyDetailPanel(QWidget):
         if self._current_species_data:
             self.species_profile_requested.emit(self._current_species_data)
 
-    def _count_british(self, level: str, name: str) -> int:
+    @staticmethod
+    def _british_text(count) -> str:
+        """The count, or a plain statement when it could not be read (never a false 0)."""
+        return "could not be read" if count is None else str(count)
+
+    def _count_british(self, level: str, name: str):
+        """British species in a taxon, or None if UKSI could not be read."""
         cache_key = f"{level}:{name}"
         if cache_key in self._british_species_cache:
             return self._british_species_cache[cache_key]
@@ -335,4 +341,7 @@ class FamilyDetailPanel(QWidget):
             self._british_species_cache[cache_key] = count
             return count
         except Exception:
-            return 0
+            import logging
+            logging.getLogger(__name__).exception("British species count for %s could not be read",
+                                                  cache_key)
+            return None

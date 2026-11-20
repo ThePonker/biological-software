@@ -547,7 +547,11 @@ class EntryGridPage(GridExitsMixin, GridLayoutMixin, QWidget):
                 "SELECT species_tvk, species_name, order_name, quantity FROM entry_staging WHERE job_id=?",
                 (self._job_id,)).fetchall()
         except Exception:
-            return (0, 0, [], 0)
+            # Not (0, 0, ...): zero figures would read as "nothing entered". The info panel
+            # shows "could not be read" when this raises.
+            import logging
+            logging.getLogger(__name__).exception("This-workbook summary could not be read")
+            raise
         recs = [r for r in rows if (r["species_name"] or r["species_tvk"])]
         species = len({(r["species_tvk"] or r["species_name"]) for r in recs})
         from collections import Counter, defaultdict

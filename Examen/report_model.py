@@ -194,15 +194,18 @@ def build_report(result, detail, project, jurisdiction="England",
                  sqs_basis="Pantheon published", pooled_years=False) -> dict:
     """Build the workbook to a temporary file and read it back as report sections."""
     try:
-        from Examen.workbook_export import export_workbook
+        from Examen import workbook_export as _wbx
     except ImportError:  # pragma: no cover
-        from workbook_export import export_workbook
+        import workbook_export as _wbx
     fd, tmp = tempfile.mkstemp(suffix=".xlsx")
     os.close(fd)
     try:
-        export_workbook(result, detail, project, tmp, jurisdiction=jurisdiction,
-                        sqs_basis=sqs_basis, pooled_years=pooled_years)
-        return read_report(tmp)
+        _wbx.export_workbook(result, detail, project, tmp, jurisdiction=jurisdiction,
+                             sqs_basis=sqs_basis, pooled_years=pooled_years)
+        rep = read_report(tmp)
+        # e.g. species accounts that could not be read: the report must not look complete
+        rep["warnings"] = list(_wbx.LAST_EXPORT_WARNINGS)
+        return rep
     finally:
         try:
             os.remove(tmp)

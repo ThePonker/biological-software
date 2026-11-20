@@ -437,6 +437,12 @@ def set_setting(key: str, value):
     settings.setValue(key, value)
 
 
+def default_csv_backup_dir() -> str:
+    """Where the CSV safety backup goes until the user chooses a folder: <data folder>\\csv_backups.
+    The one default, used by Settings > General and by the export at close."""
+    return str(Path(paths.DATA_DIR) / "csv_backups")
+
+
 def scheme_families() -> list:
     """The families the Recording Scheme tab is limited to (Settings > General), [] = all.
     One reading for the tab and for counts that promise what it will show."""

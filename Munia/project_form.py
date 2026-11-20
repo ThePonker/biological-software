@@ -365,14 +365,38 @@ class ProjectForm(QWidget):
                 pass
             QMessageBox.warning(self, "Project not saved", str(e))
             return
-        for yr, alloc in self._alloc_cache.items():
-            db.set_project_field_months(self._conn, pid, yr, alloc["field_months"])
-            db.set_project_annual_days(self._conn, pid, yr, {
-                "micro_days": alloc["micro"], "report_days": alloc["report"],
-                "id_deadline": alloc["id_deadline"],
-                "report_deadline": alloc["report_deadline"],
-                "notes": alloc["notes"],
-            })
+        try:                                  # every year's days in ONE transaction
+            for yr, alloc in self._alloc_cache.items():
+                db.set_project_field_months(self._conn, pid, yr, alloc["field_months"],
+                                            commit=False)
+                db.set_project_annual_days(self._conn, pid, yr, {
+                    "micro_days": alloc["micro"], "report_days": alloc["report"],
+                    "id_deadline": alloc["id_deadline"],
+                    "report_deadline": alloc["report_deadline"],
+                    "notes": alloc["notes"],
+                }, commit=False)
+            self._conn.commit()
+        except Exception as e:  # noqa: BLE001
+            try:
+                self._conn.rollback()
+            except Exception:  # noqa: BLE001
+                pass
+            # The project now exists: the form is in edit state, so a retry updates it (not a
+            # duplicate) and Delete is there. The window's refresh calls set_year, which resets
+            # the planned-days year, so keep ours across the emit (a retry must save the grid
+            # on screen under the year it shows).
+            self._editing_id = pid
+            self._title.setText(f"Edit: {data['project_name']}")
+            self.del_btn.show()
+            self.save_btn.setText("Update")
+            shown_year = self._alloc_year
+            self.saved.emit()
+            self._alloc_year = shown_year
+            QMessageBox.warning(
+                self, "Planned days not saved",
+                "The project itself was saved, but its planned days could not be, and "
+                f"none of them were changed.\n\n{e}\n\nCheck the days and press Save again.")
+            return
         self.clear()
         self.saved.emit()
     def _on_delete(self):

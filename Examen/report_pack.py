@@ -206,13 +206,18 @@ def _mode_of(detail):
 
 
 def export_report_pack(result, detail, project, path, jurisdiction="England",
-                       pooled_years=None):
-    """Write the report pack to `path`. Returns the path."""
+                       pooled_years=None, confirm=None):
+    """Write the report pack to `path`. Returns the path.
+
+    `confirm(warnings) -> bool`, if given, is asked before anything is written when the
+    workbook reported problems (e.g. unreadable species accounts); False returns None."""
     if not HAS_DOCX:
         raise ImportError("python-docx is required for the report pack: "
                           "py -3.14 -m pip install python-docx")
     pooled = bool(pooled_years)
     rep = build_report(result, detail, project, jurisdiction=jurisdiction, pooled_years=pooled)
+    if rep.get("warnings") and confirm is not None and not confirm(rep["warnings"]):
+        return None
     scope = T.survey_scope(detail, project, pooled)
     basis = {k: v for k, v in rep["basis"]}
     doc = _new_document()
