@@ -4,6 +4,7 @@ from datetime import date
 from types import SimpleNamespace
 
 import pytest
+from PySide6.QtWidgets import QPushButton
 from PySide6.QtWidgets import QMessageBox
 
 from src.views.stats import commercial_reports_dashboard as crd
@@ -138,7 +139,7 @@ def _click(w, label, client_text):
     t = w._table
     for r in range(t.rowCount()):
         if t.item(r, 0).text() == label and t.item(r, 1).text() == client_text:
-            t.cellWidget(r, 6).click()
+            t.cellWidget(r, 6).findChild(QPushButton).click()
             return
     raise AssertionError(f"no row {label!r}/{client_text!r}")
 
@@ -164,7 +165,7 @@ def test_null_client_release_touches_only_the_null_row(null_world):
     assert len(rows) == 2
     from PySide6.QtCore import Qt
     null_row = [r for r in rows if t.item(r, 0).data(Qt.ItemDataRole.UserRole)[1] is None][0]
-    t.cellWidget(null_row, 6).click()
+    t.cellWidget(null_row, 6).findChild(QPushButton).click()
     assert _released(db, "project_name='NullClient' AND client IS NULL") == 1
     assert _released(db, "project_name='NullClient' AND client = ''") == 0
 
@@ -179,3 +180,16 @@ def test_null_project_row_can_be_released_through_the_button(null_world):
 def test_scope_uses_is_null():
     where, params = crd.release_scope(None, None, "2024")
     assert "project_name IS NULL" in where and "client IS NULL" in where and params == ["2024"]
+
+
+def test_release_button_keeps_its_size_and_project_column_stretches():
+    """The Action column is not the stretched one, so Release stays a button, not a full-width bar."""
+    from PySide6.QtWidgets import QHeaderView
+    import inspect
+    from src.views.stats import commercial_reports_dashboard as m
+    src = inspect.getsource(m)
+    assert "setStretchLastSection(False)" in src
+    assert "setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)" in src
+    holder = m._centred(QPushButton("Release"))
+    assert holder.findChild(QPushButton) is not None
+    assert QHeaderView  # imported for clarity

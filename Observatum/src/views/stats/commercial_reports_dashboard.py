@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
     QScrollArea, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame,
     QPushButton, QTableWidget, QTableWidgetItem, QHeaderView,
     QAbstractItemView, QMessageBox, QDialog, QFormLayout, QComboBox,
-    QDialogButtonBox, QCompleter
+    QDialogButtonBox, QCompleter, QSizePolicy
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QFont
@@ -82,6 +82,20 @@ def release_embargoed(conn, project, client, year):
         f"UPDATE observations SET embargo_status = 'Released' WHERE {where}", params)
     return cur.rowcount
 
+
+
+def _centred(widget):
+    """Wrap a cell widget so it keeps its own size, centred in the table cell."""
+    holder = QWidget()
+    lay = QHBoxLayout(holder)
+    lay.setContentsMargins(0, 0, 0, 0)   # the table's item padding already insets the cell
+    lay.setSpacing(0)
+    # Full cell height (less a small margin), its own width: never squashed flat.
+    widget.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
+    lay.addStretch(1)
+    lay.addWidget(widget)
+    lay.addStretch(1)
+    return holder
 
 class EditProjectDialog(QDialog):
     """New project name and client for one project, with existing names to pick from."""
@@ -237,10 +251,12 @@ class CommercialReportsDashboard(QScrollArea):
             "Project", "Client", "Records", "Species",
             "Embargo Status", "Expires", "Action"
         ])
-        self._table.horizontalHeader().setStretchLastSection(True)
+        # The Project column takes the spare width; the Action column stays button-sized.
+        self._table.horizontalHeader().setStretchLastSection(False)
         self._table.horizontalHeader().setSectionResizeMode(
             QHeaderView.ResizeMode.Interactive
         )
+        self._table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self._table.setColumnWidth(0, 180)
         self._table.setColumnWidth(1, 140)
         self._table.setColumnWidth(2, 70)
@@ -493,7 +509,7 @@ class CommercialReportsDashboard(QScrollArea):
                             color: {theme().get('primary_text')};
                             border: none;
                             border-radius: 4px;
-                            padding: 4px 12px;
+                            padding: 0px 14px;
                             font-size: {font_css('caption')};
                         }}
                         QPushButton:hover {{
@@ -504,7 +520,7 @@ class CommercialReportsDashboard(QScrollArea):
                         lambda checked, p=raw_proj, c=raw_client, y=row_year:
                         self._release_project(p, c, y)
                     )
-                    self._table.setCellWidget(row_idx, 6, btn)
+                    self._table.setCellWidget(row_idx, 6, _centred(btn))
                 elif status == "Released":
                     released_label = QLabel("✓ Released")
                     released_label.setAlignment(Qt.AlignCenter)
