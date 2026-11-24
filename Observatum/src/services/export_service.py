@@ -72,58 +72,6 @@ class ExportService:
         except Exception as e:
             print(f"Export error: {e}")
             return False
-    
-    @staticmethod
-    def get_observation_columns() -> tuple:
-        """Get default columns for observation export."""
-        columns = [
-            'species_name', 'common_name', 'date', 'location', 'grid_ref',
-            'vice_county', 'recorder', 'determiner', 'sex', 'stage',
-            'quantity', 'method', 'type', 'comment', 'verification_status'
-        ]
-        headers = {
-            'species_name': 'Species',
-            'common_name': 'Common Name',
-            'date': 'Date',
-            'location': 'Location',
-            'grid_ref': 'Grid Ref',
-            'vice_county': 'Vice County',
-            'recorder': 'Recorder',
-            'determiner': 'Determiner',
-            'sex': 'Sex',
-            'stage': 'Stage',
-            'quantity': 'Quantity',
-            'method': 'Sample Method',
-            'type': 'Observation Type',
-            'comment': 'Comment',
-            'verification_status': 'Verification'
-        }
-        return columns, headers
-    
-    @staticmethod
-    def get_specimen_columns() -> tuple:
-        """Get default columns for specimen export."""
-        columns = [
-            'specimen_code', 'species_name', 'common_name', 'date_collected',
-            'location', 'grid_ref', 'vice_county', 'collector', 'determiner',
-            'sex', 'preparation_type', 'storage_location', 'notes'
-        ]
-        headers = {
-            'specimen_code': 'Specimen Code',
-            'species_name': 'Species',
-            'common_name': 'Common Name',
-            'date_collected': 'Date Collected',
-            'location': 'Location',
-            'grid_ref': 'Grid Ref',
-            'vice_county': 'Vice County',
-            'collector': 'Collector',
-            'determiner': 'Determiner',
-            'sex': 'Sex',
-            'preparation_type': 'Preparation',
-            'storage_location': 'Storage Location',
-            'notes': 'Notes'
-        }
-        return columns, headers
 
     @staticmethod
     def get_irecord_columns() -> tuple:

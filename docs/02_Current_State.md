@@ -124,7 +124,7 @@ and Falk 1991 flies Part 1 (print only -- statuses are in Codex via JNCC).
   12 legacy-detail rows cleared where translation joined a "pro parte" TVK to its
   current species.
 - Checks after the 6 Oct rebuild: `check_legacy_conflicts.py` 0 stale;
-  `clear_legacy_detail.py` 0; `check_newest_review.py` (2) 0, (1) 173 -- 157
+  `clear_legacy_detail.py` 0; `check_newest_review.py` (archived 24 Nov 2026) (2) 0, (1) 173 -- 157
   Staphylinidae outside NECR390's subfamilies (scope, correct), moth subspecies,
   loose plants.
 
@@ -224,7 +224,7 @@ Current scoring and Pantheon's published scores alone; key species after the jur
 | Birmingham - Wheels Park 2026 | 195 | 7 | 116 | 105 | 8 |
 | Bristol 2026 (with Jon Moore's records, 15 Oct) | 196 | 5 | 105 | 105 | 6 |
 | Derby 2025 | 230 | 4 | 100 | 99 | 6 |
-| Elmley 2026 | 40 | 7 | 182 | 184 | 7 |
+| Elmley 2026 | 40 | 7 | 183 | 184 | 7 |
 | Fermyn Hall Wood Deadwood 2024 | 49 | 7 | 157 | 153 | 8 |
 | Kent Deadwood 2024 | 376 | 75 | 181 | 175 | 82 |
 | Long Hanborough 2025 | 118 | 10 | 112 | 111 | 12 |
@@ -233,6 +233,8 @@ Current scoring and Pantheon's published scores alone; key species after the jur
 | Slade Green 2026 | 343 | 44 | 153 | 147 | 44 |
 | Sundon 2026 (with Jon Moore's records; see below) | 231 | 19 | 125 | 114 | 19 |
 | Tilbury 2025 | 238 | 4 | 100 | 99 | 5 |
+
+**SQI halves round up (24 Nov).** Python's `round()` sends an exact half to the even number, and the SQI was computed in binary floating point (73 / 40 × 100 = 182.49999…). The SQI is now rounded half up from the exact ratio (`shared/rounding.py`): Elmley 2026 182.5 → **183** (Codex Full; its issued report gave 182). No other survey SQI is exactly .5. Habitat/assemblage SQIs that move (+1): Kent Deadwood rich flower resource 138 → 139, Sundon decaying wood 162 → 163, Warwick tree-associated (Pantheon Only) 148 → 149; four others are exactly .5 but below Pantheon's 15 scoring species, so they are shown as "(n spp)" anyway. The Saproxylic SQI (one decimal place) uses the same rounding.
 
 **Invertebrates only (18 Nov, `dc82d40`).** Plants, fungi and vertebrates entered by mistake or
 noted incidentally are no longer counted as species (`shared/invertebrate_filter.py`: a record's

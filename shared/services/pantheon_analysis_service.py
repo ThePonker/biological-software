@@ -9,13 +9,13 @@ Usage:
     service = PantheonAnalysisService(pantheon_repo, codex_repo)
     result = service.analyse(tvks)                                # enriched
     result = service.analyse(tvks, mode=AnalysisMode.PANTHEON_ONLY)  # strict
-    comparison = service.compare(tvks)                             # side-by-side
 """
 
 from dataclasses import dataclass, field
 from collections import Counter
 
 from shared.invertebrate_filter import non_invertebrate_tvks
+from shared.rounding import ratio_half_up
 
 try:
     from shared.repositories.codex_repository import AnalysisMode
@@ -76,7 +76,7 @@ class SQIResult:
             # Pantheon's definition: divide by every species analysed, scored
             # or not (Glory Park: 144 / 123 = 117, the issued report).
             _denom = self.species_analysed or self.species_with_sqs
-            self.sqi = round(self.sqs_sum / _denom * 100)
+            self.sqi = ratio_half_up(self.sqs_sum, _denom)   # halves round up (182.5 -> 183)
         self.reliable = self.species_with_sqs >= 15
 
 
@@ -171,17 +171,6 @@ class AnalysisResult:
     # {tvk: name} of taxa left out because they are not invertebrates (plants, fungi,
     # vertebrates entered by mistake or noted incidentally): not counted anywhere.
     non_invertebrates: dict = field(default_factory=dict)
-
-
-@dataclass
-class ComparisonResult:
-    codex: AnalysisResult = None
-    pantheon: AnalysisResult = None
-    sqi_delta: int = 0
-    key_count_delta: int = 0
-    key_pct_delta: float = 0.0
-    sqs_species_delta: int = 0
-    codex_only_key: list = field(default_factory=list)
 
 
 class PantheonAnalysisService:
@@ -432,22 +421,6 @@ class PantheonAnalysisService:
         result.adult_guild_counts = dict(adult.most_common())
 
         return result
-
-    def compare(self, tvks, species_names=None, jurisdiction="England"):
-        c = self.analyse(tvks, species_names, AnalysisMode.CODEX_FULL, jurisdiction)
-        p = self.analyse(tvks, species_names, AnalysisMode.PANTHEON_ONLY, jurisdiction)
-        p_tvks = {k.tvk for k in p.key_species}
-        codex_only = [k for k in c.key_species if k.tvk not in p_tvks]
-        c_sqi = c.overall_sqi.sqi if c.overall_sqi else 0
-        p_sqi = p.overall_sqi.sqi if p.overall_sqi else 0
-        return ComparisonResult(
-            codex=c, pantheon=p,
-            sqi_delta=c_sqi - p_sqi,
-            key_count_delta=c.key_species_count - p.key_species_count,
-            key_pct_delta=round(c.key_species_pct - p.key_species_pct, 1),
-            sqs_species_delta=c.species_with_sqs - p.species_with_sqs,
-            codex_only_key=codex_only,
-        )
 
     def _calc_sqi(self, label, tvks_or_set, sqs_scores, pool=None):
         """The one SQI calculation (EXA1): CodexRepository.compute_sqi, the

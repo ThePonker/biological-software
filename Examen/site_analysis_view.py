@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QColor
 from .examen_data import (load_all_projects, load_project_detail, AnalysisMode,
-                          AUTO_JURISDICTION, country_for_vc, resolve_jurisdiction,
+                          AUTO_JURISDICTION, resolve_jurisdiction,
                           take_read_errors)
 from .overview_tab import OverviewTab
 from .habitat_tab import HabitatTab
@@ -85,9 +85,6 @@ class SiteAnalysisView(QWidget):
     # ── Jurisdiction ─────────────────────────────────────────────
     # Resolved in examen_data, for the project table and the detail header
     # alike, so the two cannot classify Key species under different rules (EXA2).
-    @classmethod
-    def _country_for_vc(cls, vc):
-        return country_for_vc(vc)
 
     def _resolve_jurisdiction(self, proj):
         """The jurisdiction to assess under, and how it was arrived at."""

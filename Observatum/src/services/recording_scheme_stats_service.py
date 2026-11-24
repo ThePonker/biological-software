@@ -221,48 +221,6 @@ class RecordingSchemeStatsService:
             ] if result else []
 
             # =============================================
-            # SPECIES BY ORDER
-            # =============================================
-            order_query = f"""
-                SELECT 
-                    order_name as label, 
-                    COUNT(DISTINCT species_tvk) as species,
-                    COUNT(*) as records
-                FROM recording_scheme
-                WHERE order_name IS NOT NULL AND order_name != ''
-                AND species_tvk IS NOT NULL
-                
-                GROUP BY order_name
-                ORDER BY species DESC
-            """
-            result = self._db.execute_main(order_query)
-            self._cache['species_by_order'] = [
-                {'label': r['label'], 'species': r['species'], 'records': r['records']} 
-                for r in result
-            ] if result else []
-
-            # =============================================
-            # SPECIES BY FAMILY
-            # =============================================
-            family_query = f"""
-                SELECT 
-                    family,
-                    COUNT(DISTINCT species_tvk) as species,
-                    COUNT(*) as records
-                FROM recording_scheme
-                WHERE family IS NOT NULL AND family != ''
-                AND species_tvk IS NOT NULL
-                
-                GROUP BY family
-                ORDER BY species DESC
-            """
-            result = self._db.execute_main(family_query)
-            self._cache['species_by_family'] = [
-                {'family': r['family'], 'species': r['species'], 'records': r['records']} 
-                for r in result
-            ] if result else []
-
-            # =============================================
             # MONTHLY DISTRIBUTION (all time)
             # =============================================
             monthly_query = f"""
@@ -592,10 +550,3 @@ def get_recording_scheme_stats() -> RecordingSchemeStatsService:
     if _service_instance is None:
         _service_instance = RecordingSchemeStatsService()
     return _service_instance
-
-
-def invalidate_recording_scheme_stats():
-    """Invalidate the stats cache."""
-    global _service_instance
-    if _service_instance is not None:
-        _service_instance.invalidate()

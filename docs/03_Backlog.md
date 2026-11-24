@@ -150,8 +150,8 @@ Observatum checks and the commit are still to do.
   store and Codex Manager writable connect are still open.
 - **B4 photo intake:** phone photos only. No microscope/Mosaic path (Q71), no OneDrive Inbox, no move
   log with undo.
-- **Data Entry map shims** (`DataEntry/raster_map.py` and others) still have callers in `info_panel.py`
-  and `entry_grid.py`.
+- **Data Entry map shims:** done -- `DataEntry/raster_map.py` no longer exists and `info_panel.py` /
+  `data_entry_widget.py` import from `shared/maps` directly (corrected 24 Nov 2026).
 - **A3 retirement:** Data Entry's own iRecord export is removed (`_do_irecord_export` has no caller);
   "Check iRecord return" is kept for old awaiting jobs. (`09` §9 corrected.)
 - **Commercial Reports "coming soon" line** (Site Species List, Project Summary, Site Comparison,
@@ -498,7 +498,7 @@ From the sweep of notes 30–46, the repo docs, the drafts, the agent briefs and
 | Exploratory: Observatum as host for IUCN Red List assessment support | note 39 §4.6 |
 | Repo inside OneDrive: `.git` lock friction; revisit if it worsens | note 39 §4.9 |
 | Performance list (cache_size/mmap, Qt model flags, fixed row heights, virtual table model) | note 39 §4.9 |
-| DataEntry map shims (`raster_map.py` etc.) still have callers in `info_panel.py` and `entry_grid.py`: land the switch to `shared/maps` when Wil is not entering data | `03b` H1–H6; note 39 §4.8 |
+| DataEntry map shims (`raster_map.py` etc.): done -- the files are gone and DataEntry imports `shared/maps` directly (corrected 24 Nov 2026) | `03b` H1–H6; note 39 §4.8 |
 | Philanthus triangulum carries an outdated RDB2 in Codex: check for a newer status and record it | Betteshanger analysis, 12 Oct |
 | Map credit, boundary colour, district label: answered (Q38–Q40) | note 42 |
 

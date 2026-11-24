@@ -99,7 +99,7 @@ implementation, and the shim is the small one.
 | `lector.db` | Lector: BHL answers, pages and text, saved searches, runs, review notes, activity (schema v3) | Lector (`Lector/store.py`, `saved.py`); updates by `Lector/upgrade.py` |
 | `data/maps/*` | `vc_brc_wgs84.geojson` (VC outlines, from `convert_vc_shapefile.py`), `uk_vice_counties.svg`; `gb_outline.json` (2013 ONS districts) is superseded by the layer files below | scripts / by hand |
 | `data/maps/layers/*`, `relief_gb.png` / `relief_gb.json` | The map's background layers (§4c). Git-ignored, rebuilt from the OS data | `build_map_layers.py`, `build_map_relief.py` |
-| `examen.db` | Frozen assessments -- **retired 9 Oct 2026** (E13); nothing reads or writes it now. Export: `scripts/export_examen_snapshots.py` | none (still backed up) |
+| `examen.db` | Frozen assessments -- **retired 9 Oct 2026** (E13); the saved assessments are no longer used (export: `scripts/export_examen_snapshots.py`). The file is still live for two small things: the status marks (`status_downgrades`, `status_downgrade_overrides`, read and written by `Examen/status_marks.py`; tables created by `scripts/add_report_tables.py`) and the Benchmark dialog's saved survey choices (`benchmark_choices`, `Examen/benchmark.py`) | none (still backed up) |
 | `munia.db` | Project allocations, day logs | Munia |
 | `gamification.db` | Achievements | Observatum |
 
@@ -262,7 +262,7 @@ separate job (D13).
 - **Making the copy:** `scripts/make_away_copy.py` (copy made at Observatum close; a nightly task is
   set up by hand: `make_away_copy.py --show-task-command` prints the command). One-off laptop setup:
   `scripts/setup_away_laptop.py`. Start with `launchers/run_away.bat`.
-- **Not yet covered:** photo moves and some direct read-write opens bypass the guard; the Lector store and
+- **Not yet covered (historical, as written 24 Oct 2026 -- check `06` for what is still open):** photo moves and some direct read-write opens bypass the guard; the Lector store and
   Codex Manager still connect writable (`06` F90; Round 12 fixes the photo moves and direct
   writes).
 
@@ -357,7 +357,7 @@ field-season tool. **`stable` has not been updated since June 2026**; Wil decide
 to merge `main` into it now that Round 8 is committed (Q88). Agent rounds are built on
 branches in separate clones and merged before delivery; Wil commits on the PC.
 
-Excluded: `data/`, `_archive/`, `_backups/`, test data, `.bak` variants.
+Excluded: `data/`, `_backups/`, test data, `.bak` variants. `_archive/` is listed in `.gitignore`, but its files are tracked in git (corrected 24 Nov 2026; new files need `git add -f`).
 Databases are protected by the backup system, not by git.
 
 Known friction: OneDrive locks `.git/objects` during git's post-commit tidy-up,
@@ -373,7 +373,7 @@ variable to stop the prompt.
 
 | Layer | Covers | When |
 |---|---|---|
-| WAL + `synchronous=FULL`, per-edit commit | every keystroke | continuous |
+| WAL + `synchronous=NORMAL` (`Observatum/src/models/database.py`), per-edit commit | every keystroke | continuous |
 | `backup_service` working tier | observatum, munia, examen, gamification | Observatum close |
 | `backup_service` pre-commit | observatum | before every Data Entry commit — **blocks the commit if it fails** |
 | `backup_service` reference tier | codex, pantheon, uksi, vc_lookup | on demand after a rebuild |

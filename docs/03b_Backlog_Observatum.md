@@ -62,7 +62,7 @@ Left as they are by decision; set them when a UKSI release includes them.
 **A9. Re-key specimens on the current UKSI numbering** — ✅ **DONE** (8 October).
 All 2,743 keys recomputed on the July 2025 `sort_code`; 0 of 2,742 changed position
 in the tree, 1752 back in place (fault F27). Note `backfill_sort_keys.py
---apply` as it stands rewrites every key it judges "stray", with a test that
+--apply` (archived 24 Nov 2026) as it stands rewrites every key it judges "stray", with a test that
 matches almost all of them -- don't use it for this.
 
 **A6. Live sidebar refresh — parked.** Small. After editing a specimen the tree

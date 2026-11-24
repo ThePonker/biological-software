@@ -23,7 +23,7 @@ import sqlite3
 import threading
 import weakref
 from pathlib import Path
-from typing import Optional, List, Tuple, Dict
+from typing import Optional, List, Tuple
 from contextlib import contextmanager
 
 
@@ -283,50 +283,6 @@ class DatabaseManager:
             cursor = conn.executemany(query, params_list)
             conn.commit()
             return cursor.rowcount
-    
-    def table_exists(self, table_name: str, database: str = 'main') -> bool:
-        """
-        Check if a table exists in the specified database.
-        
-        Args:
-            table_name: Name of the table
-            database: 'main' or 'uksi'
-            
-        Returns:
-            True if table exists
-        """
-        query = "SELECT name FROM sqlite_master WHERE type='table' AND name=?"
-        if database == 'main':
-            results = self.execute_main(query, (table_name,))
-        else:
-            results = self.execute_uksi(query, (table_name,))
-        return len(results) > 0
-    
-    def get_table_info(self, table_name: str, database: str = 'main') -> List[Dict]:
-        """
-        Get column information for a table.
-        
-        Args:
-            table_name: Name of the table
-            database: 'main' or 'uksi'
-            
-        Returns:
-            List of column info dicts
-        """
-        query = f"PRAGMA table_info({table_name})"
-        if database == 'main':
-            with self.main_connection() as conn:
-                cursor = conn.execute(query)
-                return [dict(row) for row in cursor.fetchall()]
-        else:
-            with self.uksi_connection() as conn:
-                cursor = conn.execute(query)
-                return [dict(row) for row in cursor.fetchall()]
-    
-    def vacuum_main(self) -> None:
-        """Compact the main database (removes unused space)."""
-        with self.main_connection() as conn:
-            conn.execute("VACUUM")
     
     def backup_main(self, backup_path: str) -> None:
         """

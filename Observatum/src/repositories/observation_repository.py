@@ -281,23 +281,6 @@ class ObservationRepository(BaseRepository):
         """
         return self.delete_by_id(observation_id)
     
-    def delete_many(self, observation_ids: List[int]) -> int:
-        """
-        Delete multiple observations.
-        
-        Args:
-            observation_ids: List of IDs to delete
-            
-        Returns:
-            Number of records deleted
-        """
-        if not observation_ids:
-            return 0
-        
-        placeholders = ",".join(["?" for _ in observation_ids])
-        query = f"DELETE FROM observations WHERE id IN ({placeholders})"
-        return self._execute_write(query, tuple(observation_ids))
-    
     # ==========================================================================
     # COUNTS
     # ==========================================================================
@@ -402,79 +385,6 @@ class ObservationRepository(BaseRepository):
                                                      (last_month_str,) + rt_params),
         }
     
-    def count_species_by_order(self, record_type: str = None) -> List[Dict[str, Any]]:
-        """
-        Count species grouped by taxonomic order.
-        
-        Args:
-            record_type: Optional filter for Personal/Commercial
-            
-        Returns:
-            List of {label, value} dicts
-        """
-        where = "WHERE species_tvk IS NOT NULL AND order_name IS NOT NULL"
-        params = []
-        
-        if record_type:
-            where += " AND record_type = ?"
-            params.append(record_type)
-        
-        query = f"""
-            SELECT order_name, COUNT(DISTINCT species_tvk) as species_count
-            FROM observations
-            {where}
-            GROUP BY order_name
-            ORDER BY species_count DESC
-            LIMIT 10
-        """
-        
-        results = self._execute(query, tuple(params) if params else ())
-        return [
-            {'label': row['order_name'], 'value': row['species_count']}
-            for row in results
-        ]
-    
-    def get_top_families(self, limit: int = 5, record_type: str = None) -> List[Dict[str, Any]]:
-        """
-        Get top families by species count.
-        
-        Args:
-            limit: Number of families
-            record_type: Optional filter
-            
-        Returns:
-            List of {family, species, records} dicts
-        """
-        where = "WHERE species_tvk IS NOT NULL AND family IS NOT NULL"
-        params = []
-        
-        if record_type:
-            where += " AND record_type = ?"
-            params.append(record_type)
-        
-        query = f"""
-            SELECT 
-                family,
-                COUNT(DISTINCT species_tvk) as species_count,
-                COUNT(*) as record_count
-            FROM observations
-            {where}
-            GROUP BY family
-            ORDER BY species_count DESC
-            LIMIT ?
-        """
-        params.append(limit)
-        
-        results = self._execute(query, tuple(params))
-        return [
-            {
-                'family': row['family'],
-                'species': row['species_count'],
-                'records': row['record_count']
-            }
-            for row in results
-        ]
-    
     def get_monthly_activity(self, year: int = None, record_type: str = None) -> List[int]:
         """
         Get record counts by month.
@@ -520,71 +430,6 @@ class ObservationRepository(BaseRepository):
                 monthly[month_idx] = row['count']
         
         return monthly
-    
-    def get_year_by_year_stats(self, record_type: str = None) -> Dict[int, Dict[str, int]]:
-        """
-        Get statistics per year.
-        
-        Args:
-            record_type: Optional filter
-            
-        Returns:
-            Dict keyed by year with species, records, newSpecies counts
-        """
-        where = ""
-        params = []
-        
-        if record_type:
-            where = "WHERE record_type = ?"
-            params.append(record_type)
-        
-        # Species and records per year
-        query = f"""
-            SELECT 
-                CAST(strftime('%Y', date) AS INTEGER) as year,
-                COUNT(DISTINCT species_tvk) as species_count,
-                COUNT(*) as record_count
-            FROM observations
-            {where}
-            GROUP BY year
-            ORDER BY year DESC
-            LIMIT 10
-        """
-        
-        results = self._execute(query, tuple(params) if params else ())
-        
-        year_stats = {}
-        for row in results:
-            year = row['year']
-            year_stats[year] = {
-                'species': row['species_count'],
-                'records': row['record_count'],
-                'newSpecies': 0
-            }
-        
-        # Calculate new species per year
-        first_seen_query = f"""
-            SELECT 
-                species_tvk,
-                MIN(CAST(strftime('%Y', date) AS INTEGER)) as first_year
-            FROM observations
-            WHERE species_tvk IS NOT NULL
-            {('AND record_type = ?' if record_type else '')}
-            GROUP BY species_tvk
-        """
-        
-        first_params = [record_type] if record_type else []
-        first_seen = self._execute(first_seen_query, tuple(first_params) if first_params else ())
-        
-        new_per_year = {}
-        for row in first_seen:
-            first_year = row['first_year']
-            new_per_year[first_year] = new_per_year.get(first_year, 0) + 1
-        
-        for year in year_stats:
-            year_stats[year]['newSpecies'] = new_per_year.get(year, 0)
-        
-        return year_stats
     
     # ==========================================================================
     # AGGREGATION METHODS (for stats dashboards)

@@ -35,11 +35,6 @@ def public_kind(row):
     return d
 
 
-def is_text_search(conn, sid):
-    r = conn.execute("SELECT text_search FROM saved_searches WHERE search_id=?", (sid,)).fetchone()
-    return bool(r and r[0])
-
-
 # --- searches -------------------------------------------------------------
 def create_search(conn, name, target_name, target_tvk=None, kind="species", status="draft",
                   names=None, filters=None, notes=None):

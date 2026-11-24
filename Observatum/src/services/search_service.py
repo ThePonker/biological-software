@@ -294,26 +294,6 @@ class SearchService:
             print(f"[SearchService] Alias search error: {e}")
             return []
     
-    def get_species_details(self, tvk: str) -> Optional[Dict]:
-        """
-        Get full details for a species by TVK.
-        
-        Args:
-            tvk: TaxonVersionKey
-            
-        Returns:
-            Dict with species details or None
-        """
-        # Use repository if available (preferred)
-        if self._uksi_repo:
-            return self._get_species_details_via_repository(tvk)
-        
-        # Fallback to model
-        if self.uksi_model:
-            return self._get_species_details_via_model(tvk)
-        
-        return None
-    
     def _get_species_details_via_repository(self, tvk: str) -> Optional[Dict]:
         """Get species details using UKSIRepository."""
         species = self._uksi_repo.get_species_by_tvk(tvk)
@@ -393,26 +373,6 @@ class SearchService:
             print(f"[search_service] refresh_recorded_species: {e}")  # I7: was silent
         
         self._cache_loaded = True
-    
-    def add_recorded_tvk(self, tvk: str) -> None:
-        """
-        Add a TVK to the recorded species cache.
-        
-        Call this after saving a new observation.
-        """
-        self._recorded_tvks.add(tvk)
-    
-    def get_recorded_tvks(self) -> set:
-        """Get the set of TVKs the user has recorded."""
-        if not self._cache_loaded:
-            self.refresh_recorded_species()
-        return self._recorded_tvks.copy()
-    
-    def get_recorded_count(self) -> int:
-        """Get the count of distinct species recorded."""
-        if not self._cache_loaded:
-            self.refresh_recorded_species()
-        return len(self._recorded_tvks)
     
     def get_orders(self) -> List[str]:
         """Get list of all orders for filtering."""

@@ -133,15 +133,3 @@ class SavedFiltersService:
             self._save_filters()
             return True
         return False
-
-
-_service: Optional[SavedFiltersService] = None
-
-
-# Singleton accessor
-def get_saved_filters_service() -> SavedFiltersService:
-    """Get the saved filters service singleton."""
-    global _service
-    if _service is None:
-        _service = SavedFiltersService()
-    return _service

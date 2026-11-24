@@ -87,17 +87,6 @@ class SpecimenRepository:
         finally:
             conn.close()
     
-    def _execute_many(self, query: str, params_list: List[tuple]) -> int:
-        """Execute a query with multiple parameter sets."""
-        conn = self._get_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.executemany(query, params_list)
-            conn.commit()
-            return cursor.rowcount
-        finally:
-            conn.close()
-    
     # =========================================================================
     # BASIC CRUD
     # =========================================================================
@@ -271,26 +260,6 @@ class SpecimenRepository:
         )
         return result > 0
     
-    def delete_many(self, specimen_ids: List[int]) -> int:
-        """
-        Delete multiple specimens.
-        
-        Args:
-            specimen_ids: List of IDs to delete
-            
-        Returns:
-            Number of records deleted
-        """
-        if not specimen_ids:
-            return 0
-        
-        placeholders = ','.join('?' * len(specimen_ids))
-        result = self._execute_write(
-            f"DELETE FROM specimens WHERE id IN ({placeholders})",
-            tuple(specimen_ids)
-        )
-        return result
-    
     # =========================================================================
     # SEARCH & FILTERING
     # =========================================================================
@@ -457,17 +426,6 @@ class SpecimenRepository:
             ORDER BY count DESC
         """)
         return {row['order_name']: row['count'] for row in rows}
-    
-    def count_by_storage_location(self) -> Dict[str, int]:
-        """Get specimen counts grouped by storage location."""
-        rows = self._execute("""
-            SELECT storage_location, COUNT(*) as count
-            FROM specimens
-            WHERE storage_location IS NOT NULL
-            GROUP BY storage_location
-            ORDER BY count DESC
-        """)
-        return {row['storage_location']: row['count'] for row in rows}
     
     # =========================================================================
     # STATISTICS

@@ -343,7 +343,7 @@ only, all rights reserved).
 
 **G7 (was). Acalyptratae (NECR217).** 263 pp, provisional (2016). Accounts from
 data sheets **and** statuses (JNCC carried only part, as with NECR234; ~130
-species in `check_newest_review.py` list (1) wait on it). Read its excluded list.
+species in `check_newest_review.py` (archived 24 Nov 2026) list (1) wait on it). Read its excluded list.
 
 **G8. Remaining PDF reviews.** Orthoptera (187), caddis (191) -- accounts in PDF;
 shieldbugs (190) -- table has no accounts, PDF not yet downloaded.

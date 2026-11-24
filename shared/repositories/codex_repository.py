@@ -259,15 +259,6 @@ def _legal_applies(entry, jurisdiction):
     return not any(k in d for k in _NI_ONLY_LEGAL)
 
 
-# Key-species classification thresholds
-# Aliases of the shared rule (shared/key_species_rule.py, Telfer 2023), kept for importers.
-RARE_IUCN_2001   = _ks.RARE_V2
-SCARCE_IUCN_2001 = _ks.SCARCE_V2
-RARE_LEGACY_RDB   = _ks.RARE_V1
-SCARCE_LEGACY_RDB = set()          # RDB3 and RDBK are Rare (Telfer 2023)
-SCARCE_LEGACY_RARITY = _ks.SCARCE_V1
-
-
 # ============================================================
 # Data classes
 # ============================================================
@@ -488,9 +479,6 @@ class CodexRepository:
     # ================================================================
     # Species and broad group (sensu lato / aggregate)
     # ================================================================
-    def sensu_lato_counterpart(self, tvk):
-        """(counterpart_tvk, 'sensu lato' | 'aggregate') for a species, or None."""
-        return uksi_sensu_lato_map(self._uksi_path).get(tvk)
 
     def sensu_lato_pairs(self, tvks):
         """{broad_tvk: species_tvk} where BOTH are in `tvks` -- one species
@@ -539,31 +527,6 @@ class CodexRepository:
                            jurisdiction=DEFAULT_JURISDICTION):
         """One species -- the batch path, so the two cannot differ."""
         return self.get_statuses_batch([tvk], mode, jurisdiction)[tvk]
-
-    def get_sqs(self, tvk, mode=AnalysisMode.CODEX_FULL):
-        return self.get_sqs_scores([tvk], mode).get(tvk, 0)
-
-    def is_key_species(self, tvk, mode=AnalysisMode.CODEX_FULL):
-        return self.get_status_summary(tvk, mode).is_key
-
-    def get_all_designations(self, tvk):
-        c = self._get_conn().cursor()
-        c.execute("""SELECT designation_abbreviation, reporting_category,
-                            designation, source, date_designated, iucn_version,
-                            criteria_description
-                     FROM designations WHERE tvk = ?
-                     ORDER BY reporting_category""", (tvk,))
-        return [dict(row) for row in c.fetchall()]
-
-    def get_profile(self, tvk):
-        """Return just the profile paragraph for a species (or None)."""
-        c = self._get_conn().cursor()
-        c.execute("""SELECT profile_text, source, date_added, date_updated, added_by
-                     FROM species_profiles WHERE tvk = ?""", (tvk,))
-        r = c.fetchone()
-        if not r:
-            return None
-        return dict(r)
 
     # ================================================================
     # Batch
@@ -705,20 +668,6 @@ class CodexRepository:
             result[tvk] = status
         return result
 
-    def get_key_species_from_list(self, tvks, mode=AnalysisMode.CODEX_FULL):
-        """Invertebrate key species from a list. Non-inverts are never key."""
-        return {tvk: s for tvk, s in self.get_statuses_batch(tvks, mode).items() if s.is_key}
-
-    def get_key_species_by_tier(self, tvks, mode=AnalysisMode.CODEX_FULL):
-        key = self.get_key_species_from_list(tvks, mode)
-        tiers = {"Rare": [], "Scarce": [], "Priority": []}
-        for s in key.values():
-            if s.tier.value in tiers:
-                tiers[s.tier.value].append(s)
-        for t in tiers.values():
-            t.sort(key=lambda s: (-s.sqs, s.tvk))
-        return tiers
-
     def compute_sqi(self, tvks, mode=AnalysisMode.CODEX_FULL,
                     jurisdiction=DEFAULT_JURISDICTION):
         """The SQI, exactly as the assessment computes it.
@@ -742,28 +691,6 @@ class CodexRepository:
                 "species_analysed": o.species_analysed, "total_species": r.total_species,
                 "reliable": o.reliable}
 
-    def compare_modes(self, tvks):
-        """Side-by-side Codex vs Pantheon-only comparison."""
-        c_sqi = self.compute_sqi(tvks, AnalysisMode.CODEX_FULL)
-        p_sqi = self.compute_sqi(tvks, AnalysisMode.PANTHEON_ONLY)
-        c_key = self.get_key_species_from_list(tvks, AnalysisMode.CODEX_FULL)
-        p_key = self.get_key_species_from_list(tvks, AnalysisMode.PANTHEON_ONLY)
-        total = len(set(tvks))
-        c_pct = round(len(c_key) / total * 100, 1) if total else 0
-        p_pct = round(len(p_key) / total * 100, 1) if total else 0
-        codex_only = [s for tvk, s in c_key.items() if tvk not in p_key]
-        return {
-            "codex": {"sqi": c_sqi["sqi"], "key_count": len(c_key),
-                      "key_pct": c_pct, "sqs_species": c_sqi["scoring_species"]},
-            "pantheon": {"sqi": p_sqi["sqi"], "key_count": len(p_key),
-                         "key_pct": p_pct, "sqs_species": p_sqi["scoring_species"]},
-            "delta": {"sqi": c_sqi["sqi"] - p_sqi["sqi"],
-                      "key_count": len(c_key) - len(p_key),
-                      "key_pct": round(c_pct - p_pct, 1),
-                      "sqs_species": c_sqi["scoring_species"] - p_sqi["scoring_species"]},
-            "codex_only_key": codex_only,
-        }
-
     # ================================================================
     # Metadata
     # ================================================================
@@ -776,14 +703,6 @@ class CodexRepository:
         c = self._get_conn().cursor()
         c.execute("SELECT COUNT(DISTINCT tvk) FROM designations")
         return c.fetchone()[0]
-
-    def get_build_log(self, limit=10):
-        """Latest build_log entries (most recent first)."""
-        c = self._get_conn().cursor()
-        c.execute("""SELECT timestamp, jncc_rows, pantheon_sqs, manual_entries,
-                            bridge_resolved, profiles_count, notes
-                     FROM build_log ORDER BY id DESC LIMIT ?""", (limit,))
-        return [dict(r) for r in c.fetchall()]
 
     # ================================================================
     # Consumer-friendly dict APIs
@@ -833,33 +752,6 @@ class CodexRepository:
             "short_status": status.short_status,
         }
 
-    def get_conservation_for_export(self, tvks, mode=AnalysisMode.CODEX_FULL):
-        """Batch lookup for export columns.
-
-        Returns {tvk: {...}} with keys designed for spreadsheet export.
-        Each value is a string (joined with '; ' for multi-entry tracks).
-        """
-        statuses = self.get_statuses_batch(tvks, mode)
-        result = {}
-        for tvk, s in statuses.items():
-            result[tvk] = {
-                "red_list":       _entry_value(s.threat_iucn_2001) or _entry_value(s.threat_iucn_legacy),
-                "rarity":         _entry_value(s.rarity_modern) or _entry_value(s.rarity_legacy),
-                "bocc":           _entry_value(s.bocc),
-                "global_red_list": _entry_value(s.threat_global_iucn),
-                "red_list_eng":   _entry_value(s.red_list_england),
-                "red_list_wal":   _entry_value(s.red_list_wales),
-                "priority":       "; ".join(e.value for e in s.priority),
-                "legal":          "; ".join(
-                    (e.detail or e.value) for e in s.legal_protection
-                ),
-                "sqs":            s.sqs,
-                "status_display": s.display_status,
-                "tier":           s.tier.value,
-                "is_key":         s.is_key,
-            }
-        return result
-
     # ================================================================
     # Reviews
     # ================================================================
@@ -881,25 +773,6 @@ class CodexRepository:
             return [dict(r) for r in c.fetchall()]
         except sqlite3.OperationalError:
             return []
-
-    def get_review(self, review_id):
-        c = self._get_conn().cursor()
-        try:
-            try:
-                c.execute(f"""SELECT id, review_name, author, taxon_group,
-                                status_track, date_published, date_imported,
-                                source_file, {_LIVE_SPECIES_COUNT} AS species_count,
-                                supersedes_id, notes
-                         FROM reviews WHERE id = ?""", (review_id,))
-            except sqlite3.OperationalError:      # old codex.db: stored count
-                c.execute("""SELECT id, review_name, author, taxon_group,
-                                status_track, date_published, date_imported,
-                                source_file, species_count, supersedes_id, notes
-                         FROM reviews WHERE id = ?""", (review_id,))
-            row = c.fetchone()
-            return dict(row) if row else None
-        except sqlite3.OperationalError:
-            return None
 
     # ================================================================
     # Pantheon-only internals -- through PantheonRepository, so the bridge

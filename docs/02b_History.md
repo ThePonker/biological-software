@@ -469,7 +469,7 @@ Pantheon dividing by every species analysed, not just scored ones. With that,
 
 Also: the Site Analysis splitter no longer swallows the project table; the table
 sorts by any column with numbers and dates sorted properly; dates dd/mm/yyyy;
-7 Kent Deadwood records moved 2025 → 2024; `scripts/show_funcs.py` for reading
+7 Kent Deadwood records moved 2025 → 2024; `scripts/show_funcs.py` (archived 24 Nov 2026) for reading
 code without dumping files.
 
 ### Session 35 (continued) — 26 September evening

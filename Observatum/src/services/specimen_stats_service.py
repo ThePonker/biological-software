@@ -407,10 +407,3 @@ def get_specimen_stats() -> SpecimenStatsService:
     if _service_instance is None:
         _service_instance = SpecimenStatsService()
     return _service_instance
-
-
-def invalidate_specimen_stats():
-    """Invalidate the stats cache."""
-    global _service_instance
-    if _service_instance is not None:
-        _service_instance.invalidate()

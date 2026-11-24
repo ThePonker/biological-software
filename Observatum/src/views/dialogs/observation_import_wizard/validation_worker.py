@@ -189,42 +189,6 @@ SYNC_HOLD = "Held for review"
 # ORDER_TO_GROUP / CLASS_TO_GROUP copies are gone (they sent every butterfly to 'moth').
 from shared.taxon_groups import taxon_group as _taxon_group
 
-
-def _osgb36_to_wgs84(easting, northing):
-    """Convert OSGB36 eastings/northings to WGS84 lat/lon."""
-    import math
-    a, b = 6377563.396, 6356256.909
-    F0 = 0.9996012717
-    lat0, lon0 = math.radians(49), math.radians(-2)
-    N0, E0 = -100000, 400000
-    e2 = 1 - (b*b)/(a*a)
-    n = (a-b)/(a+b)
-    lat, M = lat0, 0
-    for _ in range(20):
-        lat = (northing - N0 - M)/(a*F0) + lat
-        Ma = (1 + n + 1.25*n**2 + 1.25*n**3) * (lat-lat0)
-        Mb = (3*n + 3*n**2 + 2.625*n**3) * math.sin(lat-lat0) * math.cos(lat+lat0)
-        Mc = (1.875*n**2 + 1.875*n**3) * math.sin(2*(lat-lat0)) * math.cos(2*(lat+lat0))
-        Md = (35/24)*n**3 * math.sin(3*(lat-lat0)) * math.cos(3*(lat+lat0))
-        M = b * F0 * (Ma - Mb + Mc - Md)
-        if abs(northing - N0 - M) < 0.00001:
-            break
-    cosLat, sinLat = math.cos(lat), math.sin(lat)
-    nu = a*F0/math.sqrt(1-e2*sinLat**2)
-    rho = a*F0*(1-e2)*(1-e2*sinLat**2)**(-1.5)
-    eta2 = nu/rho-1
-    tanLat = math.tan(lat)
-    VII = tanLat/(2*rho*nu)
-    VIII = tanLat/(24*rho*nu**3)*(5+3*tanLat**2+eta2-9*tanLat**2*eta2)
-    IX = tanLat/(720*rho*nu**5)*(61+90*tanLat**2+45*tanLat**4)
-    X = 1/(cosLat*nu)
-    XI = 1/(cosLat*6*nu**3)*(nu/rho+2*tanLat**2)
-    XII = 1/(cosLat*120*nu**5)*(5+28*tanLat**2+24*tanLat**4)
-    dE = easting - E0
-    latitude = math.degrees(lat - VII*dE**2 + VIII*dE**4 - IX*dE**6)
-    longitude = math.degrees(lon0 + X*dE - XI*dE**3 + XII*dE**5)
-    return round(latitude, 6), round(longitude, 6)
-
 class ObservationValidationWorker(QThread):
     """
     Background worker for validating observation import data.

@@ -25,6 +25,7 @@ import json
 import os
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
+from shared.rounding import ratio_half_up
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 LIST_CSV = os.path.join(HERE, "reference", "saproxylic_scores.csv")
@@ -155,7 +156,7 @@ def assess(species_list, lists=None, cfg: Optional[dict] = None) -> SapResult:
     res = SapResult(rows=rows, min_species=cfg["min_species"], citation=cfg["citation"])
     res.n_scored = len(scored)
     res.sqs_total = sum(r["sqi_score"] for r in scored)
-    res.sqi = round(res.sqs_total * 100 / res.n_scored, 1) if scored else None
+    res.sqi = ratio_half_up(res.sqs_total, res.n_scored, ndigits=1) if scored else None
     res.reliable = res.n_scored >= cfg["min_species"]
     res.iec = sum(r["iec"] for r in rows)
     res.n_iec = sum(1 for r in rows if r["iec"])

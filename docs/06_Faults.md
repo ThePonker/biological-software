@@ -287,7 +287,7 @@ of the five butterfly families is "insect - butterfly" (1,038), none "moth".
 The last half (the observation wizard) now uses `shared/import_core.fill_sort_keys`, as the
 scheme wizard does: the values come from each row's final species. A sync row that updates a
 stored record keeps what it has, so a sync never counts it as changed. 42 observations on the
-14 Oct copy have no sort key (`backfill_sort_keys.py` fills them).
+14 Oct copy have no sort key (`backfill_sort_keys.py` (archived 24 Nov 2026) fills them).
 
 ### F82. Observatum keys repeated across records -- FIXED 14 Oct
 *Found by the A2/A3 review.* Three key generators picked "the next number" by sorting the key
