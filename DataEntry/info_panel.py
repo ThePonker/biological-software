@@ -370,8 +370,12 @@ class InfoPanel(QWidget):
         # conservation chips + count pills (flow rows)
         self._chips_row = _FlowRow()
         self._pills_row = _FlowRow()
+        # specimens on their own line: beside Pers. and Comm. it was folded into a bare "+1"
+        # whenever pending rows widened the Comm. pill (Wil, 24 Nov 2026)
+        self._spec_row = _FlowRow()
         text_col.addWidget(self._chips_row)
         text_col.addWidget(self._pills_row)
+        text_col.addWidget(self._spec_row)
         text_col.addStretch(1)
         # fixed height so selecting/deselecting a row changes only the text, never the layout.
         # 316 wide when there's room (272 was too narrow once the specimen pill gained its sex
@@ -624,6 +628,7 @@ class InfoPanel(QWidget):
             self._chips_row.set_items([])
         if hasattr(self, "_pills_row"):
             self._pills_row.set_items([])
+            self._spec_row.set_items([])
         if self._map is not None:
             self._map.update_for_row(None)
         if self._popout_loc is not None:
@@ -1011,8 +1016,8 @@ class InfoPanel(QWidget):
         pills = [self._pill(pt), self._pill(ct)]
         for w in pills:
             w.setToolTip(tip)
-        pills.append(spec_pill)
         self._pills_row.set_items(pills)
+        self._spec_row.set_items([spec_pill])
 
     def refresh_counts(self):
         """Recompute just the count pills for the current species (live pending update)."""
@@ -1069,3 +1074,4 @@ class InfoPanel(QWidget):
         else:
             self._l3.setText("Unresolved species \u2014 no TVK, so no records/status shown")
             self._pills_row.set_items([])
+            self._spec_row.set_items([])
