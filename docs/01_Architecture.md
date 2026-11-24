@@ -55,7 +55,7 @@ Biological Software/
 ├── launchers/               run_atrium, run_codex, run_lector (console), run_lector_gui, run_munia, run_away (§8)
 ├── tests/                   pytest suite (count in 02); manual_import_files/ for Wil's import tests
 ├── _archive/                Retired code, dated
-└── docs/                    This set, the research documents, Lector_User_Manual.md, drafts/
+└── docs/                    This set, the research documents, drafts/, archive/
 
 C:\BiologicalSoftware_Backups\    Outside OneDrive by design
 ├── current/  previous/           Working databases, two generations
@@ -224,7 +224,7 @@ VC's outline, the **labels**. The same drawing makes the screen and the A4 300 d
 
 Opened by Atrium's Lector tile or `launchers\run_lector_gui.bat`; the console from Atrium's
 Tools row or `run_lector.bat`. Your own name decisions: `data\lector_synonyms.txt` (`+`/`-`
-lines). Manual: `docs/Lector_User_Manual.md`.
+lines). Manual: `Lector/docs/manual/manual.md`.
 
 ### 4e. One home per rule (added 10–12 Oct)
 

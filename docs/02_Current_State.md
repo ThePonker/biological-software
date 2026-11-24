@@ -59,7 +59,7 @@ started Qt with real fonts; `tests/conftest.py` now sets `QT_QPA_FONTDIR` (backl
 | Lector (9) | Round 7, 12 Oct | 9 of 9 |
 | Outstanding tests (18) | Round 8 opacity, B8, E3, Round 9 leftovers | all passed 12 Oct |
 
-Not yet tested: the Lector manual checklist (`docs/Lector_User_Manual.md`, sections A–N) and
+Not yet tested: the Lector manual checklist (`Lector/docs/manual/manual.md`) and
 the test on a clean `lector.db` (paused); Observatum and Lector on a real laptop.
 
 ---

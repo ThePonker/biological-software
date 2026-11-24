@@ -239,24 +239,6 @@ def temp_db(tmp_path, monkeypatch, qapp):
 
 # ---------------------------------------------------------------- decision 7: Quick Entry
 
-def test_quick_entry_project_is_a_choice_of_existing_projects(temp_db):
-    db, path = temp_db
-    conn = sqlite3.connect(path)
-    conn.execute("INSERT INTO observations (species_name, date, record_type, project_name, client) "
-                 "VALUES ('Abax parallelus', '2024-06-01', 'Commercial', 'Hook Farm', 'BAM')")
-    conn.commit()
-    conn.close()
-    import src.views.home.quick_entry as qe
-    f = qe.QuickEntryForm()
-    assert not f.project_combo.isEditable() and f.project_hint.isHidden()
-    f.record_type_combo.setCurrentText("Commercial")
-    assert not f.project_combo.isEditable() and not f.project_hint.isHidden()
-    assert f.project_hint.text() == "New projects start in Data Entry"
-    assert [f.project_combo.itemText(i) for i in range(f.project_combo.count())] == [
-        "Choose a project...", "Hook Farm (BAM)"]
-    f.record_type_combo.setCurrentText("Personal")
-    assert f.project_hint.isHidden() and not f.project_combo.isEnabled()
-
 
 # ---------------------------------------------------------------- decision 8: count of 0
 
@@ -294,13 +276,6 @@ def test_data_entry_count_of_zero_is_held_and_named():
     assert [_eligibility(r) for r in rows] == ["bad_qty", "bad_qty", None]
     found = precommit_issues(rows)
     assert found["count of 0"] == [1] and found["unreadable No."] == [2]
-
-
-def test_quick_entry_quantity_cannot_be_zero(qapp):
-    from src.views.home.quantity_spinner import QuantitySpinner
-    s = QuantitySpinner()
-    s.setValue(0)
-    assert s.value() >= 1
 
 
 # ---------------------------------------------------------------- decision 9: vague dates

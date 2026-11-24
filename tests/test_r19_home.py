@@ -76,10 +76,8 @@ def _codex(tmp_path, statuses):
 # ------------------------------------------------------------------ Home layout
 def test_home_builds_without_quick_entry(qapp):
     from src.views.home.home_tab import HomeTab
-    from src.views.home.quick_entry import QuickEntryForm
     h = HomeTab()
     assert not hasattr(h, "quick_entry")
-    assert not h.findChildren(QuickEntryForm)
     from PySide6.QtWidgets import QLabel
     texts = {lab.text() for lab in h.findChildren(QLabel)}
     assert "Dropdown Options Reference" not in texts

@@ -271,42 +271,6 @@ def test_tabs_announce_record_changes(qapp):
 
 # ── OBS-16 Quick Entry ──────────────────────────────────────────────────────
 
-def test_quick_entry_commercial_needs_project_and_certainty_has_its_column(temp_db, monkeypatch):
-    db, path = temp_db
-    conn = sqlite3.connect(path)
-    _insert(conn, "observations", id=1, species_tvk="X", species_name="Abax parallelus",
-            date="2024-06-01", record_type="Commercial", project_name="Hook Farm", client="BAM",
-            embargo_status="Active", embargo_until="2030-01-01")
-    conn.close()
-    from PySide6.QtWidgets import QMessageBox
-    errs = []
-    monkeypatch.setattr(QMessageBox, "warning", staticmethod(lambda *a, **k: errs.append(a[2])))
-    import src.views.home.quick_entry as qe
-    monkeypatch.setattr(qe, "get_vc_service", lambda: type("V", (), {
-        "get_vice_county": lambda self, g: {"name": "Oxfordshire", "number": 23}})())
-    f = qe.QuickEntryForm()
-    f.set_species({"scientific_name": "Rhagium mordax", "tvk": "NBNSYS0000010506",
-                   "common_name": "", "order": "Coleoptera", "family": "Cerambycidae"})
-    f.grid_ref_edit.setText("SP4537")
-    f.location_edit.setText("Hook Farm")
-    f.recorder_edit.setText("Heeney, W.J.")
-    f.determiner_edit.setText("Heeney, W.J.")
-    f.certainty_combo.setCurrentText("Likely")
-    f.comment_edit.setText("under bark")
-    f.record_type_combo.setCurrentText("Commercial")
-    assert f.project_combo.isEnabled() and f.project_combo.count() == 2
-    f._on_save_clicked()
-    assert errs and "needs its project" in errs[0]
-    f.project_combo.setCurrentIndex(1)
-    f._on_save_clicked()
-    conn = _ro(path)
-    row = conn.execute("SELECT record_type, project_name, client, embargo_status, embargo_until, "
-                       "recorder_certainty, comment FROM observations WHERE id != 1").fetchone()
-    conn.close()
-    assert row == ("Commercial", "Hook Farm", "BAM", "Active", "2030-01-01", "Likely", "under bark")
-    f.record_type_combo.setCurrentText("Personal")
-    assert not f.project_combo.isEnabled()
-
 
 # ── OBS-20 theme handler ────────────────────────────────────────────────────
 

@@ -156,8 +156,6 @@ TICK_FILES = [
     "components/filter_wizard/status_filter_dialog.py",
     "components/filter_wizard/who_filter_dialog.py",
     "components/filter_wizard/where_filter_dialog.py",
-    "home/quick_entry.py",
-    "home/quick_entry_fields_mixin.py",
     "dialogs/scheme_import_wizard/wizard_pages_mixin.py",
     "dialogs/specimen_import_wizard/wizard_pages_mixin.py",
 ]

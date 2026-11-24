@@ -114,12 +114,7 @@ def test_calendar_styled_once_for_every_date_edit(qapp):
     today = cal.dateTextFormat(QDate.currentDate())
     assert today.foreground().color().name() == theme().get("primary") and today.font().bold()
     assert theme().get("primary") in theme().calendar_style()
-    # the Quick Entry form's own calendar and the date filter's accent one
-    from src.views.home.quick_entry import QuickEntryForm
-    f = QuickEntryForm()
-    c2 = f.date_edit.calendarWidget()
-    f.show(); c2.show(); qapp.processEvents()
-    assert calendar_style.is_styled(c2)
+    # the date filter's accent calendar
     from src.views.components.date_filter_widget import DateFilterWidget
     w = DateFilterWidget(accent_color="#b8860b")
     assert calendar_style.is_styled(w._calendar) and "#b8860b" in w._calendar.styleSheet()

@@ -1,5 +1,5 @@
 # Observatum V2 - Home View
-# Quick entry and overview dashboard
+# Overview dashboard
 
 from .home_tab import HomeTab
 from .species_profile_dialog import SpeciesProfileDialog

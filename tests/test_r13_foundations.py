@@ -171,14 +171,13 @@ def test_the_sex_lists_are_one_object():
     from DataEntry import session_header
     from shared import bench_photos
     from src.utils import constants
-    from src.views.home import quick_entry_fields_mixin as qe
     from src.views.dialogs import add_specimen_dialog as asd
     from src.views.dialogs.observation_import_wizard import validation_worker as vw
     assert vocab.SEX_OPTIONS == ["Female", "Male", "Mixed", "Not recorded"]
     assert constants.SEX_OPTIONS is vocab.SEX_OPTIONS
     assert session_header.FALLBACK_SEXES is vocab.SEX_OPTIONS
     assert session_header.load_sexes()[0] == vocab.SEX_OPTIONS
-    assert qe.SEX_OPTIONS is vocab.SEX_CHOICES and vocab.SEX_CHOICES == [""] + vocab.SEX_OPTIONS
+    assert vocab.SEX_CHOICES == [""] + vocab.SEX_OPTIONS
     assert asd.SEX_CHOICES is vocab.SEX_CHOICES
     assert vw.VALID_SEX_VALUES == [s.casefold() for s in vocab.SEX_CHOICES]
     # the photo-name words keep matching exactly what they matched before

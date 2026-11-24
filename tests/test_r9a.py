@@ -207,13 +207,13 @@ def test_combo_popups_are_solid(qapp):
     from PySide6.QtCore import QEvent
     from PySide6.QtWidgets import QComboBox, QVBoxLayout, QWidget
     import shared.opaque_popups as op
-    from src.views.home.quick_entry_fields_mixin import QuickEntryFieldsMixin
     form = QWidget()
     form.setStyleSheet("QWidget { background: #ffffff; }")
     lay = QVBoxLayout(form)
-    holder = type("Holder", (QuickEntryFieldsMixin,), {})()
-    lay.addWidget(holder._create_project_field())                    # Quick Entry's Project box
-    combo = holder.project_combo
+    box = QWidget()                                                  # a plain combo in a transparent box
+    box.setStyleSheet("background: transparent; border: none;")     # (as Quick Entry's Project box was)
+    QVBoxLayout(box).addWidget(combo := QComboBox())
+    lay.addWidget(box)
     combo.addItems(["Choose a project...", "Hook Farm"])
     combo.setEnabled(True)
     styled = QComboBox()                                             # a list styled on purpose

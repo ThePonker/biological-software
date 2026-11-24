@@ -24,7 +24,7 @@
 | `07_Codex.md` | Codex — the conservation authority |
 | `08_Examen.md` | Examen — the assemblage assessment tool |
 | `09_Data_Entry.md` | Data Entry — the recording grid |
-| `Lector_User_Manual.md` | Lector: install, every screen, recipes, console, files, troubleshooting, the automated and manual tests (project note 46) |
+| `../Lector/docs/manual/manual.md` | Lector user manual: install, every screen, recipes, console, files, troubleshooting, the automated and manual tests (the October first version is in `archive/Lector_User_Manual.md`) |
 
 `03`, `06` and `02` were split on 12 Oct because each had passed ~600 lines (866, 969,
 461 + history). Nothing was dropped; the split points are stated at the top of each file.
@@ -49,8 +49,8 @@ of the three import wizards (Round 9 tests 30, 31, 34, 35). Every row is marked 
 `38_Report_Survey.md` — the specification for the report layer, drawn from eleven
 published reports. Read it before touching the report contents (E3/E7 follow-ups).
 `39_Research_Notes.md` (8 Oct research: SQI bands, Welsh S7, saproxylic sources) ·
-`40_Code_Sweep_20261008.md` (never-executed paths, write whitelists, silent errors; open
-items carried into `03` and `06`) · `41_Groundwork_Notes_20261009.md` (import repair plan,
+`archive/40_Code_Sweep_20261008.md` (never-executed paths, write whitelists, silent errors; open
+items carried into `03` and `06`) · `archive/41_Groundwork_Notes_20261009.md` (import repair plan,
 C4 design, saproxylic groundwork, photos and geo groundwork). Their open items are in `03`
 ("Gathered 12 Oct") or `06`; the rest is history.
 

@@ -291,27 +291,6 @@ def test_the_squares_are_drawn_over_the_kept_layers(qapp, tmp_path, settings_san
     assert after.pixelColor(int(x), int(y)) != before.pixelColor(int(x), int(y))
 
 
-# ---------------------------------------------------------------- converter
-
-def test_converter_dry_run_changes_nothing_and_apply_writes(tmp_path, capsys):
-    from scripts import convert_layers_bin as conv
-    _write(tmp_path, "woodland", "county", _random_features(20))
-    (tmp_path / "layers" / "relief_gb.json").write_text(json.dumps({"layer": "relief", "kind": "image"}))
-    d = tmp_path / "layers"
-    before = {p.name: p.read_bytes() for p in d.iterdir()}
-    assert conv.main(["--dir", str(d)]) == 0
-    out = capsys.readouterr().out
-    assert "Nothing has been changed." in out and "woodland_county.json: would write" in out
-    assert {p.name for p in d.iterdir()} == set(before)
-    assert conv.main(["--dir", str(d), "--apply"]) == 0
-    assert "relief_gb.json: no features" in capsys.readouterr().out
-    assert all(p.is_file() for p in layer_bin.all_paths(d / "woodland_county.json"))
-    assert all((d / n).read_bytes() == b for n, b in before.items())      # the JSON is untouched
-    assert not list(d.glob("*.tmp"))
-    assert isinstance(layers.load(tmp_path, "woodland", "county"), layer_bin.LayerBin)
-    layers.forget("woodland")
-
-
 def test_write_doc_writes_the_binary_too(tmp_path):
     from scripts.build_map_layers import write_doc
     feats = [_sq(0, 0, 10, 10)]
