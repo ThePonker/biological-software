@@ -1,4 +1,5 @@
 """Codex Manager theme: names resolved from Observatum's Naturalist theme."""
+from shared.display_format import day_dmy
 from shared.theme_lookup import value as _g
 
 
@@ -48,14 +49,4 @@ def status_colour(value: str) -> str:
 
 def format_date(date_str: str) -> str:
     """Convert YYYY-MM-DD or ISO date to dd/mm/yyyy."""
-    if not date_str:
-        return ""
-    try:
-        # Handle ISO format with time
-        clean = date_str[:10]
-        parts = clean.split("-")
-        if len(parts) == 3:
-            return f"{parts[2]}/{parts[1]}/{parts[0]}"
-    except (IndexError, ValueError):
-        pass
-    return date_str
+    return day_dmy(date_str)

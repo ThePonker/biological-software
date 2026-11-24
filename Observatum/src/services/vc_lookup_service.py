@@ -30,6 +30,7 @@ import paths
 from pathlib import Path
 from typing import Optional, Tuple, Dict, Any, List
 from shared.db_open import connect_ro  # D9: reference data, read-only
+from shared.osgb import _square_origin, en_to_gridref as osgb_en_to_gridref
 
 
 def _in_rings(x: float, y: float, rings) -> bool:
@@ -52,22 +53,6 @@ class VCLookupService:
     
     Uses a pre-computed SQLite database mapping 1km grid squares to VCs.
     """
-    
-    # OS Grid letter codes to 100km easting/northing
-    GRID_LETTERS = {
-        'SV': (0, 0), 'SW': (1, 0), 'SX': (2, 0), 'SY': (3, 0), 'SZ': (4, 0), 'TV': (5, 0),
-        'SQ': (0, 1), 'SR': (1, 1), 'SS': (2, 1), 'ST': (3, 1), 'SU': (4, 1), 'TQ': (5, 1), 'TR': (6, 1),
-        'SL': (0, 2), 'SM': (1, 2), 'SN': (2, 2), 'SO': (3, 2), 'SP': (4, 2), 'TL': (5, 2), 'TM': (6, 2),
-        'SF': (0, 3), 'SG': (1, 3), 'SH': (2, 3), 'SJ': (3, 3), 'SK': (4, 3), 'TF': (5, 3), 'TG': (6, 3),
-        'SA': (0, 4), 'SB': (1, 4), 'SC': (2, 4), 'SD': (3, 4), 'SE': (4, 4), 'TA': (5, 4), 'TB': (6, 4),
-        'NV': (0, 5), 'NW': (1, 5), 'NX': (2, 5), 'NY': (3, 5), 'NZ': (4, 5), 'OV': (5, 5),
-        'NQ': (0, 6), 'NR': (1, 6), 'NS': (2, 6), 'NT': (3, 6), 'NU': (4, 6),
-        'NL': (0, 7), 'NM': (1, 7), 'NN': (2, 7), 'NO': (3, 7), 'NP': (4, 7),
-        'NF': (0, 8), 'NG': (1, 8), 'NH': (2, 8), 'NJ': (3, 8), 'NK': (4, 8),
-        'NA': (0, 9), 'NB': (1, 9), 'NC': (2, 9), 'ND': (3, 9),
-        'HW': (1, 10), 'HX': (2, 10), 'HY': (3, 10), 'HZ': (4, 10),
-        'HP': (4, 12), 'HT': (3, 11), 'HU': (4, 11),
-    }
     
     # Full VC names (1-112 for GB, 113+ for Channel Islands) - fallback if DB not available
     VC_NAMES = {
@@ -235,11 +220,12 @@ class VCLookupService:
         if len(digits) % 2 != 0:
             return None
         
-        # Look up the 100km square
-        if letters not in cls.GRID_LETTERS:
+        # The 100km square: shared/osgb.py's grid-letter rule (the one in the suite)
+        origin = _square_origin(letters)
+        if origin is None:
             return None
         
-        e100, n100 = cls.GRID_LETTERS[letters]
+        e100, n100 = origin
         
         # Split digits into easting and northing parts
         half = len(digits) // 2
@@ -276,25 +262,8 @@ class VCLookupService:
         e_1km = (easting // 1000) * 1000
         n_1km = (northing // 1000) * 1000
         
-        # Convert back to grid reference
-        e100 = e_1km // 100000
-        n100 = n_1km // 100000
-        
-        # Find the letters
-        letters = None
-        for code, (e, n) in cls.GRID_LETTERS.items():
-            if e == e100 and n == n100:
-                letters = code
-                break
-        
-        if not letters:
-            return None
-        
-        # Get the 1km digits
-        e_digits = (e_1km % 100000) // 1000
-        n_digits = (n_1km % 100000) // 1000
-        
-        return f"{letters}{e_digits:02d}{n_digits:02d}"
+        # Convert back to a 4-figure grid reference, letters from shared/osgb.py
+        return osgb_en_to_gridref(e_1km, n_1km, 4)
     
     # ------------------------------------------------------------ boundaries (F29, I3b)
 

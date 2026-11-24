@@ -218,14 +218,14 @@ class DataEntryWidget(QWidget):
                     f"padding: 7px 16px; border-left: 4px solid {accent};")
         if go_live:
             w.setText("LIVE \u2014 commits go into Observatum (observatum.db). Make sure you have a backup.")
-            w.setStyleSheet(_st(theme.CLAY_BG, theme._g("danger_text", "#991b1b"), theme.CLAY, 700))
+            w.setStyleSheet(_st(theme.CLAY_BG, theme._g("danger_text", "#a63d40"), theme.CLAY, 700))
         elif getattr(self, "_embedded", False):
             w.setText("Preview inside Observatum \u2014 dev copy, commit disabled. "
                       "Use \u2018Export\u2019 to take data out; go-live wiring enables commit.")
             w.setStyleSheet(_st(theme.SLATE_BG, theme._g("accent_stats_dark", "#454f5c"), theme.SLATE))
         elif self.is_live_db():
             w.setText("WARNING: LIVE database. (Staging is separate, but work on a dev copy.)")
-            w.setStyleSheet(_st(theme.CLAY_BG, theme._g("danger_text", "#991b1b"), theme.CLAY, 700))
+            w.setStyleSheet(_st(theme.CLAY_BG, theme._g("danger_text", "#a63d40"), theme.CLAY, 700))
         else:
             w.setText("Development copy \u2014 safe to test. Staged jobs live here, uncommitted.")
             w.setStyleSheet(_st(theme.MOSS_BG, theme._g("success_text", "#3d6b4a"), theme.MOSS))

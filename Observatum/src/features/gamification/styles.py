@@ -8,6 +8,7 @@ Supports both dark (Victorian) and light modes.
 from .theme import BACKGROUND, TEXT
 from .theme_bridge import get_color
 from shared.text_sizes import font_css
+from ...themes import theme
 
 
 # =============================================================================
@@ -228,7 +229,12 @@ def get_light_stylesheet() -> str:
     
     btn_primary = get_color('button_primary_bg', dark_mode=False)
     btn_primary_hover = get_color('button_primary_hover', dark_mode=False)
-    
+
+    t = theme()
+    btn_neutral, btn_neutral_hover = t.get('btn_neutral_bg'), t.get('btn_neutral_hover')
+    progress_track, tab_idle = t.get('progress_track'), t.get('tab_idle_bg')
+    neutral_light, handle_hover = t.get('neutral_light'), t.get('scroll_handle_hover')
+
     return f"""
 QDialog {{
     background-color: {bg_primary};
@@ -309,19 +315,19 @@ QPushButton:hover {{
 }}
 
 QPushButton#secondary {{
-    background-color: #e0e0e0;
+    background-color: {btn_neutral};
     color: {text_primary};
     border: 1px solid {bg_border};
 }}
 
 QPushButton#secondary:hover {{
-    background-color: #d0d0d0;
+    background-color: {btn_neutral_hover};
 }}
 
 QProgressBar {{
     border: none;
     border-radius: 6px;
-    background-color: #dddddd;
+    background-color: {progress_track};
     height: 14px;
     text-align: center;
 }}
@@ -337,7 +343,7 @@ QTabWidget::pane {{
 }}
 
 QTabBar::tab {{
-    background-color: #e8e8e8;
+    background-color: {tab_idle};
     color: {text_secondary};
     border: 1px solid {bg_border};
     border-bottom: none;
@@ -353,7 +359,7 @@ QTabBar::tab:selected {{
 }}
 
 QTabBar::tab:hover:!selected {{
-    background-color: #f0f0f0;
+    background-color: {neutral_light};
 }}
 
 QScrollArea {{
@@ -362,7 +368,7 @@ QScrollArea {{
 }}
 
 QScrollBar:vertical {{
-    background-color: #f0f0f0;
+    background-color: {neutral_light};
     width: 12px;
     border-radius: 6px;
 }}
@@ -374,7 +380,7 @@ QScrollBar::handle:vertical {{
 }}
 
 QScrollBar::handle:vertical:hover {{
-    background-color: #aaaaaa;
+    background-color: {handle_hover};
 }}
 
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{

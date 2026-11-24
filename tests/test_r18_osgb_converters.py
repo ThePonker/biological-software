@@ -62,6 +62,32 @@ def _off_grid(key):
 # Their answers must now equal the Observation statistics' recorded answers exactly.
 NOW_MATCHES = {"RecordingSchemeStatsService._extract_grid_squares": "ObservationStatsService._extract_grid_squares"}
 
+# Round 3 (Wil, 24 Nov 2026): one grid-square rule. The statistics' squares are now exactly the map's
+# squares (shared/maps/grid_squares.square_for_ref at 10 km / 2 km / 1 km, as recorded): letter tetrads
+# such as SP42N now count as tetrads, and refs the map rejects give no squares.
+MAP_SQUARES = {"ObservationStatsService._extract_grid_squares", "RecordingSchemeStatsService._extract_grid_squares"}
+_MAP_SIZES = (("hectad", "10000"), ("tetrad", "2000"), ("monad", "1000"))
+# ...and the VC lookup reads letters with shared/osgb.py, which knows every 100 km square (the old private
+# table had 66 of the 91): a ref it used to refuse now gives what shared/osgb.py gives; nothing else moves.
+NOW_READ_BY_OSGB = {"VCLookupService.parse_grid_ref": "osgb.gridref_to_en",
+                    "VCLookupService.get_1km_square": "osgb.gridref_to_en"}
+
+
+def _off_gb(key):
+    import re
+    ref = eval(key)
+    return isinstance(ref, str) and bool(
+        re.match(r"^(?:[A-HJ-Z]|W[AV])(\d{2}|\d{4}|\d{6}|\d{8}|\d{10})$", ref.upper().replace(" ", "")))
+
+
+def _map_squares(key):
+    out = {}
+    for name, size in _MAP_SIZES:
+        v = eval(GOLD[f"grid_squares.square_for_ref/{size}"][key])
+        if v:
+            out[name] = v
+    return repr(out)
+
 
 @pytest.mark.parametrize("name", sorted(GOLD))
 def test_converter_answers_are_unchanged(name):
@@ -73,6 +99,25 @@ def test_converter_answers_are_unchanged(name):
     else:
         now = {repr(p): oc._run(fn, *p) for p in oc.latlon_corpus()}
     differ = {k: (GOLD[name][k], now[k]) for k in GOLD[name] if not _same(GOLD[name][k], now.get(k))}
+    if name in MAP_SQUARES:
+        off = {k for k in GOLD[name] if now[k] != _map_squares(k)}
+        # The only refs allowed to differ from the map: Irish Grid / Channel Islands, which the map
+        # cannot draw and the statistics count exactly as before.
+        assert all(_off_gb(k) and _map_squares(k) == "{}" for k in off), sorted(off)[:10]
+        if name == "ObservationStatsService._extract_grid_squares":
+            assert all(now[k] == GOLD[name][k] for k in off), sorted(off)[:10]
+        return
+    if name in NOW_READ_BY_OSGB:
+        canon = GOLD[NOW_READ_BY_OSGB[name]]
+        assert all(old == "None" and canon[k] != "None" for k, (old, _new) in differ.items()), differ
+        if name == "VCLookupService.parse_grid_ref":
+            assert all(new == canon[k] for k, (_old, new) in differ.items()), differ
+        else:                             # the 1 km square holding the reference's south-west corner
+            from shared.osgb import en_to_gridref
+            for k, (_old, new) in differ.items():
+                e, n, _p = eval(canon[k])
+                assert new == repr(en_to_gridref(e // 1000 * 1000, n // 1000 * 1000, 4)), (k, new)
+        return
     if name in NOW_MATCHES:
         ref = GOLD[NOW_MATCHES[name]]
         assert {k: now[k] for k in ref} == ref

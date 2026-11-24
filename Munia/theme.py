@@ -23,6 +23,13 @@ AMBER_LIGHT = _g("accent_collection_light", "#faf6eb")
 TEXT_DARK = _g("text_primary", "#1f2937")
 TEXT_MID = _g("text_heading", "#4b5563")
 TEXT_LIGHT = _g("text_secondary", "#6b7280")
+TEXT_OFF = _g("btn_outline_disabled_text", "#aaa")      # a spin box for a month with no field days
+ERROR_TINT = _g("error_bg_light", "#fef2f2")            # a negative balance in the capacity grid
+SEASON_GREEN = _g("season_tint_green", "#edf5ef")       # capacity grid, Apr-Jul
+SEASON_PURPLE = _g("season_tint_purple", "#eee9f3")     # Aug-Oct
+SEASON_AMBER = _g("season_tint_amber", "#f7f0e0")       # Nov-Dec
+SELECTION_PURPLE = _g("table_selection_purple", "#c8bfdb")   # selected row, projects table
+ALT_ROW = _g("table_alt_row_warm", "#f4f3f1")                # alternate row, projects table
 
 # ── Day-type colours ─────────────────────────────────────────────
 DAY_COLOURS = {

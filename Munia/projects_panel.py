@@ -9,9 +9,11 @@ from PySide6.QtGui import QColor, QBrush, QFont
 from Munia.theme import (
     STONE_LIGHT, STONE_BORDER, BODY_FAMILY,
     TEXT_DARK, TEXT_MID, TEXT_LIGHT, WARM_GRAY_LIGHT,
-    MOSS_GREEN, DUSTY_PURPLE, FADED_CRIMSON, WARM_GRAY
+    MOSS_GREEN, DUSTY_PURPLE, FADED_CRIMSON, WARM_GRAY,
+    SELECTION_PURPLE, ALT_ROW
 )
 from Munia import munia_data as db
+from shared.display_format import day_dmy
 from shared.text_sizes import font_css, qfont
 
 class _SortItem(QTableWidgetItem):
@@ -68,9 +70,9 @@ class ProjectsPanel(QWidget):
             f"QTableWidget {{ background: {STONE_LIGHT}; "
             f"border: 1px solid {STONE_BORDER}; gridline-color: {STONE_BORDER}; "
             f'font-family: "{BODY_FAMILY}"; font-size: {font_css("small")}; color: {TEXT_DARK}; '
-            f"selection-background-color: #c8bfdb; selection-color: {TEXT_DARK}; }}"
+            f"selection-background-color: {SELECTION_PURPLE}; selection-color: {TEXT_DARK}; }}"
             f"QTableWidget::item {{ padding: 3px 5px; }}"
-            f"QTableWidget::item:alternate {{ background: #f4f3f1; }}"
+            f"QTableWidget::item:alternate {{ background: {ALT_ROW}; }}"
             f"QHeaderView::section {{ background: {WARM_GRAY_LIGHT}; "
             f'font-family: "{BODY_FAMILY}"; font-size: {font_css("caption")}; font-weight: 600; '
             f"color: {TEXT_DARK}; border: none; "
@@ -135,11 +137,7 @@ class ProjectsPanel(QWidget):
 
     def _date_cell(self, r, c, date_str):
         """Date cell — display dd/mm/yyyy, sort by ISO in UserRole."""
-        if date_str and len(date_str) == 10:
-            parts = date_str.split("-")
-            display = f"{parts[2]}/{parts[1]}/{parts[0]}"
-        else:
-            display = "\u2014"
+        display = day_dmy(date_str if date_str and len(date_str) == 10 else "", other="\u2014")
         i = _SortItem(display)
         i.setTextAlignment(Qt.AlignCenter)
         i.setData(Qt.UserRole, date_str if date_str else "9999-99-99")

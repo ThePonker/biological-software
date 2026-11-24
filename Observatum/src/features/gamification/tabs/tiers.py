@@ -12,6 +12,7 @@ from PySide6.QtCore import QByteArray
 from PySide6.QtSvgWidgets import QSvgWidget
 
 from ..theme import TEXT, TIERS, get_stage_colours
+from ....themes import theme
 from shared.text_sizes import font_css
 
 
@@ -97,11 +98,11 @@ class TiersTab:
         
         if is_locked:
             name = QLabel("???")
-            name.setStyleSheet(f"font-size: {font_css('body')}; font-weight: bold; color: #666666;")
+            name.setStyleSheet(f"font-size: {font_css('body')}; font-weight: bold; color: {theme().get('ink_mid')};")
             info_layout.addWidget(name)
             
             range_lbl = QLabel("Locked")
-            range_lbl.setStyleSheet(f"font-size: {font_css('caption')}; color: #555555;")
+            range_lbl.setStyleSheet(f"font-size: {font_css('caption')}; color: {theme().get('ink_soft')};")
             info_layout.addWidget(range_lbl)
         else:
             colours = get_stage_colours(tier_info["stage"])

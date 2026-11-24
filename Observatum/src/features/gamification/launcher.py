@@ -19,6 +19,12 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QTimer
 from shared.text_sizes import font_css
+from ...themes import theme
+
+
+def _c(key: str) -> str:
+    """A colour from the active theme."""
+    return theme().get(key)
 
 
 
@@ -56,13 +62,13 @@ class GamificationLauncher(QFrame):
 
     def _setup_ui(self):
         """Setup the widget UI."""
-        self.setStyleSheet("""
-            QFrame {
-                background-color: #f0f7f4;
-                border: 1px solid #5f8575;
+        self.setStyleSheet(f"""
+            QFrame {{
+                background-color: {_c('launcher_bg')};
+                border: 1px solid {_c('accent_observation')};
                 border-radius: 8px;
                 padding: 12px;
-            }
+            }}
         """)
 
         layout = QHBoxLayout(self)
@@ -82,7 +88,7 @@ class GamificationLauncher(QFrame):
         title.setStyleSheet(f"""
             font-size: {font_css('heading')};
             font-weight: bold;
-            color: #4a6b5c;
+            color: {_c('accent_observation_dark')};
             background: transparent;
             border: none;
         """)
@@ -92,7 +98,7 @@ class GamificationLauncher(QFrame):
             self.tier_label = QLabel("Track your naturalist progress")
             self.tier_label.setStyleSheet(f"""
                 font-size: {font_css('small')};
-                color: #6b7280;
+                color: {_c('text_secondary')};
                 background: transparent;
                 border: none;
             """)
@@ -103,18 +109,18 @@ class GamificationLauncher(QFrame):
 
         # Launch button
         self.launch_btn = QPushButton("View Progress")
-        self.launch_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #5f8575;
+        self.launch_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {_c('accent_observation')};
                 color: white;
                 border: none;
                 border-radius: 6px;
                 padding: 8px 16px;
                 font-weight: 500;
-            }
-            QPushButton:hover {
-                background-color: #4a6b5c;
-            }
+            }}
+            QPushButton:hover {{
+                background-color: {_c('accent_observation_dark')};
+            }}
         """)
         self.launch_btn.clicked.connect(self._launch_window)
         # under the text, not beside it: side by side the card held Home's first column,
@@ -187,7 +193,7 @@ class GamificationButton(QPushButton):
 
         self.setStyleSheet(f"""
             QPushButton {{
-                background-color: #5f8575;
+                background-color: {_c('accent_observation')};
                 color: white;
                 border: none;
                 border-radius: 6px;
@@ -196,7 +202,7 @@ class GamificationButton(QPushButton):
                 font-size: {font_css('body')};
             }}
             QPushButton:hover {{
-                background-color: #4a6b5c;
+                background-color: {_c('accent_observation_dark')};
             }}
         """)
 
@@ -249,12 +255,12 @@ class GamificationSummaryCard(QFrame):
     
     def _setup_ui(self):
         """Setup the widget UI."""
-        self.setStyleSheet("""
-            QFrame#summaryCard {
-                background-color: #f0f7f4;
-                border: 1px solid #5f8575;
+        self.setStyleSheet(f"""
+            QFrame#summaryCard {{
+                background-color: {_c('launcher_bg')};
+                border: 1px solid {_c('accent_observation')};
                 border-radius: 8px;
-            }
+            }}
         """)
         self.setObjectName("summaryCard")
         
@@ -274,7 +280,7 @@ class GamificationSummaryCard(QFrame):
         title.setStyleSheet(f"""
             font-size: {font_css('heading')};
             font-weight: bold;
-            color: #4a6b5c;
+            color: {_c('accent_observation_dark')};
             background: transparent;
             border: none;
         """)
@@ -284,7 +290,7 @@ class GamificationSummaryCard(QFrame):
         self.launch_btn = QPushButton("View All")
         self.launch_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: #5f8575;
+                background-color: {_c('accent_observation')};
                 color: white;
                 border: none;
                 border-radius: 6px;
@@ -293,7 +299,7 @@ class GamificationSummaryCard(QFrame):
                 font-size: {font_css('small')};
             }}
             QPushButton:hover {{
-                background-color: #4a6b5c;
+                background-color: {_c('accent_observation_dark')};
             }}
         """)
         self.launch_btn.clicked.connect(self._launch_window)
@@ -309,7 +315,7 @@ class GamificationSummaryCard(QFrame):
         self.tier_label.setStyleSheet(f"""
             font-size: {font_css('body')};
             font-weight: bold;
-            color: #2d5a4a;
+            color: {_c('launcher_ink')};
             background: transparent;
             border: none;
         """)
@@ -318,7 +324,7 @@ class GamificationSummaryCard(QFrame):
         self.progress_label = QLabel("")
         self.progress_label.setStyleSheet(f"""
             font-size: {font_css('small')};
-            color: #6b7280;
+            color: {_c('text_secondary')};
             background: transparent;
             border: none;
         """)
@@ -350,13 +356,13 @@ class GamificationSummaryCard(QFrame):
     def _create_stat_box(self, icon: str, value: str, label: str) -> QFrame:
         """Create a small stat display box."""
         box = QFrame()
-        box.setStyleSheet("""
-            QFrame {
-                background-color: #e8f4ed;
-                border: 1px solid #c8ddd0;
+        box.setStyleSheet(f"""
+            QFrame {{
+                background-color: {_c('launcher_stats_bg')};
+                border: 1px solid {_c('launcher_stats_border')};
                 border-radius: 6px;
                 padding: 6px;
-            }
+            }}
         """)
         
         layout = QVBoxLayout(box)
@@ -378,7 +384,7 @@ class GamificationSummaryCard(QFrame):
         value_lbl.setStyleSheet(f"""
             font-size: {font_css('heading')};
             font-weight: bold;
-            color: #2d5a4a;
+            color: {_c('launcher_ink')};
             background: transparent;
             border: none;
         """)
@@ -390,7 +396,7 @@ class GamificationSummaryCard(QFrame):
         label_lbl = QLabel(label)
         label_lbl.setStyleSheet(f"""
             font-size: {font_css('caption')};
-            color: #6b7280;
+            color: {_c('text_secondary')};
             background: transparent;
             border: none;
         """)

@@ -295,6 +295,37 @@ FORTIES_THEME = {
     'splash_heather': '#B5683F',
     'splash_glow': '#0cC8A23A',
     'splash_border_inner': '#50C8A23A',
+    # Colours that were written into the views (24 Nov 2026); the same value in every theme
+    # Curator box preview (painted by hand)
+    'preview_ink': '#333333',   # box title and family name
+    'ink_soft': '#555555',   # soft dark text: capacity label, locked tier range, vice-county map stroke
+    'preview_label_muted': '#888888',   # specimen count under a family name
+    'preview_outline': '#999999',   # outline of the box
+    'preview_rule': '#cccccc',   # dotted leader line and capacity bar outline
+    'preview_track': '#eeeeee',   # empty part of the capacity bar
+    'preview_box_fill': '#fafafa',   # inside of the box
+    'family_purple': '#6b5b73',   # tenth colour of the family cycle
+    # Gamification windows
+    'btn_neutral_bg': '#e0e0e0',   # secondary button
+    'btn_neutral_hover': '#d0d0d0',   # secondary button, hovered
+    'progress_track': '#dddddd',   # progress bar track
+    'tab_idle_bg': '#e8e8e8',   # tab not selected
+    'neutral_light': '#f0f0f0',   # hovered tab; scroll bar track
+    'scroll_handle_hover': '#aaaaaa',   # scroll bar handle, hovered
+    'launcher_bg': '#f0f7f4',   # Achievements card on Home
+    'launcher_ink': '#2d5a4a',   # text in the Achievements quick stats
+    'launcher_stats_bg': '#e8f4ed',   # Achievements quick stats panel
+    'launcher_stats_border': '#c8ddd0',   # Achievements quick stats panel border
+    'ink_mid': '#666666',   # locked tier name
+    'vc_unearned': '#3d3d3d',   # vice county not yet visited on the achievements map
+    # Munia and Examen
+    'season_tint_green': '#edf5ef',   # capacity grid, Apr-Jul
+    'season_tint_purple': '#eee9f3',   # capacity grid, Aug-Oct
+    'season_tint_amber': '#f7f0e0',   # capacity grid, Nov-Dec
+    'table_selection_purple': '#c8bfdb',   # selected row of the Munia projects table
+    'table_alt_row_warm': '#f4f3f1',   # alternate row of the Munia projects table
+    'primary_hover_alt': '#3d6a4b',   # hover of the Examen import dialog's green buttons
+    'outline_btn_hover_bg': '#f0eeec',   # hover wash of an outlined grey button
 }
 
 # Garamond runs small: caption, small and body are one pixel larger than Naturalist's (13 px is

@@ -15,6 +15,7 @@ from PySide6.QtCore import Qt, QByteArray
 from PySide6.QtSvgWidgets import QSvgWidget
 
 from ..theme import TEXT
+from ....themes import theme
 from shared.text_sizes import font_css
 
 
@@ -28,11 +29,11 @@ class VCsTab:
         tab.load(calculator)
     """
     
-    # Colours for map
-    VC_UNEARNED = "#3d3d3d"
-    VC_EARNED = "#4a7c59"
-    VC_STROKE = "#555555"
-    VC_EARNED_STROKE = "#6a9c79"
+    # Colours for map (read from the theme when used)
+    VC_UNEARNED = property(lambda self: theme().get("vc_unearned"))
+    VC_EARNED = property(lambda self: theme().get("primary"))
+    VC_STROKE = property(lambda self: theme().get("ink_soft"))
+    VC_EARNED_STROKE = property(lambda self: theme().get("success_bright"))
     
     def __init__(self, renderer):
         """Initialize the VCs tab."""

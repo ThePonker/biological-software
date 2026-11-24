@@ -22,6 +22,10 @@ ACCENT_DARK = _g("accent_scheme_dark", "#5c4f7a")
 
 MOSS_GREEN = _g("primary", "#4a7c59")
 MOSS_HOVER = _g("primary_hover", "#3d6649")
+MOSS_HOVER_ALT = _g("primary_hover_alt", "#3d6a4b")   # hover of the import dialog's green buttons
+OUTLINE_HOVER = _g("outline_btn_hover_bg", "#f0eeec")  # hover wash of an outlined grey button
+DISABLED_BG = _g("border", "#d1d5db")                  # a disabled button's fill
+DISABLED_TEXT = _g("disabled_text", "#9ca3af")
 WARM_GRAY = _g("secondary", "#8b8178")
 RED_STATUS = _g("danger", "#a63d40")
 TERRACOTTA = _g("accent_mapping", "#c2956e")

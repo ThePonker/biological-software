@@ -144,14 +144,14 @@ class SpeciesListDialog(QDialog):
         export_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {t.get("surface")};
-                color: {t.get("primary", "#4a7c59")};
-                border: 1px solid {t.get("primary", "#4a7c59")};
+                color: {t.get("primary")};
+                border: 1px solid {t.get("primary")};
                 border-radius: 4px;
                 padding: 8px 20px;
                 font-weight: bold;
             }}
             QPushButton:hover {{
-                background-color: {t.get("primary", "#4a7c59")};
+                background-color: {t.get("primary")};
                 color: {t.get('primary_text')};
             }}
         """)

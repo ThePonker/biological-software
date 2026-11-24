@@ -456,7 +456,7 @@ class MonthlyActivityChart(QFrame):
     def _draw_gridlines(self, ticks: list, nice_max: int):
         """Draw horizontal gridlines across the bars area."""
         t = theme()
-        grid_color = t.get('border', '#e0e0e0')
+        grid_color = t.get('border')
 
         # Remove old gridlines
         if hasattr(self, '_gridline_widgets'):
@@ -507,7 +507,7 @@ class MonthlyActivityChart(QFrame):
         if hasattr(self, '_values') and self._values:
             ticks = self._calculate_ticks(max(self._values) if self._values else 1)
             nice_max = ticks[-1] if ticks else 1
-            grid_color = theme().get('border', '#e0e0e0')
+            grid_color = theme().get('border')
             self._position_gridlines(ticks, nice_max, grid_color)
 
     def apply_theme(self):

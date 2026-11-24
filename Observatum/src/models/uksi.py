@@ -29,8 +29,10 @@ from dataclasses import dataclass
 from shared.common_name_pick import order_by_sql
 from .database import DatabaseManager
 
-
 _CN_ORDER = order_by_sql()      # which common name is shown (shared/common_name_pick.py)
+# Ranks a name search returns (shared with UKSIRepository, 24 Nov 2026).
+_SEARCH_RANKS = ("'Species', 'Subspecies', 'Variety', 'Form', 'Species aggregate', "
+                 "'Species sensu lato', 'Microspecies'")
 
 
 @dataclass
@@ -226,7 +228,7 @@ class UKSIModel:
                 t.rank
             FROM taxa t
             WHERE ({sci_clause})
-              AND t.rank IN ('Species', 'Subspecies', 'Variety', 'Form')
+              AND t.rank IN ({_SEARCH_RANKS})
               {filter_clause}
             LIMIT 300
         """
@@ -244,7 +246,7 @@ class UKSIModel:
             FROM common_names cn
             JOIN taxa t ON cn.tvk = t.tvk
             WHERE ({cn_clause})
-              AND t.rank IN ('Species', 'Subspecies', 'Variety', 'Form')
+              AND t.rank IN ({_SEARCH_RANKS})
               {filter_clause}
             LIMIT 300
         """
@@ -262,9 +264,9 @@ class UKSIModel:
             FROM synonyms s
             JOIN taxa t ON s.tvk = t.tvk
             WHERE ({syn_clause})
-              AND t.rank IN ('Species', 'Subspecies', 'Variety', 'Form')
+              AND t.rank IN ({_SEARCH_RANKS})
               {filter_clause}
-            LIMIT 100
+            LIMIT 300
         """
         syn_results = self.db.execute_uksi(syn_query, tuple(syn_params + filter_params))
 
@@ -333,21 +335,18 @@ class UKSIModel:
                     'matched_via': 'synonym'
                 }
 
-        # For taxa without common names from search, try to get one
+        # Taxa with no matched common name: the one shown everywhere (shared/common_name_pick.py)
         tvks_without_common = [tvk for tvk, data in tvk_data.items() if data['common_name'] is None]
         if tvks_without_common:
-            # Get first common name for each
             placeholders = ','.join(['?' for _ in tvks_without_common])
             cn_lookup = f"""
                 SELECT tvk, common_name FROM common_names
                 WHERE tvk IN ({placeholders})
-                AND preferred = 1
+                ORDER BY {order_by_sql("common_name", "preferred")}
             """
-            cn_lookup_results = self.db.execute_uksi(cn_lookup, tuple(tvks_without_common))
-            for row in cn_lookup_results:
-                tvk = row['tvk']
-                if tvk in tvk_data and tvk_data[tvk]['common_name'] is None:
-                    tvk_data[tvk]['common_name'] = row['common_name']
+            for row in self.db.execute_uksi(cn_lookup, tuple(tvks_without_common)):
+                if tvk_data[row['tvk']]['common_name'] is None:     # first row per TVK wins
+                    tvk_data[row['tvk']]['common_name'] = row['common_name']
 
         # Rank results
         ranked = []

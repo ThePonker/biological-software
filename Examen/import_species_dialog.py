@@ -77,7 +77,8 @@ def resolve_names(names, uksi) -> list:
     return out
 
 from Examen.style import (BG, TEXT_SECONDARY, TEXT_MUTED, BORDER,
-    SEPARATOR, MOSS_GREEN, ACCENT, ACCENT_DARK, RED_STATUS, WARM_GRAY)
+    SEPARATOR, MOSS_GREEN, ACCENT, ACCENT_DARK, RED_STATUS, WARM_GRAY,
+    MOSS_HOVER_ALT, OUTLINE_HOVER, DISABLED_BG, DISABLED_TEXT)
 from shared.text_sizes import font_css
 
 
@@ -137,13 +138,13 @@ class ImportSpeciesDialog(QDialog):
         resolve_btn = QPushButton("Resolve Names")
         resolve_btn.setStyleSheet(
             "QPushButton { background: " + MOSS_GREEN + "; color: white; border: none; "
-            "padding: 8px 14px; border-radius: 4px; } QPushButton:hover { background: #3d6a4b; }")
+            "padding: 8px 14px; border-radius: 4px; } QPushButton:hover { background: " + MOSS_HOVER_ALT + "; }")
         resolve_btn.clicked.connect(self._on_resolve)
         btn_col.addWidget(resolve_btn)
         clear_btn = QPushButton("Clear")
         clear_btn.setStyleSheet(
             "QPushButton { color: " + WARM_GRAY + "; border: 1px solid " + WARM_GRAY + "; "
-            "padding: 8px 14px; border-radius: 4px; } QPushButton:hover { background: #f0eeec; }")
+            "padding: 8px 14px; border-radius: 4px; } QPushButton:hover { background: " + OUTLINE_HOVER + "; }")
         clear_btn.clicked.connect(self._on_clear)
         btn_col.addWidget(clear_btn)
         btn_col.addStretch()
@@ -173,15 +174,15 @@ class ImportSpeciesDialog(QDialog):
         cancel_btn = QPushButton("Cancel")
         cancel_btn.setStyleSheet(
             "QPushButton { color: " + WARM_GRAY + "; border: 1px solid " + WARM_GRAY + "; "
-            "padding: 6px 16px; border-radius: 4px; } QPushButton:hover { background: #f0eeec; }")
+            "padding: 6px 16px; border-radius: 4px; } QPushButton:hover { background: " + OUTLINE_HOVER + "; }")
         cancel_btn.clicked.connect(self.reject)
         bottom.addWidget(cancel_btn)
         self.use_btn = QPushButton("Use for Analysis")
         self.use_btn.setEnabled(False)
         self.use_btn.setStyleSheet(
             "QPushButton { background: " + MOSS_GREEN + "; color: white; border: none; "
-            "padding: 6px 16px; border-radius: 4px; } QPushButton:hover { background: #3d6a4b; }"
-            "QPushButton:disabled { background: #d1d5db; color: #9ca3af; }")
+            "padding: 6px 16px; border-radius: 4px; } QPushButton:hover { background: " + MOSS_HOVER_ALT + "; }"
+            "QPushButton:disabled { background: " + DISABLED_BG + "; color: " + DISABLED_TEXT + "; }")
         self.use_btn.clicked.connect(self.accept)
         bottom.addWidget(self.use_btn)
         layout.addLayout(bottom)

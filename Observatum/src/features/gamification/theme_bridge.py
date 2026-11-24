@@ -66,69 +66,56 @@ DARK_COLORS = {
 # LIGHT MODE MAPPINGS (For potential light theme support)
 # =============================================================================
 
-def _get_light_colors_from_main() -> Dict[str, str]:
-    """Extract light colors from main theme if available."""
-    if not MAIN_THEME_AVAILABLE:
-        return {}
-    
-    return {
-        "background_primary": NATURALIST_THEME.get("background", "#f5f5f4"),
-        "background_secondary": NATURALIST_THEME.get("surface", "#ffffff"),
-        "background_surface": NATURALIST_THEME.get("surface_alt", "#f9fafb"),
-        "background_border": NATURALIST_THEME.get("border", "#d1d5db"),
-        
-        "text_primary": NATURALIST_THEME.get("text_primary", "#1f2937"),
-        "text_secondary": NATURALIST_THEME.get("text_secondary", "#6b7280"),
-        "text_muted": NATURALIST_THEME.get("text_muted", "#9ca3af"),
-        "text_accent": NATURALIST_THEME.get("primary", "#4a7c59"),
-        
-        "button_primary_bg": NATURALIST_THEME.get("primary", "#4a7c59"),
-        "button_primary_hover": NATURALIST_THEME.get("primary_hover", "#3d6649"),
-        "button_primary_text": NATURALIST_THEME.get("primary_text", "#ffffff"),
-        "button_secondary_bg": NATURALIST_THEME.get("secondary", "#8b8178"),
-        "button_secondary_hover": NATURALIST_THEME.get("secondary_hover", "#6b635b"),
-        "button_danger_bg": NATURALIST_THEME.get("danger", "#a63d40"),
-        "button_danger_hover": NATURALIST_THEME.get("danger_hover", "#8b3033"),
-        
-        "border": NATURALIST_THEME.get("border", "#d1d5db"),
-        "border_hover": NATURALIST_THEME.get("border_hover", "#9ca3af"),
-        "border_accent": NATURALIST_THEME.get("primary", "#4a7c59"),
-        
-        "success": NATURALIST_THEME.get("success", "#4a7c59"),
-        "warning": NATURALIST_THEME.get("warning", "#c9a227"),
-        "danger": NATURALIST_THEME.get("danger", "#a63d40"),
-        "info": NATURALIST_THEME.get("info", "#5c6b7a"),
-    }
+# token -> Naturalist theme key. The one list the light colours are made from.
+_LIGHT_KEYS = {
+    "background_primary": "background",
+    "background_secondary": "surface",
+    "background_surface": "surface_alt",
+    "background_border": "border",
 
+    "text_primary": "text_primary",
+    "text_secondary": "text_secondary",
+    "text_muted": "text_muted",
+    "text_accent": "primary",
 
-LIGHT_COLORS = _get_light_colors_from_main() if MAIN_THEME_AVAILABLE else {
-    "background_primary": "#f5f5f4",
-    "background_secondary": "#ffffff",
-    "background_surface": "#f9fafb",
-    "background_border": "#d1d5db",
-    
-    "text_primary": "#1f2937",
-    "text_secondary": "#6b7280",
-    "text_muted": "#9ca3af",
-    "text_accent": "#4a7c59",
-    
-    "button_primary_bg": "#4a7c59",
-    "button_primary_hover": "#3d6649",
-    "button_primary_text": "#ffffff",
-    "button_secondary_bg": "#8b8178",
-    "button_secondary_hover": "#6b635b",
-    "button_danger_bg": "#a63d40",
-    "button_danger_hover": "#8b3033",
-    
-    "border": "#d1d5db",
-    "border_hover": "#9ca3af",
-    "border_accent": "#4a7c59",
-    
-    "success": "#4a7c59",
-    "warning": "#c9a227",
-    "danger": "#a63d40",
-    "info": "#5c6b7a",
+    "button_primary_bg": "primary",
+    "button_primary_hover": "primary_hover",
+    "button_primary_text": "primary_text",
+    "button_secondary_bg": "secondary",
+    "button_secondary_hover": "secondary_hover",
+    "button_danger_bg": "danger",
+    "button_danger_hover": "danger_hover",
+
+    "border": "border",
+    "border_hover": "border_hover",
+    "border_accent": "primary",
+
+    "success": "success",
+    "warning": "warning",
+    "danger": "danger",
+    "info": "info",
 }
+
+# Used only if Observatum's theme cannot be imported: the Naturalist theme's own values
+# (the 'warning' and 'info' ones here used to differ from the theme's; review 24 Nov 2026).
+_LIGHT_FALLBACKS = {
+    "background": "#f5f5f4", "surface": "#ffffff", "surface_alt": "#f9fafb", "border": "#d1d5db",
+    "text_primary": "#1f2937", "text_secondary": "#6b7280", "text_muted": "#9ca3af",
+    "primary": "#4a7c59", "primary_hover": "#3d6649", "primary_text": "#ffffff",
+    "secondary": "#8b8178", "secondary_hover": "#6b635b", "danger": "#a63d40",
+    "danger_hover": "#8b3033", "border_hover": "#9ca3af", "success": "#4a7c59",
+    "warning": "#d97706", "info": "#2563eb",
+}
+
+
+def _get_light_colors_from_main() -> Dict[str, str]:
+    """The light colours: the main theme's value for each token (its own fallback if the
+    theme cannot be imported)."""
+    return {token: NATURALIST_THEME.get(key, _LIGHT_FALLBACKS[key])
+            for token, key in _LIGHT_KEYS.items()}
+
+
+LIGHT_COLORS = _get_light_colors_from_main()
 
 
 # =============================================================================

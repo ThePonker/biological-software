@@ -233,18 +233,11 @@ def _sqi_cell(s):
 # Telfer's Key Species framework
 # ============================================================
 
-_RARE_V1 = {"RDB1", "RDB 1", "RDB2", "RDB 2", "RDB3", "RDB 3",
-            "RDBK", "RDB K", "RDBI", "RDB I"}
-_RARE_V2 = {"CR", "EN", "VU", "DD", "RE", "EX", "EW"}
-_SCARCE_V2 = {"NT"}
-_RARE_V3 = {"NR"}
-_SCARCE_V3 = {"NS"}
-_SCARCE_V1 = {"NA", "NB", "NOTABLE", "N", "SCARCE"}
-
-
-def _norm(v):
-    return (v or "").strip().upper()
-
+from shared.key_species_rule import (  # noqa: E402
+    ALL_CODES as _ALL_CODES,
+    axis_tier as _shared_axis_tier,
+    norm as _norm,
+)
 
 def telfer_tier(entry):
     """'rare' | 'scarce' | '' for a KeySpeciesEntry, per Telfer (2023).
@@ -272,14 +265,8 @@ def _is_not_native(entry):
 
 def _axis_tier(entry):
     """'rare' | 'scarce' | '' from the rarity and threat statuses alone."""
-    r = _norm(getattr(entry, "rarity", ""))
-    t = _norm(getattr(entry, "threat", ""))
-    tl = _norm(getattr(entry, "threat_legacy", ""))
-    if r in _RARE_V3 or t in _RARE_V2 or tl in _RARE_V1:
-        return "rare"
-    if r in _SCARCE_V3 or r in _SCARCE_V1 or t in _SCARCE_V2 or tl in _SCARCE_V1:
-        return "scarce"
-    return ""
+    return _shared_axis_tier(getattr(entry, "rarity", ""), getattr(entry, "threat", ""),
+                             getattr(entry, "threat_legacy", ""))
 
 
 def status_only_tier(entry):
@@ -387,8 +374,7 @@ def _parts_from_string(s, jurisdiction):
 
 
 # Rarity and threat codes: the statuses a review can downgrade, so the only ones bracketed.
-STATUS_CODES = frozenset(_norm(c) for c in (_RARE_V1 | _RARE_V2 | _SCARCE_V2 | _RARE_V3
-                                            | _SCARCE_V3 | _SCARCE_V1))
+STATUS_CODES = frozenset(_norm(c) for c in _ALL_CODES)
 
 
 # Never bracketed: the IUCN threat categories that are not a status -- least concern, not
@@ -863,7 +849,8 @@ def _sheet_summary(wb, result, detail, project, stamp):
         *([("Rare Key Species (revised)", rare_rev, revised_note)] if any_bracketed else []),
         (None, None, None),
         ("Codex tiers — Rare", result.rare_count,
-         "Codex's own classification; not the same split as Rare Key above."),
+         "Codex's own classification by status. Species that are Key only for a priority "
+         "listing or legal protection are counted under Priority here, not Scarce."),
         ("Codex tiers — Scarce", result.scarce_count, ""),
         ("Codex tiers — Priority", result.priority_count, ""),
         (None, None, None),

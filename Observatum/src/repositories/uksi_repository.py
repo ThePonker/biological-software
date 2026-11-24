@@ -20,10 +20,11 @@ Usage:
 """
 
 import sqlite3
+from dataclasses import asdict
 from typing import List, Dict, Any, Optional
 import paths
-from shared.common_name_pick import order_by_sql
 from shared.db_open import connect_ro  # D9: reference data, read-only
+from ..models.uksi import UKSIModel   # the one implementation (24 Nov 2026)
 
 # Try to import from config
 try:
@@ -44,6 +45,10 @@ class UKSIRepository:
     - taxa: scientific names with embedded taxonomy
     - common_names: English vernacular names
     - synonyms: alternative scientific names
+
+    Since 24 Nov 2026 this is a thin wrapper: every lookup is UKSIModel's (one search, one
+    common-name rule, one set of limits); this class only opens uksi.db read-only and
+    returns plain dicts instead of dataclasses.
     """
     
     def __init__(self, db_path: Optional[str] = None):
@@ -57,9 +62,8 @@ class UKSIRepository:
             self._db_path = db_path
         else:
             self._db_path = str(paths.UKSI_DB)
-        
-        # Cache for taxonomy lookups (TVK -> {family, order, etc})
-        self._taxonomy_cache: Dict[str, Dict[str, str]] = {}
+
+        self._model = UKSIModel(self)       # UKSIModel only needs .execute_uksi(query, params)
     
     # =========================================================================
     # CONNECTION MANAGEMENT
@@ -71,6 +75,10 @@ class UKSIRepository:
         conn.row_factory = sqlite3.Row
         return conn
     
+    def execute_uksi(self, query: str, params: tuple = ()) -> List[sqlite3.Row]:
+        """The one query door UKSIModel uses (same name as DatabaseManager.execute_uksi)."""
+        return self._execute(query, params)
+
     def _execute(self, query: str, params: tuple = ()) -> List[sqlite3.Row]:
         """Execute a query and return all results."""
         conn = self._get_connection()
@@ -82,97 +90,18 @@ class UKSIRepository:
             conn.close()
     
     # =========================================================================
-    # TAXONOMY HIERARCHY
+    # LOOKUPS (all UKSIModel's; results as dicts)
     # =========================================================================
-    
-    def _get_taxonomy_by_hierarchy(self, tvk: str) -> Dict[str, Optional[str]]:
-        """
-        Walk up the parent hierarchy to find taxonomy (Family, Order, etc).
-        
-        Args:
-            tvk: The TaxonVersionKey to look up
-            
-        Returns:
-            Dict with 'family', 'order_name', 'genus', 'class_name', 'phylum', 'kingdom'
-        """
-        # Check cache first
-        if tvk in self._taxonomy_cache:
-            return self._taxonomy_cache[tvk]
-        
-        taxonomy = {
-            'genus': None,
-            'family': None,
-            'order_name': None,
-            'class_name': None,
-            'phylum': None,
-            'kingdom': None
-        }
-        
-        current_tvk = tvk
-        max_depth = 20  # Safety limit
-        depth = 0
-        
-        while current_tvk and depth < max_depth:
-            rows = self._execute(
-                "SELECT scientific_name, rank, parent_tvk FROM taxa WHERE tvk = ?",
-                (current_tvk,)
-            )
-            
-            if not rows:
-                break
-                
-            row = rows[0]
-            rank = row['rank']
-            name = row['scientific_name']
-            parent = row['parent_tvk']
-            
-            # Map rank to taxonomy field
-            if rank == 'Genus' and not taxonomy['genus']:
-                taxonomy['genus'] = name
-            elif rank == 'Family' and not taxonomy['family']:
-                taxonomy['family'] = name
-            elif rank == 'Order' and not taxonomy['order_name']:
-                taxonomy['order_name'] = name
-            elif rank == 'Class' and not taxonomy['class_name']:
-                taxonomy['class_name'] = name
-            elif rank == 'Phylum' and not taxonomy['phylum']:
-                taxonomy['phylum'] = name
-            elif rank == 'Kingdom' and not taxonomy['kingdom']:
-                taxonomy['kingdom'] = name
-            
-            # Stop if we've found Family and Order (most common need)
-            if taxonomy['family'] and taxonomy['order_name']:
-                break
-                
-            current_tvk = parent
-            depth += 1
-        
-        # Cache the result
-        self._taxonomy_cache[tvk] = taxonomy
-        return taxonomy
-    
-    def _get_preferred_common_name(self, tvk: str) -> Optional[str]:
-        """
-        Get the preferred common name for a species.
 
-        uksi.db's common_names table is already English-only (filtered at
-        extraction time by LANGUAGE='en') and carries a preferred flag -
-        exactly one per TVK across all 16,351 TVKs. Trust it. The length
-        tiebreak only applies if a future extract leaves a TVK unflagged.
-        """
-        rows = self._execute(
-            f'''SELECT common_name FROM common_names
-               WHERE tvk = ?
-               ORDER BY {order_by_sql("common_name", "preferred")}
-               LIMIT 1''',
-            (tvk,)
-        )
-        return rows[0]['common_name'] if rows else None
+    @staticmethod
+    def _as_dict(species) -> Optional[Dict[str, Any]]:
+        """A Species as the dict this class has always returned (plus the 'taxon_name' alias)."""
+        if species is None:
+            return None
+        d = asdict(species)
+        d['taxon_name'] = d['scientific_name']  # Alias for compatibility
+        return d
 
-    # =========================================================================
-    # SPECIES SEARCH
-    # =========================================================================
-    
     def search_species(
         self,
         search_term: str,
@@ -181,517 +110,51 @@ class UKSIRepository:
         family_filter: Optional[str] = None,
         recorded_tvks: Optional[List[str]] = None
     ) -> List[Dict[str, Any]]:
-        """
-        Search for species by scientific name or common name.
-        
-        Supports multi-term search: "Rut mac" finds "Rutpela maculata"
-        
-        Implements smart ranking:
-        1. Exact matches first
-        2. Starts-with matches second
-        3. Contains matches third
-        4. Previously recorded species boosted
-        
-        Args:
-            search_term: Text to search for (can be multiple space-separated terms)
-            limit: Maximum results to return
-            order_filter: Filter to specific order (e.g., 'Coleoptera')
-            family_filter: Filter to specific family (e.g., 'Cerambycidae')
-            recorded_tvks: List of TVKs for species user has recorded (for boosting)
-            
-        Returns:
-            List of dicts with tvk, scientific_name, common_name, family, order_name, rank, match_type, score
-        """
-        if len(search_term.strip()) < 2:
-            return []
-        
-        # Split search into terms (for "Rut mac" -> ["Rut", "mac"])
-        search_terms = [t.strip() for t in search_term.split() if t.strip()]
-        
-        if not search_terms:
-            return []
-        
-        # For single short term, require at least 2 chars
-        if len(search_terms) == 1 and len(search_terms[0]) < 2:
-            return []
-        
-        search_lower = search_term.lower()
-        
-        # Build base filter clause
-        filter_clause = ""
-        filter_params = []
-        
-        if order_filter:
-            filter_clause += ' AND t."order" = ?'
-            filter_params.append(order_filter)
-        
-        if family_filter:
-            filter_clause += " AND t.family = ?"
-            filter_params.append(family_filter)
-        
-        # Build multi-term LIKE conditions
-        def build_multi_term_clause(column: str, terms: List[str]) -> tuple:
-            clauses = []
-            params = []
-            for term in terms:
-                clauses.append(f"{column} LIKE ?")
-                params.append(f"%{term}%")
-            return " AND ".join(clauses), params
-        
-        sci_clause, sci_params = build_multi_term_clause("t.scientific_name", search_terms)
-        cn_clause, cn_params = build_multi_term_clause("cn.common_name", search_terms)
-        syn_clause, syn_params = build_multi_term_clause("s.synonym", search_terms)
-        
-        # Search scientific names
-        sci_query = f"""
-            SELECT
-                t.tvk,
-                t.scientific_name,
-                t.family,
-                t."order" as order_name,
-                t.rank
-            FROM taxa t
-            WHERE ({sci_clause})
-              AND t.rank IN ('Species', 'Subspecies', 'Variety', 'Form', 'Species aggregate', 'Species sensu lato', 'Microspecies')
-              {filter_clause}
-            LIMIT 300
-        """
-        sci_results = self._execute(sci_query, tuple(sci_params + filter_params))
-        
-        # Search common names
-        cn_query = f"""
-            SELECT
-                t.tvk,
-                t.scientific_name,
-                t.family,
-                t."order" as order_name,
-                t.rank,
-                cn.common_name
-            FROM common_names cn
-            JOIN taxa t ON cn.tvk = t.tvk
-            WHERE ({cn_clause})
-              AND t.rank IN ('Species', 'Subspecies', 'Variety', 'Form', 'Species aggregate', 'Species sensu lato', 'Microspecies')
-              {filter_clause}
-            LIMIT 300
-        """
-        cn_results = self._execute(cn_query, tuple(cn_params + filter_params))
-        
-        # Search synonyms
-        syn_query = f"""
-            SELECT
-                t.tvk,
-                t.scientific_name,
-                t.family,
-                t."order" as order_name,
-                t.rank,
-                s.synonym
-            FROM synonyms s
-            JOIN taxa t ON s.tvk = t.tvk
-            WHERE ({syn_clause})
-              AND t.rank IN ('Species', 'Subspecies', 'Variety', 'Form', 'Species aggregate', 'Species sensu lato', 'Microspecies')
-              {filter_clause}
-            LIMIT 300
-        """
-        syn_results = self._execute(syn_query, tuple(syn_params + filter_params))
-        
-        # Build results dict (keyed by TVK to deduplicate)
-        results_dict: Dict[str, Dict[str, Any]] = {}
-        recorded_set = set(recorded_tvks) if recorded_tvks else set()
-        
-        # Helper to calculate score
-        def calc_score(text: str, match_type: str, is_recorded: bool) -> int:
-            text_lower = text.lower()
-            base_score = 1000
-            
-            # Exact match
-            if text_lower == search_lower:
-                base_score = 100
-                match_type = 'exact'
-            # Starts with
-            elif text_lower.startswith(search_lower):
-                base_score = 200
-                match_type = 'starts_with'
-            # Contains
-            else:
-                base_score = 300
-                match_type = 'contains'
-            
-            # Boost recorded species
-            if is_recorded:
-                base_score -= 50
-            
-            return base_score, match_type
-        
-        # Process scientific name results
-        for row in sci_results:
-            tvk = row['tvk']
-            is_recorded = tvk in recorded_set
-            score, match_type = calc_score(row['scientific_name'], 'contains', is_recorded)
-            
-            if tvk not in results_dict or score < results_dict[tvk]['score']:
-                results_dict[tvk] = {
-                    'tvk': tvk,
-                    'scientific_name': row['scientific_name'],
-                    'common_name': None,
-                    'family': row['family'],
-                    'order_name': row['order_name'],
-                    'rank': row['rank'],
-                    'match_type': match_type,
-                    'score': score
-                }
-        
-        # Process common name results
-        for row in cn_results:
-            tvk = row['tvk']
-            is_recorded = tvk in recorded_set
-            score, match_type = calc_score(row['common_name'], 'contains', is_recorded)
-            
-            # Common name matches score slightly higher to prioritize
-            score -= 10
-            
-            if tvk not in results_dict:
-                results_dict[tvk] = {
-                    'tvk': tvk,
-                    'scientific_name': row['scientific_name'],
-                    'common_name': row['common_name'],
-                    'family': row['family'],
-                    'order_name': row['order_name'],
-                    'rank': row['rank'],
-                    'match_type': match_type,
-                    'score': score
-                }
-            else:
-                # Update common name if not set
-                if not results_dict[tvk]['common_name']:
-                    results_dict[tvk]['common_name'] = row['common_name']
-                # Update score if better match
-                if score < results_dict[tvk]['score']:
-                    results_dict[tvk]['score'] = score
-                    results_dict[tvk]['match_type'] = match_type
-        
-        # Process synonym results
-        for row in syn_results:
-            tvk = row['tvk']
-            is_recorded = tvk in recorded_set
-            score, match_type = calc_score(row['synonym'], 'contains', is_recorded)
-            
-            # Synonym matches score a bit lower
-            score += 20
-            
-            if tvk not in results_dict:
-                results_dict[tvk] = {
-                    'tvk': tvk,
-                    'scientific_name': row['scientific_name'],
-                    'common_name': None,
-                    'family': row['family'],
-                    'order_name': row['order_name'],
-                    'rank': row['rank'],
-                    'match_type': match_type,
-                    'score': score
-                }
-        
-        # Get common names for results that don't have them
-        for tvk, result in results_dict.items():
-            if not result['common_name']:
-                result['common_name'] = self._get_preferred_common_name(tvk)
-        
-        # Sort by score and return
-        sorted_results = sorted(results_dict.values(), key=lambda x: x['score'])
-        return sorted_results[:limit]
-    
-    # =========================================================================
-    # SPECIES LOOKUP
-    # =========================================================================
-    
+        """UKSIModel.search_species, as dicts with tvk, scientific_name, common_name, family,
+        order_name, rank, match_type, score."""
+        return [asdict(r) for r in self._model.search_species(
+            search_term, limit, order_filter, family_filter, recorded_tvks)]
+
     def get_species_by_tvk(self, tvk: str) -> Optional[Dict[str, Any]]:
-        """
-        Get species details by TVK.
-        
-        Args:
-            tvk: The TaxonVersionKey
-            
-        Returns:
-            Dict with species details or None if not found
-        """
-        rows = self._execute("""
-            SELECT
-                t.tvk,
-                t.scientific_name,
-                t.rank,
-                t.kingdom,
-                t.phylum,
-                t.class,
-                t."order" as order_name,
-                t.family,
-                t.genus,
-                cn.common_name
-            FROM taxa t
-            LEFT JOIN common_names cn ON t.tvk = cn.tvk
-            WHERE t.tvk = ?
-            LIMIT 1
-        """, (tvk,))
-        
-        if not rows:
-            return None
-        
-        row = rows[0]
-        
-        # Get taxonomy from hierarchy if not in taxa table
-        kingdom = row['kingdom']
-        phylum = row['phylum']
-        class_name = row['class']
-        order_name = row['order_name']
-        family = row['family']
-        genus = row['genus']
-        
-        # If any key taxonomy fields are missing, walk the hierarchy
-        if not family or not order_name:
-            taxonomy = self._get_taxonomy_by_hierarchy(tvk)
-            if not genus:
-                genus = taxonomy.get('genus')
-            if not family:
-                family = taxonomy.get('family')
-            if not order_name:
-                order_name = taxonomy.get('order_name')
-            if not class_name:
-                class_name = taxonomy.get('class_name')
-            if not phylum:
-                phylum = taxonomy.get('phylum')
-            if not kingdom:
-                kingdom = taxonomy.get('kingdom')
-        
-        return {
-            'tvk': row['tvk'],
-            'scientific_name': row['scientific_name'],
-            'taxon_name': row['scientific_name'],  # Alias for compatibility
-            'common_name': self._get_preferred_common_name(row['tvk']),
-            'rank': row['rank'],
-            'kingdom': kingdom,
-            'phylum': phylum,
-            'class_name': class_name,
-            'order_name': order_name,
-            'family': family,
-            'genus': genus
-        }
-    
+        """Species details by TVK (dict) or None."""
+        return self._as_dict(self._model.get_species_by_tvk(tvk))
+
     def get_species_by_name(self, scientific_name: str) -> Optional[Dict[str, Any]]:
-        """
-        Get species details by exact scientific name.
-        
-        Args:
-            scientific_name: The scientific name
-            
-        Returns:
-            Dict with species details or None if not found
-        """
-        rows = self._execute("""
-            SELECT tvk FROM taxa WHERE scientific_name = ? LIMIT 1
-        """, (scientific_name,))
-        
-        if not rows:
-            return None
-        
-        return self.get_species_by_tvk(rows[0]['tvk'])
-    
-    def get_taxonomy(self, tvk: str) -> Optional[Dict[str, Any]]:
-        """
-        Get full taxonomy hierarchy for a species.
-        
-        Args:
-            tvk: The TaxonVersionKey
-            
-        Returns:
-            Dict with taxonomy fields or None
-        """
-        species = self.get_species_by_tvk(tvk)
-        if not species:
-            return None
-        
-        return {
-            'kingdom': species.get('kingdom'),
-            'phylum': species.get('phylum'),
-            'class': species.get('class_name'),
-            'order': species.get('order_name'),
-            'family': species.get('family'),
-            'genus': species.get('genus'),
-            'species': species.get('scientific_name'),
-            'rank': species.get('rank')
-        }
-    
-    # =========================================================================
-    # COMMON NAMES & SYNONYMS
-    # =========================================================================
-    
-    def get_common_names(self, tvk: str) -> List[str]:
-        """
-        Get all common names for a species.
-        
-        Args:
-            tvk: The TaxonVersionKey
-            
-        Returns:
-            List of common names
-        """
-        rows = self._execute(
-            "SELECT common_name FROM common_names WHERE tvk = ?",
-            (tvk,)
-        )
-        return [row['common_name'] for row in rows if row['common_name']]
-    
+        """Species details by exact scientific name (dict) or None."""
+        return self._as_dict(self._model.get_species_by_name(scientific_name))
 
     def get_species_batch(self, names: List[str]) -> Dict[str, Optional[Dict[str, Any]]]:
-        """
-        Batch lookup multiple species by exact name match.
-        
-        Much faster than calling get_species_by_name repeatedly.
-        Uses a single SQL query with IN clause.
-        """
-        if not names:
-            return {}
-        
-        results = {}
-        for name in names:
-            results[name] = None
-        
-        placeholders = ",".join(["?" for _ in names])
-        lower_names = [n.lower().strip() for n in names]
-        
-        query = f"""
-            SELECT 
-                t.INPUT_NAME as scientific_name,
-                t.TAXON_VERSION_KEY as tvk,
-                t.AUTHORITY as authority,
-                t.TAXON_GROUP_NAME as taxon_group,
-                t.ORGANISM_GROUP as organism_group,
-                t.RECOMMENDED_NAME as recommended_name
-            FROM uksi t
-            WHERE LOWER(t.INPUT_NAME) IN ({placeholders})
-            AND t.INPUT_NAME = t.RECOMMENDED_NAME
-        """
-        
-        try:
-            rows = self._execute(query, tuple(lower_names))
-            
-            found_by_lower = {}
-            for row in rows:
-                sci_name = row["scientific_name"]
-                found_by_lower[sci_name.lower().strip()] = row
-            
-            for name in names:
-                lower_name = name.lower().strip()
-                if lower_name in found_by_lower:
-                    row = found_by_lower[lower_name]
-                    tvk = row["tvk"]
-                    taxonomy = self._get_taxonomy_by_hierarchy(tvk)
-                    common_name = self._get_preferred_common_name(tvk)
-                    
-                    results[name] = {
-                        "scientific_name": row["scientific_name"],
-                        "tvk": tvk,
-                        "authority": row["authority"],
-                        "common_name": common_name or "",
-                        "taxon_group": row["taxon_group"],
-                        "order_name": taxonomy.get("order", ""),
-                        "family": taxonomy.get("family", ""),
-                        "subfamily": taxonomy.get("subfamily", ""),
-                    }
-        except Exception as e:
-            print(f"[UKSIRepository] Batch lookup error: {e}")
-        
-        return results
+        """Exact-name lookup of many names at once: {name: dict or None}."""
+        return {n: self._as_dict(sp) for n, sp in self._model.get_species_batch(names).items()}
+
+    def get_taxonomy(self, tvk: str) -> Optional[Dict[str, Any]]:
+        """Full taxonomy for a species, or None."""
+        return self._model.get_taxonomy(tvk)
+
+    def get_common_names(self, tvk: str) -> List[str]:
+        """All common names for a species."""
+        return self._model.get_common_names(tvk)
 
     def get_synonyms(self, tvk: str) -> List[str]:
-        """
-        Get all synonyms for a species.
-        
-        Args:
-            tvk: The TaxonVersionKey
-            
-        Returns:
-            List of synonym names
-        """
-        rows = self._execute(
-            "SELECT synonym FROM synonyms WHERE tvk = ?",
-            (tvk,)
-        )
-        return [row['synonym'] for row in rows if row['synonym']]
-    
-    # =========================================================================
-    # REFERENCE LISTS
-    # =========================================================================
-    
+        """All synonyms for a species."""
+        return self._model.get_synonyms(tvk)
+
     def get_orders(self) -> List[str]:
-        """
-        Get list of distinct orders in UKSI.
-        
-        Returns:
-            Sorted list of order names
-        """
-        rows = self._execute("""
-            SELECT DISTINCT scientific_name
-            FROM taxa
-            WHERE rank = 'Order'
-            ORDER BY scientific_name
-        """)
-        return [row['scientific_name'] for row in rows if row['scientific_name']]
-    
+        """Sorted list of order names."""
+        return self._model.get_orders()
+
     def get_families(self, order_name: Optional[str] = None) -> List[str]:
-        """
-        Get list of distinct families, optionally filtered by order.
-        
-        Args:
-            order_name: Filter to specific order (optional)
-            
-        Returns:
-            Sorted list of family names
-        """
-        # For now, just get all families (order filtering requires hierarchy walking)
-        rows = self._execute("""
-            SELECT DISTINCT scientific_name
-            FROM taxa
-            WHERE rank = 'Family'
-            ORDER BY scientific_name
-        """)
-        return [row['scientific_name'] for row in rows if row['scientific_name']]
-    
-    # =========================================================================
-    # HIERARCHY NAVIGATION
-    # =========================================================================
-    
+        """Sorted list of family names (all of them; order_name is not used, as before)."""
+        return self._model.get_families(order_name)
+
     def get_parent(self, tvk: str) -> Optional[str]:
-        """
-        Get the parent TVK for a taxon.
-        
-        Args:
-            tvk: The TaxonVersionKey
-            
-        Returns:
-            Parent TVK or None
-        """
-        rows = self._execute(
-            "SELECT parent_tvk FROM taxa WHERE tvk = ?",
-            (tvk,)
-        )
-        if rows and rows[0]['parent_tvk']:
-            return rows[0]['parent_tvk']
-        return None
-    
+        """The parent TVK, or None."""
+        return self._model.get_parent(tvk)
+
     def get_children(self, tvk: str) -> List[str]:
-        """
-        Get all child TVKs for a taxon.
-        
-        Args:
-            tvk: The TaxonVersionKey
-            
-        Returns:
-            List of child TVKs
-        """
-        rows = self._execute(
-            "SELECT tvk FROM taxa WHERE parent_tvk = ?",
-            (tvk,)
-        )
-        return [row['tvk'] for row in rows]
-    
+        """All child TVKs."""
+        return self._model.get_children(tvk)
+
     # =========================================================================
     # STATISTICS
     # =========================================================================

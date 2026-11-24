@@ -9,6 +9,8 @@ from typing import Any, Optional
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QTableWidgetItem
 
+from shared.display_format import day_dmy
+
 
 class SortItem(QTableWidgetItem):
     """Shows `text`; sorts by `key` (None = empty, sorts first)."""
@@ -38,9 +40,7 @@ def number_item(value: Any) -> SortItem:
 
 def iso_to_dmy(iso: Optional[str]) -> str:
     """'2024-06-01' -> '01/06/2024'; anything shorter than a full date -> ''."""
-    if not iso or len(iso) < 10:
-        return ""
-    return f"{iso[8:10]}/{iso[5:7]}/{iso[:4]}"
+    return day_dmy(iso, other="")
 
 
 def date_item(iso: Optional[str]) -> SortItem:

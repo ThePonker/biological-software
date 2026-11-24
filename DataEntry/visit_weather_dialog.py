@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 
 from DataEntry import theme
 from shared import visit_weather as vw
+from shared.display_format import day_dmy
 from shared.text_sizes import font_css
 
 HEAD = ["Date", "Temperature", "Wind", "Cloud", "Notes"]
@@ -53,8 +54,7 @@ def with_unit(column: int, text: str) -> str:
 
 
 def _dmy(iso: str) -> str:
-    p = iso.split("-")
-    return f"{p[2]}/{p[1]}/{p[0]}" if len(p) == 3 else iso
+    return day_dmy(iso)
 
 
 class VisitWeatherDialog(QDialog):

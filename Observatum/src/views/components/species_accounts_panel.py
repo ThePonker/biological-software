@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (QFrame, QVBoxLayout, QHBoxLayout, QLabel, QPushBu
 from PySide6.QtCore import Qt, Signal
 
 from ...themes import theme
+from shared.display_format import day_dmy
 from shared.text_sizes import font_css
 
 try:
@@ -26,8 +27,7 @@ except Exception:
 
 
 def _ddmmyyyy(s):
-    s = (s or "")[:10]
-    return f"{s[8:10]}/{s[5:7]}/{s[:4]}" if len(s) == 10 and s[4] == "-" else s
+    return day_dmy((s or "")[:10])
 
 
 class SpeciesAccountsPanel(QFrame):

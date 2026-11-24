@@ -16,7 +16,7 @@ from shared.fit_to_screen import fit_to_screen, scroll_body
 
 from Munia.theme import (
     STONE_BORDER, HEADING_FAMILY,
-    TEXT_DARK, TEXT_MID, MOSS_GREEN, DUSTY_PURPLE, AMBER,
+    TEXT_DARK, TEXT_MID, MOSS_GREEN, DUSTY_PURPLE, AMBER, TEXT_OFF,
 )
 from Munia import munia_data as db
 from Munia.munia_data import BIZ_MONTHS, BIZ_LABELS, FIELD_MONTHS
@@ -81,7 +81,7 @@ class BudgetSettingsDialog(QDialog):
             spin.setSuffix(" days")
             is_field = cal_month in FIELD_MONTHS
             if not is_field:
-                spin.setStyleSheet("color: #aaa;")
+                spin.setStyleSheet(f"color: {TEXT_OFF};")
             self._field_spins[cal_month] = spin
             fl.addRow(f"{label}:", spin)
 

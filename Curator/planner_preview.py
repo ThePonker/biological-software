@@ -10,20 +10,24 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushBu
 from PySide6.QtCore import Qt, QRectF
 from PySide6.QtGui import QPainter, QColor, QFont, QPen, QBrush
 from shared.text_sizes import font_css
+from .style import (DANGER, DARK_SAGE, FAMILY_BLUE, FAMILY_PURPLE, GOLD, INK_SOFT, MOSS,
+                    PREVIEW_BOX_FILL, PREVIEW_INK, PREVIEW_LABEL_MUTED, PREVIEW_OUTLINE,
+                    PREVIEW_RULE, PREVIEW_TRACK, SAGE_FILL, TERRACOTTA, TERRACOTTA_DARK,
+                    WARM_GRAY)
 
 
 # Colour palette for family sections (cycle through these)
 FAMILY_COLOURS = [
-    "#c2956e",  # Terracotta
-    "#7a9e7e",  # Sage green
-    "#6e8898",  # Dusty blue
-    "#8b8178",  # Warm grey
-    "#b8860b",  # Gold
-    "#a63d40",  # Muted red
-    "#5f8575",  # Dark sage
-    "#9a7555",  # Dark terracotta
-    "#4a7c59",  # Moss green
-    "#6b5b73",  # Muted purple
+    TERRACOTTA,
+    SAGE_FILL,        # Sage green
+    FAMILY_BLUE,      # Dusty blue
+    WARM_GRAY,        # Warm grey
+    GOLD,
+    DANGER,           # Muted red
+    DARK_SAGE,        # Dark sage
+    TERRACOTTA_DARK,  # Dark terracotta
+    MOSS,             # Moss green
+    FAMILY_PURPLE,    # Muted purple
 ]
 
 
@@ -95,7 +99,7 @@ class BoxCanvas(QWidget):
         box_y = margin_top
 
         # Box title
-        painter.setPen(QColor("#333333"))
+        painter.setPen(QColor(PREVIEW_INK))
         painter.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
         painter.drawText(
             QRectF(0, 4, w, 28), Qt.AlignmentFlag.AlignCenter,
@@ -103,8 +107,8 @@ class BoxCanvas(QWidget):
         )
 
         # Box outline
-        painter.setPen(QPen(QColor("#999999"), 2))
-        painter.setBrush(QBrush(QColor("#fafafa")))
+        painter.setPen(QPen(QColor(PREVIEW_OUTLINE), 2))
+        painter.setBrush(QBrush(QColor(PREVIEW_BOX_FILL)))
         painter.drawRect(QRectF(box_x, box_y, box_w, box_h))
 
         # Draw family sections
@@ -119,7 +123,7 @@ class BoxCanvas(QWidget):
                 y_pos += sf_separator_px
                 sf_count = sum(1 for s in self._sections if s.get("superfamily") == section["superfamily"])
                 if sf_count >= 2 and y_pos + sf_header_h < box_y + box_h:
-                    painter.setPen(QColor("#9a7555"))
+                    painter.setPen(QColor(TERRACOTTA_DARK))
                     painter.setFont(QFont("Segoe UI", 7, QFont.Weight.Bold))
                     painter.drawText(
                         QRectF(box_x + 3, y_pos, box_w - 6, sf_header_h),
@@ -127,7 +131,7 @@ class BoxCanvas(QWidget):
                         f"\u2014 {section['superfamily']} \u2014"
                     )
                     # Thin line under the header
-                    painter.setPen(QPen(QColor("#c2956e"), 0.5, Qt.PenStyle.DashLine))
+                    painter.setPen(QPen(QColor(TERRACOTTA), 0.5, Qt.PenStyle.DashLine))
                     painter.drawLine(
                         int(box_x + 2), int(y_pos + sf_header_h - 1),
                         int(box_x + box_w - 2), int(y_pos + sf_header_h - 1)
@@ -139,7 +143,7 @@ class BoxCanvas(QWidget):
             elif i == 0 and section.get("superfamily"):
                 sf_count = sum(1 for s in self._sections if s.get("superfamily") == section["superfamily"])
                 if sf_count >= 2:
-                    painter.setPen(QColor("#9a7555"))
+                    painter.setPen(QColor(TERRACOTTA_DARK))
                     painter.setFont(QFont("Segoe UI", 7, QFont.Weight.Bold))
                     painter.drawText(
                         QRectF(box_x + 3, y_pos, box_w - 6, sf_header_h),
@@ -181,7 +185,7 @@ class BoxCanvas(QWidget):
             label_x = box_x + box_w + 8
             label_y = y_pos + section_h / 2
 
-            painter.setPen(QColor("#333333"))
+            painter.setPen(QColor(PREVIEW_INK))
             painter.setFont(QFont("Segoe UI", 8))
 
             family_text = section["family"]
@@ -193,7 +197,7 @@ class BoxCanvas(QWidget):
                 family_text
             )
             painter.setFont(QFont("Segoe UI", 7))
-            painter.setPen(QColor("#888888"))
+            painter.setPen(QColor(PREVIEW_LABEL_MUTED))
             painter.drawText(
                 QRectF(label_x, label_y + 1, margin_right - 12, 12),
                 Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
@@ -201,7 +205,7 @@ class BoxCanvas(QWidget):
             )
 
             # Connecting line from section to label
-            painter.setPen(QPen(QColor("#cccccc"), 1, Qt.PenStyle.DotLine))
+            painter.setPen(QPen(QColor(PREVIEW_RULE), 1, Qt.PenStyle.DotLine))
             painter.drawLine(
                 int(box_x + box_w), int(label_y),
                 int(label_x - 3), int(label_y)
@@ -214,19 +218,19 @@ class BoxCanvas(QWidget):
         bar_w = box_w
         bar_h = 10
 
-        painter.setPen(QPen(QColor("#cccccc"), 1))
-        painter.setBrush(QBrush(QColor("#eeeeee")))
+        painter.setPen(QPen(QColor(PREVIEW_RULE), 1))
+        painter.setBrush(QBrush(QColor(PREVIEW_TRACK)))
         painter.drawRect(QRectF(box_x, bar_y, bar_w, bar_h))
 
         fill_w = bar_w * min(self._capacity_pct, 100) / 100
-        fill_colour = QColor("#7a9e7e") if self._capacity_pct < 80 else QColor("#c2956e")
+        fill_colour = QColor(SAGE_FILL) if self._capacity_pct < 80 else QColor(TERRACOTTA)
         if self._capacity_pct > 95:
-            fill_colour = QColor("#a63d40")
+            fill_colour = QColor(DANGER)
         painter.setBrush(QBrush(fill_colour))
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawRect(QRectF(box_x, bar_y, fill_w, bar_h))
 
-        painter.setPen(QColor("#555555"))
+        painter.setPen(QColor(INK_SOFT))
         painter.setFont(QFont("Segoe UI", 8))
         painter.drawText(
             QRectF(box_x, bar_y, bar_w, bar_h),

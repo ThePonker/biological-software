@@ -48,6 +48,7 @@ from typing import Optional
 
 import paths
 from shared.db_open import connect_ro  # D9: reference data, read-only
+from shared import key_species_rule as _ks
 from shared.repositories.pantheon_repository import PantheonRepository
 
 
@@ -259,11 +260,12 @@ def _legal_applies(entry, jurisdiction):
 
 
 # Key-species classification thresholds
-RARE_IUCN_2001   = {"CR", "EN", "VU", "DD", "EX", "RE"}
-SCARCE_IUCN_2001 = {"NT"}
-RARE_LEGACY_RDB   = {"RDB1", "RDB2"}
-SCARCE_LEGACY_RDB = {"RDB3", "RDBK"}
-SCARCE_LEGACY_RARITY = {"Na", "Nb", "Notable"}
+# Aliases of the shared rule (shared/key_species_rule.py, Telfer 2023), kept for importers.
+RARE_IUCN_2001   = _ks.RARE_V2
+SCARCE_IUCN_2001 = _ks.SCARCE_V2
+RARE_LEGACY_RDB   = _ks.RARE_V1
+SCARCE_LEGACY_RDB = set()          # RDB3 and RDBK are Rare (Telfer 2023)
+SCARCE_LEGACY_RARITY = _ks.SCARCE_V1
 
 
 # ============================================================
@@ -1063,34 +1065,18 @@ def _classify(status, jurisdiction=DEFAULT_JURISDICTION):
 
     is_rare = is_scarce = is_priority = False
 
-    # Modern IUCN GB threat
-    if status.threat_iucn_2001:
-        v = status.threat_iucn_2001.value
-        if v in RARE_IUCN_2001:
-            is_rare = True
-        elif v in SCARCE_IUCN_2001:
-            is_scarce = True
-
-    # Modern rarity (NR = rare, NS = scarce)
-    if status.rarity_modern:
-        v = status.rarity_modern.value
-        if v == "NR":
-            is_rare = True
-        elif v == "NS":
-            is_scarce = True
-
-    # Legacy IUCN RDB categories
-    if status.threat_iucn_legacy:
-        v = status.threat_iucn_legacy.value
-        if v in RARE_LEGACY_RDB:
-            is_rare = True
-        elif v in SCARCE_LEGACY_RDB:
-            is_scarce = True
-
-    # Legacy rarity (Na, Nb, Notable -- all scarce)
-    if status.rarity_legacy:
-        if status.rarity_legacy.value in SCARCE_LEGACY_RARITY:
-            is_scarce = True
+    # The Rare / Scarce rule is shared with Examen (shared/key_species_rule.py).
+    tiers = set()
+    if status.threat_iucn_2001:                      # modern IUCN GB threat
+        tiers.add(_ks.threat_tier(status.threat_iucn_2001.value))
+    if status.rarity_modern:                         # modern rarity (NR, NS)
+        tiers.add(_ks.rarity_tier(status.rarity_modern.value))
+    if status.threat_iucn_legacy:                    # legacy RDB categories
+        tiers.add(_ks.legacy_threat_tier(status.threat_iucn_legacy.value))
+    if status.rarity_legacy:                         # legacy rarity (Na, Nb, Notable)
+        tiers.add(_ks.rarity_tier(status.rarity_legacy.value))
+    is_rare = "rare" in tiers
+    is_scarce = "scarce" in tiers
 
     # Legal / priority -- priority tier, but only designations that apply in
     # this jurisdiction. An SBL listing does not make a species key in England.

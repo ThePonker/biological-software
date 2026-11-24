@@ -12,6 +12,7 @@ DATE_NUMBER_FORMAT = "DD/MM/YYYY"      # the Excel number format of a real date 
 _ISO_DAY = re.compile(r"(\d{4})-(\d{2})-(\d{2})(?=$|[T ]\d{2}:\d{2})")
 _ISO_MONTH = re.compile(r"(\d{4})-(\d{2})$")
 _ISO_TIME = re.compile(r"[T ](\d{2}:\d{2})")
+_DAY_START = re.compile(r"(\d{4})-(\d{2})-(\d{2})")
 
 
 # Record-table columns that hold a stored ISO date or timestamp, in the order a table offers them
@@ -34,6 +35,21 @@ def dmy(iso):
     if m and 1 <= int(m.group(2)) <= 12:
         return f"{m.group(2)}/{m.group(1)}"
     return s
+
+
+def day_dmy(value, other=None):
+    """'2026-05-05' (or '2026-05-05T10:00', any text that starts with a whole ISO day)
+    -> '05/05/2026'.
+
+    The plain day-for-day swap that several tables used to write for themselves. Anything that
+    does not start with a whole day is returned unchanged (None -> ''), or as `other` if given
+    (e.g. other='' to show nothing, other='\u2014' for a dash). A month ('2021-06') is NOT turned
+    into '06/2021' here; use dmy() for that."""
+    s = "" if value is None else str(value)
+    m = _DAY_START.match(s)
+    if m:
+        return f"{m.group(3)}/{m.group(2)}/{m.group(1)}"
+    return s if other is None else other
 
 
 def dmy_time(stamp):

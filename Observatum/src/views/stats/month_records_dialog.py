@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 
 from ..components.natural_sort_proxy import NaturalItem
 from ...themes import theme
+from shared.display_format import day_dmy
 from shared.text_sizes import font_css
 
 MONTH_NAMES = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July',
@@ -62,9 +63,7 @@ def month_records(execute: Callable, by_species: Callable, species_name: str,
 
 
 def _fmt_date(d: str) -> str:
-    if d and len(d) >= 10:
-        return f"{d[8:10]}/{d[5:7]}/{d[:4]}"
-    return d or ''
+    return day_dmy(d)
 
 
 class MonthRecordsDialog(QDialog):

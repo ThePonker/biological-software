@@ -9,7 +9,8 @@ from PySide6.QtGui import QColor, QFont, QBrush
 from Munia.theme import (
     STONE_LIGHT, STONE_BORDER, BODY_FAMILY, HEADING_FAMILY,
     TEXT_DARK, TEXT_MID, TEXT_LIGHT, MOSS_GREEN, DUSTY_PURPLE,
-    AMBER, FADED_CRIMSON, WARM_GRAY_LIGHT
+    AMBER, FADED_CRIMSON, WARM_GRAY_LIGHT,
+    ERROR_TINT, SEASON_GREEN, SEASON_PURPLE, SEASON_AMBER
 )
 from Munia import munia_data as db
 from Munia.munia_data import BIZ_MONTHS, BIZ_LABELS
@@ -27,9 +28,9 @@ TABLE_STYLE = (
     f"border-bottom: 1px solid {STONE_BORDER}; padding: 4px; }}")
 # Season tints by display column (1-indexed: col 1=Apr .. col 12=Mar)
 SEASON_TINT = {}
-for _c in (1, 2, 3, 4):     SEASON_TINT[_c] = "#edf5ef"   # Apr-Jul green
-for _c in (5, 6, 7):        SEASON_TINT[_c] = "#eee9f3"   # Aug-Oct purple
-for _c in (8, 9):           SEASON_TINT[_c] = "#f7f0e0"   # Nov-Dec amber
+for _c in (1, 2, 3, 4):     SEASON_TINT[_c] = SEASON_GREEN   # Apr-Jul green
+for _c in (5, 6, 7):        SEASON_TINT[_c] = SEASON_PURPLE   # Aug-Oct purple
+for _c in (8, 9):           SEASON_TINT[_c] = SEASON_AMBER   # Nov-Dec amber
 
 
 class CapacityDashboard(QWidget):
@@ -141,7 +142,7 @@ class CapacityDashboard(QWidget):
         font_wt = QFont.Bold if (bold or sub_idx == 0) else QFont.Normal
         item.setFont(qfont('body', BODY_FAMILY, font_wt))
         if sub_idx == 3 and value < 0:
-            item.setBackground(QBrush(QColor("#fef2f2")))
+            item.setBackground(QBrush(QColor(ERROR_TINT)))
         elif col in SEASON_TINT:
             item.setBackground(QBrush(QColor(SEASON_TINT[col])))
         self.field_table.setItem(row, col, item)
