@@ -921,9 +921,9 @@ class InfoPanel(QWidget):
             self._wb_title.setText("No records yet")
             self._clear_wb_grid()
             return
-        _t = f"{records} record{'s' if records != 1 else ''}  \u00b7  {species} species"
-        if individuals is not None:
-            _t += f"  \u00b7  {individuals} individuals"
+        _t = f"{records:,} record{'s' if records != 1 else ''}  \u00b7  {species:,} species"
+        if individuals is not None:   # own line: on one line it wrapped and split the number from its word
+            _t += f"\n{individuals:,} individual{'s' if individuals != 1 else ''}"
         self._wb_title.setText(_t)
         from PySide6.QtWidgets import QLabel
         self._clear_wb_grid()

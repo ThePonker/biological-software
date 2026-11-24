@@ -133,6 +133,20 @@ def test_workbook_summary_error_is_not_zero_figures(qapp):  # noqa: F811
     assert "0 records" not in title.text()
 
 
+def test_workbook_individuals_on_their_own_line(qapp):  # noqa: F811
+    """24 Nov 2026: on one line the card wrapped and split the individuals number from its word."""
+    from DataEntry.info_panel import InfoPanel
+    title = QLabel("old")
+    panel = SimpleNamespace(_wb_fn=lambda: (634, 297, [], 2150), _wb_title=title,
+                            _clear_wb_grid=lambda: None, _WB_PER_COL=InfoPanel._WB_PER_COL,
+                            _wb_grid=SimpleNamespace(addWidget=lambda *a, **k: None))
+    InfoPanel.refresh_workbook(panel)
+    assert title.text() == "634 records  ·  297 species\n2,150 individuals"
+    panel._wb_fn = lambda: (1, 1, [], 1)
+    InfoPanel.refresh_workbook(panel)
+    assert title.text() == "1 record  ·  1 species\n1 individual"
+
+
 # -- family detail panel -----------------------------------------------------------------------
 def test_british_count_unreadable_is_not_zero(tmp_path):
     from src.views.collection.family_detail_panel import FamilyDetailPanel as P
