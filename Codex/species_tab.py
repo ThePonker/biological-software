@@ -14,7 +14,7 @@ from PySide6.QtCore import Qt, QTimer
 
 from . import theme
 from shared.text_sizes import font_css
-from shared.key_species_rule import code_label
+from shared.key_species_rule import code_label, label_codes as code_label_text
 
 
 # ============================================================
@@ -444,7 +444,7 @@ class SpeciesTab(QWidget):
 
         display = summary.get("status_display", "")
         if display:
-            status_lbl = QLabel(display)
+            status_lbl = QLabel(code_label_text(display))      # "Na (Notable A)" on screen
             status_lbl.setStyleSheet(
                 f"font-size: {font_css('body')}; font-weight: 600; color: {theme.TEXT_PRIMARY};"
             )

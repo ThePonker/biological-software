@@ -86,6 +86,10 @@ class AddSpecimenDialog(QDialog):
         # Populate fields if editing
         if existing_specimen:
             self._populate_from_existing(existing_specimen)
+            # the VC box and the map follow the grid ref only when it is edited: fill them
+            # once for the stored grid ref, so an opened specimen shows them (25 Nov 2026)
+            self._validate_grid_ref()
+            self._refresh_loc_map()
     
     def _setup_ui(self):
         """Set up the user interface."""

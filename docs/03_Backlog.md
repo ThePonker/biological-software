@@ -1,6 +1,6 @@
 # Backlog
 
-## Updated 19 November 2026 (report tools: Round A and follow-ups committed; see "Next (19 Nov)"); older sections below
+## Updated 25 November 2026 (Rounds 2-4, Na/NA, Make specimens, sandbox; see "Next (25 Nov)"); older sections below
 ## Check this before starting a session.
 
 This file is the working list: how we work, what is next, what is decided but not built,
@@ -27,6 +27,46 @@ comes first either way. *(Update 24 Oct: Q1 was settled by the order of work of 
 24 Oct plan below; Rounds 5–11 are built, see "Next (24 Oct)".)*
 
 ---
+
+## Next (25 Nov): Make specimens live; data tidies before Hook and Scunthorpe commit
+
+**Committed and pushed (to `070c029`), Wil's tests passed, full suite 2,808 passed, reference
+check ALL MATCH:**
+- Round 2 tidy-up; photo health check; nightly encrypted backup to the USB pen (D:) with "last backed
+  up" (Wil's list item 11 -- done); unused `grid_ref_service.py` removed.
+- Round 3 "one rule in one place" (`bd25166`): Rare/Scarce rule, grid squares, one UKSI lookup, dates
+  and colours. Tidy + SQI halves round up (`6c282f9`).
+- Round 4 + Notable A / NA (`bb3f002`, Observatum/Data Entry parts in `25570c9`): 1994 fly codes
+  count as Key; native SQS-0 rule (JNCC NA, or Pantheon 0 with no JNCC assessment), listed in
+  Examen; scheme stats count taxa; specimen unlink on delete; iRecord sync holds rows on a lookup
+  failure; VC from grid ref (one rule); workbook loader keeps qty; initials required; Na/NA told
+  apart by line, imports refuse mis-spelt codes, Codex/Examen label both. Data scripts applied 24
+  Nov: 703 OBS-USR keys -> WJH; grid_precision filled (2,422).
+- **Make specimens** (`25570c9`): Keep column in Data Entry (K ticks; "made N" once made; header
+  sort puts made rows first) and Observation Data action; review screen (one per row up to the
+  No. less any made; condition Good; prep from order; storage/drawer optional); preview with
+  rec./det.; backup; linked at commit, taking the record's final details. Keep column added live
+  25 Nov (`add_staging_check_columns.py --apply`). Tried in the sandbox: commit route,
+  Observation Data route, delete with unlink -- all passed.
+- **Sandbox** (`scripts\make_sandbox.py`, `launchers\run_sandbox.bat`): a copy of the data at
+  `C:\BiologicalSoftware_Sandbox`; banner and title say SANDBOX; backups, photos and the CSV
+  backup stay inside it. Use it to try a round before it touches live data.
+- Delete box names grid ref, No. and sex (`070c029`).
+
+**Delivered 25 Nov, Wil to test and commit:** Edit Specimen fills VC and map on opening (F119);
+Codex status line labels Na / NA; `scripts\_oneoff\tidy_names_20261125.py` (F118, F120).
+
+**Before committing Hook (job 4):** row 482 is empty apart from a copied VC (delete or leave);
+possible doubles 89/83, 90/85 (re-typed on 18 Sep?), 166/137 (*Noctua pronuba* twice in one MV
+list), 417/413 and 646/644 (same sample, different counts -- separate traps?).
+**Before committing Scunthorpe:** run the tidy script (F118).
+
+**Open, small:** spider (Araneae) default preparation (Wil: alcohol?); a pre-commit check for
+Stage / Method / Sex values (F121); the six name questions (F120); freeze Coedely and Warwick in
+`reference_figures.json`.
+**Wil to decide:** one spelling per person on records (F120 -- affects stats and iRecord).
+**Next options:** Katy's laptop install (item 10) with an away-mode test first; Data Entry banner
+redesign (item 4); data tidies F15/F16; bracket renames (34).
 
 ## Next (19 Nov): report tools done -- stop adding to them until a real report shows a gap
 

@@ -62,6 +62,13 @@ def code_label(code):
     return CODE_LABELS.get(c, code)
 
 
+def label_codes(text):
+    """A status line for the screen with Na / NA spelt out ("VU, Na" -> "VU, Na (Notable A)").
+    Whole codes only, exact case; reports keep the plain codes."""
+    import re
+    return re.sub(r"(?<![\w(])(Na|NA)(?![\w)]| \()", lambda m: CODE_LABELS[m.group(1)], text or "")
+
+
 def case_problem(track, value):
     """'' when value is fine on track, else why not: Notable A must be "Na" on a rarity
     line, and Not Applicable "NA" on a threat line. Only NA-like values are checked."""

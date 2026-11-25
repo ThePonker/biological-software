@@ -258,3 +258,24 @@ def test_edit_specimen_keeps_and_edits_curatorial_fields(qapp):
     d.drawer_edit.setText("")
     data = d.get_specimen_data()
     assert (data["storage_location"], data["drawer_number"]) == ("", "")
+
+
+def test_an_opened_specimen_shows_its_vc_and_map(qapp):
+    """Edit Specimen filled the VC box and the map only when the grid ref was edited; an
+    opened specimen showed 'Vice County' and 'no location' (Wil, 25 Nov 2026)."""
+    from src.views.dialogs.add_specimen_dialog import AddSpecimenDialog
+
+    class VC:
+        def validate_grid_ref(self, g):
+            return True, ""
+
+        def get_vice_county(self, g):
+            return {"number": 12, "name": "North Hampshire"}
+
+    spec = {"id": 9, "species_name": "Carabus violaceus", "grid_ref": "SU752543"}
+    d = AddSpecimenDialog(None, None, VC(), existing_specimen=spec)
+    assert d.vc_info_label.text() == "VC12: North Hampshire"
+    seen = []
+    d._loc_map = type("M", (), {"update_for_row": lambda self, row: seen.append(row)})()
+    d._refresh_loc_map()
+    assert seen == [{"grid_ref": "SU752543"}]

@@ -92,3 +92,10 @@ def test_apply_status_refuses_the_wrong_spelling_before_deleting():
     assert c.execute("SELECT status_value FROM status_summary").fetchall() == [("Na",)]
     apply_status(c, "T1", "threat_iucn_2001", "NA", None, "test", "2026-11-24")
     assert ("NA",) in c.execute("SELECT status_value FROM status_summary").fetchall()
+
+
+def test_label_codes_spells_out_na_on_screen_once():
+    assert ks.label_codes("VU, Na") == "VU, Na (Notable A)"
+    assert ks.label_codes("EN; NA") == "EN; NA (not applicable)"
+    assert ks.label_codes("Na (Notable A)") == "Na (Notable A)"      # never twice
+    assert ks.label_codes("Nb") == "Nb" and ks.label_codes("NAT") == "NAT" and ks.label_codes("") == ""

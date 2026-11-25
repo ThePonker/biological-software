@@ -1,10 +1,10 @@
 # Faults
 
-## Updated 19 November 2026
+## Updated 25 November 2026
 ## Open faults carry an action. Closed ones are kept in brief, because knowing
 ## what has already gone wrong is how the rules in `05` were earned. Older closed
 ## faults are in `06b_Faults_Closed.md` (split out 12 Oct). New faults take the
-## next free number (F118 next).
+## next free number (F122 next).
 
 ---
 
@@ -195,6 +195,30 @@ crash). The timer now belongs to the chart (dropped with it) and checks the cont
 the first unsupported selector in that sheet (not checked separately); the 1940s header rules sit before it. **Action:** if per-tab colours are wanted, set them in code on tab
 change (with the theme work, Round 21 or later); otherwise remove the dead rules.
 
+### F118. Fifteen Scunthorpe staged rows shifted one column
+*Found 25 Nov (name survey).* Data Entry job "Scunthorpe Data", rows 627-641 (Pitfall 6, 20/06/2026,
+staging ids 1945-1959), from the 28 Aug import: Stage "Certain", Method "Adult", Determiner
+"Pitfall trap" -- each value one column to the right of where it belongs. The pre-commit check did
+not notice (see F121). **Action:** `scripts\_oneoff\tidy_names_20261125.py` part B sets Stage Adult,
+Method Pitfall trap, Determiner Heeney, W.J., as the rows around them (guarded on the wrong values).
+Run before committing Scunthorpe.
+
+### F120. Person names spelt more than one way
+*Found 25 Nov.* Specimens: "Heeeney, WJ." (7), "Falk, S." (384), "S. Falk" (20), "Heeney, W.J, Lamin,
+J." (27) and a few more against "Heeney, W.J." / "Falk, S.J." -- fixed by
+`tidy_names_20261125.py` part A (446 values). Six are left as questions for Wil (Lamin, L.;
+Skinner, M.S.; "Mann, Slade"; "Mann"; "Luff, Martin"; "Pott, K."). **Records (observations) are far
+wider:** recorder/determiner hold "Heeney, Wil" (about 20,300 values counted as name parts),
+"Heeney" (about 5,500), "Heeney, Wil. Lamin" and full first names for co-recorders. Changing those
+moves recorder filters, stats and what goes to iRecord. **Wil to decide** whether and how
+(one spelling per person, applied by a dry-run script).
+
+### F121. The pre-commit check does not look at Stage / Method values
+The F118 rows passed *Check before commit*: it checks dates, counts, site, grid ref, VC, recorder,
+species and doubles, but not that Stage, Method or Sex hold a value from their own list. Staging also
+holds case variants ("Pitfall Trap" 11, "Field Observation" 5, "not recorded" 2). **Action:** a check
+that lists rows whose Stage / Method / Sex / Determiner is not a known value (small; not built).
+
 ### F111. A pytest-xdist worker crash ("node down") in Claude's workspace
 Seen twice (Round 19 and Round 20 full runs, Linux offscreen, `-n 3`), not reproduced on Wil's PC (2,321
 and 2,340 passed). **Watch:** if it appears on the PC, run that file alone with `-p no:randomly -x`.
@@ -202,6 +226,11 @@ and 2,340 passed). **Watch:** if it appears on the PC, run that file alone with 
 ---
 
 ## Closed since 10 October
+
+### F119. Edit Specimen showed "no location" and an empty VC box -- CLOSED 25 Nov
+The VC box and the mini map followed the grid ref only when it was edited (`editingFinished`);
+opening a stored specimen filled the box in code, so neither updated. They are now filled once
+after loading (`add_specimen_dialog`; test in `test_r9c.py`).
 
 ### F116. A Data Entry commit left the empty grid rows, so the job stayed open -- CLOSED 19 Nov
 Spare grid lines kept a fully committed job "active" until discarded by hand (Nottingham, 18 Nov:
