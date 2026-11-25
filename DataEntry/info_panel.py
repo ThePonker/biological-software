@@ -113,6 +113,7 @@ class _FlowRow(QWidget):
                 w.show()
             self._more.hide()
             return
+        self._shorten_to_fit(avail)
         widths = [w.sizeHint().width() for w in self._items]
         total = sum(widths) + self.SPACING * (len(widths) - 1)
         if total <= avail:
@@ -135,6 +136,18 @@ class _FlowRow(QWidget):
         for i, w in enumerate(self._items):
             w.setVisible(i < keep)
         self._more.show()
+
+    def _shorten_to_fit(self, avail):
+        """A pill carrying fit_texts (longest first) takes the longest that fits the row."""
+        for w in self._items:
+            texts = getattr(w, "fit_texts", None)
+            if not texts:
+                continue
+            others = sum(o.sizeHint().width() + self.SPACING for o in self._items if o is not w)
+            for t in texts:
+                w.setText(t)
+                if others + w.sizeHint().width() <= avail:
+                    break
 
 
 class _PopOut(QWidget):
@@ -199,6 +212,28 @@ class InfoService:
         except sqlite3.Error:
             pass
         return (personal, commercial, specimens)
+
+    def kept_to_make(self, tvk: str):
+        """(rows, male, female, other): Data Entry rows ticked Keep and not made yet, for a
+        TVK, across every open job -- one specimen each, as Make specimens starts (Wil,
+        25 Nov 2026). Made rows have their tick cleared, so they are never counted twice."""
+        if not tvk:
+            return (0, 0, 0, 0)
+        try:
+            from DataEntry.staging_repo import PENDING_STATUSES
+            rows = self._main.execute(
+                "SELECT s.sex FROM entry_staging s JOIN entry_jobs j ON j.id = s.job_id "
+                "WHERE s.species_tvk = ? AND CAST(s.keep_flag AS INTEGER) = 1 "
+                f"AND j.status IN ({','.join('?' * len(PENDING_STATUSES))})",
+                (tvk, *PENDING_STATUSES)).fetchall()
+        except (sqlite3.Error, ImportError):
+            return (0, 0, 0, 0)
+        try:
+            from shared.sex_summary import count_sexes
+            male, female, other = count_sexes(r[0] for r in rows)
+        except ImportError:
+            male, female, other = 0, 0, len(rows)
+        return (len(rows), male, female, other)
 
     def specimen_sexes(self, tvk: str):
         """(male, female, other) specimens held for a TVK.
@@ -993,25 +1028,45 @@ class InfoPanel(QWidget):
         # "7 unsexed" adds nothing the total does not already give.
         male = female = other = 0
         st = f"Spec. {s}"
+        summary = ""
+        fmt = None
         try:
-            from shared.sex_summary import format_sex_summary
+            from shared.sex_summary import format_sex_summary as fmt
             male, female, other = self._svc.specimen_sexes(tvk)
-            summary = format_sex_summary(male, female, other)
+            summary = fmt(male, female, other)
             if summary:
                 st = f"Spec. {s} ({summary})"
         except (ImportError, AttributeError):
             pass
 
-        spec_pill = self._pill(st)
         if male or female:
-            spec_pill.setToolTip(
-                f"{s} specimen(s) held \u2014 {male} male, {female} female"
-                + (f", {other} not yet sexed" if other else "")
-                + ".\nFrom the Insect Collection.")
+            spec_tip = (f"{s} specimen(s) held \u2014 {male} male, {female} female"
+                        + (f", {other} not yet sexed" if other else "")
+                        + ".\nFrom the Insect Collection.")
         else:
-            spec_pill.setToolTip(
-                f"{s} specimen(s) held in the Insect Collection."
-                + (" None sexed yet." if s else ""))
+            spec_tip = (f"{s} specimen(s) held in the Insect Collection."
+                        + (" None sexed yet." if s else ""))
+        # rows ticked Keep, not made yet, any open job: "+k to keep" (Wil, 25 Nov 2026)
+        try:
+            k, km, kf, ko = self._svc.kept_to_make(tvk)
+        except AttributeError:
+            k = km = kf = ko = 0
+        texts = [st]
+        if k:
+            ksum = fmt(km, kf, ko) if fmt else ""
+            short = f"Spec. {s}"
+            texts = [f"{st} \u00b7 +{k} to keep" + (f" ({ksum})" if ksum else ""),
+                     f"{st} \u00b7 +{k} to keep", f"{short} (+{k} to keep)", f"{short} (+{k})"]
+            spec_tip += (f"\n\n+{k} to keep: row(s) ticked Keep in Data Entry, across every open "
+                         f"job, not made yet" + (f" \u2014 {km} male, {kf} female"
+                                                 + (f", {ko} not sexed" if ko else "")
+                                                 if (km or kf) else "")
+                         + ".\nCounted one per row, as Make specimens starts; it can take more "
+                           "from a row.")
+        spec_pill = self._pill(texts[0])
+        if len(texts) > 1:
+            spec_pill.fit_texts = texts
+        spec_pill.setToolTip(spec_tip)
 
         pills = [self._pill(pt), self._pill(ct)]
         for w in pills:
