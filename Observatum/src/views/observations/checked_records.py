@@ -80,7 +80,8 @@ class CheckedByIdMixin:
 
 
 def describe_records(records: List[Dict], limit: int = 15) -> str:
-    """One line per record -- species, date, site -- the first `limit`, then 'and N more'.
+    """One line per record -- species, date, site, then grid ref, No. and sex when known --
+    the first `limit`, then 'and N more'.
 
     For confirmation dialogs, so a delete names what it will delete.
     """
@@ -103,7 +104,12 @@ def describe_records(records: List[Dict], limit: int = 15) -> str:
                 pass
         date = date or "no date"
         site = val(r, "site_name", "location") or "no site"
-        lines.append(f"• {species} — {date} — {site}")
+        # grid ref, No. and sex too, so look-alike records can be told apart (25 Nov 2026)
+        more = [val(r, "grid_ref", "grid_reference"),
+                f"No. {val(r, 'quantity')}" if val(r, "quantity") else "",
+                val(r, "sex") if val(r, "sex").strip().lower() not in ("", "not recorded") else ""]
+        tail = "".join(f" — {m}" for m in more if m)
+        lines.append(f"• {species} — {date} — {site}{tail}")
     extra = len(records) - limit
     if extra > 0:
         lines.append(f"…and {extra} more")

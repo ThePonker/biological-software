@@ -283,11 +283,11 @@ Folders: `data\reviews\<group>_brc_atlas_<year>\` (also `_ite_`, `_cox_`, `_bsbi
 ### Keeping every status the newest review's
 
 JNCC's spreadsheet does not enforce it. After any review load or JNCC update run
-`check_legacy_conflicts.py`, `check_newest_review.py` (archived 24 Nov 2026), `check_old_names.py`.
+`check_legacy_conflicts.py`, `check_newest_review.py` (archived 24 Nov 2026), `clear_old_names.py`.
 Corrections are manual entries with value `'none'` (status removed), naming the
 review that superseded or withdrew the status -- they survive rebuilds (proven
 4 Oct): `clear_stale_legacy.py [--all]`, `withdraw_statuses.py`,
-`check_old_names.py --apply`, `clear_legacy_detail.py` (rows stored with a
+`clear_old_names.py --apply`, `clear_legacy_detail.py` (rows stored with a
 status_detail). Withdrawals match exact names only, and clear only statuses
 **older than the excluding review**; newer ones are reported as kept.
 `restore_wrong_withdrawals.py` undoes any that hit a different species.

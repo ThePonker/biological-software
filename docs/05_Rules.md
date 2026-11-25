@@ -94,7 +94,7 @@ Hyman's statuses). Read every review's front matter for an excluded-species list
 **JNCC's spreadsheet does not enforce this.** It kept old designations beside
 newer ones (71 species) and carried only part of the provisional fly reviews.
 After loading any review, run `check_legacy_conflicts.py`,
-`check_newest_review.py` (archived 24 Nov 2026) and `check_old_names.py`.
+`check_newest_review.py` (archived 24 Nov 2026) and `clear_old_names.py`.
 
 **Where a report contradicts itself, the data sheet wins over the summary
 table.** The sheet is where the assessment and its reasoning are made (NECR234:

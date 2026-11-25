@@ -223,18 +223,20 @@ Current scoring and Pantheon's published scores alone; key species after the jur
 | Bicester Graven Hill 2025 | 253 | 19 | 126 | 125 | 21 |
 | Birmingham - Wheels Park 2026 | 195 | 7 | 116 | 105 | 8 |
 | Bristol 2026 (with Jon Moore's records, 15 Oct) | 196 | 5 | 105 | 105 | 6 |
-| Derby 2025 | 230 | 4 | 100 | 99 | 6 |
-| Elmley 2026 | 40 | 7 | 183 | 184 | 7 |
-| Fermyn Hall Wood Deadwood 2024 | 49 | 7 | 157 | 153 | 8 |
-| Kent Deadwood 2024 | 376 | 75 | 181 | 175 | 82 |
+| Derby 2025 | 230 | 4 | **99** | 99 | 6 |
+| Elmley 2026 | 40 | 7 | **185** | 184 | 7 |
+| Fermyn Hall Wood Deadwood 2024 | 49 | 7 | **153** | 153 | 8 |
+| Kent Deadwood 2024 | 376 | 75 | **180** | 175 | 82 |
 | Long Hanborough 2025 | 118 | 10 | 112 | 111 | 12 |
-| Machen 2024 | 321 | 16 | 120 | 114 | 19 |
+| Machen 2024 | 321 | **17** | 120 | 114 | 19 |
 | Nottingham Business Park 2026 (added 19 Nov) | 141 | 2 | 108 | 97 | 2 |
 | Slade Green 2026 | 343 | 44 | 153 | 147 | 44 |
 | Sundon 2026 (with Jon Moore's records; see below) | 231 | 19 | 125 | 114 | 19 |
 | Tilbury 2025 | 238 | 4 | 100 | 99 | 5 |
 
 **SQI halves round up (24 Nov).** Python's `round()` sends an exact half to the even number, and the SQI was computed in binary floating point (73 / 40 × 100 = 182.49999…). The SQI is now rounded half up from the exact ratio (`shared/rounding.py`): Elmley 2026 182.5 → **183** (Codex Full; its issued report gave 182). No other survey SQI is exactly .5. Habitat/assemblage SQIs that move (+1): Kent Deadwood rich flower resource 138 → 139, Sundon decaying wood 162 → 163, Warwick tree-associated (Pantheon Only) 148 → 149; four others are exactly .5 but below Pantheon's 15 scoring species, so they are shown as "(n spp)" anyway. The Saproxylic SQI (one decimal place) uses the same rounding.
+
+**Round 4A, 24 Nov (Wil agreed each change).** (1) *1994-criteria fly statuses are Rare Key.* The legacy threat track holds, besides RDB codes, CR / EN / VU / DD / NT from JNCC's "Red Listing based on 1994 IUCN guidelines" (Falk & Chandler 2005; Falk & Crossley 2005, the fly reviews). They now count as **Rare** in the one shared rule (`shared/key_species_rule.py`; NT too, because in those reviews NT means 15 or fewer hectads, the Nationally Rare threshold). In Codex, 216 species change tier (210 from not Key, 5 from Priority, 1 from Scarce, all to Rare). Machen 2024 key 16 → **17** (*Hilara medeteriformis*); no other survey's key or Pantheon Only key moves. (2) *Native rule for derived scores.* A species Pantheon has not scored now gets SQS 0 (no score, so not analysed unless Pantheon holds it) when JNCC's 2001 status is NA, or when Pantheon publishes 0 for it (through the TVK bridge) and JNCC has no 2001 assessment of its own (none, or NE). Any other JNCC assessment keeps its derived score. 244 species lose a derived score (237 had 1, 6 had 8, 1 had 4). Codex Full SQI: Elmley 2026 183 → **185**, Fermyn Hall Wood 157 → **153**, Kent Deadwood 181 → **180**, Derby 100 → **99**; Warwick 2026 115 → **114** (not in the frozen table). Pantheon-scores-only and Pantheon Only figures are unchanged. Examen's workbook basis lists the species set to 0 and why. Also moving (Codex Full): the scoring-species count drops by 1 at Bicester Graven Hill 2023 and 2025 and Slade Green 2026 (SQI unchanged); Fermyn's tree-associated SQIs 175 → 169 and 182 → 176, and its bark & sapwood SAT 14 → 12.
 
 **Invertebrates only (18 Nov, `dc82d40`).** Plants, fungi and vertebrates entered by mistake or
 noted incidentally are no longer counted as species (`shared/invertebrate_filter.py`: a record's

@@ -263,3 +263,14 @@ def test_deselect_all_clears_single_ticks_in_one_click(obs_tab):
     assert btn.text() == "Deselect All"
     btn.click()
     assert m.get_checked_ids() == [] and btn.text() == "Select All"
+
+
+def test_describe_records_tells_look_alike_records_apart():
+    from src.views.observations.checked_records import describe_records
+    recs = [{"species_name": "Pardosa amentata", "date": "", "site_name": "Hook",
+             "grid_ref": "SU752543", "quantity": 8, "sex": "Female"},
+            {"species_name": "Pardosa amentata", "date": "", "site_name": "Hook",
+             "grid_ref": "SU 74222 53868", "quantity": 1, "sex": "Not recorded"}]
+    a, b = describe_records(recs).splitlines()
+    assert a.endswith("Hook — SU752543 — No. 8 — Female")
+    assert b.endswith("Hook — SU 74222 53868 — No. 1")

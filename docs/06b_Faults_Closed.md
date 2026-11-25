@@ -446,10 +446,10 @@ to survive a rebuild:
   Loaded from the data sheets with `load_review.py --add-statuses`.
 - **Old names** (7): the newer review assessed the current name; the old name
   kept its status (*Hercostomus nigrocoerulea*, *Phaonia lugubris*…).
-  `withdraw_statuses.py`, `check_old_names.py --apply`.
+  `withdraw_statuses.py`, `clear_old_names.py --apply`.
 
 Birmingham 7 → 6 key species (SQI 118 → 116); Kent Deadwood 78 → 77.
-Checks: `check_legacy_conflicts.py`, `check_newest_review.py` (archived 24 Nov 2026), `check_old_names.py`.
+Checks: `check_legacy_conflicts.py`, `check_newest_review.py` (archived 24 Nov 2026), `clear_old_names.py`.
 
 ### NS-excludes discarded -- 272 species lost their Nationally Scarce status
 *Fixed 4 October 2026.* JNCC's "NS-excludes"/"NR-excludes" (Nationally Scarce/Rare
