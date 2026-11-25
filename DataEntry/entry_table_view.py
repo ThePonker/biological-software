@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QStyledItemDelegate, QAbstractItemView, QApplication,
 )
 
+from DataEntry import grid_clipboard
 from DataEntry.grid_columns import (
     COLUMNS, COLIDX)
 
@@ -406,9 +407,9 @@ class EntryTableView(QTableView):
                     s = "" if v is None else str(v)
                     rcells.append(s)
                     tcells.append(s)
-            text_lines.append("\t".join(tcells))
+            text_lines.append(tcells)
             rich.append(rcells)
-        text = "\n".join(text_lines)
+        text = grid_clipboard.to_text(text_lines)
         QApplication.clipboard().setText(text)
         self._clip_rows = rich
         self._clip_text = text
@@ -418,14 +419,9 @@ class EntryTableView(QTableView):
 
     def _clipboard_grid(self):
         text = QApplication.clipboard().text()
-        if self._clip_rows is not None and self._clip_text == text:
+        if self._clip_rows is not None and grid_clipboard.same_text(self._clip_text, text):
             return self._clip_rows  # rich (species dicts preserved for in-app paste)
-        if not text:
-            return []
-        lines = [ln.rstrip("\r") for ln in text.split("\n")]
-        while lines and lines[-1] == "":
-            lines.pop()
-        return [ln.split("\t") for ln in lines]
+        return grid_clipboard.from_text(text)
 
     # -- Ctrl+V: paste block anchored at the current cell --------------------
     def _clear_marker(self):
@@ -483,21 +479,21 @@ class EntryTableView(QTableView):
             r0, c0 = cur.row(), cur.column()
 
         # the rows it lands on: visible ones only, so "To check only" never pastes into rows
-        # it hides; the columns: a block that starts outside Check / Check note skips them, so
-        # a block copied from a sheet laid out like the grid before 16 Oct lands where it did
+        # it hides; the columns: a block copied in this grid lands at the spacing it was copied
+        # at (Check columns included -- 25 Nov 2026 fix: it used to step over them and shift
+        # the values after them); see grid_clipboard.target_columns for text from elsewhere
         rows, r = [], r0
         while len(rows) < len(grid):
             m.ensure_rows(r + 1)
             if not self.isRowHidden(r):
                 rows.append(r)
             r += 1
-        check_keys = ("check_flag", "check_note", "keep_flag")
-        cols = [c for c in range(c0, m.columnCount())
-                if c == c0 or COLUMNS[c0][0] in check_keys or COLUMNS[c][0] not in check_keys]
+        copied = getattr(self, "_clip_cols", None) if grid is self._clip_rows else None
+        cols = grid_clipboard.target_columns(grid, c0, m.columnCount(), copied)
         unresolved = []
         for i, rowvals in enumerate(grid):
             for j, val in enumerate(rowvals):
-                if j >= len(cols):
+                if j >= len(cols) or cols[j] >= m.columnCount():
                     break
                 c = cols[j]
                 val = self._resolve_pasted(c, val, unresolved)
@@ -507,6 +503,8 @@ class EntryTableView(QTableView):
     def _resolve_pasted(self, c, val, unresolved):
         """B4: a pasted species name goes through the same rules as a typed one -- matched to
         its TVK when that is certain, otherwise kept as text and listed (never guessed)."""
+        if isinstance(val, dict) and COLUMNS[c][2] != "species":
+            return val.get("scientific_name") or ""     # a copied species landing elsewhere
         if COLUMNS[c][2] != "species" or not isinstance(val, str) or not val.strip():
             return val
         delegate = self.itemDelegateForColumn(c)
