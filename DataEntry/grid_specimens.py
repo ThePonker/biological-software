@@ -5,7 +5,7 @@ shared/make_specimens.py; the review screen is shared/make_specimens_dialog.py.
 """
 from __future__ import annotations
 
-from PySide6.QtWidgets import QMessageBox
+from PySide6.QtWidgets import QMessageBox, QWidget
 
 from DataEntry import staging_repo as repo
 
@@ -49,3 +49,41 @@ def open_for_grid(page):
         model.refresh_made_counts()                  # those rows now show "made N"
         page._check_changed()
     return dlg
+
+
+def unmade_keeps(page) -> list:
+    """Staging row ids ticked Keep that have no specimens made from them yet."""
+    from shared import specimen_staging
+    model = page._model
+    try:
+        if not model.has_keep_column():
+            return []
+        return [i for i in model.kept_ids() if not specimen_staging.made_from_row(page._conn, i)]
+    except Exception:  # noqa: BLE001 -- a check that cannot run never stops a commit
+        return []
+
+
+def confirm_keeps_before_commit(page) -> bool:
+    """Before a commit: rows ticked Keep with no specimens lose their tick when they commit, so
+    ask (Wil, 25 Nov 2026 -- Jukes Bristol went in with 21 ticks and no specimens).
+    True = go on with the commit; False = stop (made them, or cancelled)."""
+    left = unmade_keeps(page)
+    if not left:
+        return True
+    n = len(left)
+    box = QMessageBox(page if isinstance(page, QWidget) else None)
+    box.setIcon(QMessageBox.Icon.Warning)
+    box.setWindowTitle("Keep ticked, no specimens made")
+    box.setText(f"{n} row{'s are' if n != 1 else ' is'} ticked Keep but no specimens have been "
+                "made from them.\n\nThe Keep tick goes when a row is committed, so make them first.")
+    make = box.addButton("Make them now", QMessageBox.ButtonRole.AcceptRole)
+    anyway = box.addButton("Commit anyway", QMessageBox.ButtonRole.DestructiveRole)
+    box.addButton(QMessageBox.StandardButton.Cancel)
+    box.setDefaultButton(make)
+    box.exec()
+    clicked = box.clickedButton()
+    if clicked is anyway:
+        return True
+    if clicked is make:
+        open_for_grid(page)          # then press Commit again when ready
+    return False

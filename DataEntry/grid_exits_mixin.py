@@ -48,6 +48,9 @@ class GridExitsMixin:
             return
         if not self._confirm_precommit_issues(cs):
             return
+        from DataEntry import grid_specimens
+        if not grid_specimens.confirm_keeps_before_commit(self):
+            return
         embargo = None
         if self._is_commercial():
             dlg = EmbargoDialog(self, self._job.get("embargo_until"))

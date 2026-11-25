@@ -656,3 +656,36 @@ def test_sorting_the_keep_column_puts_made_rows_first(db, qapp):
     m = StagingTableModel(db.conn, jid)
     m.sort_rows(COLIDX["keep_flag"])
     assert [r["id"] for r in m._rows if r.get("id")] == [made2, made1, ticked, plain]
+
+
+def test_commit_asks_when_rows_are_ticked_keep_but_not_made(db, monkeypatch, qapp):
+    """Jukes Bristol (25 Nov 2026) went in with 21 Keep ticks and no specimens: Commit now asks."""
+    from PySide6.QtWidgets import QMessageBox
+    from DataEntry import grid_specimens as gs
+    jid = _job(db)
+    r1, r2 = _row(db, jid, keep_flag=1), _row(db, jid, keep_flag=1)
+    _row(db, jid)                                              # not ticked: never asked about
+    kept = [r1, r2]
+    page = types.SimpleNamespace(_conn=db.conn, _job_id=jid, _job=repo.get_job(db.conn, jid),
+                                 _model=types.SimpleNamespace(kept_ids=lambda: list(kept),
+                                                              has_keep_column=lambda: True))
+    choice, opened, texts = {}, [], []
+
+    def fake_exec(box):
+        texts.append(box.text())
+        box.clickedButton = lambda: next(b for b in box.buttons() if box.buttonRole(b) == choice["role"]
+                                         or b.text() == choice.get("text"))
+    monkeypatch.setattr(QMessageBox, "exec", fake_exec)
+    monkeypatch.setattr(gs, "open_for_grid", lambda p: opened.append(p))
+    assert gs.unmade_keeps(page) == [r1, r2]
+    choice.update(role=QMessageBox.ButtonRole.DestructiveRole)
+    assert gs.confirm_keeps_before_commit(page) is True and "2 rows are ticked Keep" in texts[-1]
+    choice.update(role=QMessageBox.ButtonRole.AcceptRole)
+    assert gs.confirm_keeps_before_commit(page) is False and opened == [page]
+    choice.update(role=QMessageBox.ButtonRole.RejectRole)
+    assert gs.confirm_keeps_before_commit(page) is False and len(opened) == 1
+    ss.add(db.conn, r1, [99], ss.ORIGIN_MADE)                  # r1 made: only r2 left
+    assert gs.unmade_keeps(page) == [r2]
+    kept[:] = []                                               # nothing ticked: no question
+    texts.clear()
+    assert gs.confirm_keeps_before_commit(page) is True and texts == []
