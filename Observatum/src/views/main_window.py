@@ -317,6 +317,13 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
             pass
         # Deletes / edits / Mark Commercial on Observation Data (OBS-10); scheme records are read-only (L15)
         self.observation_tab.records_changed.connect(self._mark_data_changed)
+        # ...and the Insect Collection reloads on its next visit: Make specimens and deletes
+        # there change specimens (25 Nov 2026)
+        self.observation_tab.records_changed.connect(self._mark_collection_stale)
+        try:
+            self.observation_tab.data_imported.connect(self._mark_collection_stale)
+        except AttributeError:
+            pass
         # Settings > Species counting / the Scheme dashboard chips (backlog A)
         from shared.species_counting import notifier as _counting
         _counting().changed.connect(self._on_counting_changed)
@@ -989,6 +996,19 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
                 self.statusbar.showMessage(f"Stats could not be refreshed: {e}", 10000)
             return
 
+        # Insect Collection: specimens may have been made, linked or unlinked elsewhere since it
+        # loaded (Observation Data, Data Entry) -- reload once on the next visit (25 Nov 2026)
+        if w is getattr(self, "data_entry_tab", None):
+            self._collection_stale = True
+        if (w is self.insect_collection_tab and index in self._initialized_tabs
+                and getattr(self, "_collection_stale", False)):
+            self._collection_stale = False
+            try:
+                self.insect_collection_tab.refresh()
+            except Exception as e:
+                self.statusbar.showMessage(f"Insect Collection could not be refreshed: {e}", 10000)
+            return
+
         if index in self._initialized_tabs:
             return
 
@@ -1150,6 +1170,10 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
             self.recording_scheme_tab.refresh()
         elif hasattr(self.recording_scheme_tab, 'reload_preload'):
             self.recording_scheme_tab.reload_preload()   # read in the background: again
+
+    def _mark_collection_stale(self, *args):
+        """Specimens may have changed outside the Insect Collection: reload it on its next visit."""
+        self._collection_stale = True
 
     def _mark_data_changed(self, *args):
         """Mark that data was changed during this session and invalidate stats."""
