@@ -479,6 +479,19 @@ def _load_uksi_genera_species(order_name):
     for name, family, sort_code in c.fetchall():
         gen_by_fam.setdefault(family, []).append((name, sort_code))
 
+    # UKSI files some genera as a Subgenus of another (Gymnopternus under Hercostomus) and
+    # gives their species a blank genus: such a name stands as a genus of its own, and its
+    # species go under the first word of their name, so their specimens are in the tree
+    # (25 Nov 2026: a Gymnopternus cupreus specimen was missing from Diptera)
+    have = {n for gens in gen_by_fam.values() for n, _s in gens}
+    c.execute("SELECT scientific_name, family, sort_code FROM taxa WHERE \"order\" = ? AND rank = 'Subgenus' AND family IS NOT NULL AND sort_code IS NOT NULL ORDER BY sort_code", (order_name,))
+    for name, family, sort_code in c.fetchall():
+        if name not in have and " " not in name:
+            have.add(name)
+            gen_by_fam.setdefault(family, []).append((name, sort_code))
+    for gens in gen_by_fam.values():
+        gens.sort(key=lambda g: g[1])
+
     # Species by genus
     c.execute("SELECT DISTINCT scientific_name, genus, sort_code FROM taxa WHERE \"order\" = ? AND rank = 'Species' AND genus IS NOT NULL AND sort_code IS NOT NULL ORDER BY sort_code", (order_name,))
     sp_by_gen = {}
@@ -486,7 +499,7 @@ def _load_uksi_genera_species(order_name):
     for name, genus, sort_code in c.fetchall():
         if name not in seen_species:
             seen_species.add(name)
-            sp_by_gen.setdefault(genus, []).append((name, sort_code))
+            sp_by_gen.setdefault(genus or name.split(" ")[0], []).append((name, sort_code))
 
     # Genus -> subfamily via SQL joins (direct, via Tribe, via Subtribe->Tribe)
     c.execute("""
