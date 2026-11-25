@@ -487,8 +487,29 @@ class RecordDetailDialog(QDialog):
             vc_display = f"{vc} (VC{vc_num})" if vc and vc_num else vc or f"VC{vc_num}"
             self._add_label_value_row(layout, "Vice County", vc_display)
 
+        self._add_location_map(layout, grid_ref)
+
         if self.record_type == 'specimen':
             self._add_specimen_fields(layout)
+
+    def _add_location_map(self, layout, grid_ref):
+        """The small Location map, as in Edit Specimen (Wil, 25 Nov 2026). Best effort."""
+        self._loc_map = None
+        if not grid_ref:
+            return
+        from shared.maps.location_map import make_location_map, show_location, vc_service_or_none
+        self._loc_map = make_location_map(vc_service_or_none())
+        if self._loc_map is None:
+            return
+        row = QHBoxLayout()
+        lbl = QLabel("Map")                  # "Location" is already the site row above
+        lbl.setFixedWidth(90)
+        lbl.setStyleSheet(f"color: {theme().get('text_secondary')}; font-size: {font_css('body')};")
+        row.addWidget(lbl, 0, Qt.AlignmentFlag.AlignTop)
+        row.addWidget(self._loc_map)
+        row.addStretch()
+        layout.addLayout(row)
+        show_location(self._loc_map, {"grid_ref": grid_ref})
 
     def _add_specimen_fields(self, layout):
         """Fields belonging to the specimen itself.

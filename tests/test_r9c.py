@@ -279,3 +279,23 @@ def test_an_opened_specimen_shows_its_vc_and_map(qapp):
     d._loc_map = type("M", (), {"update_for_row": lambda self, row: seen.append(row)})()
     d._refresh_loc_map()
     assert seen == [{"grid_ref": "SU752543"}]
+
+
+def test_record_detail_shows_a_location_map(qapp, monkeypatch):
+    """Record Detail shows the small map, as Edit Specimen does (Wil, 25 Nov 2026)."""
+    from PySide6.QtWidgets import QWidget
+    from shared.maps import location_map
+    seen = []
+
+    class Map(QWidget):
+        def update_for_row(self, row):
+            seen.append(row)
+
+    monkeypatch.setattr(location_map, "make_location_map", lambda vc=None: Map())
+    monkeypatch.setattr(location_map, "vc_service_or_none", lambda: None)
+    from src.views.dialogs.record_detail_dialog import RecordDetailDialog
+    d = RecordDetailDialog({"id": 9, "species_name": "Carabus violaceus", "grid_ref": "su752543"},
+                           record_type="specimen")
+    assert isinstance(d._loc_map, Map) and seen == [{"grid_ref": "SU752543"}]
+    none = RecordDetailDialog({"id": 10, "species_name": "Carabus violaceus"}, record_type="specimen")
+    assert none._loc_map is None                      # no grid ref: no map

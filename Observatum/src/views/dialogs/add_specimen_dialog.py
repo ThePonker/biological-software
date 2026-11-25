@@ -203,31 +203,10 @@ class AddSpecimenDialog(QDialog):
         auto_layout2.addWidget(self.vc_info_label)
         layout.addWidget(auto_note2)
         
-        # Location map (left column, under the grid ref) -- best effort
-        self._loc_map = None
-        try:
-            import paths as _paths
-            from shared.maps.raster_map import RasterMiniMap, find_tiles_dir
-            _tiles = find_tiles_dir(str(_paths.MAPS_DIR))
-            _m = RasterMiniMap(_tiles, self._vc_service)
-            if _m.has_data():
-                self._loc_map = _m
-            else:
-                _m.deleteLater()
-        except Exception:
-            self._loc_map = None
-        if self._loc_map is None:
-            try:
-                import paths as _paths
-                from shared.maps.vc_map import MiniMap
-                _g = str(_paths.VC_GEOJSON)
-                _m = MiniMap(_g, self._vc_service)
-                if _m.has_data():
-                    self._loc_map = _m
-                else:
-                    _m.deleteLater()
-            except Exception:
-                self._loc_map = None
+        # Location map (left column, under the grid ref) -- best effort (one helper, shared
+        # with Record Detail)
+        from shared.maps.location_map import make_location_map
+        self._loc_map = make_location_map(self._vc_service)
         if self._loc_map is not None:
             _map_lbl = QLabel("Location")
             _map_lbl.setStyleSheet(
@@ -648,10 +627,8 @@ class AddSpecimenDialog(QDialog):
         m = getattr(self, "_loc_map", None)
         if m is None:
             return
-        try:
-            m.update_for_row({"grid_ref": self.gridref_edit.text().strip().upper()})
-        except Exception:
-            pass
+        from shared.maps.location_map import show_location
+        show_location(m, {"grid_ref": self.gridref_edit.text()})
 
     def _validate_grid_ref(self):
         """Validate the grid reference and look up vice county."""
