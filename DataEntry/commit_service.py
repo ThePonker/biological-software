@@ -15,6 +15,7 @@ from typing import Optional, Dict
 
 from DataEntry import staging_repo as repo
 from DataEntry.write_service import _ALLOWED_FIELDS, CERTAINTY
+from shared.vc_rule import vc_for_grid_ref
 
 
 # What a row named by a UKSI synonym is stored as (R16, 10 Nov 2026). Both rules exist in the
@@ -143,6 +144,11 @@ def build_kwargs_from_row(row: Dict, job: Dict, embargo_until: Optional[str] = N
         # embargo_until is in the future: both are written in the one create (R12 M1)
         "embargo_status": "Active" if (is_commercial and embargo_until) else None,
     }
+    # The square's size in metres from the grid ref, by the one function the import wizards use
+    # (shared.import_core.grid_precision); commits wrote none (NULL on ~2,422 records, 24 Nov 2026)
+    if kwargs["grid_ref"]:
+        from shared.import_core import grid_precision
+        kwargs["grid_precision"] = grid_precision(kwargs["grid_ref"])
     # Lat/long of the grid square's centre, with the OSGB36 -> WGS84 shift (9 Oct 2026);
     # commits used to leave it blank (1,301 records)
     from shared.osgb import gridref_to_wgs84
@@ -173,6 +179,17 @@ def read_qty(value) -> Optional[int]:
             return None
         n = int(f)
     return n if n >= 1 else None
+
+
+def qty_as_typed(value):
+    """What a No. cell stores: the whole number when readable (read_qty), else the text as
+    typed, so it is shown flagged and the row stays in staging (DE9: 'c.20' or '0' silently
+    became 1). Blank is None. Used by the grid and the workbook loader: one rule."""
+    sval = "" if value is None else str(value).strip()
+    if sval == "":
+        return None
+    n = read_qty(sval)
+    return sval if n is None else n
 
 
 def is_zero_qty(value) -> bool:
@@ -238,7 +255,7 @@ SYSTEM_COLUMNS = frozenset({"id", "job_id", "row_order", "created_at", "updated_
 def is_blank_row(row: Dict) -> bool:
     """True for a spare grid line: nothing typed in any column (F116). Such a row is not a
     record; commit clears it. A row with anything typed but no species is not blank."""
-    return all(not str(v).strip() or (k == "check_flag" and not v)   # an unset mark is 0
+    return all(not str(v).strip() or (k in ("check_flag", "keep_flag") and not v)   # an unset mark is 0
                for k, v in row.items() if k not in SYSTEM_COLUMNS and v is not None)
 
 
@@ -342,6 +359,19 @@ def _photos_follow_row(conn, staging_id: int, new_id: int, problems: list, row: 
         return False
 
 
+def _kept_but_not_made(conn, row: Dict, problems: list) -> None:
+    """A row ticked Keep whose specimens were never made: say so in the commit summary, as the
+    tick leaves the grid with the row (Make specimens, 25 Nov 2026). Never stops a commit."""
+    try:
+        from shared import specimen_staging
+        if row.get("keep_flag") and not specimen_staging.made_from_row(conn, row["id"]):
+            problems.append(f"{row.get('species_name') or 'a row'} ({row.get('date') or 'no date'}): "
+                            "ticked Keep but no specimens were made -- make them from Observation "
+                            "Data (Make specimens)")
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def _specimens_follow_row(conn, staging_id: int, new_id: int, problems: list) -> None:
     """Records made from specimens (14 Oct 2026): the row's specimens are linked to its new
     record (shared/specimen_staging.py). Never stops a commit; notes go in the summary."""
@@ -399,14 +429,31 @@ def row_kwargs(row: Dict, job: Dict, embargo_until: Optional[str] = None,
     return build_kwargs_from_row(row, job, embargo_until, tax), tax, why_not
 
 
+def _staged_vc_fits(vc_service, grid_ref, staged_vc) -> bool:
+    """True when the staged VC is one of the vice-counties the grid square touches."""
+    if not staged_vc or not hasattr(vc_service, "assess"):
+        return False
+    try:
+        got = vc_service.assess(grid_ref) or {}
+        return int(staged_vc) in {int(v) for v, _pct in got.get("vcs", []) if v is not None}
+    except Exception:
+        return False
+
+
 def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
-               observation_cls=None, taxonomy: Optional[Dict] = None, uksi_path=None) -> Dict:
+               observation_cls=None, taxonomy: Optional[Dict] = None, uksi_path=None,
+               vc_service=None) -> Dict:
     """Write eligible staging rows into observations; delete the committed ones.
 
     Rows missing species or date, or with an unreadable date, are left in staging and
     reported. taxonomy ({tvk: ...}, shared.taxon_groups.taxonomy_for_tvks) is looked up
     when not given. A failure part-way stops the commit and is returned in 'error' with
     how many were written before it (DE4) -- never raised after the first write.
+    Refuses to start (ValueError, nothing written) for a test copy, a commercial job with no
+    project, or when no user initials are set (Observatum keys need them).
+    vc_service: Observatum's VC service. A row with a grid ref has its VC worked out from it
+    again here (shared/vc_rule.py); a ref the service cannot place stays in staging
+    ('skipped_no_vc'). Without a service the VC is written as staged.
     Returns a summary dict.
     """
     if observation_cls is None:
@@ -419,6 +466,9 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
     if (job.get("mode") or "").lower().startswith("comm") and not (job.get("project") or "").strip():
         # backstop for the grid's own check: no project means "(no project)" everywhere
         raise ValueError("this commercial job has no Project -- set it with Jobs > Edit details")
+    if hasattr(model, "_generate_observatum_key"):
+        # the model's own key rule: raises MissingInitials (a ValueError) before anything is written
+        model._generate_observatum_key()
 
     committed = 0
     skipped_species = 0
@@ -427,6 +477,8 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
     skipped_bad_qty = 0
     skipped_zero_qty = 0           # a No. of 0: left in staging (decision 8)
     skipped_bad_vc = 0
+    no_vc_ids = []                 # grid ref the VC service cannot place: stays in staging
+    vc_corrected = 0               # staged VC differed from the grid ref's: the grid ref's written
     skipped_check = 0              # marked "To check": held back on purpose
     unresolved = 0
     synonyms = []                  # names written under their current UKSI TVK ("X -> Y")
@@ -476,8 +528,20 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
         if reason == "bad_vc":
             skipped_bad_vc += 1
             continue
+        placed = None
+        if vc_service and (row.get("grid_ref") or "").strip():
+            placed = vc_for_grid_ref(vc_service, row["grid_ref"])
+            if placed is None or placed[0] is None:
+                no_vc_ids.append(row["id"])          # turned into grid row numbers below
+                continue
         try:
             kwargs, tax, why_not = row_kwargs(row, job, embargo_until, taxonomy)
+            if placed and not _staged_vc_fits(vc_service, row["grid_ref"], kwargs.get("vc_number")):
+                # the VC from the grid ref -- unless the staged VC is one of the VCs the square
+                # touches (a boundary square where the recorder chose the side: Round 4 review)
+                if kwargs.get("vc_number") != placed[0]:
+                    vc_corrected += 1
+                kwargs["vc_number"], kwargs["vice_county"] = placed
             if why_not and why_not != "rename":   # written exactly as staged, and said so
                 {"differ": name_tvk_differ, "ambiguous": ambiguous_names,
                  "qualified": qualified_names}[why_not].append(
@@ -490,6 +554,7 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
                 "visit_number": row.get("visit_number") or None,
                 "import_notes": batch,
                 "superfamily": tax.get("superfamily"),
+                "subfamily": tax.get("subfamily"),
                 "taxonomic_sort_key": tax.get("taxonomic_sort_key"),
             })
         except Exception as e:
@@ -511,6 +576,7 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
             future += 1
         committed_rows.append((dict(row), new_id))
         safe = _photos_follow_row(conn, row["id"], new_id, photo_problems, filing)
+        _kept_but_not_made(conn, row, photo_problems)
         _specimens_follow_row(conn, row["id"], new_id, photo_problems)
         committed += 1
         gone = _out_of_staging(conn, row, new_id, safe)
@@ -525,6 +591,7 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
     # grid row numbers as the grid will show them now, the committed rows gone
     position = {r["id"]: n for n, r in enumerate(repo.fetch_rows(conn, job["id"]), start=1)}
     no_species_rows = [position[i] for i in no_species_rows if i in position]
+    no_vc_rows = [position[i] for i in no_vc_ids if i in position]
     if kept_blank:
         photo_problems.append("empty grid row(s) kept, a photo or specimen attached or not "
                               "removable: grid row(s) " + ", ".join(
@@ -542,6 +609,9 @@ def commit_job(db, model, conn, job: Dict, embargo_until: Optional[str] = None,
         "skipped_bad_qty": skipped_bad_qty,
         "skipped_zero_qty": skipped_zero_qty,
         "skipped_bad_vc": skipped_bad_vc,
+        "skipped_no_vc": len(no_vc_rows),
+        "no_vc_rows": no_vc_rows,
+        "vc_corrected": vc_corrected,
         "skipped_check": skipped_check,
         "unresolved": unresolved,
         "synonyms": synonyms,

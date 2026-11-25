@@ -55,7 +55,8 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
 
     def __init__(self, main_db_path: str = None, uksi_db_path: str = None, splash=None):
         super().__init__()
-        self.setWindowTitle("Observatum V2")
+        from shared.sandbox import window_title       # "SANDBOX" when BIOSOFT_ROOT is a copy
+        self.setWindowTitle(window_title("Observatum V2"))
         self._main_db_path = main_db_path
         self._uksi_db_path = uksi_db_path
         self._splash = splash
@@ -1206,6 +1207,10 @@ class MainWindow(BackgroundTabsMixin, QMainWindow):
         backup_enabled = settings.value(Settings.CSV_BACKUP_ON_CLOSE, False, type=bool)
         from src.core.config import default_csv_backup_dir
         backup_path = settings.value(Settings.CSV_BACKUP_PATH, default_csv_backup_dir())
+        from shared.sandbox import sandbox_root
+        if sandbox_root():                  # a sandbox never writes into the live backup folder
+            import paths as _paths
+            backup_path = str(_paths.DATA_DIR / "csv_backups")
 
         if backup_enabled and backup_path:
             from PySide6.QtWidgets import QMessageBox

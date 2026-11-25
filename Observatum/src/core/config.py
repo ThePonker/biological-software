@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Optional, Dict
 import sys
 import paths
+from shared.observatum_keys import INITIALS_SETTING
 from ..themes import active_theme_dict   # one source for the colours (R13); the active theme (R21)
 _T = active_theme_dict()
 
@@ -73,7 +74,7 @@ class Settings:
     # --- General Settings ---
     DEFAULT_RECORDER = "general/default_recorder"
     DEFAULT_DETERMINER = "general/default_determiner"
-    USER_INITIALS = "general/user_initials"
+    USER_INITIALS = INITIALS_SETTING        # shared/observatum_keys.py: one home for the key
     DATE_FORMAT = "general/date_format"
     GRID_REF_FORMAT = "general/grid_ref_format"
     FONT_SIZE = "general/font_size"

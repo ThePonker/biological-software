@@ -35,6 +35,11 @@ def _settings() -> QSettings:
 
 
 def capture_folder() -> Path:
+    from shared.sandbox import sandbox_capture_folder
+    box = sandbox_capture_folder()          # a sandbox never takes (moves) Wil's real photos
+    if box is not None:
+        box.mkdir(parents=True, exist_ok=True)
+        return box
     v = _settings().value(KEY_FOLDER, "", type=str)
     return Path(v) if v else Path.home() / "Desktop" / "image"
 

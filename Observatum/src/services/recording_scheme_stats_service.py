@@ -11,7 +11,8 @@ PERFORMANCE OPTIMIZATIONS:
 
 from typing import Dict, Any, Optional
 from datetime import datetime
-from shared.species_counting import counted_clause
+from shared.species_counting import counted_clause, species_key_expr
+from shared.stats_refresh import refresh_failed, refresh_ok
 
 
 CACHE_TTL_SECONDS = 300
@@ -21,6 +22,42 @@ CACHE_TTL_SECONDS = 300
 # 34 / 62 / 81 scheme records on 10 Oct (decision D3, 11 Oct 2026; the observation month
 # charts do the same since decision 9).
 DAY_ONLY = "AND COALESCE(date_type, 'D') = 'D'"
+
+
+def scheme_families() -> list:
+    """The family scope from settings (Settings > Recording Scheme families), as a list."""
+    from PySide6.QtCore import QSettings
+    fam_str = QSettings().value("scheme/families", "", str).strip()
+    return [f.strip() for f in fam_str.split(',') if f.strip()] if fam_str else []
+
+
+def scheme_scope(db, prefix: str = "") -> str:
+    """The scheme scope every figure uses, as SQL with `?` marks for the family names (their
+    values are scheme_families(), passed as parameters): the family scope from settings, and
+    the marked NBN copies of iRecord records left out (shared/scheme_duplicates.py, Q59)."""
+    from shared.scheme_duplicates import live_sql
+    copies = live_sql(db, prefix) if db else ""
+    families = scheme_families()
+    if not families:
+        return copies
+    col = f"{prefix}family" if prefix else "family"
+    return f" AND {col} IN ({','.join('?' * len(families))})" + copies
+
+
+def scheme_totals(db) -> Dict[str, int]:
+    """Counted Recording Scheme species and records: the dashboard's figures, and Home's.
+    Species are counted as the observation statistics count them (subspecies rolled up to
+    their species by TVK); the counting switches and the family scope apply."""
+    sk = species_key_expr("recording_scheme", "", db)
+    rows = db.execute_main(f"""
+        SELECT COUNT(*) as total_records,
+               COUNT(DISTINCT CASE WHEN species_tvk IS NOT NULL THEN {sk} END) as total_species
+        FROM recording_scheme
+        WHERE species_name IS NOT NULL AND species_name != ''
+        {counted_clause("recording_scheme", "", db)}{scheme_scope(db)}
+    """, tuple(scheme_families()))
+    return {'total_records': rows[0]['total_records'] or 0 if rows else 0,
+            'total_species': rows[0]['total_species'] or 0 if rows else 0}
 
 
 class RecordingSchemeStatsService:
@@ -36,6 +73,7 @@ class RecordingSchemeStatsService:
             cls._instance._db = None
             cls._instance._cache = {}
             cls._instance._valid = False
+            cls._instance.last_error = None
             cls._instance._last_refresh = None
         return cls._instance
 
@@ -86,21 +124,13 @@ class RecordingSchemeStatsService:
         return live_sql(self._db, prefix) if self._db else ""
 
     def _get_family_clause(self, prefix: str = "") -> str:
-        """The scheme scope used by every query here: the family scope from settings, and
-        the marked NBN copies of iRecord records left out (shared/scheme_duplicates.py,
-        Q59) -- so grid squares and month charts count each record once too."""
-        from shared.scheme_duplicates import live_sql
-        copies = live_sql(self._db, prefix) if self._db else ""
-        from PySide6.QtCore import QSettings
-        fam_str = QSettings().value("scheme/families", "", str).strip()
-        if not fam_str:
-            return copies
-        families = [f.strip() for f in fam_str.split(',') if f.strip()]
-        if not families:
-            return copies
-        col = f"{prefix}family" if prefix else "family"
-        placeholders = ','.join([f"'{f}'" for f in families])
-        return f" AND {col} IN ({placeholders})" + copies
+        """The scheme scope used by every query here (scheme_scope): its `?` marks take
+        _family_params()."""
+        return scheme_scope(self._db, prefix)
+
+    def _family_params(self) -> tuple:
+        """The family names for the `?` marks in _get_family_clause."""
+        return tuple(scheme_families())
 
     def _extract_grid_squares(self, grid_ref: str) -> Dict[str, str]:
         """Same squares and DINTY tetrad letters as the Observation statistics (one source, R19)."""
@@ -115,9 +145,13 @@ class RecordingSchemeStatsService:
             self._last_refresh = datetime.now()
             return
 
+        last_good = self._cache
+        self._cache = {}
         try:
             exclusion = self._get_exclusion_clause()
             family_clause = self._get_family_clause()
+            fp = self._family_params()
+            sk = species_key_expr("recording_scheme", "", self._db)
             current_year = datetime.now().year
 
             # =============================================
@@ -126,17 +160,17 @@ class RecordingSchemeStatsService:
             result = self._db.execute_main(f"""
                 SELECT
                     COUNT(*) as total_records,
-                    COUNT(DISTINCT species_name) as total_species
+                    COUNT(DISTINCT CASE WHEN species_tvk IS NOT NULL THEN {sk} END) as total_species
                 FROM recording_scheme
                 WHERE species_name IS NOT NULL AND species_name != ''
                 {exclusion}{family_clause}
-            """)
+            """, fp)
             if result:
                 self._cache['total_records'] = result[0]['total_records'] or 0
                 self._cache['total_species'] = result[0]['total_species'] or 0
             else:
                 # Get record count without species filter
-                result = self._db.execute_main(f"SELECT COUNT(*) as cnt FROM recording_scheme WHERE 1=1{family_clause}")
+                result = self._db.execute_main(f"SELECT COUNT(*) as cnt FROM recording_scheme WHERE 1=1{family_clause}", fp)
                 self._cache['total_records'] = result[0]['cnt'] if result else 0
                 self._cache['total_species'] = 0
 
@@ -149,7 +183,7 @@ class RecordingSchemeStatsService:
                 WHERE grid_ref IS NOT NULL AND grid_ref != ''
                 {family_clause}
             """
-            result = self._db.execute_main(grid_query)
+            result = self._db.execute_main(grid_query, fp)
             
             monads = set()
             tetrads = set()
@@ -176,14 +210,14 @@ class RecordingSchemeStatsService:
                     vc_number,
                     vice_county as vc_name,
                     COUNT(*) as records,
-                    COUNT(DISTINCT species_name) as species
+                    COUNT(DISTINCT CASE WHEN species_tvk IS NOT NULL THEN {sk} END) as species
                 FROM recording_scheme
                 WHERE vc_number IS NOT NULL
                 {exclusion}{family_clause}
                 GROUP BY vc_number
                 ORDER BY records DESC
             """
-            result = self._db.execute_main(vc_query)
+            result = self._db.execute_main(vc_query, fp)
             self._cache['records_by_vc'] = [
                 {
                     'vc_number': r['vc_number'],
@@ -210,7 +244,7 @@ class RecordingSchemeStatsService:
                 GROUP BY species_name
                 ORDER BY records DESC
             '''
-            result = self._db.execute_main(species_list_query)
+            result = self._db.execute_main(species_list_query, fp)
             self._cache['species_list'] = [
                 {
                     'species': r['species_name'],
@@ -233,28 +267,32 @@ class RecordingSchemeStatsService:
                 GROUP BY month
                 ORDER BY month
             """
-            result = self._db.execute_main(monthly_query)
+            result = self._db.execute_main(monthly_query, fp)
             monthly_data = {r['month']: r['count'] for r in result} if result else {}
             self._cache['monthly_counts'] = [monthly_data.get(m, 0) for m in range(1, 13)]
 
             # =============================================
             # RECORDING GAPS - Species not recorded in X years
             # =============================================
+            sk = species_key_expr("recording_scheme", "", self._db)
+            # grouped by taxon, not name: a record kept under a second name of the same taxon
+            # (e.g. an "agg." form) must not make the taxon look unrecorded (Round 4 review)
             gaps_query = f"""
                 SELECT 
-                    species_name,
+                    MIN(species_name) as species_name,
                     MAX(species_tvk) as species_tvk,
                     MAX(date) as last_recorded,
                     COUNT(*) as total_records
                 FROM recording_scheme
-                WHERE species_name IS NOT NULL AND date IS NOT NULL AND species_name LIKE '% %' AND species_name NOT LIKE '%(%'
-                
-                GROUP BY species_name
+                WHERE species_name IS NOT NULL AND date IS NOT NULL AND date != ''   -- undated is not a gap
+                AND species_name LIKE '% %' AND species_name NOT LIKE '%(%'
+                {exclusion}{family_clause}
+                GROUP BY {sk}
                 HAVING MAX(date) < date('now', '-3 years')
                 ORDER BY last_recorded ASC
                 LIMIT 50
             """
-            result = self._db.execute_main(gaps_query)
+            result = self._db.execute_main(gaps_query, fp)
             
             gaps = []
             for r in (result or []):
@@ -313,7 +351,7 @@ class RecordingSchemeStatsService:
                 ORDER BY first_date DESC
                 LIMIT 100
             """
-            result = self._db.execute_main(county_firsts_query)
+            result = self._db.execute_main(county_firsts_query, fp)
             self._cache['county_firsts'] = [
                 {
                     'species': r['species_name'],
@@ -326,14 +364,11 @@ class RecordingSchemeStatsService:
 
             self._valid = True
             self._last_refresh = datetime.now()
+            refresh_ok(self)
 
         except Exception as e:
-            print(f"[RecordingSchemeStatsService] Error refreshing stats: {e}")
-            import traceback
-            traceback.print_exc()
-            self._cache = {}
-            self._valid = True
-            self._last_refresh = datetime.now()
+            # keep the last good figures, try again on the next read, say why (R4B)
+            refresh_failed(self, "RecordingSchemeStatsService", e, last_good)
 
 
     def get_monthly_counts_by_species(self, species_name: str) -> list:
@@ -349,7 +384,7 @@ class RecordingSchemeStatsService:
                 WHERE species_name = ? AND date IS NOT NULL
                 {DAY_ONLY}{self._get_family_clause()}
                 GROUP BY month
-            """, (species_name,))
+            """, (species_name, *self._family_params()))
             data = {r['month']: r['count'] for r in result} if result else {}
             return [data.get(m, 0) for m in range(1, 13)]
         except Exception as e:
@@ -376,18 +411,20 @@ class RecordingSchemeStatsService:
         try:
             exclusion = self._get_exclusion_clause()
             family_clause = self._get_family_clause()
+            fp = self._family_params()
+            sk = species_key_expr("recording_scheme", "", self._db)
             
             # Basic counts
             count_query = f"""
                 SELECT 
-                    COUNT(DISTINCT species_tvk) as species,
+                    COUNT(DISTINCT {sk}) as species,
                     COUNT(*) as records
                 FROM recording_scheme
                 WHERE vc_number = ?
                 AND species_tvk IS NOT NULL
                 {exclusion}{family_clause}
             """
-            count_result = self._db.execute_main(count_query, (vc_number,))
+            count_result = self._db.execute_main(count_query, (vc_number, *fp))
             if count_result:
                 result['species'] = count_result[0]['species'] or 0
                 result['records'] = count_result[0]['records'] or 0
@@ -406,7 +443,7 @@ class RecordingSchemeStatsService:
                 GROUP BY species_name
                 ORDER BY species_name
             """
-            species_result = self._db.execute_main(species_query, (vc_number,))
+            species_result = self._db.execute_main(species_query, (vc_number, *fp))
             if species_result:
                 # Get common names from UKSI
                 from ..repositories.uksi_repository import UKSIRepository
@@ -454,7 +491,7 @@ class RecordingSchemeStatsService:
                 ORDER BY fr.first_date DESC
                 LIMIT 100
             """
-            firsts_result = self._db.execute_main(firsts_query, (vc_number, vc_number))
+            firsts_result = self._db.execute_main(firsts_query, (vc_number, *fp, vc_number))
             if firsts_result:
                 from ..repositories.uksi_repository import UKSIRepository
                 uksi = UKSIRepository()
@@ -493,7 +530,7 @@ class RecordingSchemeStatsService:
                 GROUP BY month
                 ORDER BY month
             """
-            monthly_result = self._db.execute_main(monthly_query, (vc_number,))
+            monthly_result = self._db.execute_main(monthly_query, (vc_number, *fp))
             monthly_data = {r['month']: r['count'] for r in monthly_result} if monthly_result else {}
             result['monthly_records'] = [monthly_data.get(m, 0) for m in range(1, 13)]
             
@@ -513,7 +550,7 @@ class RecordingSchemeStatsService:
                 HAVING years_ago >= 3
                 ORDER BY years_ago DESC
             """
-            gaps_result = self._db.execute_main(gaps_query, (vc_number,))
+            gaps_result = self._db.execute_main(gaps_query, (vc_number, *fp))
             if gaps_result:
                 from ..repositories.uksi_repository import UKSIRepository
                 uksi = UKSIRepository()

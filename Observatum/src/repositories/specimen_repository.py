@@ -142,6 +142,35 @@ class SpecimenRepository:
         )
         return [dict(row) for row in rows]
     
+    # The columns create() writes. taxonomic_sort_key and superfamily were once absent from
+    # this list, so every caller that set them had them silently dropped. The Insect
+    # Collection sidebar filters on the sort key, so those specimens became invisible to
+    # it -- 244 of them before anyone noticed.
+    CREATE_FIELDS = {
+        'specimen_code', 'species_name', 'species_tvk', 'common_name',
+        'order_name', 'family', 'subfamily', 'superfamily',
+        'taxonomic_sort_key', 'taxon_group',
+        'date_collected', 'grid_ref',
+        'vice_county', 'vc_number', 'site_name', 'site_name_local', 'collector', 'determiner',
+        'sex', 'preparation_type', 'storage_location', 'drawer_number',
+        'condition', 'label_data', 'notes', 'import_notes', 'observation_id',
+        # only sent once scripts/add_specimen_link_check_column.py has added it
+        'no_field_record_checked',
+    }
+
+    @classmethod
+    def build_insert(cls, data: Dict[str, Any]):
+        """(SQL, values) of the INSERT create() runs for `data`. Make specimens
+        (shared/make_specimens.py) runs it on its own connection so that all of its
+        specimens and links are written in one transaction."""
+        now = datetime.now().isoformat()
+        fields = [f for f in cls.CREATE_FIELDS if f in data]
+        values = [data[f] for f in fields]
+        fields.extend(['created_at', 'updated_at'])
+        values.extend([now, now])
+        placeholders = ', '.join('?' for _ in fields)
+        return f"INSERT INTO specimens ({', '.join(fields)}) VALUES ({placeholders})", tuple(values)
+
     def create(self, data: Dict[str, Any]) -> int:
         """
         Create a new specimen record.
@@ -152,46 +181,8 @@ class SpecimenRepository:
         Returns:
             The new specimen ID
         """
-        now = datetime.now().isoformat()
-        
-        # Build field list dynamically based on provided data
-        fields = []
-        values = []
-        placeholders = []
-        
-        # taxonomic_sort_key and superfamily were absent from this list, so
-        # every caller that set them had them silently dropped. The Insect
-        # Collection sidebar filters on the sort key, so those specimens became
-        # invisible to it -- 244 of them before anyone noticed.
-        allowed_fields = {
-            'specimen_code', 'species_name', 'species_tvk', 'common_name',
-            'order_name', 'family', 'subfamily', 'superfamily',
-            'taxonomic_sort_key', 'taxon_group',
-            'date_collected', 'grid_ref',
-            'vice_county', 'vc_number', 'site_name', 'site_name_local', 'collector', 'determiner',
-            'sex', 'preparation_type', 'storage_location', 'drawer_number',
-            'condition', 'label_data', 'notes', 'import_notes', 'observation_id',
-            # only sent once scripts/add_specimen_link_check_column.py has added it
-            'no_field_record_checked',
-        }
-        
-        for field in allowed_fields:
-            if field in data:
-                fields.append(field)
-                values.append(data[field])
-                placeholders.append('?')
-        
-        # Add timestamps
-        fields.extend(['created_at', 'updated_at'])
-        values.extend([now, now])
-        placeholders.extend(['?', '?'])
-        
-        query = f"""
-            INSERT INTO specimens ({', '.join(fields)})
-            VALUES ({', '.join(placeholders)})
-        """
-        
-        return self._execute_write(query, tuple(values))
+        query, values = self.build_insert(data)
+        return self._execute_write(query, values)
     
     def update(self, specimen_id: int, data: Dict[str, Any]) -> bool:
         """

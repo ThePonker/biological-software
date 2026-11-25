@@ -4,7 +4,8 @@
     py -3.14 scripts\\add_staging_check_columns.py --apply    # backup, then add them
 
 entry_staging gets check_flag (INTEGER: 1 = marked "To check") and check_note (TEXT), used by
-the Check column in the Data Entry grid. Existing rows are untouched (both start empty). Safe to
+the Check column in the Data Entry grid, and keep_flag (INTEGER: 1 = ticked "Keep", the rows
+Make specimens works on; added 25 Nov 2026). Existing rows are untouched (both start empty). Safe to
 run twice: a column already there is left alone. --apply only runs on observatum.db and backs it
 up first (conn.backup). Close Observatum and Data Entry before --apply.
 """
@@ -25,7 +26,7 @@ try:
 except ImportError:                       # run as py scripts\<name>.py
     import report_common as rc
 
-COLUMNS = (("check_flag", "INTEGER"), ("check_note", "TEXT"))
+COLUMNS = (("check_flag", "INTEGER"), ("check_note", "TEXT"), ("keep_flag", "INTEGER"))
 
 
 def missing_columns(conn) -> list:
@@ -40,7 +41,7 @@ def main(argv=None) -> int:
     ap.add_argument("--db", default=str(paths.OBSERVATUM_DB), help=argparse.SUPPRESS)
     ap.add_argument("--backup-dir", default=rc.BACKUP_DIR, help=argparse.SUPPRESS)
     a = ap.parse_args(argv)
-    print("\nData Entry: 'To check' columns on entry_staging")
+    print("\nData Entry: 'To check' and 'Keep' columns on entry_staging")
     print("=" * 40)
     if a.apply and os.path.basename(str(a.db)).lower() != "observatum.db":
         print(f"  refusing: --apply only runs on observatum.db, not {os.path.basename(str(a.db))}. "
@@ -57,7 +58,7 @@ def main(argv=None) -> int:
         ro.close()
     print(f"  staged rows: {rows:,}")
     if not todo:
-        print("  check_flag and check_note are both there already. Nothing has been changed.")
+        print("  check_flag, check_note and keep_flag are all there already. Nothing has been changed.")
         return 0
     for name, typ in todo:
         print(f"  would add: {name} {typ}")

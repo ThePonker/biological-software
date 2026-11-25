@@ -15,6 +15,7 @@ from typing import Dict, Any, Optional
 from datetime import datetime
 from shared.maps.grid_squares import GRID_SIZES, square_for_ref
 from shared.species_counting import counted_clause, species_key_expr
+from shared.stats_refresh import refresh_failed, refresh_ok
 
 
 # Cache TTL in seconds
@@ -80,6 +81,7 @@ class ObservationStatsService:
             cls._instance._db = None
             cls._instance._cache = {}
             cls._instance._valid = False
+            cls._instance.last_error = None
             cls._instance._last_refresh = None
         return cls._instance
 
@@ -138,6 +140,8 @@ class ObservationStatsService:
             self._last_refresh = datetime.now()
             return
 
+        last_good = self._cache
+        self._cache = {}
         try:
             exclusion = self._get_exclusion_clause()
             sk = self._species_key()
@@ -732,12 +736,11 @@ class ObservationStatsService:
 
             self._valid = True
             self._last_refresh = datetime.now()
+            refresh_ok(self)
 
         except Exception as e:
-            print(f"[ObservationStatsService] Error refreshing stats: {e}")
-            import traceback
-            traceback.print_exc()
-            self._cache = {}
+            # keep the last good figures, try again on the next read, say why (R4B)
+            refresh_failed(self, "ObservationStatsService", e, last_good)
 
 
 # Module-level singleton access

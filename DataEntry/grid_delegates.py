@@ -71,10 +71,12 @@ class _OptionDelegate(_EnterMovesDown, QStyledItemDelegate):
 class _CheckDelegate(_EnterMovesDown, QStyledItemDelegate):
     """The Check cell: double-click, Space or Ctrl+T toggles it (EntryTableView); typing opens
     a small editor -- "to check" (or x, y, t) marks the row, anything else clears it."""
+    WORDS = ["to check"]
+
     def createEditor(self, parent, option, index):
         from PySide6.QtWidgets import QCompleter, QLineEdit
         ed = QLineEdit(parent)
-        comp = QCompleter(["to check"], ed)
+        comp = QCompleter(self.WORDS, ed)
         comp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         ed.setCompleter(comp)
         return ed
@@ -84,6 +86,11 @@ class _CheckDelegate(_EnterMovesDown, QStyledItemDelegate):
 
     def setModelData(self, editor, model, index):
         model.setData(index, editor.text(), Qt.ItemDataRole.EditRole)
+
+
+class _KeepDelegate(_CheckDelegate):
+    """The Keep cell: the same tick as Check ("keep" or x marks the row, anything else clears it)."""
+    WORDS = ["keep"]
 
 
 class _NumberDelegate(_TextDelegate):

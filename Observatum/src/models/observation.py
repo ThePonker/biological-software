@@ -180,11 +180,9 @@ class ObservationModel:
         Format: OBS-{initials}-{YYYYMMDD}-{sequence}
         Example: OBS-WJH-20250103-0001
         """
-        from PySide6.QtCore import QSettings
-        from ..core.config import Settings, Defaults
-        
-        settings = QSettings()
-        initials = settings.value(Settings.USER_INITIALS, Defaults.USER_INITIALS) or 'USR'
+        # Raises MissingInitials when none are set: never a stand-in like 'USR'
+        from shared.observatum_keys import user_initials
+        initials = user_initials()
         date_str = datetime.now().strftime('%Y%m%d')
         
         # Find the next sequence number for today

@@ -40,6 +40,12 @@ class GridExitsMixin:
                 "this job, choose \u201cEdit details\u201d and set the Project (and Client), "
                 "then reopen it and commit.")
             return
+        try:                                    # keys need initials: say so before any question
+            from shared.observatum_keys import user_initials
+            user_initials()
+        except ValueError as e:
+            QMessageBox.warning(self, "Initials not set", str(e))
+            return
         if not self._confirm_precommit_issues(cs):
             return
         embargo = None
@@ -94,6 +100,16 @@ class GridExitsMixin:
             detail.append(f"{summary['skipped_zero_qty']} not committed (count of 0 \u2014 fix the count)")
         if summary.get("skipped_bad_vc"):
             detail.append(f"{summary['skipped_bad_vc']} skipped (VC No. unreadable)")
+        if summary.get("skipped_no_vc"):
+            rows = summary.get("no_vc_rows") or []
+            detail.append(f"{summary['skipped_no_vc']} skipped (grid ref given but its vice-county "
+                          "cannot be worked out: check the grid ref"
+                          + (f", grid row{'s' if len(rows) > 1 else ''} "
+                             + ", ".join(map(str, rows[:15])) + (" \u2026" if len(rows) > 15 else ""))
+                          + ")")
+        if summary.get("vc_corrected"):
+            detail.append(f"{summary['vc_corrected']} had no VC or a VC that did not match the grid "
+                          "ref: written with the grid ref's")
         if summary.get("skipped_check"):
             detail.append(f"{summary['skipped_check']} row(s) marked to check stay in Data Entry")
         if summary.get("taxonomy_error"):

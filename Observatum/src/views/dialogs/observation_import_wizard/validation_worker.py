@@ -616,6 +616,10 @@ class ObservationValidationWorker(QThread):
             # reported, not swallowed.
             ext_key_lookup = {}      # key -> {record id: (its irecord_id, species, date)}
             irecord_lookup = {}
+            # R4B: a lookup that fails must never leave its rows to be added as new
+            # (the UNIQUE irecord_id only catches the first case). Rows the failed lookup
+            # would have matched are held for review instead.
+            failed = {"id": None, "key": None, "ext": None}
 
             def _lookup(sql, values):
                 out = []
@@ -635,6 +639,7 @@ class ObservationValidationWorker(QThread):
                         irecord_lookup[str(iid)] = rid
                 except Exception as e:
                     print(f"[ImportValidation] iRecord ID duplicate check FAILED: {e}")
+                    failed["id"] = e
                 # 9 Oct 2026: 284 records held the iRecord number only in irecord_key (ID
                 # blank), so the sync did not recognise them and added 248 again. A
                 # number held either way is the same record.
@@ -650,6 +655,7 @@ class ObservationValidationWorker(QThread):
                         irecord_lookup.setdefault(int(k), rid)
                 except Exception as e:
                     print(f"[ImportValidation] iRecord key duplicate check FAILED: {e}")
+                    failed["key"] = e
             if external_keys:
                 try:
                     for r in _lookup("SELECT observatum_key, id, irecord_id, species_name, date "
@@ -660,6 +666,7 @@ class ObservationValidationWorker(QThread):
                         ext_key_lookup.setdefault(key, {})[rid] = (iid, sp, dt)
                 except Exception as e:
                     print(f"[ImportValidation] external key duplicate check FAILED: {e}")
+                    failed["ext"] = e
 
             # Apply to DataFrame
             for idx, row in df.iterrows():
@@ -677,8 +684,18 @@ class ObservationValidationWorker(QThread):
                     df.at[idx, "existing_record_id"] = rid
                     df.at[idx, "import_notes"] = f"Will update via iRecord ID (ID: {rid})"
                     continue
+                has_id = irecord_id is not None and irecord_id == irecord_id and irecord_id != ""
+                lost = failed["id"] or failed["key"]
+                if has_id and lost:
+                    df.at[idx, "sync_hold"] = (f"{SYNC_HOLD}: the check for this iRecord ID failed "
+                                               f"({lost}) -- not imported, to be safe")
+                    continue
 
                 ext_key = row.get("external_key", "")
+                if ext_key and failed["ext"]:
+                    df.at[idx, "sync_hold"] = (f"{SYNC_HOLD}: the check for key {ext_key} failed "
+                                               f"({failed['ext']}) -- not imported, to be safe")
+                    continue
                 ids = ext_key_lookup.get(ext_key) if ext_key else None
                 has_iid = irecord_id is not None and irecord_id == irecord_id and irecord_id != ""
                 if ext_key and str(ext_key).startswith("OBS-"):

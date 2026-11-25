@@ -676,6 +676,9 @@ def _ensure_app_schema(conn):
     import add_staging_check_columns as _chk
     for name, typ in _chk.missing_columns(conn):
         conn.execute(f"ALTER TABLE entry_staging ADD COLUMN {name} {typ}")
+    # entry_staging.keep_flag (Make specimens, 25 Nov 2026): added by the app's own ensure_schema
+    from DataEntry import staging_repo as _staging_repo
+    _staging_repo.ensure_schema(conn)
     # idx_scheme_tvk_vc_date (scripts/add_filter_indexes.py)
     import add_filter_indexes as _idx
     for name, table, cols, _why in _idx.INDEXES:

@@ -12,7 +12,14 @@ from PySide6.QtWidgets import (
 from DataEntry import theme
 from DataEntry import staging_repo as repo
 from DataEntry.grid_columns import (
-    COLUMNS, COLIDX, CHECK_HINT, CHECK_YES, LAST_ROW_KEY, DEFAULT_DISPLAY_ROWS)
+    COLUMNS, COLIDX, CHECK_HINT, CHECK_YES, KEEP_HINT, KEEP_YES, LAST_ROW_KEY, DEFAULT_DISPLAY_ROWS)
+
+
+def _keep_on(value) -> bool:
+    try:
+        return int(value or 0) == 1
+    except (TypeError, ValueError):
+        return False
 
 
 class StagingTableModel(QAbstractTableModel):
@@ -24,8 +31,11 @@ class StagingTableModel(QAbstractTableModel):
         self._rows: List[Dict] = repo.fetch_rows(conn, job_id)
         self._photo_counts: Dict[int, int] = {}
         self.refresh_photo_counts()
+        self._made: Dict[int, int] = {}            # row id -> specimens made from it ("made N")
         self._min_display = DEFAULT_DISPLAY_ROWS
         self._has_check = repo.has_check_columns(conn)   # False until the script has been run
+        self._has_keep = repo.has_keep_column(conn)      # the Keep tick (Make specimens)
+        self.refresh_made_counts()
         self._last_row_id = None
         self._copy_context = True  # tickbox: fill empty context cells from the nearest row above
         self._sorted = False       # view sorted by a column: 'row above' is not the entry order
@@ -107,7 +117,7 @@ class StagingTableModel(QAbstractTableModel):
 
     _MEANINGFUL = ("species_name", "quantity", "sex", "stage", "determiner", "sub_location",
                    "trap_number", "visit_number", "date", "site_name", "grid_ref",
-                   "vice_county", "recorder", "method", "comment", "check_flag", "check_note")
+                   "vice_county", "recorder", "method", "comment", "check_flag", "check_note", "keep_flag")
 
     def trim_empty_tail(self) -> int:
         """Delete trailing real rows that are completely empty (e.g. from over-scrolling)."""
@@ -161,6 +171,21 @@ class StagingTableModel(QAbstractTableModel):
         if self._rows:
             self.headerDataChanged.emit(Qt.Orientation.Vertical, 0, len(self._rows) - 1)
 
+    def refresh_made_counts(self) -> None:
+        """Re-read how many specimens were made from each row (the Keep cell's "made N")."""
+        try:
+            from shared import specimen_staging
+            self._made = specimen_staging.made_counts(self._conn, self._job_id)
+        except Exception as e:  # noqa: BLE001 -- a count, never worth breaking the grid for
+            print(f"made counts: {e}")
+            self._made = {}
+        if self._rows and self._has_keep:
+            col = COLIDX["keep_flag"]
+            self.dataChanged.emit(self.index(0, col), self.index(len(self._rows) - 1, col))
+
+    def made_count(self, r: int) -> int:
+        return self._made.get(self._rows[r].get("id"), 0) if 0 <= r < len(self._rows) else 0
+
     # -- "To check" mark (not determined yet) ---------------------------------
     def has_check_columns(self) -> bool:
         return self._has_check
@@ -178,6 +203,55 @@ class StagingTableModel(QAbstractTableModel):
         if self._has_check:
             self.setData(self.index(r, COLIDX["check_flag"]),
                          "" if self.is_flagged(r) else "1", Qt.ItemDataRole.EditRole)
+
+    # -- "Keep" tick (the rows Make specimens works on) ------------------------
+    def has_keep_column(self) -> bool:
+        return self._has_keep
+
+    def is_kept(self, r: int) -> bool:
+        return 0 <= r < len(self._rows) and self._has_keep and _keep_on(self._rows[r].get("keep_flag"))
+
+    def kept_ids(self) -> list:
+        """Staging row ids of the rows ticked Keep, in grid order."""
+        return [row["id"] for row in self._rows if self._has_keep and _keep_on(row.get("keep_flag"))]
+
+    def toggle_keep(self, r: int) -> None:
+        if self._has_keep:
+            self.setData(self.index(r, COLIDX["keep_flag"]), "" if self.is_kept(r) else "1",
+                         Qt.ItemDataRole.EditRole)
+
+    def clear_keep(self, row_ids) -> None:
+        """Take the Keep tick off these staging rows (after their specimens were made)."""
+        want = set(row_ids)
+        for r, row in enumerate(self._rows):
+            if row["id"] in want and _keep_on(row.get("keep_flag")):
+                self.setData(self.index(r, COLIDX["keep_flag"]), "", Qt.ItemDataRole.EditRole)
+
+    def _keep_data(self, r: int, role):
+        if not self._has_keep:
+            return KEEP_HINT if role == Qt.ItemDataRole.ToolTipRole else None
+        from PySide6.QtGui import QColor
+        if not self.is_kept(r):
+            made = self.made_count(r)
+            if made and role == Qt.ItemDataRole.DisplayRole:
+                return f"made {made}"
+            if made and role == Qt.ItemDataRole.ForegroundRole:
+                return QColor(theme.MUTED)
+            if role == Qt.ItemDataRole.ToolTipRole:
+                return (f"{made} specimen(s) already made from this row (Insect Collection). "
+                        "Type K to make more; the review screen counts them." if made else
+                        "Not ticked. Type K, press Space or double-click to keep this row as a "
+                        "specimen (then Make specimens).")
+            return None
+        if role == Qt.ItemDataRole.DisplayRole:
+            return "keep"
+        if role == Qt.ItemDataRole.BackgroundRole:
+            return QColor(theme.MOSS_BG)
+        if role == Qt.ItemDataRole.ForegroundRole:
+            return QColor(theme.MOSS)
+        if role == Qt.ItemDataRole.ToolTipRole:
+            return "Ticked Keep. Space or double-click to clear."
+        return None
 
     # -- the last row entered or edited, remembered per job ---------------------
     def _remember_last(self, row_id) -> None:
@@ -311,6 +385,11 @@ class StagingTableModel(QAbstractTableModel):
         kind = COLUMNS[column][2]
 
         def sort_key(row):
+            if kind == "keep":             # made rows first (most made), then ticked, then the rest
+                made = self._made.get(row.get("id"), 0)     # (Wil, 25 Nov 2026)
+                if made:
+                    return (0, (0, -made))
+                return (0, (1, 0)) if _keep_on(row.get(key)) else (1, "")
             v = row.get(key)
             blank = v is None or str(v).strip() == ""
             if blank:
@@ -339,6 +418,7 @@ class StagingTableModel(QAbstractTableModel):
         self._rows = repo.fetch_rows(self._conn, self._job_id)
         self._sorted = False
         self.refresh_photo_counts()
+        self.refresh_made_counts()
         self.endResetModel()
 
     def _is_virtual(self, r: int) -> bool:
@@ -384,6 +464,8 @@ class StagingTableModel(QAbstractTableModel):
                     "The row stays in staging until it can be read.")
         if index.isValid() and COLUMNS[index.column()][2] == "check":
             return self._check_data(index.row(), role)
+        if index.isValid() and COLUMNS[index.column()][2] == "keep":
+            return self._keep_data(index.row(), role)
         if not index.isValid() or role not in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole):
             return None
         if self._is_virtual(index.row()):
@@ -539,6 +621,23 @@ class StagingTableModel(QAbstractTableModel):
 
         if key in ("check_flag", "check_note") and not self._has_check:
             return True            # the database has no such columns yet: nothing to write
+        if kind == "keep":
+            if not self._has_keep:
+                return True        # no column: nothing to write
+            on = value is True or (isinstance(value, int) and value == 1) or \
+                str(value if value is not None else "").strip().lower() in KEEP_YES
+            if virtual:
+                if not on:
+                    return True
+                self._materialize_to(r)
+            row = self._rows[r]
+            newv = 1 if on else None
+            if row.get(key) != newv:
+                row[key] = newv
+                repo.update_row(self._conn, row["id"], {key: newv})
+                self.dataChanged.emit(index, index, [Qt.ItemDataRole.DisplayRole,
+                                                     Qt.ItemDataRole.EditRole])
+            return True
         if kind == "check":
             # only an explicit value switches it on (a pasted number or word does not)
             on = value is True or (isinstance(value, int) and value == 1) or \
@@ -667,27 +766,19 @@ class StagingTableModel(QAbstractTableModel):
         return True
 
     def _derive_vc(self, r: int):
-        """VC from the row's grid ref via the VC service. A cleared or unreadable grid ref
-        clears the VC (DE2: 'XX123' kept the previous VC41). Without a VC service only a
-        cleared grid ref clears it -- nothing can be checked."""
+        """VC from the row's grid ref by the suite's one rule (shared/vc_rule.py): a cleared or
+        unreadable grid ref clears the VC (DE2). With no VC service nothing can be checked, so
+        the VC is left as it is (Round 4 review: clearing it let a record commit with no VC)."""
         if not (0 <= r < len(self._rows)):
             return
         row = self._rows[r]
-        gr = (row.get("grid_ref") or "").strip()
-        if not gr:
-            res = (None, None)
-        elif not self._vc_service:
+        from shared.vc_rule import vc_fields
+        updates = vc_fields(self._vc_service, row.get("grid_ref"))
+        if not updates:
             return
-        else:
-            try:
-                res = self._vc_service.get_vc_from_grid_ref(gr)
-            except Exception:
-                res = None
-            res = res or (None, None)
-        vc_num, vc_name = res
-        if row.get("vc_number") == vc_num and row.get("vice_county") == vc_name:
+        if (row.get("vc_number") == updates["vc_number"]
+                and row.get("vice_county") == updates["vice_county"]):
             return
-        updates = {"vice_county": vc_name, "vc_number": vc_num}
         row.update(updates)
         repo.update_row(self._conn, row["id"], updates)
         cols = [COLIDX[k] for k in ("vice_county", "vc_number") if k in COLIDX]
@@ -698,10 +789,9 @@ class StagingTableModel(QAbstractTableModel):
     @staticmethod
     def _as_qty(sval: str):
         """A whole number of 1 or more, else the text as typed -- shown flagged in its cell
-        and kept in staging (DE9: 'c.20' or '0' silently became 1)."""
-        from DataEntry.commit_service import read_qty
-        n = read_qty(sval)
-        return sval if n is None else n
+        and kept in staging (DE9). The rule is commit_service.qty_as_typed."""
+        from DataEntry.commit_service import qty_as_typed
+        return qty_as_typed(sval)
 
     def add_row(self, data: Optional[Dict] = None) -> int:
         new_id = repo.insert_row(self._conn, self._job_id, data or {})

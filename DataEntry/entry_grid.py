@@ -28,7 +28,7 @@ from DataEntry.grid_columns import (  # noqa: F401  (re-exported: callers import
     COLUMNS, COLIDX, CHECK_HINT, CHECK_YES, LAST_ROW_KEY, _CSV_COLUMNS, DEFAULT_DISPLAY_ROWS)
 from DataEntry.staging_model import StagingTableModel
 from DataEntry.grid_delegates import (  # noqa: F401  (re-exported: callers import these from here)
-    _select_all, _EnterMovesDown, _TextDelegate, _OptionDelegate, _CheckDelegate, _NumberDelegate,
+    _select_all, _EnterMovesDown, _TextDelegate, _OptionDelegate, _CheckDelegate, _KeepDelegate, _NumberDelegate,
     _to_species_dict, _PickList, SpeciesPickerDialog, SpeciesCascadeDelegate, resolve_name)
 from DataEntry.entry_table_view import EntryTableView, _count_keys  # noqa: F401
 from DataEntry.grid_dialogs import ExportOptionsDialog, EmbargoDialog  # noqa: F401
@@ -135,6 +135,8 @@ class EntryGridPage(GridExitsMixin, GridLayoutMixin, QWidget):
                 self._view.setItemDelegateForColumn(c, _NumberDelegate(self._view))
             elif kind == "check":
                 self._view.setItemDelegateForColumn(c, _CheckDelegate(self._view))
+            elif kind == "keep":
+                self._view.setItemDelegateForColumn(c, _KeepDelegate(self._view))
             else:
                 self._view.setItemDelegateForColumn(c, _TextDelegate(self._view))
         v.addWidget(self._view, 1)
@@ -277,6 +279,13 @@ class EntryGridPage(GridExitsMixin, GridLayoutMixin, QWidget):
         self._last_btn.setToolTip("Go to the row you last entered or edited in this job.")
         self._last_btn.clicked.connect(self._go_to_last_row)
         nav_row.addWidget(self._last_btn)
+        self._make_btn = QPushButton("Make specimens\u2026")
+        self._make_btn.setStyleSheet(theme.button_secondary_qss(compact=True))
+        self._make_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._make_btn.setToolTip("Make pinned specimens in the collection from the rows ticked Keep "
+                                  "(one each by default, up to the row's No.).")
+        self._make_btn.clicked.connect(self._make_specimens)
+        nav_row.addWidget(self._make_btn)
         nav_row.addStretch(1)
         cv.addLayout(nav_row)
         for sig in (self._model.dataChanged, self._model.rowsInserted, self._model.rowsRemoved,
@@ -387,6 +396,8 @@ class EntryGridPage(GridExitsMixin, GridLayoutMixin, QWidget):
         """Keep the 'To check only (n)' text and, while it is on, the hidden rows current."""
         n = self._model.flagged_count()
         self._check_only_btn.setText(f"To check only ({n})")
+        k = len(self._model.kept_ids())
+        self._make_btn.setText(f"Make specimens\u2026 ({k})" if k else "Make specimens\u2026")
         has = self._model.has_check_columns()
         self._check_only_btn.setEnabled(has)
         self._check_only_btn.setToolTip(
@@ -425,6 +436,10 @@ class EntryGridPage(GridExitsMixin, GridLayoutMixin, QWidget):
                 self._check_changed()
         resolve = resolver_from(self._view.itemDelegateForColumn(COLIDX["species_name"]))
         CheckReadbackDialog(self._conn, job, apply, self, resolve=resolve).exec()
+
+    def _make_specimens(self):
+        from DataEntry.grid_specimens import open_for_grid
+        open_for_grid(self)
 
     def _go_to_last_row(self):
         r = self._model.last_row_index()

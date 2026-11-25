@@ -216,7 +216,12 @@ class DataEntryWidget(QWidget):
         def _st(bg, fg, accent, bold=600):
             return (f"color: {fg}; background: {bg}; font-weight: {bold}; font-size: {font_css('small')};"
                     f"padding: 7px 16px; border-left: 4px solid {accent};")
-        if go_live:
+        from shared.sandbox import sandbox_root
+        if go_live and sandbox_root():       # run_sandbox.bat: a copy, never the live data
+            w.setText(f"SANDBOX \u2014 commits go into the copy in {sandbox_root()}, "
+                      "not your live data.")
+            w.setStyleSheet(_st(theme.SLATE_BG, theme._g("accent_stats_dark", "#454f5c"), theme.SLATE, 700))
+        elif go_live:
             w.setText("LIVE \u2014 commits go into Observatum (observatum.db). Make sure you have a backup.")
             w.setStyleSheet(_st(theme.CLAY_BG, theme._g("danger_text", "#a63d40"), theme.CLAY, 700))
         elif getattr(self, "_embedded", False):
@@ -377,4 +382,4 @@ class DataEntryWidget(QWidget):
             print(f'[backup] pre-commit unavailable -- commit refused: {_e}')
             return None
 
-        return cs.commit_job(db, model, self._conn, job, embargo)
+        return cs.commit_job(db, model, self._conn, job, embargo, vc_service=self._vc_service)

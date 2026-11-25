@@ -116,11 +116,23 @@ class EntryTableView(QTableView):
                 self._go(cur.row() + step, 0)
             return
 
+        # K on the Keep cell ticks it at once, no editor (Wil, 25 Nov 2026); never un-ticks
+        if not editing and k == Qt.Key.Key_K and not (mods & (
+                Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier)):
+            cur = self.currentIndex()
+            if cur.isValid() and COLUMNS[cur.column()][2] == "keep":
+                if not self.model().is_kept(cur.row()):
+                    self.model().toggle_keep(cur.row())
+                return
+
         if not editing and k == Qt.Key.Key_Space and not (mods & (
                 Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier)):
             cur = self.currentIndex()
             if cur.isValid() and COLUMNS[cur.column()][2] == "check":
                 self.model().toggle_check(cur.row())        # Space on the Check cell
+                return
+            if cur.isValid() and COLUMNS[cur.column()][2] == "keep":
+                self.model().toggle_keep(cur.row())         # Space on the Keep cell
                 return
 
         if not editing:
@@ -164,6 +176,9 @@ class EntryTableView(QTableView):
         ix = self.indexAt(event.position().toPoint())
         if ix.isValid() and COLUMNS[ix.column()][2] == "check":
             self.model().toggle_check(ix.row())              # double-click on the Check cell
+            return
+        if ix.isValid() and COLUMNS[ix.column()][2] == "keep":
+            self.model().toggle_keep(ix.row())               # double-click on the Keep cell
             return
         super().mouseDoubleClickEvent(event)
 
@@ -476,7 +491,7 @@ class EntryTableView(QTableView):
             if not self.isRowHidden(r):
                 rows.append(r)
             r += 1
-        check_keys = ("check_flag", "check_note")
+        check_keys = ("check_flag", "check_note", "keep_flag")
         cols = [c for c in range(c0, m.columnCount())
                 if c == c0 or COLUMNS[c0][0] in check_keys or COLUMNS[c][0] not in check_keys]
         unresolved = []

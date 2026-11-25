@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS entry_staging (
     recorder TEXT, method TEXT, certainty TEXT, comment TEXT,
     project_name TEXT, client TEXT, embargo_until TEXT,
     check_flag INTEGER, check_note TEXT,
+    keep_flag INTEGER,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (job_id) REFERENCES entry_jobs(id)
 );
@@ -261,7 +262,17 @@ STAGING_EDITABLE = [
     "date", "site_name", "grid_ref", "vice_county", "vc_number",
     "recorder", "method", "certainty", "comment",
     "check_flag", "check_note",          # "not determined yet" (scripts/add_staging_check_columns.py)
+    "keep_flag",                         # "Keep" tick: rows Make specimens works on (25 Nov 2026)
 ]
+
+
+def has_keep_column(conn: sqlite3.Connection) -> bool:
+    """Does entry_staging have keep_flag? (An older database lacks it until
+    scripts/add_staging_check_columns.py --apply is run; a new table is made with it.)"""
+    try:
+        return "keep_flag" in {r[1] for r in conn.execute("PRAGMA table_info(entry_staging)")}
+    except sqlite3.Error:
+        return False
 
 
 def has_check_columns(conn: sqlite3.Connection) -> bool:

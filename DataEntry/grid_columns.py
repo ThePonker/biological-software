@@ -23,15 +23,18 @@ COLUMNS = [
     ("order_name", "Order", "text", 110),
     ("family", "Family", "text", 130),
     ("site_name", "Site", "text", 100),
+    ("keep_flag", "Keep", "keep", 52),             # ticked rows are the ones Make specimens works on
 ]
 
 COLIDX = {key: i for i, (key, _, _, _) in enumerate(COLUMNS)}
 CHECK_HINT = "Run scripts\\add_staging_check_columns.py once"
 # what typed or pasted into the Check cell marks a row (anything else clears it)
 CHECK_YES = ("1", "x", "yes", "y", "t", "true", "to check", "check")
+KEEP_YES = ("1", "x", "yes", "y", "t", "true", "keep", "k")  # the same for the Keep cell (+ "k")
+KEEP_HINT = "Run scripts\\add_staging_check_columns.py --apply once (adds the Keep column)"
 LAST_ROW_KEY = "DataEntry/lastRow/{}"       # per job: the staging row id last inserted or edited
 
 # the plain CSV export is unchanged: it does not carry the To check columns
-_CSV_COLUMNS = [c for c in COLUMNS if not c[0].startswith("check_")]
+_CSV_COLUMNS = [c for c in COLUMNS if not c[0].startswith("check_") and c[0] != "keep_flag"]
 
 DEFAULT_DISPLAY_ROWS = 1000  # blank rows shown when a job opens (spreadsheet-style canvas)

@@ -19,7 +19,7 @@ class GridLayoutMixin:
 
     # Before 16 Oct 2026 the grid had these columns (no Check / Check note): a layout saved
     # then is read through them, so adding columns keeps Wil's order, widths and hidden set
-    _LEGACY_KEYS = tuple(k for k, _, _, _ in COLUMNS if k not in ("check_flag", "check_note"))
+    _LEGACY_KEYS = tuple(k for k, _, _, _ in COLUMNS if k not in ("check_flag", "check_note", "keep_flag"))
 
     def _save_header_state(self):
         s = self._settings()

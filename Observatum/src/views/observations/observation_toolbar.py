@@ -25,6 +25,7 @@ class ObservationToolbar(QFrame):
     import_requested = Signal()
     columns_requested = Signal()
     mark_commercial_requested = Signal()
+    make_specimens_requested = Signal()  # "Make specimens…": the ticked records become specimens
     select_all_requested = Signal(bool)  # True=select, False=deselect
     contributed_requested = Signal()     # "Contributed records…" (R20): the main window opens it
     
@@ -95,6 +96,14 @@ class ObservationToolbar(QFrame):
         self.export_selected_btn.clicked.connect(self.export_selected_requested.emit)
         self.export_selected_btn.setEnabled(False)
         layout.addWidget(self.export_selected_btn)
+
+        # Make specimens from the ticked records (25 Nov 2026)
+        self.make_specimens_btn = QPushButton("Make specimens\u2026")
+        self.make_specimens_btn.setToolTip("Make specimens in the Insect Collection from the ticked records")
+        self.make_specimens_btn.setStyleSheet(self._get_secondary_button_style())
+        self.make_specimens_btn.clicked.connect(self.make_specimens_requested.emit)
+        self.make_specimens_btn.setEnabled(False)
+        layout.addWidget(self.make_specimens_btn)
 
         # Delete selected button (red outlined)
         self.delete_selected_btn = QPushButton("Delete Selected")
@@ -308,11 +317,13 @@ class ObservationToolbar(QFrame):
             # needed Select All then Deselect All.
             self.select_all_btn.setText("Deselect All")
             self.export_selected_btn.setEnabled(True)
+            self.make_specimens_btn.setEnabled(True)
             self.delete_selected_btn.setEnabled(True)
             self.mark_commercial_btn.setEnabled(True)
         else:
             self.selection_info.hide()
             self.export_selected_btn.setEnabled(False)
+            self.make_specimens_btn.setEnabled(False)
             self.delete_selected_btn.setEnabled(False)
             self.mark_commercial_btn.setEnabled(False)
             self.select_all_btn.setText("Select All")

@@ -23,18 +23,9 @@ from shared.text_sizes import font_css
 
 
 
-# Curatorial vocabularies -- edit these lists to change the dropdown options.
-PREPARATION_TYPES = ["", "Pinned", "Carded", "Pointed", "In alcohol",
-                     "Slide-mounted", "Genitalia prep"]
-CONDITIONS = ["", "Good", "Damaged"]
-STORAGE_LOCATIONS = ["", "Cabinet", "Useful Box", "Storage box"]
-
-# Default preparation by taxonomic order (only applied to an empty field).
-PREP_BY_ORDER = {
-    "diptera": "Pinned",
-    "hymenoptera": "Pinned",
-    "coleoptera": "Carded",
-}
+# Curatorial vocabularies and the default preparation by order: shared/specimen_vocab.py
+from shared.specimen_vocab import (  # noqa: E402,F401  (re-exported for callers of this module)
+    PREPARATION_TYPES, CONDITIONS, STORAGE_LOCATIONS, PREP_BY_ORDER, default_prep_for_order)
 
 class AddSpecimenDialog(QDialog):
     """Modal dialog for adding or editing a specimen."""
@@ -509,8 +500,8 @@ class AddSpecimenDialog(QDialog):
             return
         order = ""
         if self._selected_species:
-            order = (self._selected_species.get("order") or "").strip().lower()
-        want = PREP_BY_ORDER.get(order)
+            order = self._selected_species.get("order") or ""
+        want = default_prep_for_order(order)
         if not want:
             return
         i = cb.findText(want)

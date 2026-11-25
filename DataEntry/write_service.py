@@ -19,6 +19,7 @@ _ALLOWED_FIELDS = {
     "embargo_status",   # written with the record, so a failed second UPDATE cannot leave it NULL
     "comment",   # the grid's Comment column -- was dropped at commit until 8 Oct 2026
     "latitude", "longitude", "geodetic_datum",   # from the grid ref at commit (9 Oct 2026)
+    "grid_precision",                            # the square's size in metres, from the grid ref
     "kingdom", "taxon_group",                    # from UKSI at commit (9 Oct 2026, OBS-11)
     "identification_remarks",   # the name as entered, when committed under its UKSI recommended name (R16)
 }

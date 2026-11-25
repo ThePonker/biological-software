@@ -240,8 +240,15 @@ class StatsReportsTab(QWidget):
         self.navigate_to_observations.emit("")  # Empty string triggers new species list
 
     def refresh(self):
-        """Refresh all dashboards."""
+        """Refresh all dashboards. A stats service that could not refresh keeps its last good
+        figures; the error is raised here so the main window says so in the status bar."""
         self._refresh_current_dashboard()
+        from shared.stats_refresh import pending_errors
+        from ...services.observation_stats_service import get_observation_stats_service
+        from ...services.recording_scheme_stats_service import get_recording_scheme_stats
+        errors = pending_errors(get_observation_stats_service(), get_recording_scheme_stats())
+        if errors:
+            raise RuntimeError("; ".join(errors) + " (showing the last figures read)")
 
     def mark_stale(self):
         """Records changed elsewhere: the next visit to each dashboard re-reads.

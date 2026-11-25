@@ -126,6 +126,13 @@ class WizardImportMixin:
         
         import_mode = self._get_selected_mode()
 
+        try:                                    # keys need initials: say so before anything is written
+            from shared.observatum_keys import user_initials
+            user_initials()
+        except ValueError as e:
+            QMessageBox.warning(self, "Initials not set", str(e))
+            return
+
         # Snapshot observatum.db first, so any import can be undone (9 Oct 2026)
         try:
             from shared.backup_service import backup_main_only
@@ -629,12 +636,10 @@ class WizardImportMixin:
             # New iRecord record without our key - generate one
 
         # Generate new key for Personal Upload or iRecord without external_key
-        from PySide6.QtCore import QSettings
-        from src.core.config import Settings, Defaults
+        from shared.observatum_keys import user_initials     # raises when none are set
         from datetime import datetime
 
-        settings = QSettings()
-        initials = settings.value(Settings.USER_INITIALS, Defaults.USER_INITIALS) or 'UNK'
+        initials = user_initials()
         date_str = datetime.now().strftime('%Y%m%d')
         prefix = f"OBS-{initials}-{date_str}-"
 

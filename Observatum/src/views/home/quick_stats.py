@@ -221,17 +221,9 @@ class QuickStatsPanel(Card):
         
         # Refresh Recording Scheme stats
         try:
-            # the Recording Scheme species-counting switches (backlog A)
-            from shared.species_counting import counted_clause
-            result = self._db.execute_main(
-                "SELECT COUNT(DISTINCT species_name) as species, COUNT(*) as records "
-                "FROM recording_scheme WHERE 1" + counted_clause("recording_scheme", db=self._db)
-            )
-            if result:
-                self.update_scheme_stats({
-                    'total_species': result[0]['species'] or result[0][0] or 0,
-                    'total_records': result[0]['records'] or result[0][1] or 0
-                })
+            # the dashboard's own figures: same switches, family scope and species counting
+            from ...services.recording_scheme_stats_service import scheme_totals
+            self.update_scheme_stats(scheme_totals(self._db))
         except Exception as e:
             print(f"[QuickStats] Error loading scheme stats: {e}")
         
@@ -239,7 +231,7 @@ class QuickStatsPanel(Card):
         try:
             # Total species and specimens
             result = self._db.execute_main(
-                "SELECT COUNT(DISTINCT species_name) as species, COUNT(*) as specimens FROM specimens"
+                "SELECT COUNT(DISTINCT COALESCE(species_tvk, species_name)) as species, COUNT(*) as specimens FROM specimens"
             )
             total_species = 0
             total_specimens = 0
@@ -249,7 +241,7 @@ class QuickStatsPanel(Card):
             
             # Top 3 orders by species count
             result = self._db.execute_main("""
-                SELECT order_name, COUNT(DISTINCT species_name) as count 
+                SELECT order_name, COUNT(DISTINCT COALESCE(species_tvk, species_name)) as count 
                 FROM specimens 
                 WHERE order_name IS NOT NULL AND order_name != ''
                 GROUP BY order_name 

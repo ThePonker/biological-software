@@ -326,6 +326,7 @@ class ObservationTab(
         # Export signals
         self.toolbar.export_selected_requested.connect(self._on_export_selected)
         self.toolbar.mark_commercial_requested.connect(self._mark_as_commercial)
+        self.toolbar.make_specimens_requested.connect(self._on_make_specimens)
         self.toolbar.delete_selected_requested.connect(self._on_delete_selected)
         self.toolbar.select_all_requested.connect(self._select_all_records)
         self.toolbar.export_requested.connect(self._on_export_all)
@@ -485,6 +486,11 @@ class ObservationTab(
         self.table_model.set_all_checked(bool(select))
         self._update_selection_count()
 
+    def _on_make_specimens(self):
+        """Make specimens from the ticked records (shared/make_specimens.py)."""
+        from .observation_make_specimens import open_for_tab
+        open_for_tab(self)
+
     def _mark_as_commercial(self):
         """Mark selected records as commercial."""
         from ..dialogs.mark_commercial_dialog import MarkCommercialDialog
@@ -517,13 +523,9 @@ class ObservationTab(
                                          "The backup before marking failed, so nothing "
                                          "has been changed.")
                     return
-                placeholders = ",".join(["?"] * len(checked_ids))
+                from shared.observation_delete import update_in_chunks
                 set_parts = ", ".join([f"{k} = ?" for k in data.keys()])
-                values = list(data.values()) + checked_ids
-                db.execute_main_write(
-                    f"UPDATE observations SET {set_parts} WHERE id IN ({placeholders})",
-                    tuple(values)
-                )
+                update_in_chunks(db, set_parts, list(data.values()), checked_ids)   # 900 at a time
                 print(f"[ObservationTab] Marked {len(checked_ids)} records as commercial")
                 self._load_data()
                 self.records_changed.emit()
@@ -706,8 +708,13 @@ class ObservationTab(
             )
             if reply != QMessageBox.StandardButton.Yes:
                 return
-        from ..components import record_photos_delete
-        after = (record_photos_delete.ask(self, str(getattr(get_database(), 'main_db_path', '') or ''), checked_ids,
+        from ..components import record_photos_delete, specimen_unlink_ask
+        db_path = str(getattr(get_database(), 'main_db_path', '') or '')
+        # specimens linked to these records: say which, unlink them with the delete, or cancel
+        unlink = specimen_unlink_ask.ask(self, db_path, checked_ids, "Delete Selected") if count else False
+        if unlink is None:
+            return
+        after = (record_photos_delete.ask(self, db_path, checked_ids,
                                           "Delete Selected") if count else (lambda: None))
         if after is None:
             return
@@ -735,11 +742,8 @@ class ObservationTab(
 
         db = get_database()
         try:
-            placeholders = ",".join(["?"] * len(checked_ids))
-            db.execute_main_write(
-                f"DELETE FROM observations WHERE id IN ({placeholders})",
-                tuple(checked_ids),
-            )
+            from shared.observation_delete import delete_observations
+            delete_observations(db, checked_ids, unlink=bool(unlink))     # 900 at a time, one transaction
             print(f"[ObservationTab] Deleted {count} records: ids {checked_ids[:20]}")
             after()
             self.table_model.set_all_checked(False)

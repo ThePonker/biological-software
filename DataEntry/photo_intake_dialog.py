@@ -36,6 +36,11 @@ class PhotoIntakeDialog(QDialog):
                 self._service = bootstrap.get_search_service_safe()
             except Exception:
                 self._service = None
+        try:
+            from DataEntry import bootstrap
+            self._vc_service = bootstrap.get_vc_service_safe()   # rows get their VC from the grid ref
+        except Exception:
+            self._vc_service = None
         self._species = None            # picked from the list (has a TVK)
         self._info: dict = {}           # path -> read_photo dict
         self._files: dict = {}          # path -> mtime
@@ -314,7 +319,8 @@ class PhotoIntakeDialog(QDialog):
                     continue
             fails: list = []
             try:
-                ids = photo_intake.make_rows(self._conn, job_id, [g], sp, defaults, failures=fails)
+                ids = photo_intake.make_rows(self._conn, job_id, [g], sp, defaults, failures=fails,
+                                             vc_service=self._vc_service)
                 made += ids
             except Exception as e:
                 failed += [f"{Path(p['path']).name}: {e}" for p in g]

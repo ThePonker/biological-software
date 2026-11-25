@@ -344,12 +344,19 @@ class ObservationDetailMixin:
         from ..components import record_photos_delete
         from ...models.database import get_database
         db_path = str(getattr(get_database(), 'main_db_path', '') or '')
+        from ..components import specimen_unlink_ask
+        unlink = specimen_unlink_ask.ask(self, db_path, [record_id], "Delete Observation")
+        if unlink is None:
+            return                          # specimens are linked and he cancelled
         after = record_photos_delete.ask(self, db_path, [record_id], "Delete Observation")
         if after is None:
             return
         if backup_before_delete(self, "Delete Observation"):
             try:
-                if self._obs_repo:
+                if unlink:                  # unlink and delete in one transaction
+                    from shared.observation_delete import delete_observations
+                    delete_observations(get_database(), [record_id], unlink=True)
+                elif self._obs_repo:
                     self._obs_repo.delete(record_id)
                 elif self._observation_model:
                     self._observation_model.delete(record_id)
