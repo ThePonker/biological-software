@@ -79,6 +79,7 @@ from datetime import datetime
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, _ROOT)
 import paths  # noqa: E402
+from shared import key_species_rule as ks  # noqa: E402
 
 try:
     from openpyxl import load_workbook
@@ -88,13 +89,6 @@ except ImportError:
 
 CLEAR = "none"      # a manual entry recording that the review REMOVED a status
 IUCN_VALID = {"CR", "EN", "VU", "NT", "LC", "DD", "NE", "NA", "RE", "EX", "EW"}
-
-KEY_THREAT = {"CR", "EN", "VU", "NT", "DD"}
-RARE_THREAT = {"CR", "EN", "VU", "DD"}
-KEY_RARITY = {"NR", "NS"}
-LEGACY_RDB = {"RDB1", "RDB2", "RDB3", "RDBK", "RDBI", "RDB 1", "RDB 2",
-              "RDB 3", "RDB K", "RDB I"}
-LEGACY_NOTABLE = {"NA", "NB", "NOTABLE", "N"}
 
 
 # ---------------------------------------------------------------- reading
@@ -213,22 +207,30 @@ def resolve(uksi, name, tvk):
 # ---------------------------------------------------------------- key status
 
 def key_tiers(tracks):
-    """(is_key, is_rare_key) from a {track: value} dict, after Telfer."""
-    t = (tracks.get("threat_iucn_2001") or "").upper()
-    r = (tracks.get("rarity_modern") or "").upper()
-    tl = (tracks.get("threat_iucn_legacy") or "").upper()
-    rl = (tracks.get("rarity_legacy") or "").upper()
-    if t == "NA":           # not an established native: never Key
-        return False, False  # (same rule as CodexRepository._classify)
-    rare = t in RARE_THREAT or r == "NR" or tl in LEGACY_RDB
-    key = rare or t in KEY_THREAT or r in KEY_RARITY or rl in LEGACY_NOTABLE
-    return key, rare
+    """(is_key, is_rare_key) from a {track: value} dict, after Telfer.
+
+    The rule is shared/key_species_rule.py -- the one Codex and Examen use; only the
+    NA gate is written here (as in CodexRepository._classify). Status tracks only:
+    priority and legal listings are not in a status dict."""
+    if ks.is_not_applicable(tracks.get("threat_iucn_2001")):
+        return False, False      # not an established native: never Key
+    tiers = {ks.threat_tier(tracks.get("threat_iucn_2001")),
+             ks.rarity_tier(tracks.get("rarity_modern")),
+             ks.legacy_threat_tier(tracks.get("threat_iucn_legacy")),
+             ks.rarity_tier(tracks.get("rarity_legacy"))}
+    rare = "rare" in tiers
+    return rare or "scarce" in tiers, rare
 
 
 # ---------------------------------------------------------------- applying
 
 def apply_status(c, tvk, track, value, detail, source, date):
-    """DELETE then INSERT -- never INSERT OR REPLACE (NULL detail duplicates)."""
+    """DELETE then INSERT -- never INSERT OR REPLACE (NULL detail duplicates).
+    Refuses Notable A / Not Applicable spelt for the wrong line (ks.case_problem), before
+    anything is deleted; the callers check in their dry run, so this is the last guard."""
+    why = ks.case_problem(track, value) if value != CLEAR else ""
+    if why:
+        raise ValueError(f"not written for {tvk}: {why}")
     c.execute("""DELETE FROM status_summary WHERE tvk=? AND status_track=?
                  AND COALESCE(status_detail,'') = COALESCE(?,'')""",
               (tvk, track, detail))

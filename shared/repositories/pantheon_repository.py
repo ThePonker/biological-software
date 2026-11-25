@@ -386,6 +386,24 @@ class PantheonRepository:
                 result[t] = v
         return result
 
+    def get_published_zero_tvks(self, tvks: list) -> set:
+        """TVKs for which Pantheon publishes SQS 0 ("not native") and no score above 0.
+
+        Through the bridge, J2 order, as get_sqs_scores: a species whose incumbent
+        has a score above 0 is not in this set, whatever a collider says.
+        """
+        if not tvks:
+            return set()
+        pan, rev = self._expand(tvks)
+        raw = {p: rows[0][1] for p, rows in self._by_pan("sqs", "sqs_scores", pan).items()}
+        out = set()
+        for t in dict.fromkeys(tvks):
+            cands = self.candidates(t)
+            if j2_first(cands, raw, accept=lambda s: (s or 0) > 0) is None \
+                    and any(raw.get(c) == 0 for c in cands):
+                out.add(t)
+        return out
+
     def held_by_pantheon(self, tvks: list) -> set:
         """TVKs Pantheon analysed: any ecology or SQS row, through the bridge.
 

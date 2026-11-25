@@ -150,6 +150,9 @@ class AnalysisResult:
     # rather than published by Pantheon, the SQI on Pantheon's scores alone, and
     # species Pantheon holds no data for at all.
     derived_sqs_tvks: set = field(default_factory=set)
+    # {tvk: reason}: species the native rule sets to SQS 0 (sqs_derivation.zero_reason)
+    # -- no derived score, so not analysed unless Pantheon holds them.
+    zero_sqs_reasons: dict = field(default_factory=dict)
     overall_sqi_published: object = None
     no_pantheon_tvks: set = field(default_factory=set)
 
@@ -282,6 +285,11 @@ class PantheonAnalysisService:
                                                      codex_statuses.pop(broad, None))
 
         result.derived_sqs_tvks = derived
+        if self._codex is not None and hasattr(self._codex, "get_zero_sqs_reasons") \
+                and mode != AnalysisMode.PANTHEON_ONLY:
+            result.zero_sqs_reasons = {
+                t: why for t, why in self._codex.get_zero_sqs_reasons(all_tvks).items()
+                if t in unique_tvks and t not in sqs_scores}
         result.sqs_by_tvk = dict(sqs_scores)
         result.statuses = codex_statuses or {}
         result.biotopes_by_tvk, result.habitats_by_tvk = biotopes, habitats

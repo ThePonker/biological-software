@@ -34,6 +34,7 @@ src = open(os.path.join(ROOT, "scripts", "import_status_review.py"), encoding="u
 if not any(isinstance(n, ast.If) and "__main__" in ast.dump(n.test) for n in ast.parse(src).body):
     sys.exit("  x import_status_review.py has no __main__ guard -- not importing it. Nothing written.")
 from import_status_review import resolve, apply_status, key_tiers, backup, CLEAR   # one rule
+from shared import key_species_rule as ks  # noqa: E402
 
 IUCN = {"CR", "EN", "VU", "NT", "LC", "DD", "NA", "RE", "EX", "EW"}
 
@@ -133,6 +134,11 @@ for r in ([] if accounts_only or a.add_accounts else statuses):
     for tr in tracks:
         if tr.endswith("_legacy"):
             new[tr] = CLEAR
+    # Notable A is "Na" on a rarity line; Not Applicable "NA" on a threat line (24 Nov 2026)
+    why = next((ks.case_problem(tr, v) for tr, v in new.items()
+                if v != CLEAR and ks.case_problem(tr, v)), "")
+    if why:
+        odd.append((r["species_name"], why));  continue
     plan.append({"row": r, "tvk": tvk, "name": sci, "how": how, "current": current, "new": new,
                  "note": "; ".join(x for x in (note, r.get("qualifying_criteria", "")) if x)})
 
@@ -156,7 +162,7 @@ for r in unresolved[:25]:
 if len(unresolved) > 25:
     print(f"    ... and {len(unresolved) - 25} more")
 for n, v in odd:
-    print(f"    unrecognised IUCN value: {n} -> {v!r}")
+    print(f"    unrecognised or mis-spelt value: {n} -> {v!r}")
 for n, how, into in collapsed:
     print(f"    collapsed: {n} reached {into} via {how} -- {into}'s own row is used")
 

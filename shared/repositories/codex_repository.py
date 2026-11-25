@@ -597,37 +597,61 @@ class CodexRepository:
         with no status anywhere is not scored: that would put a derived 1 on
         every species Pantheon lacks.
 
+        The native rule (shared/sqs_derivation.zero_reason) gives some species 0.
+        A 0 is never returned: the species simply has no score, so if Pantheon
+        does not hold it either it is not analysed. A derived 1 IS returned.
+        """
+        return self._derive_sqs_with_reasons(tvks)[0]
+
+    def get_zero_sqs_reasons(self, tvks):
+        """{tvk: why} for species with no stored score that the native rule sets to 0
+        (shared/sqs_derivation.REASON_NA / REASON_PANTHEON_ZERO). For Examen's notes."""
+        if not tvks:
+            return {}
+        stored = self._stored_sqs(tvks)               # once, not once per species
+        missing = [t for t in dict.fromkeys(tvks) if t not in stored]
+        return self._derive_sqs_with_reasons(missing)[1]
+
+    def _derive_sqs_with_reasons(self, tvks):
+        """(scores, zero_reasons): the one place the derivation and the native rule meet.
+
         Queries status_summary directly: get_statuses_batch calls
         get_sqs_scores, so routing through it would recurse.
         """
         if not tvks:
-            return {}
+            return {}, {}
         try:
-            from shared.sqs_derivation import derive_from_tracks
+            from shared.sqs_derivation import derive_from_tracks, zero_reason
         except ImportError:
             try:
-                from sqs_derivation import derive_from_tracks
+                from sqs_derivation import derive_from_tracks, zero_reason
             except ImportError:
-                return {}
+                return {}, {}
 
         invert = self._get_invert_tvks()
         designated = self._get_designated_invert_tvks()
         candidates = [t for t in tvks if t in invert]
         if not candidates:
-            return {}
+            return {}, {}
         rows, _held = self._status_rows(candidates)
+        pan = self._pan_repo()
+        pan_zero = pan.get_published_zero_tvks(candidates) if pan else set()
 
-        result = {}
+        result, reasons = {}, {}
         for tvk in candidates:
             if tvk not in rows and tvk not in designated:
                 continue
             tracks = {}
             for track, value, *_ in rows.get(tvk, []):
                 tracks[track] = value
-            score = derive_from_tracks(tracks)
-            if score:          # 0 and 1 are not worth storing as "has a score"
+            zero = tvk in pan_zero
+            why = zero_reason(tracks.get("threat_iucn_2001"), zero)
+            if why:
+                reasons[tvk] = why
+            score = derive_from_tracks(tracks, pantheon_zero=zero)
+            if score:          # 0 (not native) is not stored as a score; 1 and above are
                 result[tvk] = score
-        return result
+        return result, reasons
 
     def get_statuses_batch(self, tvks, mode=AnalysisMode.CODEX_FULL,
                            jurisdiction=DEFAULT_JURISDICTION):
@@ -932,8 +956,7 @@ def _classify(status, jurisdiction=DEFAULT_JURISDICTION):
     # simply because it has barely been recorded. Its rarity is still stored
     # and displayed; it confers no key status. Decided 26 September 2026 on
     # NECR702 (Chrysomela vigintipunctata, Smaragdina salicina).
-    if status.threat_iucn_2001 and \
-            (status.threat_iucn_2001.value or "").strip().upper() == "NA":
+    if status.threat_iucn_2001 and _ks.is_not_applicable(status.threat_iucn_2001.value):
         return KeySpeciesTier.NONE
 
     is_rare = is_scarce = is_priority = False
@@ -988,9 +1011,10 @@ def notable_status(status):
     Red List status is NA: the same two gates as _classify (the Key rule)."""
     if status is None or not status.is_invertebrate:
         return None
-    red = (status.threat_iucn_2001.value or "").strip().upper() if status.threat_iucn_2001 else ""
-    if red == "NA":
+    raw_red = status.threat_iucn_2001.value if status.threat_iucn_2001 else ""
+    if _ks.is_not_applicable(raw_red):
         return None
+    red = (raw_red or "").strip().upper()
     held = set()
     if red in NOTABLE_RED_LIST:
         held.add(red)

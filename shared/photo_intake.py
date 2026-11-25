@@ -16,6 +16,7 @@ from shared import bench_photos, osgb
 from shared import photo_files as pf
 from shared import photo_links as pl
 from shared.photo_names import field_photo_stem
+from shared.vc_rule import vc_fields
 
 _EXIF_IFD, _GPS_IFD = 0x8769, 0x8825
 
@@ -139,9 +140,10 @@ def _stem(species: dict, iso_date: str) -> str:
 
 
 def make_rows(conn, job_id: int, groups: List[List[dict]], species: dict, defaults: Optional[dict] = None,
-              failures: Optional[list] = None) -> List[int]:
-    """One staging row per group, its photos attached (moved to Photos/_Bench). Returns the row
-    ids. A photo that cannot be moved stays where it is and is added to `failures` as
+              failures: Optional[list] = None, vc_service=None) -> List[int]:
+    """One staging row per group, its photos attached (moved to Photos/_Bench). The row's VC
+    comes from its grid ref by the suite's one rule (shared/vc_rule.py) when vc_service is
+    given; the commit works it out again. Returns the row ids. A photo that cannot be moved stays where it is and is added to `failures` as
     (path, reason)."""
     from DataEntry import staging_repo as repo
     defaults = defaults or {}
@@ -160,6 +162,8 @@ def make_rows(conn, job_id: int, groups: List[List[dict]], species: dict, defaul
             "recorder": defaults.get("recorder") or None, "determiner": defaults.get("determiner") or None,
             "site_name": defaults.get("site_name") or None,
         }
+        if data["grid_ref"]:
+            data.update(vc_fields(vc_service, data["grid_ref"]))
         rid = repo.insert_row(conn, job_id, {k: v for k, v in data.items() if v is not None})
         ids.append(rid)
         stem = _stem(species, iso)

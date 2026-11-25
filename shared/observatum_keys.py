@@ -14,6 +14,33 @@ from typing import Optional
 
 WIDTH = 6
 
+# The QSettings key the initials are saved under (Observatum > Settings > General). One home:
+# Observatum's Settings.USER_INITIALS is this.
+INITIALS_SETTING = "general/user_initials"
+
+
+class MissingInitials(ValueError):
+    """No user initials are set, so no Observatum key can be made."""
+
+
+MISSING_INITIALS_MESSAGE = (
+    "Your initials are not set, so Observatum cannot make record keys (OBS-<initials>-...). "
+    "Open Observatum > Settings > General, type your initials (e.g. WJH) and try again. "
+    "Nothing has been written.")
+
+
+def user_initials(settings=None) -> str:
+    """The user's initials from QSettings, upper case. Raises MissingInitials when blank:
+    keys must never be made with a stand-in like 'USR' (703 records got it, 10 Nov 2026).
+    settings: a QSettings-like object (tests); default is the application's QSettings."""
+    if settings is None:
+        from PySide6.QtCore import QSettings
+        settings = QSettings()
+    initials = str(settings.value(INITIALS_SETTING, "") or "").strip().upper()
+    if not initials:
+        raise MissingInitials(MISSING_INITIALS_MESSAGE)
+    return initials
+
 
 def prefix_for(initials: str, when: Optional[datetime] = None) -> str:
     return f"OBS-{initials}-{(when or datetime.now()):%Y%m%d}-"
@@ -38,4 +65,4 @@ def make_key(prefix: str, seq: int) -> str:
     return f"{prefix}{seq:0{WIDTH}d}"
 
 
-__all__ = ["WIDTH", "prefix_for", "last_sequence", "make_key"]
+__all__ = ["INITIALS_SETTING", "MissingInitials", "MISSING_INITIALS_MESSAGE", "user_initials", "WIDTH", "prefix_for", "last_sequence", "make_key"]

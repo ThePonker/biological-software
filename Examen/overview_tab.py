@@ -198,6 +198,11 @@ class OverviewTab(QWidget):
             "Species analysed: those Pantheon holds (ecology or a published score, through "
             "the TVK bridge), plus any Pantheon lacks that carry a score derived from current "
             "status. The SQI divides by this figure.")
+        from Examen.workbook_export import zero_sqs_text
+        zero = zero_sqs_text(result, detail)
+        if zero:
+            self.pantheon_label.setToolTip(self.pantheon_label.toolTip()
+                                           + "\n\nSet to SQS 0 (not native): " + zero)
 
         # Saproxylic SQI and IEC (backlog E7): figures and thresholds side by side, no verdict
         try:

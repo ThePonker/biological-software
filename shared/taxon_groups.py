@@ -368,8 +368,8 @@ def group_filter_sql(labels: Sequence[str], known: Iterable[str] = (), **cols) -
 
 # ------------------------------------------------------------------ UKSI
 def taxonomy_for_tvks(tvks: Iterable[str], uksi_path=None) -> Dict[str, dict]:
-    """{tvk: {taxon_group, kingdom, taxon_rank, superfamily, taxonomic_sort_key, order_name,
-    family}} from the current UKSI, for every TVK found there (others are left out).
+    """{tvk: {taxon_group, kingdom, taxon_rank, superfamily, subfamily, taxonomic_sort_key,
+    order_name, family}} from the current UKSI, for every TVK found there (others are left out).
 
     The sort key and superfamily come from shared.import_core.taxonomy_for_tvks -- the
     formula the import wizards use -- so a record committed here sorts like an imported one.
@@ -400,6 +400,7 @@ def taxonomy_for_tvks(tvks: Iterable[str], uksi_path=None) -> Dict[str, dict]:
                     "kingdom": kingdom or None,
                     "taxon_rank": rank or None,
                     "superfamily": b.get("superfamily") or None,
+                    "subfamily": b.get("subfamily") or None,
                     "taxonomic_sort_key": b.get("sort_key"),
                     "order_name": order or None,
                     "family": family or None,

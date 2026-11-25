@@ -43,8 +43,14 @@ CAT_COLOURS = {
 
 
 def status_colour(value: str) -> str:
-    """Get a colour for a status value."""
-    return CAT_COLOURS.get(value.upper(), TEXT_SECONDARY)
+    """Get a colour for a status value. Exact spelling first: Notable A ("Na") is not the
+    threat category NA, though they upper-case alike."""
+    v = (value or "").strip()
+    if v in CAT_COLOURS:
+        return CAT_COLOURS[v]
+    if v.upper() == "NA":            # "Na" (Notable A), or a mis-spelt NA: never NA's grey
+        return TEXT_SECONDARY
+    return CAT_COLOURS.get(v.upper(), TEXT_SECONDARY)
 
 
 def format_date(date_str: str) -> str:

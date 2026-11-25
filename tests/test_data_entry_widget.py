@@ -143,6 +143,8 @@ def test_failed_backup_asks_before_discard(widget, monkeypatch):
 
 def test_part_failed_commit_says_how_many_and_refreshes(widget, monkeypatch):
     from DataEntry import entry_grid, grid_exits_mixin
+    import shared.observatum_keys as ok            # keys need initials (R4 C): the user has set them
+    monkeypatch.setattr(ok, "user_initials", lambda settings=None: "TST")
     conn = widget._conn
     cid = repo.create_job(conn, "Glory Park", "Commercial", "BAM", "Glory Park")
     repo.insert_row(conn, cid, ROW)

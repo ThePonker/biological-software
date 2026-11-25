@@ -14,6 +14,7 @@ from PySide6.QtCore import Qt, QTimer
 
 from . import theme
 from shared.text_sizes import font_css
+from shared.key_species_rule import code_label
 
 
 # ============================================================
@@ -583,7 +584,7 @@ class SpeciesTab(QWidget):
         # with a small detail line beneath
         if value:
             colour = theme.status_colour(value)
-            text = value
+            text = code_label(value)        # "Na (Notable A)" / "NA (not applicable)"
             val_lbl = QLabel(f"  {text}  ")
             val_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
             val_lbl.setMinimumWidth(60)

@@ -14,6 +14,11 @@ are dropped.
 
 Never writes to the workbook. Never writes to `observations` — staging only.
 Undo is deleting the job's staging rows.
+
+Writing goes through DataEntry's staging repository (repo.create_job / repo.insert_row), after
+a backup of observatum.db (shared/backup_service). A Qty is stored as the grid stores it
+(commit_service.qty_as_typed: 'c.20' stays as typed and the row stays in staging; 3.0 is 3).
+The VC comes from the grid ref by the suite's one rule (shared/vc_rule.py).
 """
 from __future__ import annotations
 
@@ -27,6 +32,7 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, _ROOT)
 sys.path.insert(0, os.path.join(_ROOT, "Observatum"))
 import paths  # noqa: E402
+from shared.vc_rule import vc_for_grid_ref  # noqa: E402
 
 HEADER_ROW = 4
 FIRST_DATA_ROW = 5
@@ -91,6 +97,7 @@ def normalise_date(value):
 
 
 def as_int(value):
+    """A whole number from a cell, else None (the VC cell; a Qty uses qty_as_typed)."""
     try:
         return int(str(value).strip())
     except (TypeError, ValueError):
@@ -146,17 +153,14 @@ def resolve_vc(service, grid_ref):
     key = str(grid_ref).strip().upper().replace(" ", "")
     if key in _VC_CACHE:
         return _VC_CACHE[key]
-    try:
-        got = service.get_vc_from_grid_ref(key)
-        out = (got[0], got[1]) if got else (None, None)
-    except Exception:
-        out = (None, None)
+    out = vc_for_grid_ref(service, key) or (None, None)       # the one rule: shared/vc_rule.py
     _VC_CACHE[key] = out
     return out
 
 
 def build_records(body, index, vc_service=None):
-    records, blanks, no_tvk, bad_dates, vc_ok, junk = [], 0, 0, [], 0, []
+    records, blanks, no_tvk, bad_dates, vc_ok, junk, vc_unplaced = [], 0, 0, [], 0, [], 0
+    from DataEntry.commit_service import qty_as_typed
     for order, row in enumerate(body, start=1):
         def cell(col):
             pos = index.get(col)
@@ -183,7 +187,7 @@ def build_records(body, index, vc_service=None):
         if not ok:
             bad_dates.append((order, iso))
 
-        rec["quantity"] = as_int(rec.get("quantity"))
+        rec["quantity"] = qty_as_typed(rec.get("quantity"))    # as the grid stores it (DE9)
         rec["vc_number"] = as_int(rec.get("vice_county"))
         if rec["vc_number"] is not None:
             rec["vice_county"] = str(rec["vice_county"]).strip()
@@ -193,6 +197,9 @@ def build_records(body, index, vc_service=None):
             rec["vc_number"] = num
             rec["vice_county"] = name or rec.get("vice_county")
             vc_ok += 1
+        elif vc_service and rec.get("grid_ref"):
+            rec["vc_number"] = rec["vice_county"] = None     # the ref is the authority; it cannot be placed
+            vc_unplaced += 1
 
         tvk = rec.get("species_tvk")
         if tvk is not None and str(tvk).strip().lower() in JUNK_TVKS:
@@ -204,7 +211,7 @@ def build_records(body, index, vc_service=None):
         records.append(rec)
 
     return records, {"blanks": blanks, "no_tvk": no_tvk, "bad_dates": bad_dates, "vc_ok": vc_ok,
-                     "junk_tvks": junk}
+                     "vc_unplaced": vc_unplaced, "junk_tvks": junk}
 
 
 def find_mismatches(records, uksi_path=None):
@@ -226,27 +233,22 @@ def find_mismatches(records, uksi_path=None):
 
 
 def insert(conn, job_name, mode, records, source_file):
+    """One job and its rows, through DataEntry's staging repository, in ONE transaction: a
+    failure part-way leaves nothing behind. Returns the job id."""
+    from DataEntry import staging_repo as repo
+    repo.ensure_schema(conn)
     now = datetime.now().isoformat(timespec="seconds")
-    cur = conn.execute(
-        "INSERT INTO entry_jobs (name, mode, status, notes, created_at, updated_at) "
-        "VALUES (?, ?, ?, ?, ?, ?)",
-        (job_name, mode, "active",
-         f"Loaded from {source_file} on {now}", now, now),
-    )
-    job_id = cur.lastrowid
-
-    cols = ["job_id", "row_order"] + list(COLUMN_MAP.values()) + \
-           ["vc_number", "created_at", "updated_at"]
-    placeholders = ",".join("?" for _ in cols)
-    sql = f"INSERT INTO entry_staging ({','.join(cols)}) VALUES ({placeholders})"
-
-    for rec in records:
-        values = [job_id, rec.get("row_order")]
-        values += [rec.get(c) for c in COLUMN_MAP.values()]
-        values += [rec.get("vc_number"), now, now]
-        conn.execute(sql, values)
-
-    conn.commit()
+    try:
+        job_id = repo.create_job(conn, job_name, mode, commit=False)
+        repo.update_job(conn, job_id, commit=False, notes=f"Loaded from {source_file} on {now}")
+        for rec in records:            # spacer rows hold only their place in the order
+            data = {c: rec.get(c) for c in list(COLUMN_MAP.values()) + ["vc_number"]
+                    if rec.get(c) is not None}
+            repo.insert_row(conn, job_id, data, commit=False)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     return job_id
 
 
@@ -257,6 +259,7 @@ def main():
     ap.add_argument("--mode", default="Commercial", help="Job mode (default: Commercial).")
     ap.add_argument("--name", default=None, help="Job name (default: workbook filename).")
     ap.add_argument("--dry-run", action="store_true", help="Report only; insert nothing.")
+    ap.add_argument("--db", default=None, help=argparse.SUPPRESS)       # tests: a copy
     ap.add_argument("--allow-mismatch", action="store_true",
                     help="Load even when a row's Species is not the name of its TVK.")
     args = ap.parse_args()
@@ -288,6 +291,9 @@ def main():
         print(f"  placeholder TVKs rejected (loaded as no TVK): {len(stats['junk_tvks'])} "
               f"(row, value: {stats['junk_tvks'][:5]})")
     print(f"  VC derived {stats['vc_ok']} of {real}")
+    if stats["vc_unplaced"]:
+        print(f"  grid ref the VC service cannot place: {stats['vc_unplaced']} (VC left empty; "
+              "the commit will hold them back until the grid ref is fixed)")
     if meta["missing"]:
         print(f"  columns not found: {', '.join(meta['missing'])}")
     if stats["bad_dates"]:
@@ -319,9 +325,18 @@ def main():
             + "\n  Nothing has been written.")
 
     job_name = args.name or os.path.splitext(os.path.basename(path))[0]
-    conn = sqlite3.connect(str(paths.OBSERVATUM_DB))
-    job_id = insert(conn, job_name, args.mode, records, os.path.basename(path))
-    conn.close()
+    db_path = args.db or str(paths.OBSERVATUM_DB)
+    from shared.away_mode import refuse_if_away
+    refuse_if_away("load_workbook_to_staging")
+    from shared.backup_service import backup_file_written
+    if not backup_file_written(db_path, "pre-workbook-load"):
+        raise SystemExit("\n  The backup of observatum.db failed, so nothing was written.")
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        job_id = insert(conn, job_name, args.mode, records, os.path.basename(path))
+    finally:
+        conn.close()
     print(f"\n  created job {job_id}: {job_name!r} ({args.mode})")
     print(f"  undo: DELETE FROM entry_staging WHERE job_id={job_id}; "
           f"DELETE FROM entry_jobs WHERE id={job_id};\n")

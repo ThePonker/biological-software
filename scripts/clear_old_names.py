@@ -10,7 +10,7 @@ current TVK that holds a modern status (threat_iucn_2001 / rarity_modern), the
 old name's status is a leftover duplicate -- the newer review assessed the
 species under its current name.
 
-Run:  python scripts\\check_old_names.py
+Run:  python scripts\\clear_old_names.py
 """
 import os, sqlite3, sys
 from datetime import datetime

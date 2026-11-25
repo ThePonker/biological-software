@@ -4,6 +4,7 @@ records that came from iRecord (OBS-12), and an edited grid ref re-derives VC an
 lat/long (OBS-03). Driven offscreen on small throwaway databases.
 """
 import os
+import contextlib
 import sqlite3
 
 import pytest
@@ -83,11 +84,21 @@ class _FakeDB:
         conn.commit()
         conn.close()
 
+    @contextlib.contextmanager
+    def main_connection(self):
+        conn = sqlite3.connect(self.path)
+        try:
+            yield conn
+        finally:
+            conn.close()
+
 
 def _make_obs_db(path):
     conn = sqlite3.connect(path)
     conn.execute("CREATE TABLE observations (id INTEGER PRIMARY KEY, species_name TEXT, "
                  "date TEXT, site_name TEXT, grid_ref TEXT, record_type TEXT)")
+    conn.execute("CREATE TABLE specimens (id INTEGER PRIMARY KEY, specimen_code TEXT, "
+                 "species_name TEXT, observation_id INTEGER)")
     conn.executemany("INSERT INTO observations (id, species_name, date, site_name, grid_ref) "
                      "VALUES (:id, :species_name, :date, :site_name, :grid_ref)", RECORDS)
     conn.commit()

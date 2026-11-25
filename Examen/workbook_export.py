@@ -46,7 +46,9 @@ The workbook computes Key / Rare Key here, in the report layer, following
 Telfer exactly, and leaves Codex's tiers untouched.
 
     Key Species      = RDB (v1); CR/EN/VU/NT/DD (v2); NR/NS (v3); plus SPI
-    Rare Key Species = RDB (v1); CR/EN/VU/DD (v2); NR (v3)
+    Rare Key Species = RDB (v1); CR/EN/VU/DD (v2); NR (v3); and CR/EN/VU/DD/NT on
+                       the legacy threat track (1994 IUCN criteria: Falk & Chandler
+                       2005, Falk & Crossley 2005) -- shared/key_species_rule.py
 
 Species accounts
 ----------------
@@ -236,6 +238,7 @@ def _sqi_cell(s):
 from shared.key_species_rule import (  # noqa: E402
     ALL_CODES as _ALL_CODES,
     axis_tier as _shared_axis_tier,
+    is_not_applicable as _is_not_applicable,
     norm as _norm,
 )
 
@@ -243,7 +246,8 @@ def telfer_tier(entry):
     """'rare' | 'scarce' | '' for a KeySpeciesEntry, per Telfer (2023).
 
     Rare Key Species: Red Data Book (v1); Threatened and Data Deficient (v2);
-    Nationally Rare (v3).
+    Nationally Rare (v3); and, on the legacy threat track, the 1994-criteria CR,
+    EN, VU, DD and NT of the Falk 2005 fly reviews (NT = 15 or fewer hectads).
     Scarce Key Species: Near Threatened (v2); Nationally Scarce / Notable (v3
     and v1). Priority Species are Key but not Rare Key.
     """
@@ -260,7 +264,7 @@ def telfer_tier(entry):
 def _is_not_native(entry):
     # NA -- not an established native -- is never Key, whatever its rarity.
     # Mirrors CodexRepository._classify; see patch_na_not_key.py.
-    return _norm(getattr(entry, "threat", "")) == "NA"
+    return _is_not_applicable(getattr(entry, "threat", ""))
 
 
 def _axis_tier(entry):
@@ -304,18 +308,10 @@ def status_string(entry):
 
 
 def _short_jurisdiction(value):
-    v = (value or "").lower()
-    if "s.41" in v or "s41" in v or "section 41" in v:
-        return "S41"
-    if "wales" in v or "s7" in v:
-        return "Wales S7"
-    if "scottish" in v:
-        return "SBL"
-    if "northern ireland" in v or v.startswith("ni "):
-        return "NI Priority"
-    if "bap" in v:
-        return "UK BAP"
-    return value or ""
+    """Appendix label for a priority listing -- CodexRepository's one function, so a
+    research-only S41 or BAP listing is labelled as such."""
+    from shared.repositories.codex_repository import _priority_label
+    return _priority_label(value)
 
 
 # ---- jurisdiction-aware status cells --------------------------------------
@@ -1388,6 +1384,26 @@ def _not_counted_line(result):
              f"1 non-invertebrate taxon recorded incidentally is not counted: {names}.")]
 
 
+def zero_sqs_text(result, detail):
+    """Species the native rule set to SQS 0, grouped by reason, or '' when none.
+    "<reason>: A, B. <reason>: C." -- shared/sqs_derivation.zero_reason."""
+    why = getattr(result, "zero_sqs_reasons", None) or {}
+    if not why:
+        return ""
+    nm = {s.tvk: s.name for s in (getattr(detail, "species_list", None) or []) if s.tvk}
+    groups = {}
+    for tvk, reason in why.items():
+        groups.setdefault(reason, []).append(nm.get(tvk, tvk))
+    return " ".join(f"{reason}: {', '.join(sorted(names, key=str.lower))}."
+                    for reason, names in sorted(groups.items()))
+
+
+def _zero_sqs_line(result, detail):
+    """[("SQS set to 0", text)] for the basis block when the native rule applied, else []."""
+    text = zero_sqs_text(result, detail)
+    return [("SQS set to 0 (not native)", text)] if text else []
+
+
 def export_workbook(result, detail, project, path,
                     jurisdiction="England", sqs_basis="Pantheon published",
                     pooled_years=False):
@@ -1429,6 +1445,7 @@ def export_workbook(result, detail, project, path,
         ] + _not_counted_line(result) + [
             ("Analysis mode", mode_label(getattr(result, "mode", ""))),
             ("SQS basis", sqs_basis),
+        ] + _zero_sqs_line(result, detail) + [
             ("Jurisdiction", jurisdiction),
         ] + _codex_provenance() + [
             ("Survey validity", CIEEM_VALIDITY),

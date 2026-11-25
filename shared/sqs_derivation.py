@@ -29,6 +29,17 @@ rarity and threat, which is why a single rarity category maps to several scores:
 
 Note there is no score of 2 in the published rule.
 
+Native rule (Wil, 24 November 2026, "option A")
+-----------------------------------------------
+Pantheon's 0 means "not native". Codex applies it to species Pantheon has not
+scored, from two signals (zero_reason below):
+  * JNCC threat_iucn_2001 is NA ("not applicable": not an established native); or
+  * Pantheon publishes SQS 0 for the species (through the TVK bridge) AND JNCC
+    holds no 2001 assessment of its own (no value, or NE).
+Any other JNCC assessment keeps the derived score. A 0 is never stored (see
+CodexRepository._derive_sqs_batch), so such a species has no score and, if
+Pantheon does not hold it, is not analysed.
+
 Codex tracks used
 -----------------
 Only rarity and threat contribute. BoCC, Section 41 / priority, legal protection
@@ -43,6 +54,8 @@ rarity or threat, and take no part in the score.
 from __future__ import annotations
 
 from typing import Dict, Optional
+
+from shared.key_species_rule import is_not_applicable, is_notable_a
 
 # --- vocabulary ------------------------------------------------------------
 
@@ -86,12 +99,32 @@ _RDB_EXTINCT = {"RDB APP", "RDBAPP", "EXTINCT"}
 
 _RARE = {"NR", "NATIONALLY RARE"}
 _SCARCE = {"NS", "NATIONALLY SCARCE"}
-_NOTABLE = {"NA", "NB", "NOTABLE",
+# Notable A is matched on the rarity value only (is_notable_a); upper-cased it would read as
+# the threat category NA (Not Applicable). See shared/key_species_rule.py.
+_NOTABLE = {"NB", "NOTABLE",
             "NATIONALLY NOTABLE A", "NATIONALLY NOTABLE B", "NATIONALLY NOTABLE"}
 
 
 def _norm(v: Optional[str]) -> str:
     return (v or "").strip().upper()
+
+
+REASON_NA = "JNCC: not applicable (NA)"
+REASON_PANTHEON_ZERO = "Pantheon: not native; no JNCC assessment"
+
+
+def zero_reason(threat: Optional[str], pantheon_zero: bool = False) -> str:
+    """Why a species scores 0 under the native rule, or '' when it does not.
+
+    threat         threat_iucn_2001 value ('' / None when JNCC has none)
+    pantheon_zero  Pantheon publishes SQS 0 for the species (bridge, J2)
+    """
+    t = _norm(threat)
+    if is_not_applicable(threat):
+        return REASON_NA
+    if pantheon_zero and t in ("", "NE"):
+        return REASON_PANTHEON_ZERO
+    return ""
 
 
 def derive_sqs(rarity: Optional[str] = None,
@@ -119,7 +152,7 @@ def derive_sqs(rarity: Optional[str] = None,
     # through r in _RARE.
     is_rare = r in _RARE or rdb_confers_rare
     is_scarce = r in _SCARCE
-    is_notable = r in _NOTABLE
+    is_notable = r in _NOTABLE or is_notable_a(rarity)
     listed = is_rare or is_scarce or is_notable or iucn_confers_listing
 
     # 32 -- the top of the ladder, for rare or scarce species at the extreme end
@@ -159,13 +192,19 @@ def derive_sqs(rarity: Optional[str] = None,
     return 1
 
 
-def derive_from_tracks(tracks: Dict[str, str], native: bool = True) -> int:
+def derive_from_tracks(tracks: Dict[str, str], native: bool = True,
+                       pantheon_zero: bool = False) -> int:
     """Convenience wrapper taking a {track_name: value} dict from Codex.
+
+    Applies the native rule (zero_reason) before the ladder: 0 for an NA species,
+    or for one Pantheon scores 0 that JNCC has not assessed.
 
     Prefers the modern rarity track over the legacy one, and the 2001 IUCN
     track over the legacy RDB track, matching CodexRepository's own precedence.
     """
     rarity = tracks.get("rarity_modern") or tracks.get("rarity_legacy")
+    if zero_reason(tracks.get("threat_iucn_2001"), pantheon_zero):
+        native = False
     return derive_sqs(
         rarity=rarity,
         threat=tracks.get("threat_iucn_2001"),

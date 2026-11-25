@@ -33,6 +33,7 @@ STATUS_NAMES = {
     "NR": "Nationally Rare",
     "NS": "Nationally Scarce",
     "Na": "Notable A",
+    "NA": "Not applicable (not native)",   # IUCN threat category; never Notable A
     "Nb": "Notable B",
     "Notable": "Notable",
     "Priority": "Priority species",

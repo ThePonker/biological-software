@@ -43,6 +43,8 @@ def quiet(monkeypatch):
     monkeypatch.setattr(QMessageBox, "critical", staticmethod(lambda *a, **k: pytest.fail(str(a[2:]))))
     import shared.backup_service as bs
     monkeypatch.setattr(bs, "backup_main_only", lambda *a, **k: True)
+    import shared.observatum_keys as ok            # keys need initials (R4 C): the user has set them
+    monkeypatch.setattr(ok, "user_initials", lambda settings=None: "TST")
 
 
 class MemDB:

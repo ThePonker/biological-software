@@ -10,6 +10,7 @@ repository.
 """
 from typing import Dict, List, Optional
 
+from shared.key_species_rule import code_label
 from shared.repositories.codex_repository import _priority_label
 from shared.species_search import get_index, rank_group
 
@@ -62,7 +63,7 @@ def status_codes(status) -> List[str]:
     for track in _SINGLE:
         entry = getattr(status, track, None)
         if entry is not None and entry.value:
-            codes.append(_LABEL.get(track, "") + entry.value)
+            codes.append(_LABEL.get(track, "") + code_label(entry.value))
     for entry in status.priority:
         codes.append(_priority_label(entry.value))
     if status.legal_protection:

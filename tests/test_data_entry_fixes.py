@@ -149,7 +149,7 @@ def test_commit_writes_taxonomy_superfamily_and_sort_key(staging):
     extra = model.extras[0]
     assert (extra["superfamily"], extra["taxonomic_sort_key"]) == ("Apoidea", 26000001)
     assert set(extra) == {"sub_location", "trap_number", "visit_number", "import_notes",
-                          "superfamily", "taxonomic_sort_key"}
+                          "superfamily", "subfamily", "taxonomic_sort_key"}
 
 
 def test_commit_part_failure_reports_what_was_written(staging):
